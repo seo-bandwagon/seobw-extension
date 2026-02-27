@@ -65,7 +65,7 @@ function renderResults(data) {
     </div>
     
     <!-- Issues Section -->
-    <div class="section open" data-section="issues">
+    <div class="section open" data-section="issues" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">Issues (${score.issues.length})</span>
         <span class="section-arrow">▼</span>
@@ -78,7 +78,7 @@ function renderResults(data) {
     </div>
     
     <!-- SERP Preview Section -->
-    <div class="section" data-section="serp">
+    <div class="section" data-section="serp" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">SERP Preview</span>
         <span class="section-arrow">▼</span>
@@ -101,7 +101,7 @@ function renderResults(data) {
     </div>
     
     <!-- Meta Tags Section -->
-    <div class="section" data-section="meta">
+    <div class="section" data-section="meta" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">Meta Tags</span>
         <span class="section-arrow">▼</span>
@@ -127,7 +127,7 @@ function renderResults(data) {
     </div>
     
     <!-- Headings Section -->
-    <div class="section" data-section="headings">
+    <div class="section" data-section="headings" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">Headings</span>
         <span class="section-arrow">▼</span>
@@ -150,7 +150,7 @@ function renderResults(data) {
     </div>
     
     <!-- Links Section -->
-    <div class="section" data-section="links">
+    <div class="section" data-section="links" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">Links & Images</span>
         <span class="section-arrow">▼</span>
@@ -180,7 +180,7 @@ function renderResults(data) {
     </div>
     
     <!-- Content Section -->
-    <div class="section" data-section="content">
+    <div class="section" data-section="content" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">Content Analysis</span>
         <span class="section-arrow">▼</span>
@@ -210,7 +210,7 @@ function renderResults(data) {
     </div>
     
     <!-- Technical Section -->
-    <div class="section" data-section="tech">
+    <div class="section" data-section="tech" onclick="this.classList.toggle('open')">
       <div class="section-header">
         <span class="section-title">Technical</span>
         <span class="section-arrow">▼</span>
@@ -252,10 +252,12 @@ function renderResults(data) {
   
   // Setup collapsible sections
   document.querySelectorAll('.section-header').forEach(header => {
-    header.addEventListener('click', () => {
-      header.parentElement.classList.toggle('open');
-    });
+    header.onclick = function() {
+      console.log('Section clicked:', this.parentElement.dataset.section);
+      this.parentElement.classList.toggle('open');
+    };
   });
+  console.log('Sections initialized:', document.querySelectorAll('.section-header').length);
   
   // Setup buttons
   document.getElementById('saveBtn').addEventListener('click', () => saveData(data));
