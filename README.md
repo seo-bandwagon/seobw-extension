@@ -1,80 +1,101 @@
-# SEO Bandwagon Browser Extension
+# SEO Bandwagon Chrome Extension
 
-Comprehensive SEO analysis tool. Capture page metrics, detect issues, and save to SEO Bandwagon.
-
-## Install (Developer Mode)
-
-1. Open Chrome → `chrome://extensions/`
-2. Enable "Developer mode" (top right toggle)
-3. Click "Load unpacked"
-4. Select: `~/.openclaw/workspace/projects/seo-bw-extension`
+Capture comprehensive SEO metrics from any webpage with one click. Works offline, syncs to seobandwagon.dev when connected.
 
 ## Features
 
-### Data Captured
-- **Content:** Word count, character count, sentences, readability scores, top words & phrases
-- **Meta:** Title, description, canonical, robots, Open Graph, Twitter Cards, Schema.org/JSON-LD
-- **Headings:** Full H1-H6 hierarchy with multiple-H1 detection
-- **Links:** Internal/external counts, URLs, domains, anchor text, nofollow
-- **Images:** Total count, missing alt text detection, alt text content
-- **Technical:** DOM size, scripts, stylesheets, load time, URL depth
+- **Content Analysis**: Word count, readability (Flesch-Kincaid), top words/phrases
+- **Meta Extraction**: Title, description, canonical, robots, Open Graph, Twitter Cards
+- **Schema Detection**: JSON-LD structured data parsing
+- **Heading Structure**: H1-H6 hierarchy with multiple H1 warnings
+- **Link Analysis**: Internal/external counts, nofollow detection, anchor text
+- **Image Audit**: Total images, missing alt text detection
+- **Technical**: DOM elements, scripts, stylesheets, load time, URL depth
+- **SEO Score**: 0-100 score with letter grade (A-F) based on best practices
+- **SERP Preview**: See how your page appears in Google results
 
-### Issue Detection
-Automatically flags:
-- Missing or malformed title/description
-- Multiple H1 tags
-- Images without alt text
-- Missing canonical URL
-- No structured data
-- Missing Open Graph tags
-- Large DOM size
+## Installation
 
-### UI Tabs
-- **Overview:** Quick stats + issues panel
-- **Meta:** Full meta tag details
-- **Content:** Readability, headings, keywords
-- **Links:** Link analysis + images
-- **Tech:** Performance metrics
+1. Clone or download this repo
+2. Open Chrome → `chrome://extensions/`
+3. Enable "Developer mode" (top right)
+4. Click "Load unpacked" → select this folder
+5. Pin the extension to your toolbar
 
-### Tools
-- **Save to API:** Send to api.seobandwagon.dev
-- **Copy JSON:** Copy full data to clipboard
-- **Export:** Download as JSON file
-- **Local Backup:** Auto-saves captures locally
-- **History:** View all local captures (`history.html`)
+## Usage
 
-### Keyboard Shortcut
-`Ctrl+Shift+S` (Mac: `Cmd+Shift+S`) — Analyze current page
+1. Navigate to any webpage
+2. Click the extension icon
+3. View metrics in collapsible sections
+4. Data auto-saves to local storage
 
-### Context Menu
-Right-click → "Analyze this page with SEO Bandwagon"
+### History
 
-## Settings
+Click "History" in the popup to see all captured pages:
+- Search by URL or title
+- Export URLs as .txt (for crawler seeding)
+- Clear individual or all captures
 
-Right-click extension icon → Options, or open `options.html`
+### Settings
 
-- **API Key:** Your seobw.dev API key
-- **API Endpoint:** Default `https://api.seobandwagon.dev`
-- **Auto-save:** Automatically save without clicking
-- **Notifications:** Show save confirmations
-- **Local backup:** Keep local copies of captures
+Click "Settings" to configure:
+- API Key (for syncing to seobandwagon.dev)
+- API sync is optional - extension works fully offline
 
-## API Endpoint
+## Local-First Architecture
 
-Backend: `POST https://api.seobandwagon.dev/v1/captures`
+All captures save to `chrome.storage.local` immediately. No network required.
 
-See `API_SPEC.md` for full payload specification.
+When API is configured:
+- New captures sync automatically
+- Bulk sync available from History page
+- Failed syncs retry on next capture
 
 ## Files
 
 ```
-├── manifest.json      # Extension config
-├── popup.html/js      # Main UI
-├── content.js         # Page analysis (injected)
+├── manifest.json      # Extension config (Manifest V3)
+├── popup.html         # Main popup UI
+├── popup.js           # Popup logic + accordions
+├── history.html       # Capture history page
+├── history.js         # History search/export
+├── settings.html      # API configuration
+├── settings.js        # Settings storage
+├── content.js         # Page analysis (runs on active tab)
 ├── background.js      # Service worker
-├── options.html/js    # Settings page
-├── history.html/js    # Local capture history
-├── icons/             # Extension icons
-├── API_SPEC.md        # API specification
-└── ROADMAP.md         # Project roadmap
+└── icons/             # Extension icons
 ```
+
+## SEO Score Calculation
+
+Score deductions:
+- Missing title: -15
+- Title too long (>60 chars): -5
+- Missing meta description: -10
+- Description too long (>160 chars): -5
+- Missing H1: -15
+- Multiple H1s: -10
+- Low word count (<300): -10
+- Missing canonical: -5
+- Missing Open Graph: -5
+- Images missing alt text: -5
+
+## API Endpoints
+
+When configured, syncs to:
+- `POST https://api.seobandwagon.dev/v1/captures` - Store capture
+- `GET https://api.seobandwagon.dev/v1/captures` - List captures
+
+## Development
+
+```bash
+# Clone
+git clone git@github.com:seo-bandwagon/seo-bw-extension.git
+cd seo-bw-extension
+
+# Make changes, then reload in chrome://extensions/
+```
+
+## License
+
+Private - SEO Bandwagon internal tool
