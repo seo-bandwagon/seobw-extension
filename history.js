@@ -53,6 +53,18 @@ document.getElementById('search').addEventListener('input', (e) => {
   renderCaptures(filtered);
 });
 
+// Export URLs only (for crawlers)
+document.getElementById('exportUrlsBtn').addEventListener('click', () => {
+  const urls = allCaptures.map(c => c.url).join('\n');
+  const blob = new Blob([urls], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `seo-urls-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
 // Export all
 document.getElementById('exportAllBtn').addEventListener('click', () => {
   const json = JSON.stringify(allCaptures, null, 2);
