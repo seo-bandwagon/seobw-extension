@@ -37,7 +37,7 @@ Automatically flags:
 - **Tech:** Performance metrics
 
 ### Tools
-- **Save to API:** Send to api.seobw.dev
+- **Save to API:** Send to api.seobandwagon.dev
 - **Copy JSON:** Copy full data to clipboard
 - **Export:** Download as JSON file
 - **Local Backup:** Auto-saves captures locally
@@ -54,14 +54,14 @@ Right-click → "Analyze this page with SEO Bandwagon"
 Right-click extension icon → Options, or open `options.html`
 
 - **API Key:** Your seobw.dev API key
-- **API Endpoint:** Default `https://api.seobw.dev`
+- **API Endpoint:** Default `https://api.seobandwagon.dev`
 - **Auto-save:** Automatically save without clicking
 - **Notifications:** Show save confirmations
 - **Local backup:** Keep local copies of captures
 
 ## API Endpoint
 
-Backend: `POST https://api.seobw.dev/v1/captures`
+Backend: `POST https://api.seobandwagon.dev/v1/captures`
 
 See `API_SPEC.md` for full payload specification.
 

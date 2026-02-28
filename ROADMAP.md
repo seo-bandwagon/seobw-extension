@@ -1,7 +1,7 @@
 # SEO Bandwagon Extension - Project Roadmap
 
 ## Overview
-Browser extension that captures comprehensive SEO data from any webpage and saves to api.seobw.dev.
+Browser extension that captures comprehensive SEO data from any webpage and saves to api.seobandwagon.dev.
 
 ---
 

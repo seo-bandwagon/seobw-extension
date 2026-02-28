@@ -3,7 +3,7 @@
 ## Endpoint
 
 ```
-POST https://api.seobw.dev/v1/captures
+POST https://api.seobandwagon.dev/v1/captures
 ```
 
 ## Authentication

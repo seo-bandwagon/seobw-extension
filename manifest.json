@@ -10,7 +10,7 @@
   ],
   "options_page": "options.html",
   "host_permissions": [
-    "https://api.seobw.dev/*"
+    "https://api.seobandwagon.dev/*"
   ],
   "action": {
     "default_popup": "popup.html",

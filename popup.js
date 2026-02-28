@@ -306,7 +306,7 @@ async function saveData(data) {
   const settings = await new Promise(resolve => {
     chrome.storage.sync.get({
       apiKey: '',
-      apiUrl: 'https://api.seobw.dev',
+      apiUrl: 'https://api.seobandwagon.dev',
       localBackup: true
     }, resolve);
   });
