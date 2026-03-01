@@ -4,8 +4,7 @@ let counterEl = null; // For character counter
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyze') {
-    const analysis = analyzePage();
-    sendResponse(analysis);
+    analyzePage().then(results => sendResponse(results));
   } else if (request.action === 'highlight') {
     highlightElement(request.type);
     sendResponse({ success: true });
@@ -13,7 +12,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
-function analyzePage() {
+async function analyzePage() {
+  const webVitalsPromise = analyzeWebVitals();
   const mainContent = getMainContent();
   const text = cleanText(mainContent);
   const words = getWords(text);
@@ -48,7 +48,23 @@ function analyzePage() {
     links,
     images,
     technical,
-    techStack
+    techStack,
+    // Advanced analyzers (v1.1.0)
+    webVitals: await webVitalsPromise,
+    performance: analyzePerformance(),
+    textToHtml: analyzeTextToHtml(),
+    aboveFold: analyzeAboveFold(),
+    hreflang: analyzeHreflang(),
+    schemaValidation: analyzeSchemaValidation(),
+    lazyImages: analyzeLazyImages(),
+    mixedContent: analyzeMixedContent(),
+    iframes: analyzeIframes(),
+    socialCards: analyzeSocialCards(),
+    faviconAndFeeds: analyzeFaviconAndFeeds(),
+    mediaTypes: analyzeMediaTypes(),
+    keywordDensity: analyzeKeywordDensity(),
+    tocNavigation: analyzeTocNavigation(),
+    ngrams: analyzeNgrams()
   };
 }
 
@@ -695,4 +711,547 @@ function getTopPhrases(words) {
     .filter(p => p.count > 1)
     .sort((a, b) => b.count - a.count)
     .slice(0, 30);
+}
+
+
+// ============================================
+// Advanced Analyzers (ported from v0.3.0)
+// ============================================
+
+function analyzeWebVitals() {
+  return new Promise((resolve) => {
+    const vitals = { lcp: null, cls: null, inp: null, fcp: null, ttfb: null };
+    let clsValue = 0;
+    let inpValue = 0;
+    let resolved = false;
+
+    function finish() {
+      if (resolved) return;
+      resolved = true;
+      vitals.cls = +clsValue.toFixed(4);
+      vitals.inp = inpValue || null;
+      resolve(vitals);
+    }
+
+    // TTFB
+    try {
+      const nav = performance.getEntriesByType('navigation')[0];
+      if (nav) {
+        vitals.ttfb = Math.round(nav.responseStart - nav.requestStart);
+      }
+    } catch (e) {}
+
+    // FCP
+    try {
+      const fcpEntry = performance.getEntriesByName('first-contentful-paint')[0];
+      if (fcpEntry) {
+        vitals.fcp = Math.round(fcpEntry.startTime);
+      }
+    } catch (e) {}
+
+    // LCP
+    try {
+      const lcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        if (entries.length > 0) {
+          const last = entries[entries.length - 1];
+          vitals.lcp = Math.round(last.startTime);
+        }
+      });
+      lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+    } catch (e) {}
+
+    // CLS
+    try {
+      const clsObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (!entry.hadRecentInput) {
+            clsValue += entry.value;
+          }
+        }
+      });
+      clsObserver.observe({ type: 'layout-shift', buffered: true });
+    } catch (e) {}
+
+    // INP (interaction to next paint)
+    try {
+      const inpObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const duration = entry.duration || 0;
+          if (duration > inpValue) {
+            inpValue = duration;
+          }
+        }
+      });
+      inpObserver.observe({ type: 'event', buffered: true });
+    } catch (e) {}
+
+    // Resolve after 2 seconds to capture buffered entries
+    setTimeout(finish, 2000);
+  });
+}
+
+function analyzePerformance() {
+  const results = {
+    loadTime: null,
+    domContentLoaded: null,
+    domSize: 0,
+    resourceCounts: { scripts: 0, stylesheets: 0, fonts: 0, images: 0, total: 0 },
+    totalTransferSize: 0,
+  };
+
+  // Load timing
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    if (nav) {
+      results.loadTime = Math.round(nav.loadEventEnd - nav.startTime);
+      results.domContentLoaded = Math.round(nav.domContentLoadedEventEnd - nav.startTime);
+    }
+  } catch (e) {}
+
+  // DOM size
+  results.domSize = document.querySelectorAll('*').length;
+
+  // Resource counts
+  try {
+    const resources = performance.getEntriesByType('resource');
+    results.resourceCounts.total = resources.length;
+    for (const r of resources) {
+      const type = r.initiatorType;
+      if (type === 'script') results.resourceCounts.scripts++;
+      else if (type === 'link' || type === 'css') results.resourceCounts.stylesheets++;
+      else if (type === 'img') results.resourceCounts.images++;
+      else if (r.name.match(/\.(woff2?|ttf|otf|eot)(\?|$)/i)) results.resourceCounts.fonts++;
+
+      if (r.transferSize) results.totalTransferSize += r.transferSize;
+    }
+  } catch (e) {}
+
+  return results;
+}
+
+function analyzeTextToHtml() {
+  const htmlSize = document.documentElement.outerHTML.length;
+  const bodyClone = document.body.cloneNode(true);
+  bodyClone.querySelectorAll('script, style, noscript, svg, [hidden], [aria-hidden="true"]').forEach(el => el.remove());
+  const textSize = (bodyClone.textContent || '').replace(/\s+/g, ' ').trim().length;
+  const ratio = htmlSize > 0 ? +(textSize / htmlSize * 100).toFixed(1) : 0;
+
+  return {
+    textSize,
+    htmlSize,
+    ratio,
+    status: ratio >= 25 ? 'good' : ratio >= 10 ? 'fair' : 'poor',
+  };
+}
+
+function analyzeAboveFold() {
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+  let textElements = 0;
+  let totalElements = 0;
+  let textLength = 0;
+  let imageCount = 0;
+  let ctaCount = 0;
+
+  const allElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, span, a, button, img, input, textarea');
+  allElements.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < viewportHeight && rect.bottom > 0 && rect.left < viewportWidth && rect.right > 0) {
+      totalElements++;
+      const tag = el.tagName.toLowerCase();
+      if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'span'].includes(tag)) {
+        textElements++;
+        textLength += (el.textContent || '').trim().length;
+      }
+      if (tag === 'img') imageCount++;
+      if (tag === 'button' || tag === 'input' || (tag === 'a' && el.classList.length > 0)) ctaCount++;
+    }
+  });
+
+  return {
+    viewportHeight,
+    viewportWidth,
+    totalElements,
+    textElements,
+    textLength,
+    imageCount,
+    ctaCount,
+  };
+}
+
+function analyzeHreflang() {
+  const tags = document.querySelectorAll('link[rel="alternate"][hreflang]');
+  const entries = [];
+  tags.forEach(tag => {
+    entries.push({
+      lang: tag.getAttribute('hreflang'),
+      href: tag.getAttribute('href'),
+    });
+  });
+
+  const issues = [];
+  if (entries.length > 0) {
+    const hasXDefault = entries.some(e => e.lang === 'x-default');
+    if (!hasXDefault) issues.push('Missing x-default hreflang');
+
+    const currentUrl = window.location.href;
+    const hasSelfRef = entries.some(e => {
+      try { return new URL(e.href, window.location.origin).href === currentUrl; } catch { return false; }
+    });
+    if (!hasSelfRef) issues.push('Missing self-referencing hreflang');
+  }
+
+  return { count: entries.length, entries, issues };
+}
+
+function analyzeSchemaValidation() {
+  const results = [];
+  const requiredFields = {
+    'Article': ['headline', 'author', 'datePublished', 'image'],
+    'Product': ['name', 'image', 'offers'],
+    'LocalBusiness': ['name', 'address', 'telephone'],
+    'Organization': ['name', 'url', 'logo'],
+    'Person': ['name'],
+    'BreadcrumbList': ['itemListElement'],
+    'FAQPage': ['mainEntity'],
+    'HowTo': ['name', 'step'],
+    'Recipe': ['name', 'recipeIngredient', 'recipeInstructions'],
+    'Event': ['name', 'startDate', 'location'],
+    'VideoObject': ['name', 'description', 'thumbnailUrl', 'uploadDate'],
+    'Review': ['itemReviewed', 'reviewRating', 'author'],
+    'WebSite': ['name', 'url'],
+    'WebPage': ['name'],
+  };
+
+  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+  scripts.forEach(script => {
+    try {
+      const data = JSON.parse(script.textContent);
+      const items = data['@graph'] || (Array.isArray(data) ? data : [data]);
+      items.forEach(item => {
+        const type = Array.isArray(item['@type']) ? item['@type'][0] : item['@type'];
+        if (!type) return;
+        const required = requiredFields[type] || [];
+        const missing = required.filter(f => !item[f] && !item[f.toLowerCase()]);
+        results.push({
+          type,
+          valid: missing.length === 0,
+          missingFields: missing,
+          fieldCount: Object.keys(item).filter(k => !k.startsWith('@')).length,
+        });
+      });
+    } catch (e) {}
+  });
+
+  return results;
+}
+
+function analyzeLazyImages() {
+  const images = document.querySelectorAll('img');
+  let lazy = 0, eager = 0, noAttr = 0, dataSrc = 0;
+
+  images.forEach(img => {
+    const loading = img.getAttribute('loading');
+    if (loading === 'lazy') lazy++;
+    else if (loading === 'eager') eager++;
+    else noAttr++;
+
+    if (img.dataset.src || img.dataset.lazySrc || img.dataset.original) dataSrc++;
+  });
+
+  return {
+    total: images.length,
+    lazy,
+    eager,
+    noAttribute: noAttr,
+    dataSrcPattern: dataSrc,
+  };
+}
+
+function analyzeMixedContent() {
+  const isHttps = window.location.protocol === 'https:';
+  if (!isHttps) return { isHttps: false, mixedCount: 0, items: [] };
+
+  const items = [];
+  // Check images
+  document.querySelectorAll('img[src^="http:"]').forEach(el => {
+    items.push({ type: 'image', url: el.getAttribute('src').substring(0, 100) });
+  });
+  // Check scripts
+  document.querySelectorAll('script[src^="http:"]').forEach(el => {
+    items.push({ type: 'script', url: el.getAttribute('src').substring(0, 100) });
+  });
+  // Check stylesheets
+  document.querySelectorAll('link[rel="stylesheet"][href^="http:"]').forEach(el => {
+    items.push({ type: 'stylesheet', url: el.getAttribute('href').substring(0, 100) });
+  });
+  // Check iframes
+  document.querySelectorAll('iframe[src^="http:"]').forEach(el => {
+    items.push({ type: 'iframe', url: el.getAttribute('src').substring(0, 100) });
+  });
+
+  return { isHttps, mixedCount: items.length, items: items.slice(0, 20) };
+}
+
+function analyzeIframes() {
+  const iframes = document.querySelectorAll('iframe');
+  const items = [];
+
+  iframes.forEach(iframe => {
+    const src = iframe.getAttribute('src') || '';
+    let type = 'unknown';
+    if (src.includes('youtube.com') || src.includes('youtu.be')) type = 'youtube';
+    else if (src.includes('vimeo.com')) type = 'vimeo';
+    else if (src.includes('maps.google') || src.includes('google.com/maps')) type = 'google-maps';
+    else if (src.includes('facebook.com')) type = 'facebook';
+    else if (src.includes('twitter.com') || src.includes('x.com')) type = 'twitter';
+    else if (src.includes('instagram.com')) type = 'instagram';
+    else if (src) type = 'external';
+
+    items.push({
+      type,
+      src: src.substring(0, 150),
+      width: iframe.getAttribute('width') || iframe.style.width || 'auto',
+      height: iframe.getAttribute('height') || iframe.style.height || 'auto',
+      loading: iframe.getAttribute('loading') || 'none',
+      title: (iframe.getAttribute('title') || '').substring(0, 60),
+    });
+  });
+
+  return { count: iframes.length, items: items.slice(0, 20) };
+}
+
+function analyzeSocialCards() {
+  const og = {};
+  const twitter = {};
+  const ogIssues = [];
+  const twitterIssues = [];
+
+  // Collect all OG tags
+  document.querySelectorAll('meta[property^="og:"]').forEach(el => {
+    const prop = el.getAttribute('property').replace('og:', '');
+    og[prop] = el.getAttribute('content') || '';
+  });
+
+  // Collect all Twitter tags
+  document.querySelectorAll('meta[name^="twitter:"]').forEach(el => {
+    const name = el.getAttribute('name').replace('twitter:', '');
+    twitter[name] = el.getAttribute('content') || '';
+  });
+
+  // Validate OG
+  const ogRequired = ['title', 'description', 'image', 'url', 'type'];
+  ogRequired.forEach(field => {
+    if (!og[field]) ogIssues.push(`Missing og:${field}`);
+  });
+  if (og.title && og.title.length > 95) ogIssues.push('og:title too long (>95 chars)');
+  if (og.description && og.description.length > 200) ogIssues.push('og:description too long (>200 chars)');
+
+  // Validate Twitter
+  if (!twitter.card) twitterIssues.push('Missing twitter:card');
+  if (!twitter.title && !og.title) twitterIssues.push('Missing twitter:title (no OG fallback)');
+  if (!twitter.description && !og.description) twitterIssues.push('Missing twitter:description (no OG fallback)');
+  if (!twitter.image && !og.image) twitterIssues.push('Missing twitter:image (no OG fallback)');
+
+  return {
+    og: { tags: og, tagCount: Object.keys(og).length, issues: ogIssues },
+    twitter: { tags: twitter, tagCount: Object.keys(twitter).length, issues: twitterIssues },
+  };
+}
+
+function analyzeFaviconAndFeeds() {
+  // Favicons
+  const favicons = [];
+  document.querySelectorAll('link[rel*="icon"]').forEach(el => {
+    favicons.push({
+      rel: el.getAttribute('rel'),
+      href: el.getAttribute('href'),
+      sizes: el.getAttribute('sizes') || null,
+      type: el.getAttribute('type') || null,
+    });
+  });
+
+  // RSS/Atom feeds
+  const feeds = [];
+  document.querySelectorAll('link[type="application/rss+xml"], link[type="application/atom+xml"]').forEach(el => {
+    feeds.push({
+      type: el.getAttribute('type').includes('rss') ? 'rss' : 'atom',
+      title: el.getAttribute('title') || '',
+      href: el.getAttribute('href'),
+    });
+  });
+
+  return {
+    favicon: { count: favicons.length, items: favicons, hasFavicon: favicons.length > 0 },
+    feeds: { count: feeds.length, items: feeds },
+  };
+}
+
+function analyzeMediaTypes() {
+  const videos = [];
+  const audio = [];
+  const pdfs = [];
+
+  // Video elements
+  document.querySelectorAll('video').forEach(el => {
+    videos.push({ type: 'native', src: (el.getAttribute('src') || el.querySelector('source')?.getAttribute('src') || '').substring(0, 100) });
+  });
+
+  // Video embeds (iframes already captured, just count types here)
+  document.querySelectorAll('iframe').forEach(iframe => {
+    const src = iframe.getAttribute('src') || '';
+    if (src.includes('youtube.com') || src.includes('youtu.be')) videos.push({ type: 'youtube', src: src.substring(0, 100) });
+    else if (src.includes('vimeo.com')) videos.push({ type: 'vimeo', src: src.substring(0, 100) });
+    else if (src.includes('wistia.')) videos.push({ type: 'wistia', src: src.substring(0, 100) });
+  });
+
+  // Audio elements
+  document.querySelectorAll('audio').forEach(el => {
+    audio.push({ src: (el.getAttribute('src') || el.querySelector('source')?.getAttribute('src') || '').substring(0, 100) });
+  });
+
+  // PDF links
+  document.querySelectorAll('a[href$=".pdf"], a[href*=".pdf?"]').forEach(el => {
+    pdfs.push({ href: el.getAttribute('href').substring(0, 100), text: (el.textContent || '').trim().substring(0, 60) });
+  });
+
+  return {
+    videos: { count: videos.length, items: videos.slice(0, 10) },
+    audio: { count: audio.length, items: audio.slice(0, 10) },
+    pdfs: { count: pdfs.length, items: pdfs.slice(0, 10) },
+  };
+}
+
+function analyzeKeywordDensity() {
+  const title = document.title || '';
+  const h1 = document.querySelector('h1');
+  const h1Text = h1 ? h1.textContent.trim() : '';
+
+  const bodyClone = document.body.cloneNode(true);
+  bodyClone.querySelectorAll('script, style, noscript, svg').forEach(el => el.remove());
+  const bodyText = (bodyClone.textContent || '').toLowerCase();
+  const bodyWords = bodyText.match(/[a-z0-9]+(?:['-][a-z0-9]+)*/g) || [];
+  const totalWords = bodyWords.length;
+
+  if (totalWords === 0) return { titleTerms: [], h1Terms: [], totalWords: 0 };
+
+  const stopWords = new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','is','it','this','that','are','was','be','have','do','not','from','as','i','you','we','they','he','she','your','my','our','their']);
+
+  function getTermDensity(text) {
+    const words = text.toLowerCase().match(/[a-z0-9]+(?:['-][a-z0-9]+)*/g) || [];
+    const meaningful = words.filter(w => !stopWords.has(w) && w.length > 2);
+    return meaningful.map(term => {
+      const count = bodyWords.filter(w => w === term).length;
+      return { term, count, density: +(count / totalWords * 100).toFixed(2) };
+    }).filter(t => t.count > 0);
+  }
+
+  return {
+    titleTerms: getTermDensity(title),
+    h1Terms: getTermDensity(h1Text),
+    totalWords,
+  };
+}
+
+function analyzeTocNavigation() {
+  // Check for elements with IDs that are linked to from the same page
+  const anchors = document.querySelectorAll('a[href^="#"]');
+  const jumpLinks = [];
+
+  anchors.forEach(a => {
+    const href = a.getAttribute('href');
+    if (href === '#' || href === '#top') return;
+    const targetId = href.substring(1);
+    const target = document.getElementById(targetId);
+    if (target) {
+      jumpLinks.push({
+        text: (a.textContent || '').trim().substring(0, 60),
+        targetTag: target.tagName.toLowerCase(),
+        targetId,
+      });
+    }
+  });
+
+  // Check for nav/toc containers
+  const hasTocElement = !!(
+    document.querySelector('[class*="toc"]') ||
+    document.querySelector('[class*="table-of-contents"]') ||
+    document.querySelector('[id*="toc"]') ||
+    document.querySelector('nav[aria-label*="content"]')
+  );
+
+  return {
+    hasToc: hasTocElement || jumpLinks.length >= 3,
+    jumpLinkCount: jumpLinks.length,
+    jumpLinks: jumpLinks.slice(0, 15),
+  };
+}
+
+function analyzeNgrams() {
+  const bodyClone = document.body.cloneNode(true);
+  bodyClone.querySelectorAll('script, style, noscript, svg, [hidden], [aria-hidden="true"]').forEach(el => el.remove());
+  const text = (bodyClone.textContent || '').toLowerCase();
+
+  // Tokenize: letters, numbers, hyphens within words
+  const words = text.match(/[a-z0-9](?:[a-z0-9'-]*[a-z0-9])?/g) || [];
+
+  const stopWords = new Set([
+    'a','an','the','and','or','but','in','on','at','to','for','of','with','by',
+    'from','is','it','its','this','that','are','was','were','be','been','being',
+    'have','has','had','do','does','did','will','would','could','should','may',
+    'might','shall','can','not','no','nor','so','if','then','than','too','very',
+    'just','about','above','after','again','all','also','am','as','because',
+    'before','between','both','each','few','get','got','he','her','here','him',
+    'his','how','i','into','me','more','most','my','new','now','of','only',
+    'other','our','out','over','own','re','same','she','some','such','there',
+    'they','their','them','these','those','through','under','up','us','we',
+    'what','when','where','which','while','who','whom','why','you','your',
+    'able','across','already','always','among','any','around','away','back',
+    'become','been','below','come','down','during','even','every','find',
+    'first','go','going','good','great','help','here','high','however',
+    'into','keep','know','last','let','like','long','look','made','make',
+    'many','much','must','need','next','off','often','old','once','one',
+    'only','part','per','put','said','say','see','seem','set','show',
+    'since','still','take','tell','thing','think','time','two','use',
+    'want','way','well','work','year'
+  ]);
+
+  // Filter out stop words for n-gram analysis
+  const filtered = words.filter(w => !stopWords.has(w) && w.length > 1);
+
+  // Build n-grams (1, 2, 3)
+  const unigrams = buildNgramCounts(filtered, 1);
+  const bigrams = buildNgramCounts(words.filter(w => w.length > 1), 2, stopWords); // use all words but filter results
+  const trigrams = buildNgramCounts(words.filter(w => w.length > 1), 3, stopWords);
+
+  return {
+    unigrams: getTopN(unigrams, 15),
+    bigrams: getTopN(bigrams, 10),
+    trigrams: getTopN(trigrams, 10),
+    totalWords: words.length,
+    uniqueWords: new Set(words).size
+  };
+}
+
+function buildNgramCounts(words, n, stopWords) {
+  const counts = {};
+  for (let i = 0; i <= words.length - n; i++) {
+    const gram = words.slice(i, i + n).join(' ');
+    // For bigrams/trigrams: skip if ALL words are stop words
+    if (n > 1 && stopWords) {
+      const parts = gram.split(' ');
+      if (parts.every(w => stopWords.has(w))) continue;
+    }
+    counts[gram] = (counts[gram] || 0) + 1;
+  }
+  return counts;
+}
+
+function getTopN(counts, n) {
+  return Object.entries(counts)
+    .filter(([_, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([phrase, count]) => ({ phrase, count }));
 }

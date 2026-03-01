@@ -30,8 +30,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -41,8 +45,12 @@
         "https://www.google.ca/search*",
         "https://www.google.com.au/search*"
       ],
-      "js": ["serp-overlay.js"],
-      "css": ["serp-overlay.css"],
+      "js": [
+        "serp-overlay.js"
+      ],
+      "css": [
+        "serp-overlay.css"
+      ],
       "run_at": "document_idle"
     }
   ],

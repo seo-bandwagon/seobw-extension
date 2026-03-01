@@ -40,7 +40,7 @@ function renderResults(data) {
   content.innerHTML = `
     <div class="header">
       <h1><img src="icons/icon48.png" alt="">SEO Bandwagon</h1>
-      <a href="https://seobandwagon.dev/dashboard" target="_blank">Dashboard →</a>
+      <a href="' + chrome.runtime.getURL('history.html') + '" target="_blank">Dashboard →</a>
     </div>
     
     <div class="url">${esc(data.url)}</div>
@@ -274,6 +274,165 @@ function renderResults(data) {
       </div>
     </div>
     
+
+  // ========== ADVANCED ANALYZERS (v1.1.0) ==========
+
+  // Core Web Vitals
+  if (data.webVitals) {
+    const wv = data.webVitals;
+    html += renderSection('webvitals', 'Core Web Vitals', \`
+      \${dataRow('LCP', wv.lcp ? wv.lcp + 'ms' : 'N/A', wv.lcp && wv.lcp <= 2500 ? 'good' : wv.lcp && wv.lcp <= 4000 ? 'warn' : '')}
+      \${dataRow('CLS', wv.cls !== null ? wv.cls : 'N/A', wv.cls !== null && wv.cls <= 0.1 ? 'good' : wv.cls !== null && wv.cls <= 0.25 ? 'warn' : '')}
+      \${dataRow('INP', wv.inp ? wv.inp + 'ms' : 'N/A', wv.inp && wv.inp <= 200 ? 'good' : wv.inp && wv.inp <= 500 ? 'warn' : '')}
+      \${dataRow('FCP', wv.fcp ? wv.fcp + 'ms' : 'N/A', wv.fcp && wv.fcp <= 1800 ? 'good' : wv.fcp && wv.fcp <= 3000 ? 'warn' : '')}
+      \${dataRow('TTFB', wv.ttfb ? wv.ttfb + 'ms' : 'N/A', wv.ttfb && wv.ttfb <= 800 ? 'good' : wv.ttfb && wv.ttfb <= 1800 ? 'warn' : '')}
+    \`);
+  }
+
+  // Performance
+  if (data.performance) {
+    const p = data.performance;
+    html += renderSection('performance', 'Page Performance', \`
+      \${dataRow('Load time', p.loadTime ? (p.loadTime / 1000).toFixed(2) + 's' : 'N/A', p.loadTime && p.loadTime < 3000 ? 'good' : 'warn')}
+      \${dataRow('DOM ready', p.domContentLoaded ? (p.domContentLoaded / 1000).toFixed(2) + 's' : 'N/A')}
+      \${dataRow('DOM size', p.domSize.toLocaleString() + ' elements', p.domSize > 1500 ? 'warn' : 'good')}
+      \${dataRow('Resources', p.resourceCounts.total + ' total')}
+      \${dataRow('Transfer size', (p.totalTransferSize / 1024).toFixed(0) + ' KB')}
+      <div style="color:#888;font-size:10px;margin-top:4px">Scripts: \${p.resourceCounts.scripts} · CSS: \${p.resourceCounts.stylesheets} · Images: \${p.resourceCounts.images} · Fonts: \${p.resourceCounts.fonts}</div>
+    \`);
+  }
+
+  // Text-to-HTML Ratio
+  if (data.textToHtml) {
+    const t = data.textToHtml;
+    html += renderSection('textratio', 'Text-to-HTML Ratio', \`
+      \${dataRow('Ratio', t.ratio + '%', t.status === 'good' ? 'good' : t.status === 'fair' ? 'warn' : 'bad')}
+      \${dataRow('Text size', (t.textSize / 1024).toFixed(1) + ' KB')}
+      \${dataRow('HTML size', (t.htmlSize / 1024).toFixed(1) + ' KB')}
+    \`);
+  }
+
+  // Social Cards
+  if (data.socialCards) {
+    const sc = data.socialCards;
+    html += renderSection('socialcards', 'Social Cards', \`
+      \${dataRow('OG tags', sc.og.tagCount + ' found', sc.og.issues.length === 0 ? 'good' : 'warn')}
+      \${sc.og.issues.map(i => '<div class="issue" style="font-size:10px">⚠️ ' + esc(i) + '</div>').join('')}
+      \${dataRow('Twitter tags', sc.twitter.tagCount + ' found', sc.twitter.issues.length === 0 ? 'good' : 'warn')}
+      \${sc.twitter.issues.map(i => '<div class="issue" style="font-size:10px">⚠️ ' + esc(i) + '</div>').join('')}
+    \`);
+  }
+
+  // Schema Validation
+  if (data.schemaValidation && data.schemaValidation.length > 0) {
+    html += renderSection('schemaval', 'Schema Validation',
+      data.schemaValidation.map(s =>
+        dataRow(s.type, s.valid ? '✓ Valid' : '✗ Missing fields', s.valid ? 'good' : 'bad') +
+        (!s.valid ? '<div style="color:#ef476f;font-size:10px;margin-bottom:4px">Missing: ' + s.missingFields.join(', ') + '</div>' : '')
+      ).join('')
+    );
+  }
+
+  // Hreflang
+  if (data.hreflang && data.hreflang.count > 0) {
+    html += renderSection('hreflang', 'Hreflang (' + data.hreflang.count + ')', \`
+      \${data.hreflang.entries.slice(0, 10).map(e => dataRow(e.lang, esc(e.href ? e.href.substring(0, 50) : ''))).join('')}
+      \${data.hreflang.issues.map(i => '<div class="issue" style="font-size:10px">⚠️ ' + esc(i) + '</div>').join('')}
+    \`);
+  }
+
+  // Lazy Images
+  if (data.lazyImages) {
+    const li = data.lazyImages;
+    html += renderSection('lazyimages', 'Image Loading', \`
+      \${dataRow('Lazy loaded', li.lazy)}
+      \${dataRow('Eager loaded', li.eager)}
+      \${dataRow('No attribute', li.noAttribute)}
+      \${dataRow('data-src pattern', li.dataSrcPattern)}
+    \`);
+  }
+
+  // Mixed Content
+  if (data.mixedContent && data.mixedContent.isHttps) {
+    html += renderSection('mixed', 'Mixed Content', \`
+      \${dataRow('Mixed resources', data.mixedContent.mixedCount, data.mixedContent.mixedCount === 0 ? 'good' : 'bad')}
+      \${data.mixedContent.items.slice(0, 5).map(i => '<div style="color:#ef476f;font-size:10px;margin-bottom:2px">' + esc(i.type) + ': ' + esc(i.url) + '</div>').join('')}
+    \`);
+  }
+
+  // iFrames
+  if (data.iframes && data.iframes.count > 0) {
+    html += renderSection('iframes', 'iFrames (' + data.iframes.count + ')',
+      data.iframes.items.slice(0, 10).map(f => dataRow(f.type, esc(f.title || f.src.substring(0, 40)))).join('')
+    );
+  }
+
+  // Above the Fold
+  if (data.aboveFold) {
+    const af = data.aboveFold;
+    html += renderSection('abovefold', 'Above the Fold', \`
+      \${dataRow('Elements visible', af.totalElements)}
+      \${dataRow('Text elements', af.textElements)}
+      \${dataRow('Text length', af.textLength.toLocaleString() + ' chars')}
+      \${dataRow('Images', af.imageCount)}
+      \${dataRow('CTAs', af.ctaCount)}
+    \`);
+  }
+
+  // Keyword Density
+  if (data.keywordDensity && data.keywordDensity.totalWords > 0) {
+    const kd = data.keywordDensity;
+    html += renderSection('keywords', 'Keyword Density', \`
+      \${kd.titleTerms.length > 0 ? '<div style="color:#888;font-size:10px;margin-bottom:4px">Title terms:</div>' : ''}
+      \${kd.titleTerms.slice(0, 5).map(t => dataRow(t.term, t.count + 'x (' + t.density + '%)')).join('')}
+      \${kd.h1Terms.length > 0 ? '<div style="color:#888;font-size:10px;margin-bottom:4px;margin-top:4px">H1 terms:</div>' : ''}
+      \${kd.h1Terms.slice(0, 5).map(t => dataRow(t.term, t.count + 'x (' + t.density + '%)')).join('')}
+    \`);
+  }
+
+  // N-grams
+  if (data.ngrams) {
+    const ng = data.ngrams;
+    html += renderSection('ngrams', 'N-gram Analysis', \`
+      \${dataRow('Total words', ng.totalWords.toLocaleString())}
+      \${dataRow('Unique words', ng.uniqueWords.toLocaleString())}
+      \${ng.bigrams.length > 0 ? '<div style="color:#888;font-size:10px;margin-top:4px">Top 2-word phrases:</div>' : ''}
+      <div class="tags">\${ng.bigrams.slice(0,6).map(b => '<span class="tag">' + esc(b.phrase) + '<span class="tag-count">' + b.count + '</span></span>').join('')}</div>
+      \${ng.trigrams.length > 0 ? '<div style="color:#888;font-size:10px;margin-top:4px">Top 3-word phrases:</div>' : ''}
+      <div class="tags">\${ng.trigrams.slice(0,5).map(t => '<span class="tag">' + esc(t.phrase) + '<span class="tag-count">' + t.count + '</span></span>').join('')}</div>
+    \`);
+  }
+
+  // Media Types
+  if (data.mediaTypes) {
+    const mt = data.mediaTypes;
+    if (mt.videos.count + mt.audio.count + mt.pdfs.count > 0) {
+      html += renderSection('media', 'Media', \`
+        \${mt.videos.count > 0 ? dataRow('Videos', mt.videos.count) : ''}
+        \${mt.audio.count > 0 ? dataRow('Audio', mt.audio.count) : ''}
+        \${mt.pdfs.count > 0 ? dataRow('PDF links', mt.pdfs.count) : ''}
+      \`);
+    }
+  }
+
+  // Favicon & Feeds
+  if (data.faviconAndFeeds) {
+    const ff = data.faviconAndFeeds;
+    html += renderSection('favicon', 'Favicon & Feeds', \`
+      \${dataRow('Favicon', ff.favicon.hasFavicon ? '✓ Found (' + ff.favicon.count + ')' : '✗ Missing', ff.favicon.hasFavicon ? 'good' : 'bad')}
+      \${dataRow('RSS/Atom feeds', ff.feeds.count > 0 ? ff.feeds.count + ' found' : 'None', ff.feeds.count > 0 ? 'good' : '')}
+    \`);
+  }
+
+  // TOC Navigation
+  if (data.tocNavigation) {
+    const toc = data.tocNavigation;
+    html += renderSection('toc', 'Table of Contents', \`
+      \${dataRow('Has TOC', toc.hasToc ? '✓ Yes' : '✗ No', toc.hasToc ? 'good' : '')}
+      \${dataRow('Jump links', toc.jumpLinkCount)}
+    \`);
+  }
+
     <!-- Actions -->
     <div class="actions">
       <button id="saveBtn">Save</button>
@@ -331,6 +490,14 @@ function renderResults(data) {
 }
 
 async function autoSaveCapture(data) {
+  // Auto-send to API (fire and forget)
+  try {
+    fetch('https://api.seobandwagon.dev/v1/captures', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).catch(() => {});
+  } catch (e) {}
+
   // Always save to local storage when popup opens
   const key = `capture_${Date.now()}`;
   
@@ -423,4 +590,20 @@ function exportAsJson(data) {
   a.download = `seo-${new URL(data.url).hostname}-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+
+
+function renderSection(id, title, body, open) {
+  return '<div class="section' + (open ? ' open' : '') + '" data-section="' + id + '">' +
+    '<div class="section-header">' +
+      '<span class="section-title">' + title + '</span>' +
+      '<span class="section-arrow">▼</span>' +
+    '</div>' +
+    '<div class="section-content">' + body + '</div>' +
+  '</div>';
+}
+
+function dataRow(label, value, cls) {
+  return '<div class="data-row"><span class="data-label">' + label + '</span><span class="data-value' + (cls ? ' ' + cls : '') + '">' + value + '</span></div>';
 }
