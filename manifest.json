@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.0.0",
-  "description": "Capture page content metrics and save to SEO Bandwagon",
+  "version": "1.1.0",
+  "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection.",
   "permissions": [
     "activeTab",
     "storage",
@@ -32,6 +32,17 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.google.com/search*",
+        "https://www.google.co.uk/search*",
+        "https://www.google.ca/search*",
+        "https://www.google.com.au/search*"
+      ],
+      "js": ["serp-overlay.js"],
+      "css": ["serp-overlay.css"],
       "run_at": "document_idle"
     }
   ],

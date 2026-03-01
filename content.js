@@ -1,9 +1,14 @@
 // Content script - comprehensive SEO data extraction
 
+let counterEl = null; // For character counter
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyze') {
     const analysis = analyzePage();
     sendResponse(analysis);
+  } else if (request.action === 'highlight') {
+    highlightElement(request.type);
+    sendResponse({ success: true });
   }
   return true;
 });
@@ -28,6 +33,7 @@ function analyzePage() {
   const links = extractLinks();
   const images = extractImages();
   const technical = extractTechnical();
+  const techStack = detectTechStack();
   
   // Calculate SEO score
   const seoScore = calculateSEOScore(content, meta, headings, links, images, technical);
@@ -41,9 +47,240 @@ function analyzePage() {
     headings,
     links,
     images,
-    technical
+    technical,
+    techStack
   };
 }
+
+// ============ TECH STACK DETECTION ============
+
+function detectTechStack() {
+  const tech = [];
+  
+  // CMS
+  if (document.querySelector('meta[name="generator"][content*="WordPress"]') || 
+      document.querySelector('link[href*="wp-content"]') ||
+      document.querySelector('script[src*="wp-includes"]')) {
+    tech.push({ name: 'WordPress', category: 'CMS', icon: '📝' });
+  }
+  if (window.Shopify || document.querySelector('meta[name="shopify-checkout-api-token"]')) {
+    tech.push({ name: 'Shopify', category: 'E-commerce', icon: '🛒' });
+  }
+  if (document.querySelector('meta[name="generator"][content*="Wix"]') || window.wixBiSession) {
+    tech.push({ name: 'Wix', category: 'CMS', icon: '📝' });
+  }
+  if (document.querySelector('[class*="squarespace"]') || window.Static?.SQUARESPACE_CONTEXT) {
+    tech.push({ name: 'Squarespace', category: 'CMS', icon: '📝' });
+  }
+  if (document.querySelector('[data-wf-page]') || window.Webflow) {
+    tech.push({ name: 'Webflow', category: 'CMS', icon: '📝' });
+  }
+  if (document.querySelector('meta[name="generator"][content*="Drupal"]')) {
+    tech.push({ name: 'Drupal', category: 'CMS', icon: '💧' });
+  }
+  if (document.querySelector('meta[name="generator"][content*="Joomla"]')) {
+    tech.push({ name: 'Joomla', category: 'CMS', icon: '📝' });
+  }
+  
+  // Frameworks
+  if (document.getElementById('__next') || window.__NEXT_DATA__) {
+    tech.push({ name: 'Next.js', category: 'Framework', icon: '⚛️' });
+  } else if (document.querySelector('[data-reactroot]') || window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+    tech.push({ name: 'React', category: 'Framework', icon: '⚛️' });
+  }
+  if (window.__VUE__ || document.querySelector('[data-v-]')) {
+    tech.push({ name: 'Vue.js', category: 'Framework', icon: '💚' });
+  }
+  if (window.angular || document.querySelector('[ng-app]')) {
+    tech.push({ name: 'Angular', category: 'Framework', icon: '🅰️' });
+  }
+  if (document.getElementById('___gatsby')) {
+    tech.push({ name: 'Gatsby', category: 'Framework', icon: '💜' });
+  }
+  if (window.__NUXT__) {
+    tech.push({ name: 'Nuxt.js', category: 'Framework', icon: '💚' });
+  }
+  if (document.querySelector('[data-sveltekit-hydrate]') || window.__sveltekit_1) {
+    tech.push({ name: 'SvelteKit', category: 'Framework', icon: '🔥' });
+  }
+  
+  // Analytics & Marketing
+  if (window.gtag || window.ga || document.querySelector('script[src*="googletagmanager"]')) {
+    tech.push({ name: 'Google Analytics', category: 'Analytics', icon: '📊' });
+  }
+  if (window.fbq) {
+    tech.push({ name: 'Facebook Pixel', category: 'Analytics', icon: '📘' });
+  }
+  if (window.hj || document.querySelector('script[src*="hotjar"]')) {
+    tech.push({ name: 'Hotjar', category: 'Analytics', icon: '🔥' });
+  }
+  if (window.HubSpotConversations || document.querySelector('script[src*="hubspot"]')) {
+    tech.push({ name: 'HubSpot', category: 'Marketing', icon: '🟠' });
+  }
+  if (window.Intercom || document.querySelector('script[src*="intercom"]')) {
+    tech.push({ name: 'Intercom', category: 'Support', icon: '💬' });
+  }
+  if (document.querySelector('script[src*="clarity"]') || window.clarity) {
+    tech.push({ name: 'Microsoft Clarity', category: 'Analytics', icon: '🔍' });
+  }
+  
+  // CDN & Performance
+  if (document.querySelector('link[href*="cloudflare"]') || document.querySelector('script[src*="cloudflare"]')) {
+    tech.push({ name: 'Cloudflare', category: 'CDN', icon: '☁️' });
+  }
+  
+  return tech;
+}
+
+// ============ ELEMENT HIGHLIGHTING ============
+
+function highlightElement(type) {
+  // Add styles if not present
+  if (!document.getElementById('seo-toolkit-styles')) {
+    const style = document.createElement('style');
+    style.id = 'seo-toolkit-styles';
+    style.textContent = `
+      .seo-toolkit-highlight { outline: 3px solid !important; outline-offset: 2px !important; }
+      .seo-toolkit-highlight-heading { outline-color: #9b59b6 !important; background: rgba(155, 89, 182, 0.1) !important; }
+      .seo-toolkit-highlight-link-internal { outline-color: #27ae60 !important; background: rgba(39, 174, 96, 0.1) !important; }
+      .seo-toolkit-highlight-link-external { outline-color: #e74c3c !important; background: rgba(231, 76, 60, 0.1) !important; }
+      .seo-toolkit-highlight-nofollow { outline-color: #f39c12 !important; background: rgba(243, 156, 18, 0.1) !important; }
+      .seo-toolkit-highlight-image-missing-alt { outline-color: #e74c3c !important; background: rgba(231, 76, 60, 0.2) !important; }
+      .seo-toolkit-highlight-image-has-alt { outline-color: #27ae60 !important; }
+      #seo-toolkit-counter {
+        position: absolute;
+        background: #333;
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        z-index: 999999;
+        display: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // Remove existing highlights
+  document.querySelectorAll('.seo-toolkit-highlight').forEach(el => {
+    el.classList.remove('seo-toolkit-highlight', 'seo-toolkit-highlight-heading', 
+      'seo-toolkit-highlight-link-internal', 'seo-toolkit-highlight-link-external',
+      'seo-toolkit-highlight-nofollow', 'seo-toolkit-highlight-image-missing-alt',
+      'seo-toolkit-highlight-image-has-alt');
+  });
+  
+  if (type === 'clear') return;
+  
+  const currentDomain = window.location.hostname.replace('www.', '');
+  
+  switch (type) {
+    case 'headings':
+      document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(el => {
+        el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-heading');
+      });
+      break;
+    case 'links-internal':
+      document.querySelectorAll('a[href]').forEach(el => {
+        try {
+          const url = new URL(el.href);
+          if (url.hostname.replace('www.', '') === currentDomain) {
+            el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-link-internal');
+          }
+        } catch (e) {}
+      });
+      break;
+    case 'links-external':
+      document.querySelectorAll('a[href]').forEach(el => {
+        try {
+          const url = new URL(el.href);
+          if (url.hostname.replace('www.', '') !== currentDomain && url.protocol.startsWith('http')) {
+            el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-link-external');
+          }
+        } catch (e) {}
+      });
+      break;
+    case 'nofollow':
+      document.querySelectorAll('a[rel*="nofollow"], a[rel*="ugc"], a[rel*="sponsored"]').forEach(el => {
+        el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-nofollow');
+      });
+      break;
+    case 'images-missing-alt':
+      document.querySelectorAll('img').forEach(el => {
+        const alt = el.getAttribute('alt');
+        if (!alt || alt.trim() === '') {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-missing-alt');
+        }
+      });
+      break;
+    case 'images-all':
+      document.querySelectorAll('img').forEach(el => {
+        const alt = el.getAttribute('alt');
+        if (!alt || alt.trim() === '') {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-missing-alt');
+        } else {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-has-alt');
+        }
+      });
+      break;
+  }
+}
+
+// ============ CHARACTER COUNTER ============
+
+function showCharCounter(text, selection) {
+  if (!counterEl) {
+    counterEl = document.createElement('div');
+    counterEl.id = 'seo-toolkit-counter';
+    document.body.appendChild(counterEl);
+  }
+  
+  const words = text.split(/\s+/).filter(w => w.length > 0).length;
+  const chars = text.length;
+  const charsNoSpace = text.replace(/\s/g, '').length;
+  
+  counterEl.innerHTML = `
+    <strong>${words}</strong> words · 
+    <strong>${chars}</strong> chars · 
+    <strong>${charsNoSpace}</strong> no spaces
+  `;
+  
+  try {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    counterEl.style.display = 'block';
+    counterEl.style.top = (rect.top + window.scrollY - 40) + 'px';
+    counterEl.style.left = Math.max(10, rect.left) + 'px';
+  } catch (e) {
+    hideCharCounter();
+  }
+}
+
+function hideCharCounter() {
+  if (counterEl) {
+    counterEl.style.display = 'none';
+  }
+}
+
+// Show char counter on text selection
+document.addEventListener('mouseup', () => {
+  const selection = window.getSelection();
+  const text = selection.toString().trim();
+  
+  if (text.length > 0) {
+    showCharCounter(text, selection);
+  } else {
+    hideCharCounter();
+  }
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (e.target.id !== 'seo-toolkit-counter') {
+    hideCharCounter();
+  }
+});
 
 // ============ SEO SCORE ============
 
@@ -156,7 +393,7 @@ function getGrade(score) {
   return 'F';
 }
 
-// ============ PHASE 2: META TAGS ============
+// ============ META TAGS ============
 
 function extractMeta() {
   const getMeta = (name) => {
@@ -209,7 +446,7 @@ function extractMeta() {
   };
 }
 
-// ============ PHASE 3: HEADINGS ============
+// ============ HEADINGS ============
 
 function extractHeadings() {
   const headings = {
@@ -235,7 +472,7 @@ function extractHeadings() {
   return headings;
 }
 
-// ============ PHASE 4: LINKS ============
+// ============ LINKS ============
 
 function extractLinks() {
   const currentHost = window.location.hostname;
@@ -285,7 +522,7 @@ function extractLinks() {
   };
 }
 
-// ============ PHASE 5: IMAGES ============
+// ============ IMAGES ============
 
 function extractImages() {
   const images = document.querySelectorAll('img');
@@ -311,7 +548,7 @@ function extractImages() {
   };
 }
 
-// ============ PHASE 6: TECHNICAL ============
+// ============ TECHNICAL ============
 
 function extractTechnical() {
   const scripts = document.querySelectorAll('script');
@@ -384,10 +621,17 @@ function calculateReadability(text, words) {
   const fleschEase = words.length > 0
     ? 206.835 - (1.015 * (words.length / sentences)) - (84.6 * (syllables / words.length))
     : 0;
+    
+  // Reading level labels
+  let level = 'College';
+  if (fleschKincaid <= 5) level = 'Elementary';
+  else if (fleschKincaid <= 8) level = 'Middle School';
+  else if (fleschKincaid <= 12) level = 'High School';
   
   return {
     fleschKincaid: Math.max(0, Math.round(fleschKincaid * 10) / 10),
-    fleschEase: Math.max(0, Math.min(100, Math.round(fleschEase * 10) / 10))
+    fleschEase: Math.max(0, Math.min(100, Math.round(fleschEase * 10) / 10)),
+    level
   };
 }
 

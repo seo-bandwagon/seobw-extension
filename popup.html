@@ -129,6 +129,61 @@
     .data-value.warn { color: #ffd166; }
     .data-value.bad { color: #ef476f; }
     
+    /* Length badges */
+    .length-badge {
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .length-badge.good { background: #06d6a033; color: #06d6a0; }
+    .length-badge.bad { background: #ef476f33; color: #ef476f; }
+    
+    /* Tech badges */
+    .tech-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tech-badge {
+      background: #0f0f1a;
+      border: 1px solid #333;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    /* Highlight buttons */
+    .highlight-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .highlight-btn {
+      padding: 4px 8px;
+      background: #0f0f1a;
+      border: 1px solid #333;
+      color: #888;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      flex: none;
+    }
+    .highlight-btn:hover {
+      background: #1e2a4a;
+      color: #fff;
+      border-color: #4cc9f0;
+    }
+    .highlight-btn.active {
+      background: #4cc9f0;
+      color: #000;
+      border-color: #4cc9f0;
+    }
+    
     /* Tags */
     .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .tag {

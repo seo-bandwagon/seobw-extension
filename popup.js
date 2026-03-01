@@ -1,9 +1,11 @@
 // SEO Bandwagon Extension - Popup UI
 
 let pageData = null;
+let currentTab = null;
 
 chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   const tab = tabs[0];
+  currentTab = tab;
   
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
@@ -33,6 +35,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
 function renderResults(data) {
   const content = document.getElementById('content');
   const score = data.seoScore || { score: 0, grade: 'F', issues: [] };
+  const techStack = data.techStack || [];
   
   content.innerHTML = `
     <div class="header">
@@ -50,16 +53,16 @@ function renderResults(data) {
       </div>
       <div class="score-stats">
         <div class="stat">
-          <div class="stat-value">${data.content.wordCount}</div>
+          <div class="stat-value">${data.content.wordCount.toLocaleString()}</div>
           <div class="stat-label">Words</div>
         </div>
         <div class="stat">
-          <div class="stat-value">${data.links.internal.count}</div>
-          <div class="stat-label">Links</div>
+          <div class="stat-value">${data.content.readability.level || 'N/A'}</div>
+          <div class="stat-label">Reading</div>
         </div>
         <div class="stat">
-          <div class="stat-value">${data.images.total}</div>
-          <div class="stat-label">Images</div>
+          <div class="stat-value">${data.links.internal.count + data.links.external.count}</div>
+          <div class="stat-label">Links</div>
         </div>
       </div>
     </div>
@@ -90,12 +93,12 @@ function renderResults(data) {
           <div class="serp-desc">${esc(data.meta.description.text.slice(0, 155))}${data.meta.description.length > 155 ? '...' : ''}</div>
         </div>
         <div class="data-row">
-          <span class="data-label">Title length</span>
-          <span class="data-value ${data.meta.title.length <= 60 ? 'good' : 'bad'}">${data.meta.title.length}/60</span>
+          <span class="data-label">Title</span>
+          <span class="data-value"><span class="length-badge ${data.meta.title.length <= 60 ? 'good' : 'bad'}">${data.meta.title.length}/60</span></span>
         </div>
         <div class="data-row">
-          <span class="data-label">Description length</span>
-          <span class="data-value ${data.meta.description.length <= 160 ? 'good' : 'bad'}">${data.meta.description.length}/160</span>
+          <span class="data-label">Description</span>
+          <span class="data-value"><span class="length-badge ${data.meta.description.length <= 160 ? 'good' : 'bad'}">${data.meta.description.length}/160</span></span>
         </div>
       </div>
     </div>
@@ -120,11 +123,30 @@ function renderResults(data) {
           <span class="data-value ${data.meta.openGraph.title ? 'good' : 'warn'}">${data.meta.openGraph.title ? '✓ Set' : '✗ Missing'}</span>
         </div>
         <div class="data-row">
+          <span class="data-label">Twitter Card</span>
+          <span class="data-value ${data.meta.twitter.card ? 'good' : 'warn'}">${data.meta.twitter.card || '✗ Missing'}</span>
+        </div>
+        <div class="data-row">
           <span class="data-label">Schema.org</span>
           <span class="data-value ${data.meta.schema.length > 0 ? 'good' : 'warn'}">${data.meta.schema.length} block(s)</span>
         </div>
       </div>
     </div>
+    
+    <!-- Tech Stack Section -->
+    ${techStack.length > 0 ? `
+    <div class="section" data-section="techstack" onclick="this.classList.toggle('open')">
+      <div class="section-header">
+        <span class="section-title">Tech Stack (${techStack.length})</span>
+        <span class="section-arrow">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="tech-badges">
+          ${techStack.map(t => `<span class="tech-badge" title="${t.category}">${t.icon} ${t.name}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+    ` : ''}
     
     <!-- Headings Section -->
     <div class="section" data-section="headings" onclick="this.classList.toggle('open')">
@@ -146,6 +168,7 @@ function renderResults(data) {
           <span class="data-label">H3-H6</span>
           <span class="data-value">${data.headings.h3.length + data.headings.h4.length + data.headings.h5.length + data.headings.h6.length}</span>
         </div>
+        <button class="highlight-btn" data-type="headings">Highlight Headings</button>
       </div>
     </div>
     
@@ -176,6 +199,12 @@ function renderResults(data) {
           <span class="data-label">Missing alt text</span>
           <span class="data-value ${data.images.missingAlt.count === 0 ? 'good' : 'bad'}">${data.images.missingAlt.count}</span>
         </div>
+        <div class="highlight-buttons">
+          <button class="highlight-btn" data-type="links-internal">Internal</button>
+          <button class="highlight-btn" data-type="links-external">External</button>
+          <button class="highlight-btn" data-type="nofollow">Nofollow</button>
+          <button class="highlight-btn" data-type="images-missing-alt">Missing Alt</button>
+        </div>
       </div>
     </div>
     
@@ -191,12 +220,16 @@ function renderResults(data) {
           <span class="data-value">${data.content.wordCount.toLocaleString()}</span>
         </div>
         <div class="data-row">
+          <span class="data-label">Characters</span>
+          <span class="data-value">${data.content.charCount.toLocaleString()}</span>
+        </div>
+        <div class="data-row">
           <span class="data-label">Sentences</span>
           <span class="data-value">${data.content.sentenceCount}</span>
         </div>
         <div class="data-row">
           <span class="data-label">Reading level</span>
-          <span class="data-value">Grade ${data.content.readability.fleschKincaid}</span>
+          <span class="data-value">${data.content.readability.level} (Grade ${data.content.readability.fleschKincaid})</span>
         </div>
         <div class="data-row">
           <span class="data-label">Flesch ease</span>
@@ -247,19 +280,51 @@ function renderResults(data) {
       <button id="copyBtn" class="secondary">Copy JSON</button>
       <button id="exportBtn" class="secondary">Export</button>
     </div>
+    <div class="actions" style="margin-top:4px">
+      <button id="clearHighlightBtn" class="secondary" style="width:100%">Clear Highlights</button>
+    </div>
     <div class="status" id="status"></div>
   `;
   
-  // Setup collapsible sections
-  document.querySelectorAll('.section-header').forEach(header => {
-    header.onclick = function() {
-      console.log('Section clicked:', this.parentElement.dataset.section);
-      this.parentElement.classList.toggle('open');
+  // Setup collapsible sections (click on section-header only, not buttons inside)
+  document.querySelectorAll('.section').forEach(section => {
+    section.querySelector('.section-header').onclick = function(e) {
+      section.classList.toggle('open');
     };
+    // Prevent section from closing when clicking inside content
+    section.querySelector('.section-content')?.addEventListener('click', e => e.stopPropagation());
   });
-  console.log('Sections initialized:', document.querySelectorAll('.section-header').length);
   
-  // Setup buttons
+  // Setup highlight buttons
+  document.querySelectorAll('.highlight-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const type = btn.dataset.type;
+      chrome.tabs.sendMessage(currentTab.id, { action: 'highlight', type });
+      
+      // Toggle button state
+      btn.classList.toggle('active');
+      if (btn.classList.contains('active')) {
+        btn.textContent = btn.textContent.replace('Highlight ', 'Hide ');
+      } else {
+        btn.textContent = btn.textContent.replace('Hide ', 'Highlight ');
+        chrome.tabs.sendMessage(currentTab.id, { action: 'highlight', type: 'clear' });
+      }
+    });
+  });
+  
+  // Clear all highlights button
+  document.getElementById('clearHighlightBtn').addEventListener('click', () => {
+    chrome.tabs.sendMessage(currentTab.id, { action: 'highlight', type: 'clear' });
+    document.querySelectorAll('.highlight-btn.active').forEach(btn => {
+      btn.classList.remove('active');
+      btn.textContent = btn.textContent.replace('Hide ', 'Highlight ');
+    });
+    document.getElementById('status').textContent = 'Highlights cleared';
+    setTimeout(() => { document.getElementById('status').textContent = ''; }, 1500);
+  });
+  
+  // Setup main buttons
   document.getElementById('saveBtn').addEventListener('click', () => saveData(data));
   document.getElementById('copyBtn').addEventListener('click', () => copyToClipboard(data));
   document.getElementById('exportBtn').addEventListener('click', () => exportAsJson(data));
