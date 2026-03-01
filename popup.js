@@ -37,7 +37,7 @@ function renderResults(data) {
   content.innerHTML = `
     <div class="header">
       <h1><img src="icons/icon48.png" alt="">SEO Bandwagon</h1>
-      <a href="https://seobw.dev/dashboard" target="_blank">Dashboard →</a>
+      <a href="https://seobandwagon.dev/dashboard" target="_blank">Dashboard →</a>
     </div>
     
     <div class="url">${esc(data.url)}</div>
