@@ -67,6 +67,24 @@ function renderResults(data) {
       </div>
     </div>
     
+    <!-- Top Keywords Section (N-grams) - AT TOP -->
+    <div class="section open" data-section="keywords" onclick="this.classList.toggle('open')">
+      <div class="section-header">
+        <span class="section-title">Top Keywords</span>
+        <span class="section-arrow">▼</span>
+      </div>
+      <div class="section-content">
+        <div style="margin-bottom:8px;color:#888;font-size:10px">Single words:</div>
+        <div class="tags">
+          ${data.content.topWords.slice(0,10).map(w => `<span class="tag">${esc(w.word)}<span class="tag-count">${w.count}</span></span>`).join('')}
+        </div>
+        <div style="margin-top:10px;margin-bottom:8px;color:#888;font-size:10px">Phrases (2-3 words):</div>
+        <div class="tags">
+          ${data.content.topPhrases.slice(0,8).map(p => `<span class="tag">${esc(p.phrase)}<span class="tag-count">${p.count}</span></span>`).join('')}
+        </div>
+      </div>
+    </div>
+    
     <!-- Issues Section -->
     <div class="section open" data-section="issues" onclick="this.classList.toggle('open')">
       <div class="section-header">
@@ -77,6 +95,30 @@ function renderResults(data) {
         ${score.issues.length > 0 
           ? score.issues.map(i => `<div class="issue">⚠️ ${esc(i)}</div>`).join('')
           : '<div class="pass">✓ No major issues found</div>'}
+      </div>
+    </div>
+    
+    <!-- Headings Section (HTML SEO) -->
+    <div class="section" data-section="headings" onclick="this.classList.toggle('open')">
+      <div class="section-header">
+        <span class="section-title">Headings</span>
+        <span class="section-arrow">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="data-row">
+          <span class="data-label">H1</span>
+          <span class="data-value ${data.headings.h1.length === 1 ? 'good' : data.headings.h1.length > 1 ? 'warn' : 'bad'}">${data.headings.h1.length} tag(s)</span>
+        </div>
+        ${data.headings.h1.length > 0 ? `<div style="color:#888;font-size:10px;margin-bottom:4px">"${esc(data.headings.h1[0].slice(0,50))}"</div>` : ''}
+        <div class="data-row">
+          <span class="data-label">H2</span>
+          <span class="data-value">${data.headings.h2.length}</span>
+        </div>
+        <div class="data-row">
+          <span class="data-label">H3-H6</span>
+          <span class="data-value">${data.headings.h3.length + data.headings.h4.length + data.headings.h5.length + data.headings.h6.length}</span>
+        </div>
+        <button class="highlight-btn" data-type="headings">Highlight Headings</button>
       </div>
     </div>
     
@@ -133,45 +175,6 @@ function renderResults(data) {
       </div>
     </div>
     
-    <!-- Tech Stack Section -->
-    ${techStack.length > 0 ? `
-    <div class="section" data-section="techstack" onclick="this.classList.toggle('open')">
-      <div class="section-header">
-        <span class="section-title">Tech Stack (${techStack.length})</span>
-        <span class="section-arrow">▼</span>
-      </div>
-      <div class="section-content">
-        <div class="tech-badges">
-          ${techStack.map(t => `<span class="tech-badge" title="${t.category}">${t.icon} ${t.name}</span>`).join('')}
-        </div>
-      </div>
-    </div>
-    ` : ''}
-    
-    <!-- Headings Section -->
-    <div class="section" data-section="headings" onclick="this.classList.toggle('open')">
-      <div class="section-header">
-        <span class="section-title">Headings</span>
-        <span class="section-arrow">▼</span>
-      </div>
-      <div class="section-content">
-        <div class="data-row">
-          <span class="data-label">H1</span>
-          <span class="data-value ${data.headings.h1.length === 1 ? 'good' : data.headings.h1.length > 1 ? 'warn' : 'bad'}">${data.headings.h1.length} tag(s)</span>
-        </div>
-        ${data.headings.h1.length > 0 ? `<div style="color:#888;font-size:10px;margin-bottom:4px">"${esc(data.headings.h1[0].slice(0,50))}"</div>` : ''}
-        <div class="data-row">
-          <span class="data-label">H2</span>
-          <span class="data-value">${data.headings.h2.length}</span>
-        </div>
-        <div class="data-row">
-          <span class="data-label">H3-H6</span>
-          <span class="data-value">${data.headings.h3.length + data.headings.h4.length + data.headings.h5.length + data.headings.h6.length}</span>
-        </div>
-        <button class="highlight-btn" data-type="headings">Highlight Headings</button>
-      </div>
-    </div>
-    
     <!-- Links Section -->
     <div class="section" data-section="links" onclick="this.classList.toggle('open')">
       <div class="section-header">
@@ -208,10 +211,25 @@ function renderResults(data) {
       </div>
     </div>
     
-    <!-- Content Section -->
+    <!-- Tech Stack Section -->
+    ${techStack.length > 0 ? `
+    <div class="section" data-section="techstack" onclick="this.classList.toggle('open')">
+      <div class="section-header">
+        <span class="section-title">Tech Stack (${techStack.length})</span>
+        <span class="section-arrow">▼</span>
+      </div>
+      <div class="section-content">
+        <div class="tech-badges">
+          ${techStack.map(t => `<span class="tech-badge" title="${t.category}">${t.icon} ${t.name}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+    ` : ''}
+    
+    <!-- Content Stats Section -->
     <div class="section" data-section="content" onclick="this.classList.toggle('open')">
       <div class="section-header">
-        <span class="section-title">Content Analysis</span>
+        <span class="section-title">Content Stats</span>
         <span class="section-arrow">▼</span>
       </div>
       <div class="section-content">
@@ -234,10 +252,6 @@ function renderResults(data) {
         <div class="data-row">
           <span class="data-label">Flesch ease</span>
           <span class="data-value">${data.content.readability.fleschEase}/100</span>
-        </div>
-        <div style="margin-top:8px;color:#888;font-size:10px">Top words:</div>
-        <div class="tags">
-          ${data.content.topWords.slice(0,8).map(w => `<span class="tag">${esc(w.word)}<span class="tag-count">${w.count}</span></span>`).join('')}
         </div>
       </div>
     </div>
