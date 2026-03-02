@@ -56,7 +56,7 @@ function renderResults(data) {
   let html = `
     <div class="header">
       <h1><img src="icons/icon48.png" alt="">SEO Bandwagon</h1>
-      <a href="https://seobandwagon.dev/dashboard" target="_blank">Dashboard</a> · <a href="https://seobandwagon.com" target="_blank">seobandwagon.com</a> · <a href="${chrome.runtime.getURL('history.html')}" target="_blank">History →</a>
+      <div class="header-icons"><a href="https://seobandwagon.com" target="_blank" title="Dashboard">📊</a><a href="${chrome.runtime.getURL('history.html')}" target="_blank" title="History">🕐</a></div>
     </div>
     
     <div class="url">${esc(data.url)}</div>
