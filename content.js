@@ -1,5 +1,8 @@
 // Content script - comprehensive SEO data extraction
 
+if (window.__seoBandwagonLoaded) { /* already injected */ } else {
+window.__seoBandwagonLoaded = true;
+
 let counterEl = null; // For character counter
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -1255,3 +1258,5 @@ function getTopN(counts, n) {
     .slice(0, n)
     .map(([phrase, count]) => ({ phrase, count }));
 }
+
+} // end __seoBandwagonLoaded guard
