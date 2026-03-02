@@ -472,7 +472,6 @@ function renderResults(data) {
   html += `
     <!-- Actions -->
     <div class="actions">
-      <button id="saveBtn">Save</button>
       <button id="copyBtn" class="secondary">Copy JSON</button>
       <button id="exportBtn" class="secondary">Export</button>
     </div>
@@ -523,7 +522,6 @@ function renderResults(data) {
   });
   
   // Setup main buttons
-  document.getElementById('saveBtn').addEventListener('click', () => saveData(data));
   document.getElementById('copyBtn').addEventListener('click', () => copyToClipboard(data));
   document.getElementById('exportBtn').addEventListener('click', () => exportAsJson(data));
 }
@@ -567,52 +565,6 @@ function esc(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-async function saveData(data) {
-  const btn = document.getElementById('saveBtn');
-  const status = document.getElementById('status');
-  
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
-  
-  const settings = await new Promise(resolve => {
-    chrome.storage.sync.get({
-      apiKey: '',
-      apiUrl: 'https://api.seobandwagon.dev',
-      localBackup: true
-    }, resolve);
-  });
-  
-  // Local backup
-  if (settings.localBackup) {
-    const key = `capture_${Date.now()}`;
-    chrome.storage.local.set({ [key]: data });
-  }
-  
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (settings.apiKey) {
-      headers['Authorization'] = `Bearer ${settings.apiKey}`;
-    }
-    
-    const response = await fetch(`${settings.apiUrl}/v1/captures`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data)
-    });
-    
-    if (response.ok) {
-      btn.textContent = '✓ Saved';
-      btn.classList.add('success');
-      status.textContent = 'Saved to SEO Bandwagon';
-    } else {
-      throw new Error(response.status === 401 ? 'Invalid API key' : 'API error');
-    }
-  } catch (err) {
-    btn.textContent = 'Save';
-    btn.disabled = false;
-    status.textContent = err.message + ' (saved locally)';
-  }
-}
 
 function copyToClipboard(data) {
   navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
