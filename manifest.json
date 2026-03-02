@@ -29,23 +29,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://www.google.com/search*",
-        "https://www.google.co.uk/search*",
-        "https://www.google.ca/search*",
-        "https://www.google.com.au/search*"
-      ],
-      "js": [
-        "serp-overlay.js"
-      ],
-      "css": [
-        "serp-overlay.css"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
+  "content_scripts": [],
   "commands": {
     "analyze-current": {
       "suggested_key": {
