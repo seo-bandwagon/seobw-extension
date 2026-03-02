@@ -8,14 +8,30 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   currentTab = tab;
   
   try {
+    // Check background cache first — instant if same page
+    const cached = await chrome.runtime.sendMessage({
+      action: 'getCachedAnalysis',
+      tabId: tab.id,
+      url: tab.url
+    });
+
+    if (cached && cached.hit) {
+      pageData = cached.data;
+      renderResults(cached.data);
+      const s = document.getElementById('status');
+      if (s) { s.textContent = '⚡ Cached'; setTimeout(() => { s.textContent = ''; }, 1500); }
+      return;
+    }
+
+    // No cache — run fresh analysis
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
     pageData = response;
     renderResults(response);
-    
-    // Auto-save to local storage
     autoSaveCapture(response);
+
+    // Store in background cache for next open
+    chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
     
-    // Update badge
     if (response.seoScore) {
       chrome.runtime.sendMessage({
         action: 'updateBadge',
