@@ -62,5 +62,15 @@
       },
       "description": "Analyze current page"
     }
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "history.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }
