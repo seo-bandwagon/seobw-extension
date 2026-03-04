@@ -15,6 +15,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
+
+async function hashContent(text) {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text.trim().replace(/\s+/g, ' '));
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return null;
+  }
+}
+
 async function analyzePage() {
   const webVitalsPromise = analyzeWebVitals();
   const mainContent = getMainContent();
@@ -41,9 +54,13 @@ async function analyzePage() {
   // Calculate SEO score
   const seoScore = calculateSEOScore(content, meta, headings, links, images, technical);
   
+  // Generate content hash for change detection
+  const contentHash = await hashContent(text);
+
   return {
     url: window.location.href,
     capturedAt: new Date().toISOString(),
+    contentHash,
     seoScore,
     content,
     meta,
