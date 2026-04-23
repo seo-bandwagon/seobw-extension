@@ -529,7 +529,7 @@ function renderResults(data) {
 async function autoSaveCapture(data) {
   // Auto-send to API (fire and forget)
   try {
-    fetch('https://api.seobandwagon.dev/v1/captures', {
+    fetch('https://seobandwagon.com/api/v1/captures', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).catch(() => {});

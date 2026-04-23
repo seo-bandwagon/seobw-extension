@@ -3,7 +3,7 @@
 (function() {
   'use strict';
   
-  const API_BASE = 'https://api.seobandwagon.dev';
+  const API_BASE = 'https://seobandwagon.com/api';
   
   // Wait for search results to load
   function init() {
