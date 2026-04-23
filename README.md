@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-Capture comprehensive SEO metrics from any webpage with one click. Works offline, syncs to seobandwagon.dev when connected.
+Capture comprehensive SEO metrics from any webpage with one click. Works offline, syncs to seobandwagon.com when connected.
 
 ## Features
 
@@ -39,7 +39,7 @@ Click "History" in the popup to see all captured pages:
 ### Settings
 
 Click "Settings" to configure:
-- API Key (for syncing to seobandwagon.dev)
+- API Key (for syncing to seobandwagon.com)
 - API sync is optional - extension works fully offline
 
 ## Local-First Architecture
@@ -83,8 +83,8 @@ Score deductions:
 ## API Endpoints
 
 When configured, syncs to:
-- `POST https://api.seobandwagon.dev/v1/captures` - Store capture
-- `GET https://api.seobandwagon.dev/v1/captures` - List captures
+- `POST https://seobandwagon.com/api/v1/captures` - Store capture
+- `GET https://seobandwagon.com/api/v1/captures?url=<url>` - List captures for a URL
 
 ## Development
 

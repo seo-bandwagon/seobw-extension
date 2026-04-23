@@ -1,7 +1,7 @@
 # SEO Bandwagon Extension - Project Roadmap
 
 ## Overview
-Browser extension that captures comprehensive SEO data from any webpage and saves to api.seobandwagon.dev.
+Browser extension that captures comprehensive SEO data from any webpage and saves to seobandwagon.com.
 
 ---
 
@@ -28,21 +28,19 @@ All phases done. Extension is fully functional and syncing to API.
 | `GET /v1/captures?domain=` | ✅ Live |
 | Health check | ✅ Live (`/health`) |
 
-**API URL:** `https://api.seobandwagon.dev`
-**Version:** `2026-02-27-v1-captures`
+**API URL:** `https://seobandwagon.com/api`
+**Version:** `2026-04-23-platform-consolidation` (v1.2.0 of extension)
 
 ---
 
 ## Database ✅ Created
 
-Tables created in Supabase:
-- `page_captures`
-- `page_analyses`
+Tables in Neon Postgres (migrated from Supabase 2026-04-23):
+- `extension_analyses` (replaces `page_captures` + `page_analyses`)
 - `domain_stats`
-- `serp_snapshots`
-- `domain_rankings`
 - `whois_cache`
-- `contact_submissions`
+- `contact_submissions` (in platform repo)
+- `serp_snapshots`, `domain_rankings` — not yet ported; add when SERP overlay feature is enabled
 
 ---
 
@@ -63,4 +61,4 @@ Extension project is **DONE**. Remaining work is on the SaaS platform:
 3. Search Console data display (pages, queries, CTR)
 4. Site health dashboard (CWV, readability, structured data)
 
-See main seobandwagon.dev Notion tasks.
+See main seobandwagon.com Notion tasks.
