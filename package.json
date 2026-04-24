@@ -1,0 +1,17 @@
+{
+  "name": "seo-bw-extension",
+  "version": "1.2.0",
+  "private": true,
+  "description": "SEO Bandwagon Chrome extension — dev tooling only (the extension itself ships as the files in the repo root).",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.9"
+  }
+}
