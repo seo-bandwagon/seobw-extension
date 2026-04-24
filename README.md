@@ -93,8 +93,31 @@ When configured, syncs to:
 git clone git@github.com:seo-bandwagon/seo-bw-extension.git
 cd seo-bw-extension
 
+# Install dev deps (test harness)
+npm install
+
+# Run the automated suite
+npm test                 # vitest — unit + integration, ~1s
+npm run test:e2e         # Playwright canary against production, ~15s
+
 # Make changes, then reload in chrome://extensions/
 ```
+
+## Testing
+
+Three layers of test cover this extension:
+
+| Layer | Runner | Where | When |
+|---|---|---|---|
+| Unit | vitest + JSDOM | `tests/unit/` | Every PR + push |
+| Integration | vitest + JSDOM + fixture HTML | `tests/integration/` | Every PR + push |
+| E2E canary | Playwright + real Chromium + real prod | `tests/e2e/` | Weekly cron + push to main |
+
+CI workflows in `.github/workflows/`. The weekly canary auto-creates a GitHub issue on scheduled failure.
+
+## Releasing
+
+Before every Chrome Web Store submission, walk through [MANUAL_SMOKE_TEST.md](./MANUAL_SMOKE_TEST.md) end-to-end (~10 min). It covers UI regressions, keyboard shortcuts, offline behaviour, and edge-case pages that the automated suite can't reach.
 
 ## License
 
