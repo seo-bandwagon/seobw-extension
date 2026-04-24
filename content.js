@@ -21,6 +21,18 @@ const {
   getTopN
 } = self.SEOBWAnalysis;
 
+// DOM extractors are similarly injected from lib/dom-extraction.js. Each
+// takes optional (doc, win) args so they work in JSDOM tests too; here in
+// the content script we let them default to the target tab's document.
+const {
+  extractMeta,
+  extractHeadings,
+  extractLinks,
+  extractImages,
+  extractTechnical,
+  getMainContent
+} = self.SEOBWExtraction;
+
 let counterEl = null; // For character counter
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -336,214 +348,10 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 
-// ============ META TAGS ============
-// calculateSEOScore + getGrade live in lib/content-analysis.js (unit-testable).
-
-function extractMeta() {
-  const getMeta = (name) => {
-    const el = document.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
-    return el ? el.getAttribute('content') : null;
-  };
-  
-  const title = document.title || '';
-  const description = getMeta('description') || '';
-  const canonical = document.querySelector('link[rel="canonical"]')?.href || null;
-  const robots = getMeta('robots') || null;
-  
-  // Open Graph
-  const openGraph = {
-    title: getMeta('og:title'),
-    description: getMeta('og:description'),
-    image: getMeta('og:image'),
-    type: getMeta('og:type'),
-    url: getMeta('og:url'),
-    siteName: getMeta('og:site_name')
-  };
-  
-  // Twitter Card
-  const twitter = {
-    card: getMeta('twitter:card'),
-    title: getMeta('twitter:title'),
-    description: getMeta('twitter:description'),
-    image: getMeta('twitter:image')
-  };
-  
-  // Schema.org / JSON-LD
-  const schemaScripts = document.querySelectorAll('script[type="application/ld+json"]');
-  const schema = [];
-  schemaScripts.forEach(script => {
-    try {
-      schema.push(JSON.parse(script.textContent));
-    } catch (e) {
-      // Invalid JSON, skip
-    }
-  });
-  
-  return {
-    title: { text: title, length: title.length },
-    description: { text: description, length: description.length },
-    canonical,
-    robots,
-    openGraph,
-    twitter,
-    schema
-  };
-}
-
-// ============ HEADINGS ============
-
-function extractHeadings() {
-  const headings = {
-    h1: [],
-    h2: [],
-    h3: [],
-    h4: [],
-    h5: [],
-    h6: [],
-    multipleH1: false
-  };
-  
-  for (let i = 1; i <= 6; i++) {
-    const els = document.querySelectorAll(`h${i}`);
-    els.forEach(el => {
-      const text = el.textContent.trim();
-      if (text) headings[`h${i}`].push(text);
-    });
-  }
-  
-  headings.multipleH1 = headings.h1.length > 1;
-  
-  return headings;
-}
-
-// ============ LINKS ============
-
-function extractLinks() {
-  const currentHost = window.location.hostname;
-  const links = document.querySelectorAll('a[href]');
-  
-  const internal = { count: 0, urls: [] };
-  const external = { count: 0, urls: [], domains: new Set() };
-  const anchors = [];
-  let nofollow = 0;
-  
-  links.forEach(link => {
-    const href = link.href;
-    const text = link.textContent.trim();
-    const rel = link.getAttribute('rel') || '';
-    
-    if (rel.includes('nofollow')) nofollow++;
-    
-    try {
-      const url = new URL(href);
-      
-      if (url.hostname === currentHost || url.hostname === 'www.' + currentHost || 'www.' + url.hostname === currentHost) {
-        internal.count++;
-        if (internal.urls.length < 100) internal.urls.push(href);
-      } else if (url.protocol.startsWith('http')) {
-        external.count++;
-        if (external.urls.length < 100) external.urls.push(href);
-        external.domains.add(url.hostname);
-      }
-      
-      if (text && anchors.length < 50) {
-        anchors.push({ text: text.slice(0, 100), href: href.slice(0, 200) });
-      }
-    } catch (e) {
-      // Invalid URL, skip
-    }
-  });
-  
-  return {
-    internal,
-    external: {
-      count: external.count,
-      urls: external.urls,
-      domains: Array.from(external.domains)
-    },
-    anchors,
-    nofollow
-  };
-}
-
-// ============ IMAGES ============
-
-function extractImages() {
-  const images = document.querySelectorAll('img');
-  const missingAlt = { count: 0, srcs: [] };
-  const altTexts = [];
-  
-  images.forEach(img => {
-    const alt = img.getAttribute('alt');
-    const src = img.src || img.dataset.src || '';
-    
-    if (!alt || alt.trim() === '') {
-      missingAlt.count++;
-      if (missingAlt.srcs.length < 20) missingAlt.srcs.push(src.slice(0, 200));
-    } else {
-      if (altTexts.length < 50) altTexts.push(alt.slice(0, 200));
-    }
-  });
-  
-  return {
-    total: images.length,
-    missingAlt,
-    altTexts
-  };
-}
-
-// ============ TECHNICAL ============
-
-function extractTechnical() {
-  const scripts = document.querySelectorAll('script');
-  const stylesheets = document.querySelectorAll('link[rel="stylesheet"], style');
-  
-  // Performance timing
-  let loadTimeMs = null;
-  if (window.performance && performance.timing) {
-    const timing = performance.timing;
-    if (timing.loadEventEnd && timing.navigationStart) {
-      loadTimeMs = timing.loadEventEnd - timing.navigationStart;
-    }
-  }
-  
-  // URL depth
-  const path = window.location.pathname;
-  const urlDepth = path.split('/').filter(p => p.length > 0).length;
-  
-  return {
-    domElements: document.getElementsByTagName('*').length,
-    scripts: scripts.length,
-    stylesheets: stylesheets.length,
-    loadTimeMs,
-    urlDepth,
-    url: {
-      protocol: window.location.protocol,
-      pathname: window.location.pathname,
-      search: window.location.search,
-      hash: window.location.hash
-    }
-  };
-}
-
-// ============ CONTENT ANALYSIS HELPERS ============
-// Pure helpers (cleanText, getWords, countSentences, countSyllables,
-// calculateReadability, getTopWords, getTopPhrases) live in
-// lib/content-analysis.js for unit testability. Only DOM-bound helpers
-// stay here.
-
-function getMainContent() {
-  const main = document.querySelector('main, article, [role="main"]');
-  if (main) return main.innerText;
-
-  const body = document.body.cloneNode(true);
-  const exclude = ['header', 'footer', 'nav', 'aside', '.sidebar', '.navigation', '.menu', 'script', 'style', 'noscript', 'iframe'];
-  exclude.forEach(sel => {
-    body.querySelectorAll(sel).forEach(el => el.remove());
-  });
-
-  return body.innerText;
-}
+// ============ DOM EXTRACTION ============
+// extractMeta, extractHeadings, extractLinks, extractImages, extractTechnical,
+// getMainContent all live in lib/dom-extraction.js (JSDOM-testable).
+// calculateSEOScore + getGrade live in lib/content-analysis.js.
 
 
 // ============================================

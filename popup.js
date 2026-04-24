@@ -25,7 +25,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
 
     // No cache — inject content script then analyze
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'content.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'content.js'] });
     } catch (e) { /* already injected, ignore */ }
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
     pageData = response;
