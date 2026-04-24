@@ -3,6 +3,24 @@
 if (window.__seoBandwagonLoaded) { /* already injected */ } else {
 window.__seoBandwagonLoaded = true;
 
+// Pure-logic analysis helpers are injected from lib/content-analysis.js
+// immediately before this file by chrome.scripting.executeScript. They live
+// on self.SEOBWAnalysis; destructure the ones we use so existing call sites
+// below reference them by bare name.
+const {
+  calculateSEOScore,
+  getGrade,
+  cleanText,
+  getWords,
+  countSentences,
+  countSyllables,
+  calculateReadability,
+  getTopWords,
+  getTopPhrases,
+  buildNgramCounts,
+  getTopN
+} = self.SEOBWAnalysis;
+
 let counterEl = null; // For character counter
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -318,118 +336,8 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 
-// ============ SEO SCORE ============
-
-function calculateSEOScore(content, meta, headings, links, images, technical) {
-  let score = 100;
-  const issues = [];
-  
-  // Title (15 points)
-  if (!meta.title.text) {
-    score -= 15;
-    issues.push('Missing title');
-  } else if (meta.title.length < 30) {
-    score -= 8;
-    issues.push('Title too short');
-  } else if (meta.title.length > 60) {
-    score -= 5;
-    issues.push('Title too long');
-  }
-  
-  // Meta description (15 points)
-  if (!meta.description.text) {
-    score -= 15;
-    issues.push('Missing meta description');
-  } else if (meta.description.length < 120) {
-    score -= 8;
-    issues.push('Description too short');
-  } else if (meta.description.length > 160) {
-    score -= 5;
-    issues.push('Description too long');
-  }
-  
-  // H1 (10 points)
-  if (headings.h1.length === 0) {
-    score -= 10;
-    issues.push('Missing H1');
-  } else if (headings.multipleH1) {
-    score -= 5;
-    issues.push('Multiple H1 tags');
-  }
-  
-  // Images (10 points)
-  if (images.total > 0) {
-    const missingAltRatio = images.missingAlt.count / images.total;
-    if (missingAltRatio > 0.5) {
-      score -= 10;
-      issues.push('Many images missing alt');
-    } else if (missingAltRatio > 0) {
-      score -= 5;
-      issues.push('Some images missing alt');
-    }
-  }
-  
-  // Canonical (5 points)
-  if (!meta.canonical) {
-    score -= 5;
-    issues.push('No canonical URL');
-  }
-  
-  // Schema (10 points)
-  if (meta.schema.length === 0) {
-    score -= 10;
-    issues.push('No structured data');
-  }
-  
-  // Open Graph (5 points)
-  if (!meta.openGraph.title) {
-    score -= 5;
-    issues.push('Missing Open Graph');
-  }
-  
-  // Content length (10 points)
-  if (content.wordCount < 300) {
-    score -= 10;
-    issues.push('Thin content');
-  } else if (content.wordCount < 600) {
-    score -= 5;
-    issues.push('Light content');
-  }
-  
-  // Internal links (5 points)
-  if (links.internal.count < 3) {
-    score -= 5;
-    issues.push('Few internal links');
-  }
-  
-  // Page size (5 points)
-  if (technical.domElements > 2000) {
-    score -= 5;
-    issues.push('Large DOM');
-  }
-  
-  // Readability (10 points)
-  if (content.readability.fleschKincaid > 14) {
-    score -= 5;
-    issues.push('Hard to read');
-  }
-  
-  return {
-    score: Math.max(0, score),
-    grade: getGrade(score),
-    issues
-  };
-}
-
-function getGrade(score) {
-  if (score >= 90) return 'A';
-  if (score >= 80) return 'B';
-  if (score >= 70) return 'C';
-  if (score >= 60) return 'D';
-  return 'F';
-}
-
 // ============ META TAGS ============
+// calculateSEOScore + getGrade live in lib/content-analysis.js (unit-testable).
 
 function extractMeta() {
   const getMeta = (name) => {
@@ -619,118 +527,22 @@ function extractTechnical() {
 }
 
 // ============ CONTENT ANALYSIS HELPERS ============
+// Pure helpers (cleanText, getWords, countSentences, countSyllables,
+// calculateReadability, getTopWords, getTopPhrases) live in
+// lib/content-analysis.js for unit testability. Only DOM-bound helpers
+// stay here.
 
 function getMainContent() {
   const main = document.querySelector('main, article, [role="main"]');
   if (main) return main.innerText;
-  
+
   const body = document.body.cloneNode(true);
   const exclude = ['header', 'footer', 'nav', 'aside', '.sidebar', '.navigation', '.menu', 'script', 'style', 'noscript', 'iframe'];
   exclude.forEach(sel => {
     body.querySelectorAll(sel).forEach(el => el.remove());
   });
-  
+
   return body.innerText;
-}
-
-function cleanText(text) {
-  return text.replace(/\s+/g, ' ').replace(/[^\w\s.,!?;:'"()-]/g, '').trim();
-}
-
-function getWords(text) {
-  return text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 0);
-}
-
-function countSentences(text) {
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  return sentences.length || 1;
-}
-
-function calculateReadability(text, words) {
-  const sentences = countSentences(text);
-  const syllables = words.reduce((sum, word) => sum + countSyllables(word), 0);
-  
-  const fleschKincaid = words.length > 0 
-    ? (0.39 * (words.length / sentences)) + (11.8 * (syllables / words.length)) - 15.59
-    : 0;
-  
-  const fleschEase = words.length > 0
-    ? 206.835 - (1.015 * (words.length / sentences)) - (84.6 * (syllables / words.length))
-    : 0;
-    
-  // Reading level labels
-  let level = 'College';
-  if (fleschKincaid <= 5) level = 'Elementary';
-  else if (fleschKincaid <= 8) level = 'Middle School';
-  else if (fleschKincaid <= 12) level = 'High School';
-  
-  return {
-    fleschKincaid: Math.max(0, Math.round(fleschKincaid * 10) / 10),
-    fleschEase: Math.max(0, Math.min(100, Math.round(fleschEase * 10) / 10)),
-    level
-  };
-}
-
-function countSyllables(word) {
-  word = word.toLowerCase();
-  if (word.length <= 3) return 1;
-  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
-  word = word.replace(/^y/, '');
-  const matches = word.match(/[aeiouy]{1,2}/g);
-  return matches ? matches.length : 1;
-}
-
-function getTopWords(words) {
-  const stopWords = new Set([
-    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-    'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
-    'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
-    'it', 'its', 'you', 'your', 'we', 'our', 'they', 'their', 'he', 'she',
-    'him', 'her', 'his', 'i', 'me', 'my', 'what', 'which', 'who', 'whom',
-    'when', 'where', 'why', 'how', 'all', 'each', 'every', 'both', 'few',
-    'more', 'most', 'other', 'some', 'such', 'no', 'not', 'only', 'same',
-    'so', 'than', 'too', 'very', 'just', 'also', 'now', 'here', 'there'
-  ]);
-  
-  const counts = {};
-  words.forEach(word => {
-    if (word.length > 2 && !stopWords.has(word)) {
-      counts[word] = (counts[word] || 0) + 1;
-    }
-  });
-  
-  return Object.entries(counts)
-    .map(([word, count]) => ({ word, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 30);
-}
-
-function getTopPhrases(words) {
-  const phrases2 = {};
-  const phrases3 = {};
-  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would']);
-  
-  for (let i = 0; i < words.length - 1; i++) {
-    if (!stopWords.has(words[i]) || !stopWords.has(words[i + 1])) {
-      const p2 = `${words[i]} ${words[i + 1]}`;
-      phrases2[p2] = (phrases2[p2] || 0) + 1;
-    }
-    if (i < words.length - 2 && (!stopWords.has(words[i]) || !stopWords.has(words[i + 2]))) {
-      const p3 = `${words[i]} ${words[i + 1]} ${words[i + 2]}`;
-      phrases3[p3] = (phrases3[p3] || 0) + 1;
-    }
-  }
-  
-  const allPhrases = [
-    ...Object.entries(phrases2).map(([phrase, count]) => ({ phrase, count })),
-    ...Object.entries(phrases3).map(([phrase, count]) => ({ phrase, count }))
-  ];
-  
-  return allPhrases
-    .filter(p => p.count > 1)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 30);
 }
 
 
@@ -1254,26 +1066,6 @@ function analyzeNgrams() {
   };
 }
 
-function buildNgramCounts(words, n, stopWords) {
-  const counts = {};
-  for (let i = 0; i <= words.length - n; i++) {
-    const gram = words.slice(i, i + n).join(' ');
-    // For bigrams/trigrams: skip if ALL words are stop words
-    if (n > 1 && stopWords) {
-      const parts = gram.split(' ');
-      if (parts.every(w => stopWords.has(w))) continue;
-    }
-    counts[gram] = (counts[gram] || 0) + 1;
-  }
-  return counts;
-}
-
-function getTopN(counts, n) {
-  return Object.entries(counts)
-    .filter(([_, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n)
-    .map(([phrase, count]) => ({ phrase, count }));
-}
+// buildNgramCounts + getTopN live in lib/content-analysis.js.
 
 } // end __seoBandwagonLoaded guard
