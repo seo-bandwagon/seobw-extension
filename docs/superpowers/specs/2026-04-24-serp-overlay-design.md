@@ -116,9 +116,9 @@ Implementation: one `SELECT` from `whois_cache` (filtered by domain list, non-ex
 
 ### Tier-aware capture visibility
 
-- `extension_analyses` gains a `visibility text not null default 'public'` column. Migration: `ALTER TABLE extension_analyses ADD COLUMN visibility text NOT NULL DEFAULT 'public';`
+- `extension_analyses` gains two new columns: `visibility text NOT NULL DEFAULT 'public'` (values: `'public'` | `'private'`) and `user_id uuid NULL REFERENCES users(id)` (nullable — only set for private paid-tier captures). Generated Drizzle migration covers both.
 - `domain_stats` rolling-average UPSERT in `/api/v1/captures` only updates when `visibility = 'public'`.
-- `/api/v1/captures` POST: if a valid `Authorization: Bearer <apiKey>` header is present, insert with `visibility = 'private'` and associate the capture with the paying account. If header is absent or invalid, insert with `visibility = 'public'`.
+- `/api/v1/captures` POST: if a valid `Authorization: Bearer <apiKey>` header is present, look up the owning `user_id` from the `api_keys` table (introduced by the paid-tier feature — not in this spec), insert the capture with `visibility = 'private'` and a `user_id` foreign key. If header is absent or invalid (no matching key), insert with `visibility = 'public'` and `user_id = null`.
 - For v1.3.0 ship: the backend does not yet validate API keys (paid tier isn't live). Any non-empty `Authorization` header will still insert `visibility = 'public'` because no account matches. When paid-tier validation lands, existing hook automatically flips to `'private'` for valid keys.
 
 ### Privacy model
@@ -143,8 +143,8 @@ The dead `apiUrl` field is removed. The `apiKey` field stays and is now load-bea
 ### Budget
 
 - Zero cumulative layout shift on Google SERPs (badges reserve their height before data arrives)
-- Main-thread work under 50 ms during SERP render
-- Time-to-first-badge under 500 ms from SERP ready
+- No single main-thread task exceeds 50 ms during SERP render (measured via Performance API `longtask` entries)
+- Time-to-first-badge under 500 ms after the MutationObserver sees the first result `div.g` appear
 
 ### Four-layer cache
 
