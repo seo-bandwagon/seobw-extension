@@ -4,3 +4,9 @@ coverage/
 .DS_Store
 .claude/
 .superpowers/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+/blob-report/
+/playwright/.cache/
