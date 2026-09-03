@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../styles/popup.css">
+</head>
+<body class="page-popup">
+  <header class="chrome">
+    <div class="chrome-mark">SB</div>
+    <div class="chrome-word">SEO BANDWAGON</div>
+    <nav class="switcher">
+      <button class="active" data-tab="seo">ANALYSIS</button>
+      <button data-tab="citations">CITATIONS</button>
+    </nav>
+  </header>
+
+  <div class="tab-panel active" id="tab-seo">
+    <div id="content">
+      <div class="loading">Analyzing page…</div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-citations">
+    <div id="cf-content">
+      <div class="loading">Loading…</div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-toggle">
+      <label class="toggle-label">
+        <input type="checkbox" id="dataToggle" checked>
+        <span>HELP IMPROVE SEO INSIGHTS</span>
+      </label>
+      <span class="footer-right">
+        <span class="version-tag" id="versionTag"></span>
+        <a href="https://seobandwagon.com/privacy?utm_source=chrome_extension" target="_blank" rel="noopener" class="privacy-link">PRIVACY</a>
+      </span>
+    </div>
+  </footer>
+
+  <script src="../lib/api.js"></script>
+  <script src="../lib/citationforge-api.js"></script>
+  <script src="../lib/nap-compare.js"></script>
+  <script src="../lib/directory-matcher.js"></script>
+  <script src="popup.js"></script>
+  <script src="citations-tab.js"></script>
+</body>
+</html>

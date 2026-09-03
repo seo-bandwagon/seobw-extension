@@ -1,35 +1,61 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.2.0",
-  "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection.",
+  "version": "1.4.0",
+  "version_name": "1.4.0 — brand refresh",
+  "description": "Instant SEO analysis + CitationForge citation management: NAP checks, proof screenshots, and campaign triggers.",
   "permissions": [
     "activeTab",
     "storage",
     "contextMenus",
-    "scripting"
+    "scripting",
+    "identity",
+    "sidePanel",
+    "tabs"
   ],
-  "options_page": "options.html",
+  "oauth2": {
+    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "email",
+      "profile"
+    ]
+  },
+  "options_page": "src/options/options.html",
   "host_permissions": [
-    "https://seobandwagon.com/api/*"
+    "https://seobandwagon.com/*",
+    "http://localhost:8000/*"
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup/popup.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "src/icons/icon16.png",
+      "48": "src/icons/icon48.png",
+      "128": "src/icons/icon128.png"
     }
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "src/icons/icon16.png",
+    "48": "src/icons/icon48.png",
+    "128": "src/icons/icon128.png"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/service-worker.js"
   },
-  "content_scripts": [],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://search.google.com/search-console/*"
+      ],
+      "js": [
+        "src/content/gsc-serp.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "commands": {
     "analyze-current": {
       "suggested_key": {
@@ -42,7 +68,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "history.html"
+        "src/history/history.html"
       ],
       "matches": [
         "<all_urls>"

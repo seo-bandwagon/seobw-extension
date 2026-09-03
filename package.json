@@ -1,9 +1,11 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "private": true,
-  "description": "SEO Bandwagon Chrome extension — dev tooling only (the extension itself ships as the files in the repo root).",
+  "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection. Dev tooling only — the extension itself ships as manifest.json + src/ (no build step).",
   "scripts": {
+    "build": "echo 'No build step needed - load unpacked in Chrome'",
+    "zip": "zip -r seo-bw-extension.zip manifest.json src/ README.md ROADMAP.md -x '*.DS_Store'",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",
@@ -11,6 +13,19 @@
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seo-bandwagon/seo-bw-extension.git"
+  },
+  "keywords": [
+    "seo",
+    "chrome-extension",
+    "meta-tags",
+    "schema-markup",
+    "web-vitals"
+  ],
+  "author": "SEO Bandwagon <kyle@seobandwagon.com>",
+  "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@vitest/coverage-v8": "^2.1.9",
