@@ -391,8 +391,8 @@ function setSeoStatus(msg, type) {
 }
 
 async function autoSaveCapture(data) {
-  sendToApi(data);
-  autoSaveLocal(data);
+  const key = await SBW.autoSaveLocal(data);
+  SBW.syncCapture(key); // fire-and-forget; the outcome is recorded on the stored capture's `sync` field
 }
 
 function copyToClipboard(data) {

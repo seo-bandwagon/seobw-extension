@@ -7,8 +7,13 @@
 //
 // Two legacy globals — `getApiSettings` and `autoSaveLocal` — are kept as
 // thin aliases at the bottom of this file for files not yet migrated to the
-// SBW namespace. `sendToApi` is kept alongside them for the same reason:
-// popup.js's autoSaveCapture() still calls it directly on every capture.
+// SBW namespace.
+//
+// Capture sync (Task 2): `SBW.syncCapture` / `SBW.drainPendingCaptures` /
+// `SBW.markLegacyPending` post a saved capture and record the outcome via
+// `SBWSync` (src/lib/sync-state.js) on the stored record's `sync` field.
+// Any file that loads this script must load sync-state.js first — see
+// service-worker.js's importScripts order and history.html's <script> order.
 
 (function (factory) {
   var api = factory();
@@ -172,6 +177,99 @@
   }
 
   // ============================================
+  // Capture sync (Task 2)
+  // ============================================
+  //
+  // Storage shape: each `capture_<ts>` value in chrome.storage.local gains a
+  // `sync` field shaped by SBWSync (src/lib/sync-state.js) —
+  // { status, attempts, nextAt, ... } — that records the outcome of trying
+  // to post that capture to the server.
+
+  // Posts one stored capture and records the result. Returns the sync state
+  // that was written to storage, plus a `code` (the sbwFetch()/skip code
+  // that produced it) so callers like drainPendingCaptures can tell a
+  // rate limit apart from a duplicate without re-deriving it.
+  async function syncCapture(key) {
+    const enabled = await isDataCollectionEnabled();
+    if (!enabled) return { status: 'skipped', error: 'collection_off', code: 'collection_off' };
+
+    const settings = await getApiSettings();
+    if (!settings.apiKey) return { status: 'skipped', error: 'no_key', code: 'no_key' };
+
+    const items = await chrome.storage.local.get(key);
+    const data = items[key];
+    if (!data) return { status: 'skipped', error: 'not_found', code: 'not_found' };
+
+    const payload = Object.assign({}, data);
+    delete payload.sync;
+
+    const result = await postCapture(payload);
+    const now = Date.now();
+    const prevSync = data.sync || SBWSync.initialSync();
+    const newSync = SBWSync.nextSyncState(prevSync, result, now);
+
+    await chrome.storage.local.set({ [key]: Object.assign({}, data, { sync: newSync }) });
+
+    return Object.assign({}, newSync, { code: result.code });
+  }
+
+  // Drains up to `max` due captures (oldest first), sequentially. Stops
+  // early on a rate limit (429), an outage (503), or an auth problem
+  // (missing/invalid key) — those affect every remaining item the same way,
+  // so there's no point burning through the rest of the batch.
+  async function drainPendingCaptures({ max = 20, now = Date.now() } = {}) {
+    const items = await chrome.storage.local.get(null);
+    const captures = Object.entries(items)
+      .filter(([k]) => k.startsWith('capture_'))
+      .map(([key, data]) => ({ key, data }));
+
+    const due = SBWSync.pickDue(captures, now, max);
+
+    let sent = 0;
+    let synced = 0;
+    let duplicates = 0;
+    let stoppedOn = null;
+    let nextAt = null;
+
+    for (const entry of due) {
+      const result = await syncCapture(entry.key);
+      sent++;
+
+      if (result.status === 'synced') synced++;
+      else if (result.status === 'duplicate') duplicates++;
+
+      if (result.code === 'rate_limited' || result.code === 'unavailable' ||
+          result.code === 'unauthorized' || result.code === 'no_key') {
+        stoppedOn = result.code;
+        nextAt = result.nextAt || null;
+        break;
+      }
+    }
+
+    return { sent, synced, duplicates, stoppedOn, nextAt };
+  }
+
+  // One-time stamp for captures saved before this feature existed, so
+  // `pickDue`/history badges have a real sync record instead of treating
+  // "missing" as an implicit pending-due state forever.
+  async function markLegacyPending() {
+    const items = await chrome.storage.local.get(null);
+    const updates = {};
+
+    Object.entries(items).forEach(([key, data]) => {
+      if (key.startsWith('capture_') && data && !data.sync) {
+        updates[key] = Object.assign({}, data, { sync: SBWSync.initialSync() });
+      }
+    });
+
+    const keys = Object.keys(updates);
+    if (keys.length) {
+      await chrome.storage.local.set(updates);
+    }
+    return keys.length;
+  }
+
+  // ============================================
   // Link building
   // ============================================
 
@@ -282,31 +380,12 @@
   };
 
   // ============================================
-  // Legacy: fire-and-forget capture send + local save
-  // Unchanged behavior, relocated from the old lib/api.js. Kept as thin
-  // aliases below for popup.js, which still calls them directly.
+  // Legacy: fire-and-forget local save
+  // Relocated from the old lib/api.js. Kept as a thin alias below for files
+  // not yet migrated to the SBW namespace. Its counterpart `sendToApi` was
+  // removed in Task 2 — capture posting now goes through `syncCapture`,
+  // which records a real sync outcome instead of firing and forgetting.
   // ============================================
-
-  async function sendToApi(data) {
-    try {
-      const enabled = await isDataCollectionEnabled();
-      if (!enabled) return;
-
-      const settings = await getApiSettings();
-      const headers = { 'Content-Type': 'application/json' };
-      if (settings.apiKey) {
-        headers['Authorization'] = `Bearer ${settings.apiKey}`;
-      }
-
-      fetch(`${settings.apiUrl}/v1/captures`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(data)
-      }).catch(() => {});
-    } catch (e) {
-      // Silent fail — never interrupt user experience
-    }
-  }
 
   async function autoSaveLocal(data) {
     const key = `capture_${Date.now()}`;
@@ -317,7 +396,8 @@
       .find(([k, v]) => v.url === data.url && (Date.now() - parseInt(k.split('_')[1])) < 60000);
 
     if (!recentCapture) {
-      chrome.storage.local.set({ [key]: data });
+      const record = Object.assign({}, data, { sync: SBWSync.initialSync() });
+      await chrome.storage.local.set({ [key]: record });
       console.log('Auto-saved capture:', data.url);
     }
 
@@ -330,6 +410,10 @@
     if (captureKeys.length > 500) {
       chrome.storage.local.remove(captureKeys.slice(500));
     }
+
+    // Return the storage key holding this capture — the just-created one,
+    // or the existing recent duplicate's, so callers can still sync it.
+    return recentCapture ? recentCapture[0] : key;
   }
 
   return {
@@ -341,9 +425,11 @@
     capturesForUrl,
     quickDomain,
     quickBatch,
+    syncCapture,
+    drainPendingCaptures,
+    markLegacyPending,
     lb,
     ct,
-    sendToApi,
     autoSaveLocal
   };
 });
@@ -352,7 +438,6 @@
 if (typeof globalThis !== 'undefined' && globalThis.SBW) {
   globalThis.getApiSettings = globalThis.SBW.getApiSettings;
   globalThis.autoSaveLocal = globalThis.SBW.autoSaveLocal;
-  globalThis.sendToApi = globalThis.SBW.sendToApi;
 
   // CitationForge is being removed (Task 4 repoints citations-tab.js /
   // sidepanel.js to SBW.ct.*). Until then, cfIsLoggedIn is still called by

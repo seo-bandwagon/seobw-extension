@@ -1,10 +1,14 @@
 // Unit tests for the unified SEO Bandwagon API client (src/lib/api.js).
 // Covers: apiUrl normalization, auth headers, sbwFetch status→code mapping,
-// timeout/network handling, and the SBW.* wrapper surface (captures, domain,
-// link-building, citations).
+// timeout/network handling, the SBW.* wrapper surface (captures, domain,
+// link-building, citations), and the capture-sync additions (Task 2).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// sync-state.js must load before api.js, same as service-worker.js's
+// importScripts order and history.html/popup.html's <script> order — api.js
+// reads SBWSync off the global scope.
+await import('../../src/lib/sync-state.js');
 // The module attaches itself to `globalThis.SBW` (classic-script / dual-export
 // pattern — see lib/content-analysis.js) rather than relying on the ESM
 // default export, so tests read it off globalThis after importing.
@@ -20,7 +24,12 @@ function mockResponse(status, body, headers = {}) {
   };
 }
 
-function mockChrome({ apiKey = '', apiUrl = 'https://seobandwagon.com/api' } = {}) {
+// `localStore` gives the local.get/set/remove stub real persistence across
+// calls within a test — needed for the capture-sync tests, which read back
+// what an earlier call wrote. Existing callers that don't pass it keep
+// seeing an always-empty store, matching the old stub's behavior.
+function mockChrome({ apiKey = '', apiUrl = 'https://seobandwagon.com/api', localStore = {} } = {}) {
+  const store = localStore;
   return {
     storage: {
       sync: {
@@ -29,12 +38,29 @@ function mockChrome({ apiKey = '', apiUrl = 'https://seobandwagon.com/api' } = {
       },
       local: {
         get: vi.fn((keys, cb) => {
-          const result = {};
+          let result = {};
+          if (keys === null || keys === undefined) {
+            result = Object.assign({}, store);
+          } else if (typeof keys === 'string') {
+            result[keys] = store[keys];
+          } else if (Array.isArray(keys)) {
+            keys.forEach(k => { result[k] = store[k]; });
+          } else {
+            Object.keys(keys).forEach(k => { result[k] = k in store ? store[k] : keys[k]; });
+          }
           if (cb) { cb(result); return undefined; }
           return Promise.resolve(result);
         }),
-        set: vi.fn((items, cb) => { if (cb) cb(); return Promise.resolve(); }),
-        remove: vi.fn((keys, cb) => { if (cb) cb(); return Promise.resolve(); })
+        set: vi.fn((items, cb) => {
+          Object.assign(store, items);
+          if (cb) cb();
+          return Promise.resolve();
+        }),
+        remove: vi.fn((keys, cb) => {
+          (Array.isArray(keys) ? keys : [keys]).forEach(k => { delete store[k]; });
+          if (cb) cb();
+          return Promise.resolve();
+        })
       }
     },
     runtime: {
@@ -242,5 +268,156 @@ describe('wrappers', () => {
     const [url] = globalThis.fetch.mock.calls[0];
     expect(url).toBe('https://seobandwagon.com/api/citations/businesses/b1');
     expect(biz).toEqual({ id: 'b1', name: 'Acme' });
+  });
+});
+
+describe('autoSaveLocal — storage shape + return value', () => {
+  it('stamps a new capture with sync: SBWSync.initialSync() and returns its key', async () => {
+    const store = {};
+    globalThis.chrome = mockChrome({ localStore: store });
+    const key = await SBW.autoSaveLocal({ url: 'https://example.com/a', capturedAt: '2026-01-01T00:00:00Z' });
+    expect(key).toMatch(/^capture_\d+$/);
+    expect(store[key].sync).toEqual({ status: 'pending', attempts: 0, nextAt: 0 });
+    expect(store[key].url).toBe('https://example.com/a');
+  });
+
+  it('returns the existing key instead of creating a duplicate within 60s of the same URL', async () => {
+    const now = Date.now();
+    const existingKey = `capture_${now - 1000}`;
+    const store = { [existingKey]: { url: 'https://example.com/a', sync: { status: 'synced', remoteId: '1', syncedAt: now } } };
+    globalThis.chrome = mockChrome({ localStore: store });
+
+    const key = await SBW.autoSaveLocal({ url: 'https://example.com/a' });
+
+    expect(key).toBe(existingKey);
+    expect(Object.keys(store)).toEqual([existingKey]); // no new entry written
+  });
+});
+
+describe('SBW.syncCapture', () => {
+  it('skips without calling the network when data collection is off', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: {} });
+    globalThis.chrome.storage.local.get = vi.fn((keys, cb) => {
+      const result = keys === 'dataCollection' ? { dataCollection: false } : {};
+      if (cb) { cb(result); return undefined; }
+      return Promise.resolve(result);
+    });
+    const result = await SBW.syncCapture('capture_1');
+    expect(result).toEqual({ status: 'skipped', error: 'collection_off', code: 'collection_off' });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('skips without calling the network when no apiKey is configured', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '', localStore: {} });
+    const result = await SBW.syncCapture('capture_1');
+    expect(result).toEqual({ status: 'skipped', error: 'no_key', code: 'no_key' });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('posts the capture without the sync field, then writes back a synced state', async () => {
+    const store = {
+      capture_1: { url: 'https://example.com', capturedAt: 'x', sync: { status: 'pending', attempts: 0, nextAt: 0 } }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(201, { id: 'remote-1' }));
+
+    const result = await SBW.syncCapture('capture_1');
+
+    const [, init] = globalThis.fetch.mock.calls[0];
+    expect(JSON.parse(init.body).sync).toBeUndefined();
+    expect(result.status).toBe('synced');
+    expect(result.remoteId).toBe('remote-1');
+    expect(store.capture_1.sync).toEqual({ status: 'synced', remoteId: 'remote-1', syncedAt: expect.any(Number) });
+  });
+
+  it('backs off on a 503 without losing the previous attempt count', async () => {
+    const store = {
+      capture_1: { url: 'https://example.com', sync: { status: 'pending', attempts: 2, nextAt: 0 } }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(503, { error: 'down' }));
+
+    const result = await SBW.syncCapture('capture_1');
+
+    expect(result.status).toBe('pending');
+    expect(result.attempts).toBe(3);
+    expect(store.capture_1.sync.attempts).toBe(3);
+  });
+});
+
+describe('SBW.drainPendingCaptures', () => {
+  it('syncs due captures oldest-first and tallies synced/duplicate counts', async () => {
+    const pending = { status: 'pending', attempts: 0, nextAt: 0 };
+    const store = {
+      capture_200: { url: 'https://example.com/b', sync: pending },
+      capture_100: { url: 'https://example.com/a', sync: pending }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch
+      .mockResolvedValueOnce(mockResponse(201, { id: 'r1' }))
+      .mockResolvedValueOnce(mockResponse(409, { error: 'exists' }));
+
+    const result = await SBW.drainPendingCaptures({ max: 20 });
+
+    // capture_100 (older) syncs first, then capture_200 is a duplicate.
+    expect(globalThis.fetch.mock.calls[0][0]).toContain('/v1/captures');
+    expect(result).toEqual({ sent: 2, synced: 1, duplicates: 1, stoppedOn: null, nextAt: null });
+    expect(store.capture_100.sync.status).toBe('synced');
+    expect(store.capture_200.sync.status).toBe('duplicate');
+  });
+
+  it('stops early on the first rate-limited response and reports stoppedOn + nextAt', async () => {
+    const pending = { status: 'pending', attempts: 0, nextAt: 0 };
+    const store = {
+      capture_100: { url: 'https://example.com/a', sync: pending },
+      capture_200: { url: 'https://example.com/b', sync: pending }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(429, { error: 'slow down' }, { 'Retry-After': '30' }));
+
+    const result = await SBW.drainPendingCaptures({ max: 20 });
+
+    expect(result.sent).toBe(1); // stopped after the first rate-limited item
+    expect(result.stoppedOn).toBe('rate_limited');
+    expect(result.nextAt).toEqual(expect.any(Number));
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps the batch at max', async () => {
+    const pending = { status: 'pending', attempts: 0, nextAt: 0 };
+    const store = {};
+    for (let i = 0; i < 5; i++) store[`capture_${100 + i}`] = { url: `https://example.com/${i}`, sync: pending };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(201, { id: 'r' }));
+
+    const result = await SBW.drainPendingCaptures({ max: 2 });
+
+    expect(result.sent).toBe(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SBW.markLegacyPending', () => {
+  it('stamps captures missing a sync field and leaves existing ones alone', async () => {
+    const store = {
+      capture_1: { url: 'https://example.com/a' }, // legacy, no sync
+      capture_2: { url: 'https://example.com/b', sync: { status: 'synced', remoteId: '1', syncedAt: 1 } }
+    };
+    globalThis.chrome = mockChrome({ localStore: store });
+
+    const stamped = await SBW.markLegacyPending();
+
+    expect(stamped).toBe(1);
+    expect(store.capture_1.sync).toEqual({ status: 'pending', attempts: 0, nextAt: 0 });
+    expect(store.capture_2.sync).toEqual({ status: 'synced', remoteId: '1', syncedAt: 1 });
+  });
+
+  it('is a no-op when every capture already has a sync field', async () => {
+    const store = { capture_1: { url: 'https://example.com/a', sync: { status: 'pending', attempts: 0, nextAt: 0 } } };
+    globalThis.chrome = mockChrome({ localStore: store });
+
+    const stamped = await SBW.markLegacyPending();
+
+    expect(stamped).toBe(0);
   });
 });

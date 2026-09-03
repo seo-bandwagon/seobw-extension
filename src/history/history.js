@@ -11,17 +11,43 @@ async function loadCaptures() {
   renderCaptures(allCaptures);
 }
 
+// Sync status -> badge pill class + label. A capture without a `sync` field
+// (saved before this feature existed) reads as pending, same as SBWSync.isDue.
+const SYNC_BADGE = {
+  synced: { label: 'synced', cls: 'b-ok' },
+  pending: { label: 'pending', cls: 'b-warn' },
+  duplicate: { label: 'duplicate', cls: 'b-pink' },
+  failed: { label: 'failed', cls: 'b-err' },
+  skipped: { label: 'skipped', cls: '' }
+};
+
+function syncBadge(capture) {
+  const status = (capture.sync && capture.sync.status) || 'pending';
+  const badge = SYNC_BADGE[status] || SYNC_BADGE.pending;
+  return `<span class="badge-mono ${badge.cls}">${badge.label}</span>`;
+}
+
+function countByStatus(captures) {
+  const counts = { synced: 0, pending: 0, duplicate: 0, failed: 0, skipped: 0 };
+  captures.forEach(c => {
+    const status = (c.sync && c.sync.status) || 'pending';
+    if (counts[status] === undefined) counts[status] = 0;
+    counts[status]++;
+  });
+  return counts;
+}
+
 function renderCaptures(captures) {
   const list = document.getElementById('captureList');
-  
+
   if (captures.length === 0) {
     list.innerHTML = '<div class="empty-state">No captures yet. Analyze some pages!</div>';
     return;
   }
-  
+
   list.innerHTML = captures.map(c => `
     <div class="capture-item" data-key="${c.key}">
-      <div class="capture-url">${c.url}</div>
+      <div class="capture-url">${c.url} ${syncBadge(c)}</div>
       <div class="capture-meta">
         <span class="capture-stat">📅 ${new Date(c.capturedAt).toLocaleString()}</span>
         <span class="capture-stat">📝 ${c.content?.wordCount || 0} words</span>
@@ -77,61 +103,92 @@ document.getElementById('exportAllBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+function showSyncStatus(text, tone) {
+  const status = document.getElementById('syncStatus');
+  const tones = {
+    info: ['#4cc9f033', '#4cc9f0'],
+    success: ['#06d6a033', '#06d6a0'],
+    warn: ['#ffd16633', '#ffd166'],
+    error: ['#ef476f33', '#ef476f']
+  };
+  const [background, color] = tones[tone] || tones.info;
+  status.style.display = 'block';
+  status.style.background = background;
+  status.style.color = color;
+  status.textContent = text;
+}
+
+// Runs a bounded drain, then reports counts across ALL local captures (not
+// just the ones this run touched) so the message reflects the real backlog.
+async function runSync(max) {
+  const result = await SBW.drainPendingCaptures({ max });
+  await loadCaptures();
+  const counts = countByStatus(allCaptures);
+
+  if (result.stoppedOn === 'rate_limited') {
+    const mins = result.nextAt ? Math.max(1, Math.round((result.nextAt - Date.now()) / 60000)) : null;
+    showSyncStatus(`Rate limit reached — next batch in ~${mins ?? '?'} min`, 'warn');
+  } else if (result.stoppedOn === 'unauthorized' || result.stoppedOn === 'no_key') {
+    showSyncStatus('Add your API key in Options', 'error');
+  } else if (counts.failed > 0) {
+    showSyncStatus(
+      `${counts.synced} synced, ${counts.duplicate} duplicates, ${counts.pending} pending, ${counts.failed} failed.`,
+      'error'
+    );
+  } else {
+    showSyncStatus(
+      `${counts.synced} synced, ${counts.duplicate} duplicates, ${counts.pending} pending.`,
+      'success'
+    );
+  }
+
+  return { result, counts };
+}
+
 // Sync to SEO Bandwagon
 document.getElementById('syncBtn').addEventListener('click', async () => {
   const btn = document.getElementById('syncBtn');
-  const status = document.getElementById('syncStatus');
 
   if (allCaptures.length === 0) {
-    status.textContent = 'No captures to sync.';
-    status.style.display = 'block';
-    status.style.background = '#ffd16633';
-    status.style.color = '#ffd166';
+    showSyncStatus('No captures to sync.', 'warn');
     return;
   }
 
   btn.disabled = true;
   btn.textContent = 'Syncing...';
-  status.style.display = 'block';
-  status.style.background = '#4cc9f033';
-  status.style.color = '#4cc9f0';
-  status.textContent = `Syncing ${allCaptures.length} captures...`;
+  showSyncStatus('Syncing…', 'info');
 
-  let synced = 0;
-  let skipped = 0;
-  let failed = 0;
+  try {
+    await runSync(60);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sync to SEO Bandwagon';
+  }
+});
 
-  for (const capture of allCaptures) {
-    try {
-      const res = await fetch('https://seobandwagon.com/api/v1/captures', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(capture)
-      });
-      if (res.ok) {
-        synced++;
-      } else if (res.status === 409) {
-        skipped++; // duplicate
-      } else {
-        failed++;
-      }
-    } catch {
-      failed++;
-    }
-    status.textContent = `Synced ${synced} / ${allCaptures.length} (${skipped} duplicates, ${failed} failed)`;
+// Retry failed: reset every failed capture back to pending, then drain.
+document.getElementById('retryFailedBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('retryFailedBtn');
+  const failedCaptures = allCaptures.filter(c => c.sync && c.sync.status === 'failed');
+
+  if (failedCaptures.length === 0) {
+    showSyncStatus('No failed captures to retry.', 'warn');
+    return;
   }
 
-  btn.disabled = false;
-  btn.textContent = 'Sync to SEO Bandwagon';
-
-  if (failed === 0) {
-    status.style.background = '#06d6a033';
-    status.style.color = '#06d6a0';
-    status.textContent = `Done! ${synced} synced, ${skipped} already existed.`;
-  } else {
-    status.style.background = '#ef476f33';
-    status.style.color = '#ef476f';
-    status.textContent = `${synced} synced, ${skipped} duplicates, ${failed} failed.`;
+  btn.disabled = true;
+  try {
+    const updates = {};
+    failedCaptures.forEach(c => {
+      const record = Object.assign({}, c);
+      delete record.key;
+      record.sync = SBWSync.resetFailed(c.sync);
+      updates[c.key] = record;
+    });
+    await chrome.storage.local.set(updates);
+    await runSync(60);
+  } finally {
+    btn.disabled = false;
   }
 });
 

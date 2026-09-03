@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/api.js', '../lib/directory-matcher.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -25,6 +25,25 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Count words & characters',
     contexts: ['selection']
   });
+});
+
+// --- Capture sync: alarm-driven retry drainer (Task 2) ---
+const SYNC_ALARM_NAME = 'sbw-sync';
+
+function ensureSyncAlarm() {
+  chrome.alarms.create(SYNC_ALARM_NAME, { periodInMinutes: 15 });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  ensureSyncAlarm();
+  SBW.markLegacyPending(); // one-time stamp for captures saved before sync existed
+});
+chrome.runtime.onStartup.addListener(ensureSyncAlarm);
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === SYNC_ALARM_NAME) {
+    SBW.drainPendingCaptures({ max: 20 });
+  }
 });
 
 // Clear cache when tab navigates to a new URL
