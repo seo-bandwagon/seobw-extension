@@ -27,6 +27,12 @@
 
   const CACHE_TTL_MS = 10 * 60 * 1000;
 
+  // How much clock skew (client vs. server) to tolerate when deciding
+  // whether a capture returned by the server is actually "prior" history vs.
+  // the capture the popup itself just posted moments ago. See `excludeSince`
+  // on summarize().
+  const EXCLUDE_SKEW_MS = 5000;
+
   function cacheKey(kind, value) {
     return `dh:${kind}:${value}`;
   }
@@ -65,16 +71,42 @@
     return n >= 0 ? `+${n}` : `${n}`;
   }
 
+  // Drops any capture the server returned that was actually created at/after
+  // `excludeSince` (minus a skew allowance) — i.e. the capture the popup's
+  // own autoSaveCapture()/syncCapture() just posted for *this* analysis,
+  // which can land before capturesForUrl() is read back (see popup.js's
+  // loadDomainHistory). Without this, a never-before-seen URL can render its
+  // own just-posted capture as "1 prior capture", and that gets cached for
+  // CACHE_TTL_MS. `totalCaptures` is reduced by the same count so the
+  // "N prior captures" line stays consistent with what's actually prior.
+  function excludeJustPosted(captures, excludeSince) {
+    const list = (captures && captures.captures) || [];
+    const total = (captures && captures.totalCaptures) || 0;
+
+    if (typeof excludeSince !== 'number') {
+      return { captures: list, totalCaptures: total };
+    }
+
+    const threshold = excludeSince - EXCLUDE_SKEW_MS;
+    const kept = list.filter(c => !(Date.parse(c.createdAt) >= threshold));
+    const excludedCount = list.length - kept.length;
+
+    return { captures: kept, totalCaptures: Math.max(0, total - excludedCount) };
+  }
+
   function buildDomainLine(quick) {
     if (!quick || !quick.sampleSize) return null;
     return `Domain avg ${Math.round(quick.avgScore)} · ${plural(quick.sampleSize, 'capture')}`;
   }
 
-  function buildUrlLine(captures, currentScore) {
+  function buildUrlLine(captures, currentScore, excludeSince) {
     if (!captures || !captures.totalCaptures) return { urlLine: null, delta: null };
 
-    const base = plural(captures.totalCaptures, 'prior capture');
-    const last = newestCapture(captures.captures);
+    const filtered = excludeJustPosted(captures, excludeSince);
+    if (!filtered.totalCaptures) return { urlLine: null, delta: null };
+
+    const base = plural(filtered.totalCaptures, 'prior capture');
+    const last = newestCapture(filtered.captures);
     const lastScore = captureScore(last);
 
     if (lastScore === null) {
@@ -89,9 +121,13 @@
     return { urlLine: `${base} · last ${lastScore} (${signed(delta)})`, delta };
   }
 
-  function summarize({ quick, captures, currentScore } = {}) {
+  // excludeSince: ms timestamp of when the current analysis started (see
+  // popup.js's loadDomainHistory). Optional — omitting it disables the
+  // just-posted filter (used by callers that don't have a race to guard
+  // against, and by existing tests that predate it).
+  function summarize({ quick, captures, currentScore, excludeSince } = {}) {
     const domainLine = buildDomainLine(quick);
-    const { urlLine, delta } = buildUrlLine(captures, currentScore);
+    const { urlLine, delta } = buildUrlLine(captures, currentScore, excludeSince);
     const hasHistory = !!(domainLine || urlLine);
 
     return { domainLine, urlLine, delta, hasHistory };

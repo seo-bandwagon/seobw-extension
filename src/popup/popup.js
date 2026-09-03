@@ -98,6 +98,11 @@ initDataToggle();
 chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   const tab = tabs[0];
   currentTab = tab;
+  // Recorded before the analyze message even goes out, so it predates any
+  // capture this popup instance is about to post — see loadDomainHistory's
+  // excludeSince, which uses it to keep a just-posted capture from being
+  // misread as "prior" history for the same URL.
+  const analysisStartedAt = Date.now();
 
   try {
     const cached = await chrome.runtime.sendMessage({
@@ -109,7 +114,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     if (cached && cached.hit) {
       pageData = cached.data;
       renderResults(cached.data);
-      loadDomainHistory(tab, cached.data);
+      loadDomainHistory(tab, cached.data, analysisStartedAt);
       return;
     }
 
@@ -120,8 +125,13 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
     pageData = response;
     renderResults(response);
+    // Started before autoSaveCapture/syncCapture so the popup's own
+    // capturesForUrl() read isn't racing its own POST for this exact
+    // analysis (see loadDomainHistory's excludeSince param below); the
+    // pure-logic filter in SBWDomainHistory.summarize() is the second,
+    // ordering-independent guard against the same race.
+    loadDomainHistory(tab, response, analysisStartedAt);
     autoSaveCapture(response);
-    loadDomainHistory(tab, response);
 
     chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
 
@@ -430,7 +440,7 @@ async function resolveCached(entry, now, key, fetcher) {
 
 function renderDomainHistoryConnect(container) {
   container.innerHTML = `<div class="domain-history-row">
-    <span class="domain-history-label">DOMAIN HISTORY</span>
+    <span class="domain-history-label">Domain history</span>
     <span class="domain-history-line">Connect your account to see history</span>
     <button type="button" id="domainHistoryConnect" class="domain-history-link">OPTIONS</button>
   </div>`;
@@ -446,7 +456,7 @@ function renderDomainHistorySummary(container, summary) {
     : ['No history yet'];
 
   container.innerHTML = `<div class="domain-history-row">
-    <span class="domain-history-label">DOMAIN HISTORY</span>
+    <span class="domain-history-label">Domain history</span>
     <div class="domain-history-lines">${lines.map(l => `<span class="domain-history-line">${esc(l)}</span>`).join('')}</div>
   </div>`;
   container.hidden = false;
@@ -456,7 +466,7 @@ function renderDomainHistorySummary(container, summary) {
 // already knows about this domain/URL. Best-effort: any failure (disabled
 // collection, no key, network error, non-401 API error) just leaves the
 // strip hidden rather than showing an error state, per the brief.
-async function loadDomainHistory(tab, data) {
+async function loadDomainHistory(tab, data, analysisStartedAt) {
   const container = document.getElementById('domainHistory');
   if (!container) return;
 
@@ -490,7 +500,8 @@ async function loadDomainHistory(tab, data) {
     const summary = SBWDomainHistory.summarize({
       quick: quickResult.data,
       captures: capturesResult.data,
-      currentScore
+      currentScore,
+      excludeSince: analysisStartedAt
     });
 
     renderDomainHistorySummary(container, summary);

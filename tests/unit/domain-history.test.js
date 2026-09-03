@@ -209,6 +209,88 @@ describe('summarize — url with prior captures', () => {
   });
 });
 
+describe('summarize — excludeSince (race with the capture the popup just posted)', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('ignores a capture created at/after excludeSince minus the 5s skew allowance', () => {
+    // The popup's own autoSaveCapture()/syncCapture() landed a fraction of a
+    // second before capturesForUrl() was read back — this capture is the one
+    // the popup itself just posted for the current analysis, not real prior
+    // history, even though it is technically "before" excludeSince.
+    const captures = {
+      totalCaptures: 1,
+      captures: [{ id: 'just-posted', createdAt: new Date(NOW - 1000).toISOString(), overallScore: 80 }]
+    };
+
+    const result = SBWDomainHistory.summarize({
+      quick: null, captures, currentScore: 80, excludeSince: NOW
+    });
+
+    expect(result.urlLine).toBeNull();
+    expect(result.delta).toBeNull();
+    expect(result.hasHistory).toBe(false);
+  });
+
+  it('still counts a genuinely older capture (well outside the skew window)', () => {
+    const captures = {
+      totalCaptures: 1,
+      captures: [{ id: 'old', createdAt: new Date(NOW - 10_000).toISOString(), overallScore: 70 }]
+    };
+
+    const result = SBWDomainHistory.summarize({
+      quick: null, captures, currentScore: 80, excludeSince: NOW
+    });
+
+    expect(result.urlLine).toBe('1 prior capture · last 70 (+10)');
+    expect(result.delta).toBe(10);
+    expect(result.hasHistory).toBe(true);
+  });
+
+  it('reduces totalCaptures and re-derives "last" from the remaining older captures', () => {
+    const captures = {
+      totalCaptures: 2,
+      captures: [
+        { id: 'just-posted', createdAt: new Date(NOW - 500).toISOString(), overallScore: 80 },
+        { id: 'old', createdAt: new Date(NOW - 20_000).toISOString(), overallScore: 65 }
+      ]
+    };
+
+    const result = SBWDomainHistory.summarize({
+      quick: null, captures, currentScore: 80, excludeSince: NOW
+    });
+
+    expect(result.urlLine).toBe('1 prior capture · last 65 (+15)');
+    expect(result.delta).toBe(15);
+  });
+
+  it('keeps the domainLine even when excludeSince empties the url history', () => {
+    const quick = { domain: 'example.com', avgScore: 70, sampleSize: 12 };
+    const captures = {
+      totalCaptures: 1,
+      captures: [{ id: 'just-posted', createdAt: new Date(NOW).toISOString(), overallScore: 80 }]
+    };
+
+    const result = SBWDomainHistory.summarize({
+      quick, captures, currentScore: 80, excludeSince: NOW
+    });
+
+    expect(result.domainLine).toBe('Domain avg 70 · 12 captures');
+    expect(result.urlLine).toBeNull();
+    expect(result.hasHistory).toBe(true);
+  });
+
+  it('does not filter anything when excludeSince is omitted (back-compat)', () => {
+    const captures = {
+      totalCaptures: 1,
+      captures: [{ id: 'x', createdAt: new Date(NOW).toISOString(), overallScore: 80 }]
+    };
+
+    const result = SBWDomainHistory.summarize({ quick: null, captures, currentScore: 80 });
+
+    expect(result.urlLine).toBe('1 prior capture · last 80 (+0)');
+  });
+});
+
 describe('summarize — both domain and url history present', () => {
   it('returns both lines together', () => {
     const quick = { domain: 'example.com', avgScore: 70, sampleSize: 12 };
