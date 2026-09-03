@@ -113,7 +113,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     }
 
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content/analyzer.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/content/analyzer.js'] });
     } catch (e) { /* already injected */ }
 
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });

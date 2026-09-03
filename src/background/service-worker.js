@@ -56,7 +56,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
     try {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content/analyzer.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/content/analyzer.js'] });
       } catch (e) { /* already injected */ }
 
       const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });

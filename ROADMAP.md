@@ -143,6 +143,9 @@ canary, v1.3.0 SERP-overlay spec, `MANUAL_SMOKE_TEST.md`) and the uncommitted
 1.4.0 tree snapshotted as `wip/1.4.0-citationforge` (`src/` layout, CitationForge
 layer, side panel, preview harness). Product code is the 1.4.0 `src/` tree; the
 April test harness, specs and workflows are kept. `lib/content-analysis.js` and
-`lib/dom-extraction.js` (April's extracted modules, not loaded by the manifest)
-remain only because `tests/unit` imports them — the first 1.5.0 task folds their
-logic into `src/` and re-points the tests, then deletes `lib/`.
+`lib/dom-extraction.js` are April's extracted pure modules and are a RUNTIME
+dependency: the merged `src/content/analyzer.js` destructures
+`self.SEOBWAnalysis` / `self.SEOBWExtraction`, so both files are injected before
+it (popup.js and service-worker.js executeScript lists) and ship in the zip.
+`tests/unit` imports them via the same dual-export. A later 1.5.0 task may move
+them under `src/lib/`; until then they stay at the root.
