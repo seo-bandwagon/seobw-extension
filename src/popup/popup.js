@@ -109,6 +109,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     if (cached && cached.hit) {
       pageData = cached.data;
       renderResults(cached.data);
+      loadDomainHistory(tab, cached.data);
       return;
     }
 
@@ -120,6 +121,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     pageData = response;
     renderResults(response);
     autoSaveCapture(response);
+    loadDomainHistory(tab, response);
 
     chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
 
@@ -219,6 +221,9 @@ function renderResults(data) {
       </div>
     </div>
   </div>`;
+
+  /* --- Domain history (populated async by loadDomainHistory) --- */
+  html += `<div id="domainHistory" class="domain-history" hidden></div>`;
 
   /* --- Issues --- */
   const issueBadge = score.issues.length
@@ -393,6 +398,105 @@ function setSeoStatus(msg, type) {
 async function autoSaveCapture(data) {
   const key = await SBW.autoSaveLocal(data);
   SBW.syncCapture(key); // fire-and-forget; the outcome is recorded on the stored capture's `sync` field
+}
+
+/* ---------- domain history strip ---------- */
+
+// Strips a leading "www." so the domain lines up with how quickDomain keys
+// server-side history (bare registrable-ish host, not the exact hostname).
+function domainFromUrl(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (e) {
+    return null; // non-http(s) pages (chrome://, file://, ...) have no domain
+  }
+}
+
+// Reads a chrome.storage.session cache entry ({ at, value }); on a miss or
+// stale entry, calls `fetcher()` (an SBW.* sbwFetch-shaped call) and — only
+// on success — writes the fresh value back under `key` so the next popup
+// open within CACHE_TTL_MS skips the network round trip. Reads are rate
+// limited server-side (60/h/IP), which is what the cache is protecting.
+async function resolveCached(entry, now, key, fetcher) {
+  if (SBWDomainHistory.isFresh(entry, now)) {
+    return { ok: true, code: 'ok', data: entry.value };
+  }
+  const result = await fetcher();
+  if (result.ok) {
+    await chrome.storage.session.set({ [key]: { at: now, value: result.data } });
+  }
+  return result;
+}
+
+function renderDomainHistoryConnect(container) {
+  container.innerHTML = `<div class="domain-history-row">
+    <span class="domain-history-label">DOMAIN HISTORY</span>
+    <span class="domain-history-line">Connect your account to see history</span>
+    <button type="button" id="domainHistoryConnect" class="domain-history-link">OPTIONS</button>
+  </div>`;
+  container.hidden = false;
+  document.getElementById('domainHistoryConnect').addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+}
+
+function renderDomainHistorySummary(container, summary) {
+  const lines = summary.hasHistory
+    ? [summary.domainLine, summary.urlLine].filter(Boolean)
+    : ['No history yet'];
+
+  container.innerHTML = `<div class="domain-history-row">
+    <span class="domain-history-label">DOMAIN HISTORY</span>
+    <div class="domain-history-lines">${lines.map(l => `<span class="domain-history-line">${esc(l)}</span>`).join('')}</div>
+  </div>`;
+  container.hidden = false;
+}
+
+// Populates #domainHistory under the score ring with what SEO Bandwagon
+// already knows about this domain/URL. Best-effort: any failure (disabled
+// collection, no key, network error, non-401 API error) just leaves the
+// strip hidden rather than showing an error state, per the brief.
+async function loadDomainHistory(tab, data) {
+  const container = document.getElementById('domainHistory');
+  if (!container) return;
+
+  try {
+    if (!(await SBW.isDataCollectionEnabled())) return;
+
+    const settings = await SBW.getApiSettings();
+    if (!settings.apiKey) return;
+
+    const domain = domainFromUrl(tab.url);
+    if (!domain) return;
+
+    const now = Date.now();
+    const quickKey = SBWDomainHistory.cacheKey('quick', domain);
+    const urlKey = SBWDomainHistory.cacheKey('url', tab.url);
+    const cached = await chrome.storage.session.get([quickKey, urlKey]);
+
+    const [quickResult, capturesResult] = await Promise.all([
+      resolveCached(cached[quickKey], now, quickKey, () => SBW.quickDomain(domain)),
+      resolveCached(cached[urlKey], now, urlKey, () => SBW.capturesForUrl(tab.url))
+    ]);
+
+    if (quickResult.code === 'unauthorized' || capturesResult.code === 'unauthorized') {
+      renderDomainHistoryConnect(container);
+      return;
+    }
+
+    if (!quickResult.ok || !capturesResult.ok) return; // no error UI
+
+    const currentScore = data.seoScore ? data.seoScore.score : null;
+    const summary = SBWDomainHistory.summarize({
+      quick: quickResult.data,
+      captures: capturesResult.data,
+      currentScore
+    });
+
+    renderDomainHistorySummary(container, summary);
+  } catch (e) {
+    // Best-effort strip — never blocks or breaks the rest of the popup.
+  }
 }
 
 function copyToClipboard(data) {

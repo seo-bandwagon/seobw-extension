@@ -326,6 +326,48 @@ body {
   flex: none;
 }
 
+/* Domain history strip — quick stats + prior captures, under the score ring */
+.domain-history {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.domain-history[hidden] { display: none; }
+.domain-history-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
+.domain-history-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+  flex: none;
+}
+.domain-history-lines { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.domain-history-line {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--paper-70);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.domain-history-link {
+  flex: none;
+  padding: 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--pink-30);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--pink);
+  cursor: pointer;
+}
+.domain-history-link:hover { color: var(--pink-hover); border-bottom-color: var(--pink); }
+
 /* Collapsible sections */
 .section { flex: none; }
 .section-header {
