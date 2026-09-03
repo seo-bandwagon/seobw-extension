@@ -1,7 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-// Import CitationForge API
-importScripts('../lib/citationforge-api.js', '../lib/directory-matcher.js');
+importScripts('../lib/api.js', '../lib/directory-matcher.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -205,29 +204,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.action.setBadgeBackgroundColor({ color: colors[grade] || '#888', tabId: request.tabId });
   }
 
-  // --- CitationForge handlers ---
-
-  if (request.action === 'cfLogin') {
-    cfLogin().then(data => sendResponse({ ok: true, data }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
-  if (request.action === 'cfLogout') {
-    cfLogout().then(() => sendResponse({ ok: true }));
-    return true;
-  }
-
-  if (request.action === 'cfIsLoggedIn') {
-    cfIsLoggedIn().then(loggedIn => sendResponse({ loggedIn }));
-    return true;
-  }
-
-  if (request.action === 'cfGetUser') {
-    cfGetUser().then(user => sendResponse({ user }));
-    return true;
-  }
-
   if (request.action === 'captureScreenshot') {
     chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
       if (chrome.runtime.lastError) {
@@ -239,21 +215,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (request.action === 'cfUploadScreenshot') {
-    const { businessId, dataUrl, pageUrl, citationId } = request;
-    cfUploadScreenshot(businessId, dataUrl, pageUrl, citationId)
-      .then(data => sendResponse({ ok: true, data }))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
   if (request.action === 'checkDirectory') {
     const match = matchDirectory(request.url);
     sendResponse({ match });
     return true;
   }
 
-  if (request.action === 'cfExtractNap') {
+  if (request.action === 'extractNap') {
     chrome.scripting.executeScript({
       target: { tabId: request.tabId },
       files: ['src/content/nap-extractor.js']
@@ -272,4 +240,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+
+  // Generic bridge: content scripts (no chrome.storage/fetch access of their
+  // own in isolated-world contexts) route SBW API calls through here.
+  if (request.action === 'sbwFetch') {
+    SBW.sbwFetch(request.path, request.init).then(sendResponse);
+    return true;
+  }
+});
+
+// --- External connect handler (Chrome extension "connect" flow from the
+// seobandwagon.com dashboard) — inert until the manifest declares
+// externally_connectable (Task 7). ---
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (sender.origin !== 'https://seobandwagon.com') {
+    sendResponse({ ok: false });
+    return false;
+  }
+
+  if (message.type === 'ping') {
+    sendResponse({ ok: true, version: chrome.runtime.getManifest().version });
+    return true;
+  }
+
+  if (message.type === 'connect') {
+    const apiKey = message.apiKey;
+    if (!/^sbw_[0-9a-f]{48}$/.test(apiKey || '')) {
+      sendResponse({ ok: false, error: 'Invalid API key format' });
+      return true;
+    }
+
+    chrome.storage.sync.set({ apiKey }, () => {
+      SBW.verifyKey().then((res) => {
+        if (res.ok) {
+          sendResponse({ ok: true, email: res.data?.email });
+        } else {
+          if (res.code === 'unauthorized') {
+            chrome.storage.sync.set({ apiKey: '' });
+          }
+          sendResponse({ ok: false, error: res.data?.error || res.code });
+        }
+      });
+    });
+    return true;
+  }
+
+  sendResponse({ ok: false });
+  return false;
 });

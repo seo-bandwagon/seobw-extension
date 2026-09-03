@@ -397,7 +397,7 @@ async function runNapCheck() {
   cfResult = { kind: 'loading', label: 'Reading listing…' };
   renderResult();
 
-  const nap = await send({ action: 'cfExtractNap', tabId: cfTab.id });
+  const nap = await send({ action: 'extractNap', tabId: cfTab.id });
 
   if (!nap || nap.error) {
     cfResult = {
