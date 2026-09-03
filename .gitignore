@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+*.log
+
+# Chrome refuses to load unpacked extensions containing files or directories
+# whose names start with "_" — keep design source material out of the load path.
+_*/

@@ -1,0 +1,23 @@
+{
+  "name": "seo-bw-extension",
+  "version": "1.2.0",
+  "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection.",
+  "private": true,
+  "scripts": {
+    "build": "echo 'No build step needed - load unpacked in Chrome'",
+    "zip": "zip -r seo-bw-extension.zip manifest.json src/ README.md API_SPEC.md ROADMAP.md -x '*.DS_Store'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seo-bandwagon/seo-bw-extension.git"
+  },
+  "keywords": [
+    "seo",
+    "chrome-extension",
+    "meta-tags",
+    "schema-markup",
+    "web-vitals"
+  ],
+  "author": "SEO Bandwagon <kyle@seobandwagon.com>",
+  "license": "MIT"
+}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../styles/popup.css">
+</head>
+<body class="page-sidepanel">
+  <header class="sp-head">
+    <div class="sp-mark">SB</div>
+    <div class="sp-word">CITATION FORGE</div>
+    <span class="version-tag" id="spVersion"></span>
+    <span class="sp-user" id="spUser"></span>
+  </header>
+
+  <nav class="sp-nav" id="spNav">
+    <button class="active" data-section="businesses">BUSINESSES</button>
+    <button data-section="campaigns">CAMPAIGNS</button>
+    <button data-section="citations">CITATIONS</button>
+    <button data-section="screenshots">PROOF</button>
+  </nav>
+
+  <div id="spFilters"></div>
+  <div class="sp-scroll" id="spBody">
+    <div class="loading">Loading…</div>
+  </div>
+  <footer class="sp-foot">
+    <span class="sp-foot-stat" id="spFootStat"></span>
+    <button class="sp-foot-link" id="spExport">Export CSV</button>
+  </footer>
+
+  <script src="../lib/api.js"></script>
+  <script src="../lib/citationforge-api.js"></script>
+  <script src="../lib/nap-compare.js"></script>
+  <script src="../lib/directory-matcher.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

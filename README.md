@@ -83,8 +83,8 @@ Score deductions:
 ## API Endpoints
 
 When configured, syncs to:
-- `POST https://api.seobandwagon.dev/v1/captures` - Store capture
-- `GET https://api.seobandwagon.dev/v1/captures` - List captures
+- `POST https://seobandwagon.com/api/v1/captures` - Store capture
+- `GET https://seobandwagon.com/api/v1/captures` - List captures
 
 ## Development
 

@@ -77,6 +77,64 @@ document.getElementById('exportAllBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+// Sync to SEO Bandwagon
+document.getElementById('syncBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('syncBtn');
+  const status = document.getElementById('syncStatus');
+
+  if (allCaptures.length === 0) {
+    status.textContent = 'No captures to sync.';
+    status.style.display = 'block';
+    status.style.background = '#ffd16633';
+    status.style.color = '#ffd166';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Syncing...';
+  status.style.display = 'block';
+  status.style.background = '#4cc9f033';
+  status.style.color = '#4cc9f0';
+  status.textContent = `Syncing ${allCaptures.length} captures...`;
+
+  let synced = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const capture of allCaptures) {
+    try {
+      const res = await fetch('https://seobandwagon.com/api/v1/captures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(capture)
+      });
+      if (res.ok) {
+        synced++;
+      } else if (res.status === 409) {
+        skipped++; // duplicate
+      } else {
+        failed++;
+      }
+    } catch {
+      failed++;
+    }
+    status.textContent = `Synced ${synced} / ${allCaptures.length} (${skipped} duplicates, ${failed} failed)`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Sync to SEO Bandwagon';
+
+  if (failed === 0) {
+    status.style.background = '#06d6a033';
+    status.style.color = '#06d6a0';
+    status.textContent = `Done! ${synced} synced, ${skipped} already existed.`;
+  } else {
+    status.style.background = '#ef476f33';
+    status.style.color = '#ef476f';
+    status.textContent = `${synced} synced, ${skipped} duplicates, ${failed} failed.`;
+  }
+});
+
 // Clear history
 document.getElementById('clearBtn').addEventListener('click', async () => {
   if (confirm('Delete all local captures? This cannot be undone.')) {
