@@ -105,6 +105,26 @@
   }
 
   // ============================================
+  // Pitch card model — GET /api/link-building/pitches rows are FLAT (contact
+  // and prospect columns are aliased straight onto the row, not nested —
+  // see docs/API.md and the site's route.ts), not `{ contact: {...},
+  // prospect: {...} }`. This is the single place that reads those flat
+  // fields, so the side panel's card renderers and the Gmail compose action
+  // can't drift back into assuming a nested shape.
+  // ============================================
+
+  function pitchCardModel(p) {
+    return {
+      name: (p && p.full_name) || 'Unknown contact',
+      email: (p && p.email) || null,
+      verified: (p && p.verification_status) || 'unverified',
+      domain: (p && p.domain) || '',
+      subject: (p && p.subject_line) || '',
+      body: (p && p.body_markdown) || ''
+    };
+  }
+
+  // ============================================
   // Gmail compose URL — copied exactly from the dashboard
   // ============================================
 
@@ -129,7 +149,8 @@
     ['approved_pitches', 'Approved pitches'],
     ['rejected_pitches', 'Rejected pitches'],
     ['sent', 'Sent'],
-    ['placements', 'Placements']
+    ['placements', 'Placements'],
+    ['placements_from_pitches', 'Placements from pitches']
   ];
 
   // `results` is the raw GET .../results body: { funnel, spend, placements, sends }.
@@ -145,6 +166,7 @@
     lbErrorMessage,
     outletAddMessage,
     pitchReviewErrorMessage,
+    pitchCardModel,
     gmailComposeUrl,
     funnelRows
   };

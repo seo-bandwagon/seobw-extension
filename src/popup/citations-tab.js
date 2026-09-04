@@ -169,8 +169,10 @@ function renderSignedOut(el) {
     chrome.runtime.openOptionsPage();
   });
 
-  document.getElementById('cfSignup').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://seobandwagon.com/dashboard/api-keys' });
+  document.getElementById('cfSignup').addEventListener('click', async () => {
+    const settings = await SBW.getApiSettings();
+    const origin = SBWOptions.dashboardOrigin(settings.apiUrl);
+    chrome.tabs.create({ url: `${origin}/dashboard/api-keys` });
   });
 }
 
@@ -560,7 +562,9 @@ async function disconnect() {
   await refreshCitations();
 }
 
-function openDashboard() {
-  chrome.tabs.create({ url: 'https://seobandwagon.com/dashboard/citations' });
+async function openDashboard() {
+  const settings = await SBW.getApiSettings();
+  const origin = SBWOptions.dashboardOrigin(settings.apiUrl);
+  chrome.tabs.create({ url: `${origin}/dashboard/citations` });
   window.close();
 }

@@ -1449,6 +1449,24 @@ body {
 }
 .page-history h1 img { width: 32px; height: 32px; }
 .page-history .subtitle { color: var(--paper-70); margin-bottom: 24px; font-size: 13px; }
+.page-history .legacy-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--paper-70);
+}
+.page-history .legacy-banner button {
+  padding: 8px 14px;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .page-history .toolbar { display: flex; gap: 12px; margin-bottom: 24px; }
 .page-history input[type="search"] {
   flex: 1;

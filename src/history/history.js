@@ -1,5 +1,14 @@
 let allCaptures = [];
 
+// A captured page's URL is untrusted, attacker-controllable text (it's
+// whatever page the user visited) rendered straight into innerHTML below —
+// escape it the same way popup.js's esc()/sidepanel.js's spEsc() do.
+function esc(text) {
+  if (text === null || text === undefined) return '';
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // Load captures
 async function loadCaptures() {
   const items = await chrome.storage.local.get(null);
@@ -9,6 +18,7 @@ async function loadCaptures() {
     .sort((a, b) => new Date(b.capturedAt) - new Date(a.capturedAt));
   
   renderCaptures(allCaptures);
+  renderLegacyBanner(allCaptures);
 }
 
 // Sync status -> badge pill class + label. A capture without a `sync` field
@@ -37,6 +47,59 @@ function countByStatus(captures) {
   return counts;
 }
 
+// Captures from before 1.5.0 are stamped `{ status: 'skipped', error:
+// 'legacy' }` by SBW.markLegacyPending() (src/lib/api.js) rather than
+// `pending`, so a 1.4.0 upgrader's local backlog isn't silently bulk-
+// uploaded the first time the sync alarm fires. This banner is the opt-in.
+function legacyPendingCaptures(captures) {
+  return captures.filter(c => c.sync && c.sync.status === 'skipped' && c.sync.error === 'legacy');
+}
+
+function renderLegacyBanner(captures) {
+  const banner = document.getElementById('legacyBanner');
+  if (!banner) return;
+
+  const legacy = legacyPendingCaptures(captures);
+  if (!legacy.length) {
+    banner.hidden = true;
+    banner.innerHTML = '';
+    return;
+  }
+
+  banner.hidden = false;
+  const n = legacy.length;
+  banner.innerHTML = `
+    <span>${n} capture${n === 1 ? '' : 's'} from before 1.5.0 ${n === 1 ? 'is' : 'are'} stored locally only</span>
+    <button type="button" id="includeLegacyBtn">Include them in sync</button>`;
+  document.getElementById('includeLegacyBtn').addEventListener('click', includeLegacyInSync);
+}
+
+// Converts every legacy-skipped capture back to `pending` (via
+// SBWSync.unskipLegacy) and drains — same bounded manual-drain size the
+// "Sync to SEO Bandwagon" button uses.
+async function includeLegacyInSync() {
+  const btn = document.getElementById('includeLegacyBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Including…'; }
+
+  try {
+    const legacy = legacyPendingCaptures(allCaptures);
+    const updates = {};
+    legacy.forEach(c => {
+      const record = Object.assign({}, c);
+      delete record.key;
+      record.sync = SBWSync.unskipLegacy(c.sync);
+      updates[c.key] = record;
+    });
+    if (Object.keys(updates).length) {
+      await chrome.storage.local.set(updates);
+    }
+    showSyncStatus('Syncing…', 'info');
+    await runSync(60);
+  } finally {
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Include them in sync'; }
+  }
+}
+
 function renderCaptures(captures) {
   const list = document.getElementById('captureList');
 
@@ -47,7 +110,7 @@ function renderCaptures(captures) {
 
   list.innerHTML = captures.map(c => `
     <div class="capture-item" data-key="${c.key}">
-      <div class="capture-url">${c.url} ${syncBadge(c)}</div>
+      <div class="capture-url">${esc(c.url)} ${syncBadge(c)}</div>
       <div class="capture-meta">
         <span class="capture-stat">📅 ${new Date(c.capturedAt).toLocaleString()}</span>
         <span class="capture-stat">📝 ${c.content?.wordCount || 0} words</span>
@@ -130,6 +193,8 @@ async function runSync(max) {
     showSyncStatus(`Rate limit reached — next batch in ~${mins ?? '?'} min`, 'warn');
   } else if (result.stoppedOn === 'unauthorized' || result.stoppedOn === 'no_key') {
     showSyncStatus('Add your API key in Options', 'error');
+  } else if (result.stoppedOn === 'collection_off') {
+    showSyncStatus('Data collection is off — turn it on in Options to sync', 'warn');
   } else if (counts.failed > 0) {
     showSyncStatus(
       `${counts.synced} synced, ${counts.duplicate} duplicates, ${counts.pending} pending, ${counts.failed} failed.`,

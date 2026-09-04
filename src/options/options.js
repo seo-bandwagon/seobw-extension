@@ -116,7 +116,7 @@ async function saveAdvancedApiUrl() {
   const raw = field.value.trim();
 
   if (!SBWOptions.isValidApiUrl(raw)) {
-    setStatus(statusEl, 'Must be an https:// URL, or http://localhost / http://127.0.0.1 for local dev', 'error');
+    setStatus(statusEl, 'Only seobandwagon.com, its deploy previews, or localhost are allowed', 'error');
     return;
   }
 
@@ -158,17 +158,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // the same apiKey out of the same storage area a second time).
   const items = await new Promise(resolve => chrome.storage.sync.get({
     apiKey: '',
-    apiUrl: 'https://seobandwagon.com/api',
-    autoSave: false,
-    showNotifications: true,
-    localBackup: true
+    apiUrl: 'https://seobandwagon.com/api'
   }, resolve));
 
   document.getElementById('apiKey').value = items.apiKey;
   document.getElementById('apiUrl').value = items.apiUrl;
-  document.getElementById('autoSave').checked = items.autoSave;
-  document.getElementById('showNotifications').checked = items.showNotifications;
-  document.getElementById('localBackup').checked = items.localBackup;
 
   showStoredKeyStatus(items.apiKey);
   initDataToggle();
@@ -197,14 +191,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus']);
   }
 
-  const settings = {
-    apiKey: keyField,
-    autoSave: document.getElementById('autoSave').checked,
-    showNotifications: document.getElementById('showNotifications').checked,
-    localBackup: document.getElementById('localBackup').checked
-  };
-
-  await new Promise(resolve => chrome.storage.sync.set(settings, resolve));
+  await new Promise(resolve => chrome.storage.sync.set({ apiKey: keyField }, resolve));
 
   const status = document.getElementById('status');
   status.textContent = '✓ Settings saved successfully';
@@ -218,6 +205,9 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     const res = await SBW.verifyKey();
     await renderVerifyResult(res);
   } else if (changed) {
-    setStatus(document.getElementById('keyStatus'), '', null);
+    // The key field was cleared — say so explicitly rather than leaving the
+    // status blank, which reads as "nothing happened" instead of "you're
+    // disconnected now".
+    setStatus(document.getElementById('keyStatus'), 'Disconnected', 'pending');
   }
 });

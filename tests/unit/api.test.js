@@ -69,8 +69,12 @@ function mockChrome({ apiKey = '', apiUrl = 'https://seobandwagon.com/api', loca
   };
 }
 
+// Default to a stored key so the many tests below that exercise sbwFetch's
+// status→code mapping or the wrapper surface don't all need to set one
+// individually — the no_key short-circuit tests (further down) explicitly
+// override this back to '' to exercise the no-key path.
 beforeEach(() => {
-  globalThis.chrome = mockChrome();
+  globalThis.chrome = mockChrome({ apiKey: 'sbw_default_test' });
   globalThis.fetch = vi.fn();
 });
 
@@ -297,6 +301,80 @@ describe('wrappers', () => {
   });
 });
 
+describe('no_key short-circuit — account endpoints skip the network entirely', () => {
+  it('verifyKey() returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const res = await SBW.verifyKey();
+    expect(res).toEqual({ ok: false, status: 0, data: null, retryAfter: null, code: 'no_key' });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('postCapture() returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const res = await SBW.postCapture({ url: 'https://example.com' });
+    expect(res.code).toBe('no_key');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('capturesForUrl() returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const res = await SBW.capturesForUrl('https://example.com');
+    expect(res.code).toBe('no_key');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('quickDomain() returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const res = await SBW.quickDomain('example.com');
+    expect(res.code).toBe('no_key');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('quickBatch() returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const res = await SBW.quickBatch(['example.com']);
+    expect(res.code).toBe('no_key');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('every SBW.lb.* method returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const calls = [
+      () => SBW.lb.addOutlet({ url: 'https://example.com', name: 'Example', status: 'candidate' }),
+      () => SBW.lb.prospects('qualified'),
+      () => SBW.lb.reviewProspects(['1'], 'approve'),
+      () => SBW.lb.pitches('draft'),
+      () => SBW.lb.reviewPitch('1', 'approve'),
+      () => SBW.lb.markSent('1'),
+      () => SBW.lb.results()
+    ];
+    for (const call of calls) {
+      const res = await call();
+      expect(res).toEqual({ ok: false, status: 0, data: null, retryAfter: null, code: 'no_key' });
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('every SBW.ct.* method throws a CtError with code no_key without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const calls = [
+      () => SBW.ct.businesses(),
+      () => SBW.ct.business('b1'),
+      () => SBW.ct.stats('b1'),
+      () => SBW.ct.citations('b1'),
+      () => SBW.ct.createCitation('b1', {}),
+      () => SBW.ct.updateCitation('c1', {}),
+      () => SBW.ct.campaigns('b1'),
+      () => SBW.ct.triggerCampaign('b1'),
+      () => SBW.ct.campaign('k1')
+    ];
+    for (const call of calls) {
+      await expect(call()).rejects.toMatchObject({ name: 'CtError', code: 'no_key', status: 0 });
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe('autoSaveLocal — storage shape + return value', () => {
   it('stamps a new capture with sync: SBWSync.initialSync() and returns its key', async () => {
     const store = {};
@@ -421,10 +499,26 @@ describe('SBW.drainPendingCaptures', () => {
     expect(result.sent).toBe(2);
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
+
+  it('stops early when data collection is off, without calling fetch', async () => {
+    const pending = { status: 'pending', attempts: 0, nextAt: 0 };
+    const store = {
+      dataCollection: false,
+      capture_100: { url: 'https://example.com/a', sync: pending },
+      capture_200: { url: 'https://example.com/b', sync: pending }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+
+    const result = await SBW.drainPendingCaptures({ max: 20 });
+
+    expect(result.sent).toBe(1); // stopped after the first collection_off item
+    expect(result.stoppedOn).toBe('collection_off');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
 });
 
 describe('SBW.markLegacyPending', () => {
-  it('stamps captures missing a sync field and leaves existing ones alone', async () => {
+  it('stamps captures missing a sync field skipped/legacy and leaves existing ones alone', async () => {
     const store = {
       capture_1: { url: 'https://example.com/a' }, // legacy, no sync
       capture_2: { url: 'https://example.com/b', sync: { status: 'synced', remoteId: '1', syncedAt: 1 } }
@@ -434,7 +528,7 @@ describe('SBW.markLegacyPending', () => {
     const stamped = await SBW.markLegacyPending();
 
     expect(stamped).toBe(1);
-    expect(store.capture_1.sync).toEqual({ status: 'pending', attempts: 0, nextAt: 0 });
+    expect(store.capture_1.sync).toEqual({ status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 });
     expect(store.capture_2.sync).toEqual({ status: 'synced', remoteId: '1', syncedAt: 1 });
   });
 

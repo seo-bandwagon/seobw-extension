@@ -29,18 +29,38 @@
   // Advanced API URL: validation + normalisation
   // ============================================
 
-  // Accepts any https:// URL, or an http:// URL to localhost/127.0.0.1 (the
-  // two hosts the optional_host_permissions grant covers) — everything else
-  // (plain http to a real host, garbage input) is rejected.
+  // Accepts an http:// URL to localhost/127.0.0.1 (the two hosts the
+  // optional_host_permissions grant covers) — everything else (plain http to
+  // a real host, garbage input) is rejected.
   function isLocalhostUrl(url) {
     return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(String(url || '').trim());
   }
 
+  // Allowlist, not a blocklist: the Advanced field accepts only
+  // seobandwagon.com (and any subdomain), a Netlify deploy-preview host for
+  // that same site (`<name>--seobandwagon.netlify.app`), or a local dev
+  // server (see isLocalhostUrl above). Every other https:// host — including
+  // a lookalike domain, a credentials trick like
+  // `https://seobandwagon.com@evil.com`, or any other real site — is
+  // rejected. Parsed with `new URL()` rather than a prefix regex specifically
+  // so userinfo/host tricks land on the real hostname, not a spoofed prefix.
   function isValidApiUrl(url) {
     const trimmed = String(url || '').trim();
     if (!trimmed) return false;
-    if (/^https:\/\//i.test(trimmed)) return true;
-    return isLocalhostUrl(trimmed);
+    if (isLocalhostUrl(trimmed)) return true;
+
+    let parsed;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== 'https:') return false;
+
+    const host = parsed.hostname.toLowerCase();
+    return host === 'seobandwagon.com' ||
+      host.endsWith('.seobandwagon.com') ||
+      host.endsWith('--seobandwagon.netlify.app');
   }
 
   // Same rule as the private normalizeApiUrl() inside SBW.getApiSettings

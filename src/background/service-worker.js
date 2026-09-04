@@ -289,16 +289,25 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       return true;
     }
 
-    chrome.storage.sync.set({ apiKey }, () => {
-      SBW.verifyKey().then((res) => {
-        if (res.ok) {
-          sendResponse({ ok: true, email: res.data?.email });
-        } else {
-          if (res.code === 'unauthorized') {
-            chrome.storage.sync.set({ apiKey: '' });
+    // Verify BEFORE persisting: stash whatever key (if any) is currently
+    // stored, stage the candidate just long enough for SBW.verifyKey() to
+    // check it (verifyKey reads the stored key, not an argument), and only
+    // leave it in place on success. On any non-ok, restore the prior value
+    // — including clearing the stale sbwKeyStatus/sbwUser cache a failed
+    // candidate may have left behind — so a rejected key never lingers.
+    chrome.storage.sync.get({ apiKey: '' }, (prior) => {
+      chrome.storage.sync.set({ apiKey }, () => {
+        SBW.verifyKey().then((res) => {
+          if (res.ok) {
+            sendResponse({ ok: true, email: res.data?.email });
+          } else {
+            chrome.storage.sync.set({ apiKey: prior.apiKey }, () => {
+              chrome.storage.local.remove(['sbwKeyStatus', 'sbwUser'], () => {
+                sendResponse({ ok: false, error: res.data?.error || res.code });
+              });
+            });
           }
-          sendResponse({ ok: false, error: res.data?.error || res.code });
-        }
+        });
       });
     });
     return true;

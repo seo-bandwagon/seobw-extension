@@ -148,14 +148,36 @@
   }
 
   // ============================================
+  // No key, no request
+  // ============================================
+  //
+  // Every account endpoint below short-circuits BEFORE calling fetch when no
+  // apiKey is stored — sbwFetch() itself still allows a keyless call (it just
+  // omits the Authorization header), because it's also used as the generic
+  // bridge for content scripts (service-worker.js's 'sbwFetch' message) where
+  // that's a deliberate passthrough. The wrappers are where "nothing leaves
+  // the browser without a key" is actually enforced.
+
+  function noKeyResult() {
+    return { ok: false, status: 0, data: null, retryAfter: null, code: 'no_key' };
+  }
+
+  async function hasApiKey() {
+    const settings = await getApiSettings();
+    return !!settings.apiKey;
+  }
+
+  // ============================================
   // Captures / domain
   // ============================================
 
   async function verifyKey() {
+    if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/v1/me');
   }
 
   async function postCapture(payload) {
+    if (!(await hasApiKey())) return noKeyResult();
     const manifest = chrome.runtime.getManifest();
     const body = Object.assign({}, payload, {
       extensionVersion: manifest.version,
@@ -165,14 +187,17 @@
   }
 
   async function capturesForUrl(url) {
+    if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/v1/captures', { query: { url } });
   }
 
   async function quickDomain(domain) {
+    if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch(`/domain/${encodeURIComponent(domain)}/quick`);
   }
 
   async function quickBatch(domains) {
+    if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/domain/quick-batch', { method: 'POST', body: { domains } });
   }
 
@@ -214,9 +239,10 @@
   }
 
   // Drains up to `max` due captures (oldest first), sequentially. Stops
-  // early on a rate limit (429), an outage (503), or an auth problem
-  // (missing/invalid key) — those affect every remaining item the same way,
-  // so there's no point burning through the rest of the batch.
+  // early on a rate limit (429), an outage (503), an auth problem
+  // (missing/invalid key), or data collection being off — those affect
+  // every remaining item the same way, so there's no point burning through
+  // the rest of the batch.
   async function drainPendingCaptures({ max = 20, now = Date.now() } = {}) {
     const items = await chrome.storage.local.get(null);
     const captures = Object.entries(items)
@@ -239,7 +265,8 @@
       else if (result.status === 'duplicate') duplicates++;
 
       if (result.code === 'rate_limited' || result.code === 'unavailable' ||
-          result.code === 'unauthorized' || result.code === 'no_key') {
+          result.code === 'unauthorized' || result.code === 'no_key' ||
+          result.code === 'collection_off') {
         stoppedOn = result.code;
         nextAt = result.nextAt || null;
         break;
@@ -249,16 +276,22 @@
     return { sent, synced, duplicates, stoppedOn, nextAt };
   }
 
-  // One-time stamp for captures saved before this feature existed, so
-  // `pickDue`/history badges have a real sync record instead of treating
-  // "missing" as an implicit pending-due state forever.
+  // One-time stamp for captures saved before this feature existed. These are
+  // marked `skipped`/`legacy` rather than `pending` — a 1.4.0 upgrader who
+  // never opted into sync shouldn't have up to 500 historical captures
+  // silently bulk-uploaded the first time the drainer alarm fires. `pickDue`
+  // ignores `skipped` captures, so nothing happens to them until the History
+  // page's "Include them in sync" button calls `SBWSync.unskipLegacy()` to
+  // opt them back into the normal pending/due flow.
   async function markLegacyPending() {
     const items = await chrome.storage.local.get(null);
     const updates = {};
 
     Object.entries(items).forEach(([key, data]) => {
       if (key.startsWith('capture_') && data && !data.sync) {
-        updates[key] = Object.assign({}, data, { sync: SBWSync.initialSync() });
+        updates[key] = Object.assign({}, data, {
+          sync: { status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 }
+        });
       }
     });
 
@@ -275,6 +308,7 @@
 
   const lb = {
     async addOutlet({ url, name, status, note }) {
+      if (!(await hasApiKey())) return noKeyResult();
       const manifest = chrome.runtime.getManifest();
       return sbwFetch('/link-building/prospects', {
         method: 'POST',
@@ -283,10 +317,12 @@
     },
 
     async prospects(status, limit = 200) {
+      if (!(await hasApiKey())) return noKeyResult();
       return sbwFetch('/link-building/prospects', { query: { status, limit } });
     },
 
     async reviewProspects(ids, action, reason) {
+      if (!(await hasApiKey())) return noKeyResult();
       return sbwFetch('/link-building/prospects/review', {
         method: 'POST',
         body: { ids, action, reason }
@@ -294,10 +330,12 @@
     },
 
     async pitches(status, limit = 50) {
+      if (!(await hasApiKey())) return noKeyResult();
       return sbwFetch('/link-building/pitches', { query: { status, limit } });
     },
 
     async reviewPitch(id, action, extra = {}) {
+      if (!(await hasApiKey())) return noKeyResult();
       return sbwFetch('/link-building/pitches/review', {
         method: 'POST',
         body: Object.assign({ id, action }, extra)
@@ -305,6 +343,7 @@
     },
 
     async markSent(id) {
+      if (!(await hasApiKey())) return noKeyResult();
       return sbwFetch('/link-building/pitches/dispatch', {
         method: 'POST',
         body: { id, action: 'mark_sent' }
@@ -312,6 +351,7 @@
     },
 
     async results() {
+      if (!(await hasApiKey())) return noKeyResult();
       return sbwFetch('/link-building/results');
     }
   };
@@ -350,24 +390,33 @@
     return res.data;
   }
 
+  async function requireKeyForCt() {
+    if (!(await hasApiKey())) throw new CtError(noKeyResult());
+  }
+
   const ct = {
     async businesses() {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch('/citations/businesses'));
     },
 
     async business(id) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/businesses/${id}`));
     },
 
     async stats(id) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/businesses/${id}/stats`));
     },
 
     async citations(id, status) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/businesses/${id}/citations`, { query: { status } }));
     },
 
     async createCitation(id, payload) {
+      await requireKeyForCt();
       const res = await sbwFetch(`/citations/businesses/${id}/citations`, {
         method: 'POST',
         body: payload
@@ -381,14 +430,17 @@
     },
 
     async updateCitation(citationId, patch) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/${citationId}`, { method: 'PATCH', body: patch }));
     },
 
     async campaigns(id) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/businesses/${id}/campaigns`));
     },
 
     async triggerCampaign(id) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/businesses/${id}/campaigns`, {
         method: 'POST',
         timeoutMs: 60000
@@ -396,6 +448,7 @@
     },
 
     async campaign(id) {
+      await requireKeyForCt();
       return unwrapCtData(await sbwFetch(`/citations/campaigns/${id}`));
     }
   };
@@ -419,7 +472,6 @@
     if (!recentCapture) {
       const record = Object.assign({}, data, { sync: SBWSync.initialSync() });
       await chrome.storage.local.set({ [key]: record });
-      console.log('Auto-saved capture:', data.url);
     }
 
     // Cleanup: keep only last 500 captures

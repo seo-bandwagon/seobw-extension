@@ -26,7 +26,13 @@ const CASES = [
   { q: 'sidepanel.html?state=lb-outlets&section=outlets',
     need: ['.sp-mode', '.sp-chip', '.lb-add-btn', '.lb-card', '.lb-actions'] },
   { q: 'sidepanel.html?state=lb-pitches-draft&section=pitches',
-    need: ['.lb-card', '.lb-pitch-subject', '[data-act="approve"]', '[data-act="reject"]'] },
+    need: ['.lb-card', '.lb-pitch-subject', '[data-act="approve"]', '[data-act="reject"]'],
+    // Flat-row regression guard (see src/lib/link-building-ui.js's
+    // pitchCardModel): asserts the contact name and outlet domain actually
+    // render as text, not just that the surrounding selectors exist — a
+    // selector-only check still passes if the card silently falls back to
+    // "Unknown contact" because the row shape drifted back to nested.
+    text: ['Priya Shah', 'austinlocalnews.com'] },
   { q: 'sidepanel.html?state=lb-pitches-approved&section=pitches',
     need: ['.lb-card', '.lb-pitch-subject', '[data-act="gmail"]', '[data-act="sent"]'] },
   { q: 'sidepanel.html?state=lb-results&section=results',
@@ -47,7 +53,15 @@ const CASES = [
   // src/lib/sync-state.js).
   { q: 'history.html?state=capture-synced', need: ['.capture-item', '.badge-mono.b-ok'] },
   { q: 'history.html?state=capture-pending', need: ['.capture-item', '.badge-mono.b-warn'] },
-  { q: 'history.html?state=capture-failed', need: ['.capture-item', '.badge-mono.b-err'] }
+  { q: 'history.html?state=capture-failed', need: ['.capture-item', '.badge-mono.b-err'] },
+
+  // Item C (final-fix-brief): a pre-1.5.0 capture is stamped skipped/legacy
+  // (SBW.markLegacyPending) rather than pending — the banner is the opt-in.
+  // Not clicked here: "Include them in sync" drains for real (real fetch),
+  // which this offline harness can't do.
+  { q: 'history.html?state=capture-legacy',
+    need: ['#legacyBanner:not([hidden])', '#includeLegacyBtn'],
+    text: ['stored locally only', 'Include them in sync'] }
 ];
 
 const out = document.getElementById('out');
@@ -89,11 +103,13 @@ function run(c) {
 
       const missing = c.need.filter(s => !d().querySelector(s));
       const present = (c.no || []).filter(s => d().querySelector(s));
-      const ok = !missing.length && !present.length && !errs.length;
+      const missingText = (c.text || []).filter(t => !(d().body.textContent || '').includes(t));
+      const ok = !missing.length && !present.length && !missingText.length && !errs.length;
       if (!ok) failures++;
       lines.push(`${ok ? '  OK  ' : ' FAIL '} ${c.q}` +
         (missing.length ? `\n         missing: ${missing.join(', ')}` : '') +
         (present.length ? `\n         should not exist: ${present.join(', ')}` : '') +
+        (missingText.length ? `\n         missing text: ${missingText.join(', ')}` : '') +
         (errs.length ? `\n         errors: ${errs.join(' | ')}` : ''));
       out.textContent = lines.join('\n');
       f.remove();

@@ -39,7 +39,12 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   every 15 min) posts locally-saved captures to `POST /api/v1/captures` with
   exponential backoff (15 min → 6 hr, 5 attempts), tracked per-capture via
   `src/lib/sync-state.js`; sync-status badges (synced/pending/failed/duplicate)
-  on the History page.
+  on the History page. Captures saved by a pre-1.5.0 install are opt-in, not
+  automatic: `SBW.markLegacyPending()` stamps them `skipped`/`legacy` rather
+  than `pending` so a 1.4.0 upgrader's local backlog isn't silently bulk-
+  uploaded the first time the drainer alarm fires; the History page's
+  "Include them in sync" banner (`SBWSync.unskipLegacy()`) is the only thing
+  that opts them in.
 - **Domain history strip** (`src/lib/domain-history.js`) — the popup's SEO
   Analysis tab now shows this domain's and URL's capture history under the
   score ring, backed by `SBW.quickDomain` / `SBW.capturesForUrl`.
@@ -69,8 +74,10 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   it) and currently ship from the repo root; not moved this release to keep
   the diff scoped to the API migration.
 - Unify `SBW.ct.*` (throws `CtError`) and `SBW.lb.*` (returns `{ ok, code }`)
-  onto one non-throwing convention (~13 call sites) — flagged during Task 4's
-  review as an accepted-for-now inconsistency between the two namespaces.
+  onto one non-throwing convention (~21 call sites, counted across
+  `src/sidepanel/sidepanel.js`, `src/popup/citations-tab.js`, and
+  `src/popup/popup.js`) — flagged during Task 4's review as an
+  accepted-for-now inconsistency between the two namespaces.
 
 ---
 

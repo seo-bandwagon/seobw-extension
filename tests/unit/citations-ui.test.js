@@ -72,6 +72,10 @@ describe('shouldPollAfterTrigger', () => {
     expect(SBWCitations.shouldPollAfterTrigger({ code: 'error', status: 504 })).toBe(true);
   });
 
+  it('is true for a 502 bad gateway', () => {
+    expect(SBWCitations.shouldPollAfterTrigger({ code: 'error', status: 502 })).toBe(true);
+  });
+
   it('is false for any other error code/status', () => {
     expect(SBWCitations.shouldPollAfterTrigger({ code: 'forbidden', status: 403 })).toBe(false);
     expect(SBWCitations.shouldPollAfterTrigger({ code: 'error', status: 500 })).toBe(false);

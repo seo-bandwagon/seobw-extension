@@ -38,7 +38,8 @@ const NAV_HTML = {
 
 function spEsc(t) {
   if (t === null || t === undefined) return '';
-  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function spInitials(name) {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -633,12 +634,11 @@ function contactBadge(status) {
 }
 
 function pitchCardTop(p) {
-  const c = p.contact || {};
-  const status = c.verification_status || 'unverified';
+  const m = SBWLinkBuildingUI.pitchCardModel(p);
   return `<div class="lb-card-top">
     <div class="sp-row-body">
-      <div class="sp-row-t">${spEsc(c.full_name || 'Unknown contact')} <span class="badge-mono ${contactBadge(status)}">${spEsc(status)}</span></div>
-      <div class="sp-row-s">${spEsc(c.email || 'no email on file')} · ${spEsc((p.prospect && p.prospect.domain) || '')}</div>
+      <div class="sp-row-t">${spEsc(m.name)} <span class="badge-mono ${contactBadge(m.verified)}">${spEsc(m.verified)}</span></div>
+      <div class="sp-row-s">${spEsc(m.email || 'no email on file')} · ${spEsc(m.domain)}</div>
     </div>
   </div>`;
 }
@@ -789,14 +789,14 @@ async function reviewPitch(id, action) {
 
 function openGmailCompose(id) {
   const p = spPitchesById[id];
-  const email = p && p.contact && p.contact.email;
-  if (!p || !spSenderAddress || !email) { setFoot('Missing sender address or contact email'); return; }
+  const m = p && SBWLinkBuildingUI.pitchCardModel(p);
+  if (!p || !spSenderAddress || !m.email) { setFoot('Missing sender address or contact email'); return; }
 
   const url = SBWLinkBuildingUI.gmailComposeUrl({
     senderAddress: spSenderAddress,
-    email,
-    subject: p.subject_line,
-    body: p.body_markdown
+    email: m.email,
+    subject: m.subject,
+    body: m.body
   });
   chrome.tabs.create({ url });
 }

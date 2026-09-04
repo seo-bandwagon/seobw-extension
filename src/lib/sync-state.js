@@ -90,6 +90,20 @@
     return sync;
   }
 
+  // Captures from before 1.5.0 are stamped `{ status: 'skipped', error:
+  // 'legacy', ... }` by SBW.markLegacyPending() rather than `pending` — see
+  // src/lib/api.js — so a 1.4.0 upgrader isn't silently bulk-uploaded on
+  // first launch. The History page's "Include them in sync" button calls
+  // this to opt a legacy capture back into the normal pending/due flow;
+  // anything else (a real skip like `unauthorized`, or an already-active
+  // sync) passes through unchanged.
+  function unskipLegacy(sync) {
+    if (sync && sync.status === 'skipped' && sync.error === 'legacy') {
+      return initialSync();
+    }
+    return sync;
+  }
+
   const SBWSyncNamespace = {
     RETRY_BASE_MS: 15 * 60 * 1000,    // 15 minutes
     RETRY_MAX_MS: 6 * 60 * 60 * 1000, // 6 hours
@@ -98,7 +112,8 @@
     nextSyncState,
     isDue,
     pickDue,
-    resetFailed
+    resetFailed,
+    unskipLegacy
   };
 
   return SBWSyncNamespace;

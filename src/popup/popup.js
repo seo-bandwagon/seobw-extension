@@ -7,7 +7,8 @@ let currentTab = null;
 
 function esc(text) {
   if (text === null || text === undefined) return '';
-  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // Status color for a 0-100 value: good >= 80, fair >= 60, else poor
@@ -402,6 +403,21 @@ function wireSeoTab() {
   document.getElementById('exportBtn').addEventListener('click', () => exportAsJson(pageData));
 
   document.getElementById('addOutletBtn')?.addEventListener('click', addCurrentTabAsOutlet);
+  initAddOutletButton();
+}
+
+// Disables "+ ADD AS OUTLET" up front when there's no account connected —
+// SBW.lb.addOutlet() would just short-circuit to a no_key result anyway (see
+// src/lib/api.js), so this saves the click and tells the user why.
+async function initAddOutletButton() {
+  const btn = document.getElementById('addOutletBtn');
+  if (!btn) return;
+  const settings = await SBW.getApiSettings();
+  if (!btn.isConnected) return; // popup may have re-rendered while this awaited
+  if (!settings.apiKey) {
+    btn.disabled = true;
+    btn.title = 'Connect your SEO Bandwagon account in Options';
+  }
 }
 
 // Guards against a double-click firing two POSTs while the first is still
@@ -421,6 +437,16 @@ async function addCurrentTabAsOutlet() {
 
   try {
     const res = await SBW.lb.addOutlet({ url: currentTab.url, name: currentTab.title, status: 'candidate' });
+    // outletAddMessage()/lbErrorMessage() return null for `unauthorized` (the
+    // convention elsewhere is to flip straight to a signed-out view instead
+    // of showing an error) — the popup has no such view for this button, and
+    // `no_key` isn't mapped to anything more specific than a generic error
+    // message. Handle both explicitly so a missing/rejected key is never
+    // silently swallowed here.
+    if (res.code === 'no_key' || res.code === 'unauthorized') {
+      setSeoStatus('Connect your SEO Bandwagon account in Options', 'error');
+      return;
+    }
     const msg = SBWLinkBuildingUI.outletAddMessage(res);
     if (msg) setSeoStatus(msg, res.ok ? 'success' : 'error');
   } finally {

@@ -134,6 +134,78 @@ describe('pitchReviewErrorMessage', () => {
   });
 });
 
+describe('pitchCardModel', () => {
+  // GET /api/link-building/pitches rows are FLAT — contact and prospect
+  // columns are aliased straight onto the row (full_name, email,
+  // verification_status, domain), not nested under `.contact`/`.prospect`.
+  // See site route.ts L34-47.
+  const flatRow = {
+    id: 'p1', angle_type: 'data_story', subject_line: 'A dataset your churn story is missing',
+    body_markdown: 'Hi Priya,\n\nSee attached.', status: 'draft',
+    full_name: 'Priya Shah', email: 'priya@austinlocalnews.com', verification_status: 'valid',
+    domain: 'austinlocalnews.com', quality_score: '78.5'
+  };
+
+  it('extracts name/email/verified/domain/subject/body from a flat row', () => {
+    expect(LB.pitchCardModel(flatRow)).toEqual({
+      name: 'Priya Shah',
+      email: 'priya@austinlocalnews.com',
+      verified: 'valid',
+      domain: 'austinlocalnews.com',
+      subject: 'A dataset your churn story is missing',
+      body: 'Hi Priya,\n\nSee attached.'
+    });
+  });
+
+  it('defaults a missing contact name to "Unknown contact"', () => {
+    expect(LB.pitchCardModel(Object.assign({}, flatRow, { full_name: null })).name).toBe('Unknown contact');
+  });
+
+  it('defaults a missing verification_status to "unverified"', () => {
+    expect(LB.pitchCardModel(Object.assign({}, flatRow, { verification_status: null })).verified).toBe('unverified');
+  });
+
+  it('reports a missing email as null rather than an empty string', () => {
+    expect(LB.pitchCardModel(Object.assign({}, flatRow, { email: null })).email).toBeNull();
+  });
+
+  it('does not read a nested .contact/.prospect shape even if present (flat fields win)', () => {
+    const withStaleNesting = Object.assign({}, flatRow, {
+      contact: { full_name: 'Wrong Name', email: 'wrong@example.com' },
+      prospect: { domain: 'wrong.example.com' }
+    });
+    const model = LB.pitchCardModel(withStaleNesting);
+    expect(model.name).toBe('Priya Shah');
+    expect(model.email).toBe('priya@austinlocalnews.com');
+    expect(model.domain).toBe('austinlocalnews.com');
+  });
+
+  it('handles null/undefined input without throwing', () => {
+    expect(LB.pitchCardModel(null)).toEqual({
+      name: 'Unknown contact', email: null, verified: 'unverified', domain: '', subject: '', body: ''
+    });
+  });
+});
+
+describe('gmailComposeUrl — inputs derived from pitchCardModel', () => {
+  it('builds the compose URL from a flat pitch row via pitchCardModel', () => {
+    const flatRow = {
+      full_name: 'Priya Shah', email: 'priya@austinlocalnews.com', verification_status: 'valid',
+      domain: 'austinlocalnews.com', subject_line: 'A dataset your churn story is missing',
+      body_markdown: 'Hi Priya,\n\nSee attached.'
+    };
+    const m = LB.pitchCardModel(flatRow);
+    const url = LB.gmailComposeUrl({
+      senderAddress: 'dana@northsidedental.com',
+      email: m.email,
+      subject: m.subject,
+      body: m.body
+    });
+    expect(url).toContain('to=priya%40austinlocalnews.com');
+    expect(url).toContain('su=A%20dataset%20your%20churn%20story%20is%20missing');
+  });
+});
+
 describe('gmailComposeUrl', () => {
   it('matches the dashboard URL shape exactly, percent-encoding every field', () => {
     const url = LB.gmailComposeUrl({
@@ -162,10 +234,11 @@ describe('funnelRows', () => {
       }
     };
     const rows = LB.funnelRows(results);
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(14);
     expect(rows[0]).toEqual({ label: 'Prospects', value: 46 });
     expect(rows.find(r => r.label === 'Awaiting review')).toEqual({ label: 'Awaiting review', value: 9 });
     expect(rows.find(r => r.label === 'Sent')).toEqual({ label: 'Sent', value: 6 });
+    expect(rows.find(r => r.label === 'Placements from pitches')).toEqual({ label: 'Placements from pitches', value: 2 });
   });
 
   it('defaults missing/non-numeric fields to 0 rather than NaN', () => {

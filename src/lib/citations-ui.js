@@ -59,13 +59,14 @@
   }
 
   // ============================================
-  // Campaign trigger: network/timeout or a 504 means the campaign is
+  // Campaign trigger: network/timeout, a 504, or a 502 means the campaign is
   // probably still running server-side (it runs synchronously and can
-  // outlast the client's timeout) — worth polling rather than failing.
+  // outlast the client's timeout, or briefly bounce off a proxy while it
+  // does) — worth polling rather than failing.
   // ============================================
 
   function shouldPollAfterTrigger({ code, status } = {}) {
-    return code === 'network' || (code === 'error' && status === 504);
+    return code === 'network' || (code === 'error' && (status === 504 || status === 502));
   }
 
   // Calls `fetchOnce()` up to `attempts` times, `intervalMs` apart, stopping

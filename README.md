@@ -22,6 +22,8 @@ Search "SEO Bandwagon" in the Chrome Web Store, or use the one-click "Connect Ch
 4. Click "Load unpacked" → select this folder
 5. Pin the extension to your toolbar
 
+**Testing the one-click "Connect Chrome extension" flow on an unpacked build**: the dashboard's connect button targets the published extension's fixed id (`dphmaddiedhkejfhabkfdenfphjljioj`), but Chrome assigns an unpacked load a random id unless `manifest.json` declares a `"key"`. To test the real one-click flow locally, paste the public key from the Chrome Web Store developer dashboard (your item → Package → View public key) into `manifest.json`'s `"key"` field on your own machine — don't invent one, and don't commit it. Otherwise, skip the one-click flow in dev and use manual key paste in Options instead; it exercises the same `SBW.verifyKey()` path.
+
 ## Connect your account
 
 Citations, Link Building, domain history, and capture sync all need an API key.
@@ -35,37 +37,44 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 
 | Permission | Why |
 |---|---|
-| `activeTab` | Read the current tab's URL/title when you click the icon or a keyboard shortcut — no access to tabs you haven't interacted with |
+| `activeTab` | Read the current tab's URL/title when you click the icon or a keyboard shortcut |
 | `storage` | Save captures locally, cache API responses, and store your API key/settings |
 | `contextMenus` | The right-click "Analyze this page" / "Analyze linked page" / "Count words & characters" entries |
 | `scripting` | Inject the page-analysis script into the active tab on demand |
 | `sidePanel` | The Link Building and Citations side panel |
-| `tabs` | Read the active tab's URL to match it against citation directories and open dashboard links in new tabs |
+| `tabs` | Read the active tab's URL to open dashboard links in new tabs, **and** — via `chrome.tabs.onUpdated` in the background service worker — read every tab's URL as it finishes loading to match it against a bundled list of citation directories and paint the "DIR" toolbar badge. That match is local hostname comparison only; the URL is never sent anywhere for it |
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
+
+The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
 There is no `identity` permission and no OAuth — connecting an account is just an API key.
 
 ## Privacy
 
-Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS.
+Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, domain history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
 
 **A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 
-- the page URL
+- the page URL and the capture timestamp
 - the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD) found on the page
 - headings and their text (H1–H6)
 - link, image and media audits (internal/external link counts and anchor text, missing alt text, lazy-loaded images, iframes, media types, favicons/feeds)
+- content statistics: word/character/sentence counts, and the page's top words and phrases
+- page technical facts: DOM element/script/stylesheet counts, load time, and URL depth
 - detected technologies (CMS, analytics, frameworks, etc.)
 - Core Web Vitals and load timing (LCP/INP/CLS/FCP/TTFB, above-the-fold and text-to-HTML analysis)
 - readability, keyword-density, table-of-contents and n-gram statistics computed from the page's text
 - hreflang tags, mixed-content and social-card checks, schema validation results
+- a SHA-256 hash of the page's content, and the computed SEO score/grade
 - the extension version and your browser's user-agent string
 
-None of this is trimmed or summarized before sending — it's the same object the popup renders from. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
+None of this is trimmed or summarized before sending — it's the same analysis object the popup renders from, sent unmodified. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
 
-**Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name/URL, the NAP match result, and whether you downloaded a proof screenshot (the screenshot image itself is never uploaded; it only ever saves to your device, see `preview/DESIGN-GAPS.md` for the full-page-capture roadmap).
+**Upgrading from before 1.5.0?** Captures saved by an older version are never auto-uploaded on upgrade — they're marked "skipped" locally, and stay that way until you click "Include them in sync" on the History page, which is the only thing that opts them into the normal sync/retry flow described below.
+
+**Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot is never part of that payload — it only ever saves to your device (see `preview/DESIGN-GAPS.md` for the full-page-capture roadmap).
 
 **The SERP overlay is not active in 1.5.0** — `src/overlay/serp-overlay.js` exists but isn't registered as a content script (see ROADMAP's v1.6 candidates), so it sends nothing today. When it ships, the plan is a bare-domain batch lookup (`SBW.quickBatch`) with no other page data attached — this note will be updated to match whatever actually ships.
 
@@ -79,7 +88,9 @@ Every analyzed page saves to `chrome.storage.local` immediately — no network r
 - A failed post (network error, 5xx, or a `503` from the server) is marked `pending` and retried with exponential backoff (15 min → 6 hr cap, 5 attempts) by a `chrome.alarms`-driven drainer that runs every 15 minutes.
 - A `429` doesn't burn a retry attempt — it just waits until the server's `Retry-After` window.
 - A `401`/`403` marks the capture `skipped` rather than retrying forever against a bad key.
+- Turning the data-collection toggle off also stops the drainer, mid-batch if it's running — it never posts a capture while collection is off.
 - After 5 failed attempts a capture is marked `failed` and stops auto-retrying; the History page's "Retry failed" button resets it back to `pending` and drains again.
+- Captures from before 1.5.0 are the one exception to all of the above: they start `skipped`, not `pending`, and stay that way — see "Upgrading from before 1.5.0?" above — until the History page's "Include them in sync" button opts them in.
 - The History page's "Sync to SEO Bandwagon" button runs a bounded manual drain (up to 60 captures) across your full local backlog.
 
 ## Files

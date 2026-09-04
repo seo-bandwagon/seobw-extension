@@ -15,9 +15,18 @@ describe('SBWOptions — dual export', () => {
 });
 
 describe('isValidApiUrl', () => {
-  it('accepts any https:// URL', () => {
+  it('accepts the production API host', () => {
     expect(SBWOptions.isValidApiUrl('https://seobandwagon.com/api')).toBe(true);
-    expect(SBWOptions.isValidApiUrl('https://staging.example.com/api')).toBe(true);
+    expect(SBWOptions.isValidApiUrl('https://seobandwagon.com')).toBe(true);
+  });
+
+  it('accepts any seobandwagon.com subdomain', () => {
+    expect(SBWOptions.isValidApiUrl('https://staging.seobandwagon.com/api')).toBe(true);
+    expect(SBWOptions.isValidApiUrl('https://api.seobandwagon.com')).toBe(true);
+  });
+
+  it('accepts a Netlify deploy-preview host for this site', () => {
+    expect(SBWOptions.isValidApiUrl('https://deploy-preview-123--seobandwagon.netlify.app/api')).toBe(true);
   });
 
   it('accepts http://localhost, with or without a port', () => {
@@ -37,6 +46,24 @@ describe('isValidApiUrl', () => {
 
   it('rejects a host that merely starts with localhost as a substring', () => {
     expect(SBWOptions.isValidApiUrl('http://localhost.evil.com/api')).toBe(false);
+  });
+
+  it('rejects an unrelated https host', () => {
+    expect(SBWOptions.isValidApiUrl('https://staging.example.com/api')).toBe(false);
+    expect(SBWOptions.isValidApiUrl('https://evil.com/api')).toBe(false);
+  });
+
+  it('rejects a host that merely contains seobandwagon.com as a substring', () => {
+    expect(SBWOptions.isValidApiUrl('https://evilseobandwagon.com/api')).toBe(false);
+    expect(SBWOptions.isValidApiUrl('https://seobandwagon.com.evil.com/api')).toBe(false);
+  });
+
+  it('rejects a Netlify host that is not a seobandwagon deploy preview', () => {
+    expect(SBWOptions.isValidApiUrl('https://some-other-site.netlify.app/api')).toBe(false);
+  });
+
+  it('rejects a userinfo/hostname trick', () => {
+    expect(SBWOptions.isValidApiUrl('https://seobandwagon.com@evil.com/api')).toBe(false);
   });
 
   it('rejects empty/garbage input', () => {

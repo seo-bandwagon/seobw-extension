@@ -194,6 +194,15 @@ describe('pickDue', () => {
     const due = SBWSync.pickDue(captures, 1000, 10);
     expect(due.map(c => c.key)).toEqual(['capture_500']);
   });
+
+  it('ignores captures markLegacyPending stamped skipped/legacy (they need an explicit opt-in, not a drain)', () => {
+    const captures = [
+      { key: 'capture_100', data: { sync: { status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 } } },
+      { key: 'capture_200', data: { sync: SBWSync.initialSync() } }
+    ];
+    const due = SBWSync.pickDue(captures, 1000, 10);
+    expect(due.map(c => c.key)).toEqual(['capture_200']);
+  });
 });
 
 describe('resetFailed', () => {
@@ -206,5 +215,22 @@ describe('resetFailed', () => {
   it('leaves a non-failed sync unchanged', () => {
     const synced = { status: 'synced', remoteId: '1', syncedAt: 100 };
     expect(SBWSync.resetFailed(synced)).toEqual(synced);
+  });
+});
+
+describe('unskipLegacy', () => {
+  it('converts a legacy-skipped sync back to a fresh pending state', () => {
+    const sync = { status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 };
+    expect(SBWSync.unskipLegacy(sync)).toEqual({ status: 'pending', attempts: 0, nextAt: 0 });
+  });
+
+  it('leaves a non-legacy skip unchanged (e.g. an unauthorized key)', () => {
+    const sync = { status: 'skipped', error: 'unauthorized' };
+    expect(SBWSync.unskipLegacy(sync)).toEqual(sync);
+  });
+
+  it('leaves a non-skipped sync unchanged', () => {
+    const synced = { status: 'synced', remoteId: '1', syncedAt: 100 };
+    expect(SBWSync.unskipLegacy(synced)).toEqual(synced);
   });
 });

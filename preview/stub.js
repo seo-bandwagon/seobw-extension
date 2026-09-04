@@ -93,25 +93,28 @@ const FX = {
       is_warm_target: false, is_competitor: false, status: 'qualified', journalist_count: 0, journalists: [] }
   ],
 
+  // Flat rows — matches the real GET /api/link-building/pitches shape (the
+  // site's route.ts aliases contact/prospect columns straight onto the row,
+  // it does not nest them under `.contact`/`.prospect`).
   pitchesDraft: [
     { id: 'p1', angle_type: 'data_story', subject_line: 'A dataset your churn story is missing',
       body_markdown: 'Hi Priya,\n\nYour piece on North Austin home services touched on listing churn — we track exactly that across 53 metros weekly. Top-3 retention on Maps sits at 2.6% churn this edition, dated within the last 14 days.\n\nHappy to share the full methodology and the underlying numbers if useful for a follow-up.\n\nBest,\nDana',
       status: 'draft',
-      contact: { full_name: 'Priya Shah', email: 'priya@austinlocalnews.com', verification_status: 'valid' },
-      prospect: { domain: 'austinlocalnews.com', quality_score: '78.5' } },
+      full_name: 'Priya Shah', email: 'priya@austinlocalnews.com', verification_status: 'valid',
+      domain: 'austinlocalnews.com', quality_score: '78.5' },
     { id: 'p2', angle_type: 'correction', subject_line: 'Correction data for your last home-services roundup',
       body_markdown: 'Hi Owen,\n\nYour home-services roundup cited a stat that has since moved — happy to send the current measured figure and source if it helps a correction or update.\n\nBest,\nDana',
       status: 'draft',
-      contact: { full_name: 'Owen Cole', email: null, verification_status: 'unverified' },
-      prospect: { domain: 'texashomeservicesreport.com', quality_score: '61.0' } }
+      full_name: 'Owen Cole', email: null, verification_status: 'unverified',
+      domain: 'texashomeservicesreport.com', quality_score: '61.0' }
   ],
 
   pitchesApproved: [
     { id: 'p3', angle_type: 'data_story', subject_line: 'Follow-up: local SEO churn dataset for nonprofits',
       body_markdown: 'Hi Dana,\n\nFollowing up on the churn dataset for small-business listings — full numbers attached below.\n\nBest,\nDana',
       status: 'approved',
-      contact: { full_name: 'Dana Ruiz', email: 'dana.ruiz@atxsmallbiz.org', verification_status: 'valid' },
-      prospect: { domain: 'atxsmallbiz.org', quality_score: '57.2' } }
+      full_name: 'Dana Ruiz', email: 'dana.ruiz@atxsmallbiz.org', verification_status: 'valid',
+      domain: 'atxsmallbiz.org', quality_score: '57.2' }
   ],
 
   lbResults: {
@@ -193,8 +196,20 @@ if (PREVIEW_STATE === 'key-invalid') {
 
 // `capture-<status>` (history.html preview) seeds one local capture with
 // that sync status so history.js's real syncBadge() renders the matching
-// pill (see src/lib/sync-state.js for the status vocabulary).
-if (PREVIEW_STATE.startsWith('capture-')) {
+// pill (see src/lib/sync-state.js for the status vocabulary). `capture-legacy`
+// is the one exception: it seeds a pre-1.5.0 capture (`skipped`/`legacy`, see
+// SBW.markLegacyPending()) so history.js's real renderLegacyBanner() shows
+// the "Include them in sync" banner.
+if (PREVIEW_STATE === 'capture-legacy') {
+  store.capture_1755700000000 = {
+    url: 'https://northsidedental.com/austin/family-dentistry',
+    capturedAt: '2026-08-20T14:00:00.000Z',
+    content: { wordCount: 842 },
+    links: { internal: { count: 34 }, external: { count: 8 } },
+    images: { total: 14 },
+    sync: { status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 }
+  };
+} else if (PREVIEW_STATE.startsWith('capture-')) {
   const status = PREVIEW_STATE.slice('capture-'.length);
   store.capture_1755700000000 = {
     url: 'https://northsidedental.com/austin/family-dentistry',
