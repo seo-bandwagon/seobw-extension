@@ -68,6 +68,9 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   — they're a runtime dependency of `src/content/analyzer.js` (injected before
   it) and currently ship from the repo root; not moved this release to keep
   the diff scoped to the API migration.
+- Unify `SBW.ct.*` (throws `CtError`) and `SBW.lb.*` (returns `{ ok, code }`)
+  onto one non-throwing convention (~13 call sites) — flagged during Task 4's
+  review as an accepted-for-now inconsistency between the two namespaces.
 
 ---
 

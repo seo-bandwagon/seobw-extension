@@ -284,7 +284,6 @@ window.chrome = {
   },
   scripting: { executeScript: () => Promise.resolve([]) },
   sidePanel: { open() {}, setPanelBehavior() {} },
-  identity: { getAuthToken(_, cb) { cb('preview-token'); } },
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
   contextMenus: { create() {}, onClicked: { addListener() {} } },
   commands: { onCommand: { addListener() {} } },

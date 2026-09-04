@@ -49,11 +49,27 @@ There is no `identity` permission and no OAuth — connecting an account is just
 
 ## Privacy
 
-Page analysis runs entirely in your browser. Nothing is sent anywhere unless an API key is set in Options.
+Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS.
 
-With a key set, a capture sends: the page URL, extracted metadata (title, description, word/char/sentence counts, readability, top words/phrases), the extension version, and your browser's user agent. Screenshots captured for citation proof stay on your device — they are never uploaded (see `preview/DESIGN-GAPS.md` for the full-page-capture roadmap). Citation checks send the NAP fields extracted from the current page plus your business ID.
+**A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 
-Nothing is sent without a key configured, and the data-collection toggle in Options/the popup footer can disable capture sync entirely while keeping local-only analysis working.
+- the page URL
+- the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD) found on the page
+- headings and their text (H1–H6)
+- link, image and media audits (internal/external link counts and anchor text, missing alt text, lazy-loaded images, iframes, media types, favicons/feeds)
+- detected technologies (CMS, analytics, frameworks, etc.)
+- Core Web Vitals and load timing (LCP/INP/CLS/FCP/TTFB, above-the-fold and text-to-HTML analysis)
+- readability, keyword-density, table-of-contents and n-gram statistics computed from the page's text
+- hreflang tags, mixed-content and social-card checks, schema validation results
+- the extension version and your browser's user-agent string
+
+None of this is trimmed or summarized before sending — it's the same object the popup renders from. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
+
+**Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name/URL, the NAP match result, and whether you downloaded a proof screenshot (the screenshot image itself is never uploaded; it only ever saves to your device, see `preview/DESIGN-GAPS.md` for the full-page-capture roadmap).
+
+**The SERP overlay is not active in 1.5.0** — `src/overlay/serp-overlay.js` exists but isn't registered as a content script (see ROADMAP's v1.6 candidates), so it sends nothing today. When it ships, the plan is a bare-domain batch lookup (`SBW.quickBatch`) with no other page data attached — this note will be updated to match whatever actually ships.
+
+Nothing is sent without a key configured, regardless of the toggle.
 
 ## Local-first + sync/retry behaviour
 
