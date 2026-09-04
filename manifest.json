@@ -27,6 +27,10 @@
     "https://seobandwagon.com/*",
     "http://localhost:8000/*"
   ],
+  "optional_host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_icon": {
