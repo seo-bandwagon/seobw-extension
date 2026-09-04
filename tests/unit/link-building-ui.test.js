@@ -40,6 +40,11 @@ describe('lbErrorMessage', () => {
   it('falls back to a generic message when no fallback is given', () => {
     expect(LB.lbErrorMessage('error')).toBe('Something went wrong');
   });
+
+  it('falls back to a generic message when the fallback is a non-string (e.g. a Zod .flatten() object)', () => {
+    const zodFlattenedError = { fieldErrors: { reason: ['reason is required'] }, formErrors: [] };
+    expect(LB.lbErrorMessage('error', zodFlattenedError)).toBe('Something went wrong');
+  });
 });
 
 describe('outletAddMessage', () => {

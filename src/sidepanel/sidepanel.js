@@ -561,10 +561,12 @@ async function reviewOutlet(id, action) {
 
   let reason;
   if (action === 'reject') {
-    const input = window.prompt('Reason for rejecting this outlet (min 3 characters):');
+    // Server max (sql/033 prospects/review schema): reason.max(500).
+    const input = window.prompt('Reason for rejecting this outlet (3-500 characters):');
     if (input === null) return; // cancelled
     reason = input.trim();
     if (reason.length < 3) { setFoot('Reason must be at least 3 characters'); return; }
+    if (reason.length > 500) { setFoot('Reason must be 500 characters or fewer'); return; }
   }
 
   lbInFlight.add(id);
@@ -573,7 +575,13 @@ async function reviewOutlet(id, action) {
     const res = await SBW.lb.reviewProspects([id], action, reason);
     if (res.code === 'unauthorized') { initSidePanel(); return; }
     if (res.ok) {
-      setFoot(action === 'approve' ? 'Outlet approved' : action === 'hold' ? 'Outlet held' : 'Outlet rejected');
+      // The route's WHERE clause only matches rows still in
+      // qualified/held — updated:0 means someone else (or another tab)
+      // already reviewed it since this list loaded, not success.
+      const updated = res.data && res.data.updated;
+      setFoot(updated === 0
+        ? 'Nothing changed (already reviewed?)'
+        : (action === 'approve' ? 'Outlet approved' : action === 'hold' ? 'Outlet held' : 'Outlet rejected'));
       if (spSection === 'outlets') loadSection('outlets');
       return;
     }
@@ -752,10 +760,14 @@ async function reviewPitch(id, action) {
 
   let reason;
   if (action === 'reject') {
-    const input = window.prompt('Reason for rejecting this pitch (min 3 characters):');
+    // Server max (pitches/review schema): reason.max(1000) — pitches allow a
+    // longer reason than outlets (500) since it doubles as angle/template
+    // tuning data (§10).
+    const input = window.prompt('Reason for rejecting this pitch (3-1000 characters):');
     if (input === null) return; // cancelled
     reason = input.trim();
     if (reason.length < 3) { setFoot('Reason must be at least 3 characters'); return; }
+    if (reason.length > 1000) { setFoot('Reason must be 1000 characters or fewer'); return; }
   }
 
   lbInFlight.add(id);

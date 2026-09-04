@@ -31,7 +31,14 @@
 
   // `unauthorized` returns null on purpose: callers flip straight to the
   // signed-out view rather than showing an error string.
+  //
+  // `fallback` is guarded to a string here rather than at each call site: a
+  // 400 from Zod's .flatten() comes back as `{ error: {fieldErrors, ...} }`,
+  // an object, not a string — callers that do `res.data.error || 'default'`
+  // pass that object straight through (it's truthy, so the `||` never reaches
+  // their string literal) and it would otherwise render as "[object Object]".
   function lbErrorMessage(code, fallback) {
+    const safeFallback = typeof fallback === 'string' && fallback ? fallback : 'Something went wrong';
     switch (code) {
       case 'unauthorized':
         return null;
@@ -44,7 +51,7 @@
       case 'network':
         return "Can't reach SEO Bandwagon — check your connection";
       default:
-        return fallback || 'Something went wrong';
+        return safeFallback;
     }
   }
 
