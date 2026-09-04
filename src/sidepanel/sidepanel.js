@@ -1,5 +1,5 @@
-// CitationForge side panel — 1j terminal rows
-// Sections: businesses · campaigns · citations · screenshots
+// SEO Bandwagon side panel — citations API (src/lib/api.js SBW.ct.*)
+// Sections: businesses · campaigns · citations
 
 let spSection = 'businesses';
 let spBiz = null;           // selected business
@@ -53,8 +53,29 @@ function spSkeleton(rows) {
       <div class="sp-bar"></div>
     </div>`).join('');
 }
-function spSend(msg) {
-  return new Promise(r => chrome.runtime.sendMessage(msg, r));
+
+/* ---------- auth ---------- */
+
+// Same "signed in" definition as the popup's citations tab (see
+// src/popup/citations-tab.js's checkSignedIn) — duplicated rather than
+// shared because it's the one piece of UI wiring both surfaces need and
+// this codebase keeps tab/panel wiring independent (see spEsc/esc, etc.).
+async function checkSignedIn() {
+  const settings = await SBW.getApiSettings();
+  if (!settings.apiKey) return { signedIn: false };
+
+  const stored = await chrome.storage.local.get(['sbwUser', 'sbwKeyStatus']);
+  if (stored.sbwKeyStatus === 'invalid') return { signedIn: false };
+
+  if (SBWCitations.isUserCacheFresh(stored.sbwUser)) {
+    return { signedIn: true, user: stored.sbwUser.data };
+  }
+
+  const res = await SBW.verifyKey();
+  if (!res.ok) return { signedIn: false };
+
+  await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
+  return { signedIn: true, user: res.data };
 }
 
 /* ---------- boot ---------- */
@@ -69,25 +90,23 @@ async function initSidePanel() {
     vEl.title = m.version_name || ('Version ' + m.version);
   }
 
-  const res = await spSend({ action: 'cfIsLoggedIn' });
-  if (!res || !res.loggedIn) {
+  const auth = await checkSignedIn();
+  if (!auth.signedIn) {
     document.getElementById('spFilters').innerHTML = '';
-    body.innerHTML = spEmpty('◎', 'NOT CONNECTED', 'Open the extension popup and connect CitationForge to see your citation data here.', 'spConnect', 'CONNECT');
-    document.getElementById('spConnect').addEventListener('click', async () => {
-      const r = await spSend({ action: 'cfLogin' });
-      if (r && r.ok) initSidePanel();
+    body.innerHTML = spEmpty('◎', 'NOT CONNECTED', 'Open the extension options page and connect your SEO Bandwagon account to see your citation data here.', 'spConnect', 'CONNECT');
+    document.getElementById('spConnect').addEventListener('click', () => {
+      chrome.runtime.openOptionsPage();
     });
     return;
   }
 
-  const user = await spSend({ action: 'cfGetUser' });
-  document.getElementById('spUser').textContent = user?.user ? spInitials(user.user.name || user.user.email) : '';
-  document.getElementById('spUser').title = user?.user?.email || '';
+  document.getElementById('spUser').textContent = auth.user ? spInitials(auth.user.name || auth.user.email) : '';
+  document.getElementById('spUser').title = auth.user?.email || '';
 
   try {
-    spBusinesses = await cfGetBusinesses();
+    spBusinesses = await SBW.ct.businesses();
   } catch (e) {
-    body.innerHTML = spEmpty('⚠', "CAN'T REACH CITATIONFORGE", e.message, 'spRetry', 'TRY AGAIN');
+    body.innerHTML = spEmpty('⚠', "CAN'T REACH SEO BANDWAGON", SBWCitations.ctErrorMessage(e.code, e.message), 'spRetry', 'TRY AGAIN');
     document.getElementById('spRetry').addEventListener('click', initSidePanel);
     return;
   }
@@ -136,12 +155,12 @@ async function loadSection(name) {
       case 'businesses': return await sectionBusinesses(body, run);
       case 'campaigns': return await sectionCampaigns(body, run);
       case 'citations': return await sectionCitations(body, run);
-      case 'screenshots': return await sectionScreenshots(body, run);
     }
   } catch (e) {
     if (run !== spRunId) return;
+    if (e.code === 'unauthorized') { initSidePanel(); return; }
     renderFilters([]);
-    body.innerHTML = spEmpty('⚠', 'SOMETHING BROKE', e.message, 'spRetry2', 'TRY AGAIN');
+    body.innerHTML = spEmpty('⚠', 'SOMETHING BROKE', SBWCitations.ctErrorMessage(e.code, e.message), 'spRetry2', 'TRY AGAIN');
     document.getElementById('spRetry2')?.addEventListener('click', () => loadSection(name));
   }
 }
@@ -156,7 +175,7 @@ async function sectionBusinesses(body, run) {
   renderFilters([]);
 
   if (!spBusinesses.length) {
-    body.innerHTML = spEmpty('⌸', 'NO BUSINESSES', 'Add one in the CitationForge dashboard to start tracking citations.');
+    body.innerHTML = spEmpty('⌸', 'NO BUSINESSES', 'Add one in your SEO Bandwagon dashboard to start tracking citations.');
     setFoot('0 businesses');
     return;
   }
@@ -188,7 +207,7 @@ async function sectionBusinesses(body, run) {
   let totalCites = 0;
   for (const b of spBusinesses) {
     try {
-      const s = await cfGetBusinessStats(b.id);
+      const s = await SBW.ct.stats(b.id);
       if (!isCurrent(run)) return;
       totalCites += s.total_citations;
       const pct = s.avg_nap_score != null ? Math.round(s.avg_nap_score * 100) : null;
@@ -211,13 +230,13 @@ async function sectionCampaigns(body, run) {
   renderFilters([]);
   if (!spBiz) { body.innerHTML = spEmpty('◎', 'PICK A BUSINESS', 'Select a business first — campaigns run per business.'); return; }
 
-  const campaigns = await cfGetCampaigns(spBiz.id);
+  const campaigns = await SBW.ct.campaigns(spBiz.id);
   if (!isCurrent(run)) return;
 
   body.innerHTML = `
     <button class="sp-trigger" id="spRun">RUN NEW CAMPAIGN</button>
     ${campaigns.length ? campaigns.map((c, i) => {
-      const tone = c.status === 'completed' ? 'b-ok' : c.status === 'running' ? 'b-pink' : c.status === 'failed' ? 'b-err' : 'b-warn';
+      const tone = SBWCitations.campaignBadgeTone(c.status);
       return `<div class="sp-row" data-cid="${spEsc(c.id)}">
         <div class="sp-idx">${campaigns.length - i}</div>
         <div class="sp-row-body">
@@ -228,23 +247,50 @@ async function sectionCampaigns(body, run) {
       </div>`;
     }).join('') : spEmpty('⌸', 'NO CAMPAIGNS YET', 'Run one to discover directories and audit every listing automatically.')}`;
 
-  document.getElementById('spRun').addEventListener('click', async () => {
-    const btn = document.getElementById('spRun');
-    btn.disabled = true;
-    btn.textContent = 'STARTING…';
-    try {
-      await cfTriggerCampaign(spBiz.id);
-      setFoot('Campaign queued');
-      setTimeout(() => loadSection('campaigns'), 1500);
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = 'RUN NEW CAMPAIGN';
-      setFoot('Failed: ' + e.message);
-    }
-  });
+  document.getElementById('spRun').addEventListener('click', () => runCampaign(spBiz.id));
 
   const running = campaigns.filter(c => c.status === 'running' || c.status === 'pending').length;
   setFoot(`${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}${running ? ` · ${running} active` : ''}`);
+}
+
+// The site runs a campaign synchronously and can take longer than the
+// client's 60s timeout — a network/timeout failure (or a 504 from a proxy in
+// between) doesn't mean the campaign didn't start, so poll for its outcome
+// instead of reporting failure. See SBWCitations.shouldPollAfterTrigger /
+// pollUntilDone (src/lib/citations-ui.js).
+async function runCampaign(businessId) {
+  const btn = document.getElementById('spRun');
+  if (btn) { btn.disabled = true; btn.textContent = 'STARTING…'; }
+
+  try {
+    await SBW.ct.triggerCampaign(businessId);
+    setFoot('Campaign complete');
+  } catch (e) {
+    if (SBWCitations.shouldPollAfterTrigger(e)) {
+      setFoot('Campaign started — refreshing…');
+      const { done } = await SBWCitations.pollUntilDone({
+        fetchOnce: () => SBW.ct.campaigns(businessId),
+        isDone: (campaigns) => {
+          const newest = SBWCitations.newestCampaign(campaigns);
+          return !!newest && SBWCitations.isCampaignDone(newest.status);
+        }
+      });
+      setFoot(done ? 'Campaign complete' : 'Still running — check back soon');
+    } else if (e.code === 'unauthorized') {
+      initSidePanel();
+      return;
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = 'RUN NEW CAMPAIGN'; }
+      setFoot('Failed: ' + SBWCitations.ctErrorMessage(e.code, e.message));
+      return;
+    }
+  }
+
+  // Refresh stats/list only if the user hasn't switched businesses or
+  // sections while the campaign (or the poll) was running.
+  if (spBiz && spBiz.id === businessId && spSection === 'campaigns') {
+    loadSection('campaigns');
+  }
 }
 
 /* ---------- citations ---------- */
@@ -252,7 +298,7 @@ async function sectionCampaigns(body, run) {
 async function sectionCitations(body, run) {
   if (!spBiz) { renderFilters([]); body.innerHTML = spEmpty('◎', 'PICK A BUSINESS', 'Select a business to see its citations.'); return; }
 
-  const all = await cfGetCitations(spBiz.id);
+  const all = await SBW.ct.citations(spBiz.id);
   if (!isCurrent(run)) return;
   const counts = all.reduce((acc, c) => { acc[c.status] = (acc[c.status] || 0) + 1; return acc; }, {});
 
@@ -295,41 +341,6 @@ async function sectionCitations(body, run) {
   setFoot(`${rows.length} shown · ${all.length} total${avg != null ? ` · ${avg}% avg` : ''}`);
 }
 
-/* ---------- screenshots ---------- */
-
-async function sectionScreenshots(body, run) {
-  renderFilters([]);
-  if (!spBiz) { body.innerHTML = spEmpty('◎', 'PICK A BUSINESS', 'Select a business to see its proof captures.'); return; }
-
-  const shots = await cfGetScreenshots(spBiz.id);
-  if (!isCurrent(run)) return;
-
-  if (!shots.length) {
-    body.innerHTML = spEmpty('▣', 'NO PROOF CAPTURED', 'Use Screenshot in the popup while viewing a listing to file visual proof here.');
-    setFoot(`0 screenshots · ${spBiz.name}`);
-    return;
-  }
-
-  const base = getCfApiUrl();
-  body.innerHTML = `<div class="sp-gallery">${shots.map(s => {
-    let host = '';
-    try { host = new URL(s.page_url).hostname.replace(/^www\./, ''); } catch { host = s.page_url; }
-    return `<div class="sp-shot" data-url="${spEsc(s.page_url)}">
-      <img src="${spEsc(base + s.url)}" alt="Proof capture" loading="lazy">
-      <div class="sp-shot-meta">
-        <div class="sp-shot-date">${spEsc(spDate(s.captured_at))}</div>
-        <div class="sp-shot-host">${spEsc(host)}</div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
-
-  body.querySelectorAll('.sp-shot').forEach(card => {
-    card.addEventListener('click', () => chrome.tabs.create({ url: card.dataset.url }));
-  });
-
-  setFoot(`${shots.length} capture${shots.length === 1 ? '' : 's'} · ${spBiz.name}`);
-}
-
 /* ---------- footer ---------- */
 
 function setFoot(text) {
@@ -339,7 +350,7 @@ function setFoot(text) {
 document.getElementById('spExport').addEventListener('click', async () => {
   if (!spBiz) { setFoot('Pick a business first'); return; }
   try {
-    const citations = await cfGetCitations(spBiz.id);
+    const citations = await SBW.ct.citations(spBiz.id);
     const head = ['Directory', 'URL', 'Status', 'NAP score', 'Found name', 'Found phone', 'Last checked'];
     const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [head.join(',')].concat(citations.map(c => [
@@ -357,7 +368,7 @@ document.getElementById('spExport').addEventListener('click', async () => {
     URL.revokeObjectURL(url);
     setFoot(`Exported ${citations.length} citations`);
   } catch (e) {
-    setFoot('Export failed: ' + e.message);
+    setFoot('Export failed: ' + SBWCitations.ctErrorMessage(e.code, e.message));
   }
 });
 

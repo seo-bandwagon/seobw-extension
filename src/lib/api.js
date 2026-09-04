@@ -321,12 +321,33 @@
   // ============================================
 
   // ct* wrappers unwrap the server's `{ data }` envelope into the raw data
-  // for callers, rather than returning the full sbwFetch result.
+  // for callers, rather than returning the full sbwFetch result — but that
+  // means a non-ok response has nowhere to carry its status/code once
+  // unwrapped. CtError (thrown by unwrapCtData below on !res.ok) carries
+  // `.code`/`.status`/`.data` forward, mirroring how the removed
+  // CitationForge client's wrappers threw on failure — citations-tab.js and
+  // sidepanel.js (Task 4) use `.code` to flip to signed-out on `unauthorized`,
+  // show a scope message on `forbidden`, and poll on a campaign-trigger
+  // timeout/504.
+  class CtError extends Error {
+    constructor(res) {
+      const serverMessage = res && res.data && typeof res.data === 'object' ? res.data.error : null;
+      super(serverMessage || (res && res.code) || 'Request failed');
+      this.name = 'CtError';
+      this.code = res ? res.code : 'network';
+      this.status = res ? res.status : 0;
+      this.data = res ? res.data : null;
+    }
+  }
+
   function unwrapCtData(res) {
-    if (res && res.data && typeof res.data === 'object' && !Array.isArray(res.data) && 'data' in res.data) {
+    if (!res || !res.ok) {
+      throw new CtError(res);
+    }
+    if (res.data && typeof res.data === 'object' && !Array.isArray(res.data) && 'data' in res.data) {
       return res.data.data;
     }
-    return res ? res.data : undefined;
+    return res.data;
   }
 
   const ct = {
@@ -430,6 +451,7 @@
     markLegacyPending,
     lb,
     ct,
+    CtError,
     autoSaveLocal
   };
 });
@@ -438,10 +460,4 @@
 if (typeof globalThis !== 'undefined' && globalThis.SBW) {
   globalThis.getApiSettings = globalThis.SBW.getApiSettings;
   globalThis.autoSaveLocal = globalThis.SBW.autoSaveLocal;
-
-  // CitationForge is being removed (Task 4 repoints citations-tab.js /
-  // sidepanel.js to SBW.ct.*). Until then, cfIsLoggedIn is still called by
-  // both files' init paths; without this shim they'd throw a ReferenceError
-  // on load since citationforge-api.js no longer defines it.
-  globalThis.cfIsLoggedIn = async () => false; // removed in Task 4
 }

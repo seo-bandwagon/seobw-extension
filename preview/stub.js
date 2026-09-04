@@ -1,5 +1,6 @@
-// Preview harness — stubs Chrome + CitationForge APIs so the real popup/side-panel
-// render code can be exercised in a plain browser tab. Dev only; never shipped.
+// Preview harness — stubs Chrome + the SEO Bandwagon citations API (SBW.ct.*,
+// src/lib/api.js) so the real popup/side-panel render code can be exercised
+// in a plain browser tab. Dev only; never shipped.
 
 const PREVIEW_STATE = new URLSearchParams(location.search).get('state') || 'main-known';
 
@@ -56,13 +57,8 @@ const FX = {
   napPerfect: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Suite 200, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com', source: 'json-ld' }
 };
 
-FX.screenshots = FX.citations.slice(0, 6).map((c, i) => ({
-  id: 's' + i, business_id: 'b1', citation_id: c.id,
-  url: '/preview-shot.png', page_url: c.directory_url,
-  captured_at: `2026-08-${12 - i}T14:00:00`, created_at: `2026-08-${12 - i}T14:00:00`
-}));
-
-// A small PNG rendered on the fly so thumbnails have real pixels.
+// A small PNG rendered on the fly so the proof-card thumbnail (and Download
+// PNG link) have real pixels/bytes.
 function makeShot(w = 320, h = 220) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -108,7 +104,8 @@ window.chrome = {
     },
     getURL: p => p,
     getManifest: () => MANIFEST,
-    onMessage: { addListener() {} }
+    onMessage: { addListener() {} },
+    openOptionsPage() { console.log('[preview] would open options page'); }
   },
   storage: {
     local: {
@@ -123,9 +120,22 @@ window.chrome = {
         return r;
       },
       set(obj, cb) { Object.assign(store, obj); if (cb) cb(); return Promise.resolve(); },
-      remove(k, cb) { delete store[k]; if (cb) cb(); return Promise.resolve(); }
+      remove(k, cb) { (Array.isArray(k) ? k : [k]).forEach(key => delete store[key]); if (cb) cb(); return Promise.resolve(); }
     },
-    sync: { get(d, cb) { cb(d); } }
+    // Every state except `signed-out` pretends a key is already saved, so
+    // checkSignedIn() (citations-tab.js / sidepanel.js) treats the preview as
+    // signed in without a real /v1/me round trip (SBW.verifyKey is stubbed
+    // below to resolve immediately).
+    sync: {
+      get(defaults, cb) {
+        const result = Object.assign({}, defaults);
+        if (PREVIEW_STATE !== 'signed-out') {
+          result.apiKey = 'sbw_' + '0'.repeat(48);
+        }
+        cb(result);
+      },
+      set(items, cb) { if (cb) cb(); }
+    }
   },
   tabs: {
     query(_, cb) {
@@ -149,14 +159,9 @@ window.chrome = {
 
 function handleMessage(msg) {
   switch (msg.action) {
-    case 'cfIsLoggedIn': return { loggedIn: PREVIEW_STATE !== 'signed-out' };
-    case 'cfGetUser': return { user: FX.user };
-    case 'cfLogin': return { ok: true };
-    case 'cfLogout': return { ok: true };
     case 'captureScreenshot': return { ok: true, dataUrl: SHOT };
-    case 'cfUploadScreenshot': return { ok: true, data: { url: '/preview-shot.png' } };
     case 'checkDirectory': return { match: matchDirectory(msg.url) };
-    case 'cfExtractNap':
+    case 'extractNap':
       if (PREVIEW_STATE === 'nap-error') return { error: 'No NAP block found on this page.' };
       return PREVIEW_STATE === 'nap-perfect' ? FX.napPerfect : FX.napDrift;
     case 'getCachedAnalysis': return { hit: true, data: SEO_FIXTURE };
@@ -167,22 +172,22 @@ function handleMessage(msg) {
   }
 }
 
-/* ---------- CitationForge API stub (overrides lib/citationforge-api.js) ---------- */
+/* ---------- SBW.ct.* stub (overrides the real src/lib/api.js methods once
+   it has loaded — see the DOMContentLoaded handler below) ---------- */
 
-function installCfStubs() {
+function installSbwStubs() {
   const delay = (v, ms = 120) => new Promise(r => setTimeout(() => r(v), ms));
-  window.getCfApiUrl = () => '';
-  window.cfGetBusinesses = () => delay(PREVIEW_STATE === 'no-businesses' ? [] : FX.businesses);
-  window.cfGetBusiness = id => delay(FX.businesses.find(b => b.id === id));
-  window.cfGetBusinessStats = id => delay(FX.stats[id] || FX.stats.b1, 260);
-  window.cfGetCitations = () => delay(PREVIEW_STATE === 'no-citations' ? [] : FX.citations);
-  window.cfCreateCitation = (_, d) => delay({ id: 'new', ...d });
-  window.cfGetCampaigns = () => delay(PREVIEW_STATE === 'no-campaigns' ? [] : FX.campaigns);
-  window.cfTriggerCampaign = () => delay({ id: 'k0', status: 'pending' });
-  window.cfGetScreenshots = () => delay(
-    PREVIEW_STATE === 'no-screenshots' ? [] : FX.screenshots.map(s => ({ ...s, url: SHOT })));
-  window.cfUploadScreenshot = () => delay({ url: SHOT });
-  window.cfGetDirectories = () => delay(CURATED_DIRECTORIES);
+  // Never let the real network-hitting bits fire in a preview.
+  SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });
+  SBW.ct.businesses = () => delay(PREVIEW_STATE === 'no-businesses' ? [] : FX.businesses);
+  SBW.ct.business = id => delay(FX.businesses.find(b => b.id === id));
+  SBW.ct.stats = id => delay(FX.stats[id] || FX.stats.b1, 260);
+  SBW.ct.citations = () => delay(PREVIEW_STATE === 'no-citations' ? [] : FX.citations);
+  SBW.ct.createCitation = (_, d) => delay(Object.assign({ id: 'new' }, d, { created: true }));
+  SBW.ct.campaigns = () => delay(PREVIEW_STATE === 'no-campaigns' ? [] : FX.campaigns);
+  SBW.ct.triggerCampaign = () => delay({
+    id: 'k0', status: 'completed', campaign_type: 'discovery', created_at: new Date().toISOString()
+  });
   window.sendToApi = () => {};
   window.autoSaveLocal = () => {};
 }
@@ -236,7 +241,7 @@ const SEO_FIXTURE = {
 /* ---------- drive the requested state after the real code boots ---------- */
 
 window.addEventListener('DOMContentLoaded', () => {
-  installCfStubs();
+  installSbwStubs();
 
   const go = async () => {
     const citTab = document.querySelector('.switcher button[data-tab="citations"]');

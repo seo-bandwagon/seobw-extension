@@ -43,41 +43,19 @@ const CURATED_DIRECTORIES = [
   { name: 'Cars.com', domain: 'cars.com' }
 ];
 
-// Additional directories fetched from the API are cached here
-let _cachedDirectories = null;
-let _cacheTime = 0;
-const DIR_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
 /**
  * Match a URL against known directories.
+ * The site has no directories endpoint (its /api/citations/* surface is
+ * businesses/stats/citations/campaigns only) — this curated list is the only
+ * source, so there is no remote cache to refresh.
  * @param {string} url
  * @returns {{ name: string, domain: string } | null}
  */
 function matchDirectory(url) {
   try {
     const hostname = new URL(url).hostname.replace(/^www\./, '');
-    const dirs = _cachedDirectories || CURATED_DIRECTORIES;
-    return dirs.find(d => hostname === d.domain || hostname.endsWith('.' + d.domain)) || null;
+    return CURATED_DIRECTORIES.find(d => hostname === d.domain || hostname.endsWith('.' + d.domain)) || null;
   } catch {
     return null;
-  }
-}
-
-/**
- * Refresh the directory cache from the CitationForge backend.
- * Falls back to the hardcoded list if the API is unreachable.
- */
-async function refreshDirectoryCache() {
-  if (_cachedDirectories && (Date.now() - _cacheTime) < DIR_CACHE_TTL) {
-    return;
-  }
-  try {
-    const dirs = await cfGetDirectories();
-    if (Array.isArray(dirs) && dirs.length > 0) {
-      _cachedDirectories = dirs;
-      _cacheTime = Date.now();
-    }
-  } catch {
-    // API unreachable — stick with curated list
   }
 }

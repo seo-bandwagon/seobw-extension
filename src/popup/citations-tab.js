@@ -1,4 +1,4 @@
-// Citations tab — CitationForge integration
+// Citations tab — SEO Bandwagon citations API (src/lib/api.js SBW.ct.*)
 // States: signedOut (1k) · picker (1l) · main (1e header + 1g actions) · results (1m/1n)
 
 let cfInit = false;
@@ -58,6 +58,30 @@ function cfSetStatus(msg, type) {
   if (type === 'success') setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 3000);
 }
 
+/* ---------- auth ---------- */
+
+// "Signed in" = an API key is stored AND the cached (or freshly verified)
+// /v1/me result says the key is good. sbwKeyStatus is set by sbwFetch()
+// itself (src/lib/api.js) on every 401/2xx, so a stale 'invalid' short-
+// circuits without another round trip.
+async function checkSignedIn() {
+  const settings = await SBW.getApiSettings();
+  if (!settings.apiKey) return { signedIn: false };
+
+  const stored = await chrome.storage.local.get(['sbwUser', 'sbwKeyStatus']);
+  if (stored.sbwKeyStatus === 'invalid') return { signedIn: false };
+
+  if (SBWCitations.isUserCacheFresh(stored.sbwUser)) {
+    return { signedIn: true, user: stored.sbwUser.data };
+  }
+
+  const res = await SBW.verifyKey();
+  if (!res.ok) return { signedIn: false };
+
+  await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
+  return { signedIn: true, user: res.data };
+}
+
 /* ---------- entry ---------- */
 
 async function initCitationsTab() {
@@ -70,26 +94,27 @@ async function refreshCitations() {
   const el = document.getElementById('cf-content');
   el.innerHTML = '<div class="loading">Connecting…</div>';
 
-  const [tabs, loggedInRes] = await Promise.all([
+  const [tabs, auth] = await Promise.all([
     chrome.tabs.query({ active: true, currentWindow: true }),
-    send({ action: 'cfIsLoggedIn' })
+    checkSignedIn()
   ]);
   cfTab = tabs[0];
   cfDir = cfTab ? matchDirectory(cfTab.url || '') : null;
 
-  if (!loggedInRes || !loggedInRes.loggedIn) {
+  if (!auth.signedIn) {
     renderSignedOut(el);
     return;
   }
 
   let businesses;
   try {
-    businesses = await cfGetBusinesses();
+    businesses = await SBW.ct.businesses();
   } catch (e) {
+    if (e.code === 'unauthorized') { renderSignedOut(el); return; }
     el.innerHTML = `<div class="empty">
       <div class="empty-glyph">⚠</div>
-      <div class="empty-title">CAN'T REACH CITATIONFORGE</div>
-      <div class="empty-sub">${esc(e.message)}</div>
+      <div class="empty-title">CAN'T REACH SEO BANDWAGON</div>
+      <div class="empty-sub">${esc(SBWCitations.ctErrorMessage(e.code, e.message))}</div>
       <button class="empty-cta" id="cfRetry">TRY AGAIN</button>
     </div>`;
     document.getElementById('cfRetry').addEventListener('click', refreshCitations);
@@ -100,7 +125,7 @@ async function refreshCitations() {
     el.innerHTML = `<div class="empty">
       <div class="empty-glyph">⌸</div>
       <div class="empty-title">NO BUSINESSES YET</div>
-      <div class="empty-sub">Add a business in the CitationForge dashboard, then come back to check listings against it.</div>
+      <div class="empty-sub">Add a business in your SEO Bandwagon dashboard, then come back to check listings against it.</div>
       <button class="empty-cta" id="cfOpenDash">OPEN DASHBOARD</button>
     </div>`;
     document.getElementById('cfOpenDash').addEventListener('click', openDashboard);
@@ -129,9 +154,9 @@ function renderSignedOut(el) {
       <div class="signed-out-body">
         <div class="signed-out-mark">SB</div>
         <div class="signed-out-title">CHECK EVERY LISTING<br>WITHOUT LEAVING THE PAGE</div>
-        <div class="signed-out-sub">Connect CitationForge to compare a directory listing to your master NAP, capture proof, and log the citation in one click.</div>
-        <button class="signed-out-cta" id="cfConnect">CONNECT CITATIONFORGE</button>
-        <div class="signed-out-note">No account? <span class="link" id="cfSignup">Start free →</span></div>
+        <div class="signed-out-sub">Connect your SEO Bandwagon account to compare a directory listing to your master NAP, capture proof, and log the citation in one click.</div>
+        <button class="signed-out-cta" id="cfConnect">CONNECT YOUR ACCOUNT</button>
+        <div class="signed-out-note">No API key yet? <span class="link" id="cfSignup">Create one →</span></div>
       </div>
       <div class="proof-strip">
         <div class="proof-stat"><div class="proof-stat-v">40</div><div class="proof-stat-k">Directories</div></div>
@@ -140,23 +165,12 @@ function renderSignedOut(el) {
       </div>
     </div>`;
 
-  document.getElementById('cfConnect').addEventListener('click', async () => {
-    const btn = document.getElementById('cfConnect');
-    btn.disabled = true;
-    btn.textContent = 'CONNECTING…';
-    const res = await send({ action: 'cfLogin' });
-    if (res && res.ok) {
-      await refreshCitations();
-    } else {
-      btn.disabled = false;
-      btn.textContent = 'CONNECT CITATIONFORGE';
-      el.querySelector('.signed-out-body').insertAdjacentHTML('beforeend',
-        `<div class="alert alert-error" style="margin-top:14px;text-align:left"><b>COULDN'T CONNECT</b><span>${esc(res?.error || 'Sign-in failed')}</span></div>`);
-    }
+  document.getElementById('cfConnect').addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
   });
 
   document.getElementById('cfSignup').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://seobandwagon.com/citationforge?utm_source=chrome_extension' });
+    chrome.tabs.create({ url: 'https://seobandwagon.com/dashboard/api-keys' });
   });
 }
 
@@ -189,7 +203,7 @@ function renderPicker(el, businesses) {
   // Fill citation counts without blocking the render
   businesses.forEach(async b => {
     try {
-      const s = await cfGetBusinessStats(b.id);
+      const s = await SBW.ct.stats(b.id);
       const cell = el.querySelector(`[data-cites="${b.id}"]`);
       if (cell) cell.textContent = `${s.total_citations} cites`;
     } catch (e) { /* leave the dash */ }
@@ -214,7 +228,7 @@ async function renderMain(el) {
         <button class="act-tile" id="cfShot">
           <span class="act-tile-glyph">▣</span>
           <span class="act-tile-title">SCREENSHOT</span>
-          <span class="act-tile-sub">Save proof of this listing</span>
+          <span class="act-tile-sub">Download proof of this listing</span>
         </button>
         <button class="act-tile" id="cfReport">
           <span class="act-tile-glyph">⚑</span>
@@ -231,7 +245,7 @@ async function renderMain(el) {
     </div>`;
 
   document.querySelector('.checking-as')?.addEventListener('click', switchBusiness);
-  document.querySelector('.dir-avatar')?.addEventListener('click', signOut);
+  document.querySelector('.dir-avatar')?.addEventListener('click', disconnect);
   document.getElementById('cfNap').addEventListener('click', runNapCheck);
   document.getElementById('cfShot').addEventListener('click', runScreenshot);
   document.getElementById('cfReport').addEventListener('click', () => runReport());
@@ -254,7 +268,7 @@ function dirHeader() {
         <div class="dir-eyebrow">${known ? "You're on a known directory" : 'Not a tracked directory'}</div>
         <div class="dir-name" title="${esc(known ? cfDir.name : host)}">${esc((known ? cfDir.name : host).toUpperCase())}</div>
       </div>
-      <div class="dir-avatar" title="Sign out">${esc(initials(cfBiz.name))}</div>
+      <div class="dir-avatar" title="Disconnect">${esc(initials(cfBiz.name))}</div>
     </div>
     <div class="checking-as" title="Switch business">
       <span class="checking-as-k">Checking as</span>
@@ -362,7 +376,7 @@ function renderProof(zone, r) {
   zone.innerHTML = `<div class="proof">
     <div class="proof-head">
       <span class="proof-check">✓</span>
-      <span class="proof-title">${esc(r.saved ? 'PROOF SAVED' : 'PROOF CAPTURED')}</span>
+      <span class="proof-title">SCREENSHOT CAPTURED</span>
       <span class="proof-dims">VIEWPORT · ${esc(r.w)}×${esc(r.h)} · ${esc(fmtBytes(r.bytes))}</span>
     </div>
     <div class="proof-body">
@@ -370,23 +384,15 @@ function renderProof(zone, r) {
       <div class="proof-meta">
         <div class="proof-meta-text">${esc(cfDir ? cfDir.name : 'Untracked site')} · ${esc(cfBiz.name)}<br><span>${esc(new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></div>
         <div class="proof-chips">
-          ${r.saved
-            ? `<button class="proof-chip" id="cfShotView">VIEW</button>`
-            : `<button class="proof-chip" id="cfShotSave">SAVE TO CITATIONFORGE</button>`}
-          <button class="proof-chip" id="cfShotAttach">ATTACH TO REPORT</button>
+          <a class="proof-chip" id="cfShotDownload" href="${r.dataUrl}" download="${esc(SBWCitations.screenshotFilename(cfTab.url))}">DOWNLOAD PNG</a>
           <button class="proof-chip bare" id="cfShotClose">✕</button>
         </div>
       </div>
     </div>
   </div>`;
 
-  document.getElementById('cfShotSave')?.addEventListener('click', saveScreenshot);
-  document.getElementById('cfShotView')?.addEventListener('click', () => {
-    if (cfResult.url) chrome.tabs.create({ url: getCfApiUrl() + cfResult.url });
-  });
-  document.getElementById('cfShotAttach')?.addEventListener('click', async () => {
-    if (!cfResult.saved) await saveScreenshot();
-    runReport(null, cfResult.url);
+  document.getElementById('cfShotDownload').addEventListener('click', () => {
+    if (cfResult) cfResult.downloaded = true;
   });
   document.getElementById('cfShotClose').addEventListener('click', () => { cfResult = null; renderResult(); });
 }
@@ -442,7 +448,7 @@ async function runScreenshot() {
   const dims = await imageDims(res.dataUrl);
   const bytes = Math.round((res.dataUrl.length - res.dataUrl.indexOf(',') - 1) * 0.75);
 
-  cfResult = { kind: 'proof', dataUrl: res.dataUrl, w: dims.w, h: dims.h, bytes, saved: false, url: null };
+  cfResult = { kind: 'proof', dataUrl: res.dataUrl, w: dims.w, h: dims.h, bytes, downloaded: false };
   renderResult();
 }
 
@@ -455,59 +461,34 @@ function imageDims(dataUrl) {
   });
 }
 
-async function saveScreenshot() {
-  if (!cfResult || cfResult.kind !== 'proof' || cfResult.saved) return;
-  cfSetStatus('Uploading proof…');
-
-  const res = await send({
-    action: 'cfUploadScreenshot',
-    businessId: cfBiz.id,
-    dataUrl: cfResult.dataUrl,
-    pageUrl: cfTab.url
-  });
-
-  if (res && res.ok) {
-    cfResult.saved = true;
-    cfResult.url = res.data.url;
-    renderResult();
-    cfSetStatus('Proof saved to CitationForge', 'success');
-  } else {
-    cfSetStatus(res?.error || 'Upload failed', 'error');
-  }
-}
-
-async function runReport(napResult, screenshotUrl) {
+async function runReport(napResult, screenshotDownloadedArg) {
   if (!cfDir && !napResult) {
     // Unknown site with no check run — warn but still allow
     cfResult = {
       kind: 'alert', tone: 'warning',
       title: 'UNKNOWN SITE',
-      body: "This isn't a directory we track. Filing it anyway — you can still capture a proof screenshot."
+      body: "This isn't a directory we track. Filing it anyway — you can still download a proof screenshot."
     };
     renderResult();
   }
 
   cfSetStatus('Filing citation…');
 
-  const nap = napResult?.nap || null;
-  const scoreTotal = napResult?.score?.total ?? null;
-  const pct = scoreTotal != null ? Math.round(scoreTotal * 100) : null;
+  const screenshotDownloaded = screenshotDownloadedArg != null
+    ? screenshotDownloadedArg
+    : !!(cfResult && cfResult.kind === 'proof' && cfResult.downloaded);
 
-  const payload = {
-    directory_name: cfDir ? cfDir.name : hostOf(cfTab.url),
-    directory_url: cfTab.url,
-    status: pct == null ? 'active' : (pct >= 80 ? 'active' : 'inconsistent'),
-    found_name: nap?.name || null,
-    found_address: nap?.address || null,
-    found_phone: nap?.phone || null,
-    found_website: nap?.website || null,
-    nap_match_score: scoreTotal,
-    screenshot_url: screenshotUrl || (cfResult?.kind === 'proof' ? cfResult.url : null),
-    notes: `Filed from the extension on ${new Date().toISOString().slice(0, 10)}`
-  };
+  const payload = SBWCitations.buildCitationPayload({
+    directoryName: cfDir ? cfDir.name : hostOf(cfTab.url),
+    directoryUrl: cfTab.url,
+    nap: napResult?.nap || null,
+    scoreTotal: napResult?.score?.total ?? null,
+    screenshotDownloaded
+  });
 
   try {
-    await cfCreateCitation(cfBiz.id, payload);
+    await SBW.ct.createCitation(cfBiz.id, payload);
+    const pct = payload.nap_match_score != null ? Math.round(payload.nap_match_score * 100) : null;
     cfResult = {
       kind: 'alert', tone: 'success',
       title: 'CITATION FILED',
@@ -517,7 +498,8 @@ async function runReport(napResult, screenshotUrl) {
     cfSetStatus('');
     loadSidecarData();
   } catch (e) {
-    cfSetStatus(e.message, 'error');
+    if (e.code === 'unauthorized') { await refreshCitations(); return; }
+    cfSetStatus(SBWCitations.ctErrorMessage(e.code, e.message), 'error');
   }
 }
 
@@ -530,8 +512,8 @@ function hostOf(url) {
 async function loadSidecarData() {
   try {
     const [stats, citations] = await Promise.all([
-      cfGetBusinessStats(cfBiz.id),
-      cfGetCitations(cfBiz.id)
+      SBW.ct.stats(cfBiz.id),
+      SBW.ct.citations(cfBiz.id)
     ]);
     cfStats = stats;
     cfRecent = citations.slice(0, 3);
@@ -555,9 +537,10 @@ async function switchBusiness() {
   await refreshCitations();
 }
 
-async function signOut() {
-  await send({ action: 'cfLogout' });
-  await chrome.storage.local.remove(CF_STORE_KEY);
+async function disconnect() {
+  if (!confirm('Disconnect your SEO Bandwagon account?')) return;
+  await chrome.storage.sync.set({ apiKey: '' });
+  await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus', CF_STORE_KEY]);
   cfBiz = null;
   cfResult = null;
   cfRecent = [];
@@ -565,6 +548,6 @@ async function signOut() {
 }
 
 function openDashboard() {
-  send({ action: 'openSidePanel' });
+  chrome.tabs.create({ url: 'https://seobandwagon.com/dashboard/citations' });
   window.close();
 }

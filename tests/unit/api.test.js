@@ -269,6 +269,32 @@ describe('wrappers', () => {
     expect(url).toBe('https://seobandwagon.com/api/citations/businesses/b1');
     expect(biz).toEqual({ id: 'b1', name: 'Acme' });
   });
+
+  it('ct.businesses() throws a CtError carrying .code on a 401', async () => {
+    globalThis.fetch.mockResolvedValue(mockResponse(401, { error: 'API key required' }));
+    await expect(SBW.ct.businesses()).rejects.toMatchObject({
+      name: 'CtError',
+      code: 'unauthorized',
+      status: 401,
+      message: 'API key required'
+    });
+  });
+
+  it('ct.businesses() throws a CtError with .code "forbidden" on a 403', async () => {
+    globalThis.fetch.mockResolvedValue(mockResponse(403, { error: 'insufficient_scope' }));
+    await expect(SBW.ct.businesses()).rejects.toMatchObject({ code: 'forbidden', status: 403 });
+  });
+
+  it('ct.triggerCampaign() throws a CtError with .code "network" on a timeout/network failure', async () => {
+    globalThis.fetch.mockRejectedValue(new Error('network down'));
+    await expect(SBW.ct.triggerCampaign('b1')).rejects.toMatchObject({ code: 'network', status: 0 });
+  });
+
+  it('ct.createCitation() still merges created:true onto the unwrapped row on success', async () => {
+    globalThis.fetch.mockResolvedValue(mockResponse(201, { data: { id: 'c1' }, created: true }));
+    const row = await SBW.ct.createCitation('b1', { directory_name: 'Yelp' });
+    expect(row).toEqual({ id: 'c1', created: true });
+  });
 });
 
 describe('autoSaveLocal — storage shape + return value', () => {
