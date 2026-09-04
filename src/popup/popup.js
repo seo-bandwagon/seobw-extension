@@ -406,18 +406,28 @@ function wireSeoTab() {
   initAddOutletButton();
 }
 
-// Disables "+ ADD AS OUTLET" up front when there's no account connected —
-// SBW.lb.addOutlet() would just short-circuit to a no_key result anyway (see
-// src/lib/api.js), so this saves the click and tells the user why.
-async function initAddOutletButton() {
-  const btn = document.getElementById('addOutletBtn');
-  if (!btn) return;
+// Disables "+ ADD AS OUTLET" when there's no account connected — SBW.lb.addOutlet()
+// would just short-circuit to a no_key result anyway (see src/lib/api.js), so
+// this saves the click and tells the user why. Shared by the initial render
+// and by addCurrentTabAsOutlet's `finally` (a request can finish after the
+// key was removed elsewhere, e.g. Options in another tab; re-checking here
+// instead of unconditionally re-enabling keeps the button honest either way).
+async function applyOutletButtonKeyState(btn) {
   const settings = await SBW.getApiSettings();
   if (!btn.isConnected) return; // popup may have re-rendered while this awaited
-  if (!settings.apiKey) {
+  if (settings.apiKey) {
+    btn.disabled = false;
+    btn.title = '';
+  } else {
     btn.disabled = true;
     btn.title = 'Connect your SEO Bandwagon account in Options';
   }
+}
+
+async function initAddOutletButton() {
+  const btn = document.getElementById('addOutletBtn');
+  if (!btn) return;
+  await applyOutletButtonKeyState(btn);
 }
 
 // Guards against a double-click firing two POSTs while the first is still
@@ -451,7 +461,10 @@ async function addCurrentTabAsOutlet() {
     if (msg) setSeoStatus(msg, res.ok ? 'success' : 'error');
   } finally {
     addOutletInFlight = false;
-    if (btn.isConnected) { btn.disabled = false; btn.textContent = prevText; }
+    if (btn.isConnected) {
+      btn.textContent = prevText;
+      await applyOutletButtonKeyState(btn);
+    }
   }
 }
 

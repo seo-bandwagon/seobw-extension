@@ -51,9 +51,12 @@ const CASES = [
 
   // Task 7: capture sync-status badges (src/history/history.js's syncBadge(),
   // src/lib/sync-state.js).
-  { q: 'history.html?state=capture-synced', need: ['.capture-item', '.badge-mono.b-ok'] },
-  { q: 'history.html?state=capture-pending', need: ['.capture-item', '.badge-mono.b-warn'] },
-  { q: 'history.html?state=capture-failed', need: ['.capture-item', '.badge-mono.b-err'] },
+  { q: 'history.html?state=capture-synced', need: ['.capture-item', '.badge-mono.b-ok'],
+    no: ['#legacyBanner:not([hidden])'] },
+  { q: 'history.html?state=capture-pending', need: ['.capture-item', '.badge-mono.b-warn'],
+    no: ['#legacyBanner:not([hidden])'] },
+  { q: 'history.html?state=capture-failed', need: ['.capture-item', '.badge-mono.b-err'],
+    no: ['#legacyBanner:not([hidden])'] },
 
   // Item C (final-fix-brief): a pre-1.5.0 capture is stamped skipped/legacy
   // (SBW.markLegacyPending) rather than pending — the banner is the opt-in.

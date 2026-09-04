@@ -1462,6 +1462,7 @@ body {
   font-size: 13px;
   color: var(--paper-70);
 }
+.page-history .legacy-banner[hidden] { display: none; }
 .page-history .legacy-banner button {
   padding: 8px 14px;
   font-size: 12px;
