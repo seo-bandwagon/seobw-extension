@@ -220,11 +220,21 @@ async function sectionBusinesses(body, run) {
         badge.title = pct != null ? `${pct}% average NAP match` : 'No scored citations yet';
       }
       setFoot(`${spBusinesses.length} business${spBusinesses.length === 1 ? '' : 'es'} · ${totalCites} citations`);
-    } catch (e) { if (!isCurrent(run)) return; }
+    } catch (e) {
+      if (!isCurrent(run)) return;
+      if (e.code === 'unauthorized') { initSidePanel(); return; }
+    }
   }
 }
 
 /* ---------- campaigns ---------- */
+
+// businessId -> in-flight trigger+poll. Without this, re-rendering the
+// campaigns section (e.g. switching sections and back) redraws the button
+// enabled even while a previous trigger (or its poll, up to a minute-plus)
+// is still running, and a second click creates a duplicate campaign
+// server-side — the site has no idempotency guard on the trigger endpoint.
+const campaignInFlight = new Set();
 
 async function sectionCampaigns(body, run) {
   renderFilters([]);
@@ -233,8 +243,10 @@ async function sectionCampaigns(body, run) {
   const campaigns = await SBW.ct.campaigns(spBiz.id);
   if (!isCurrent(run)) return;
 
+  const inFlight = campaignInFlight.has(spBiz.id);
+
   body.innerHTML = `
-    <button class="sp-trigger" id="spRun">RUN NEW CAMPAIGN</button>
+    <button class="sp-trigger" id="spRun"${inFlight ? ' disabled' : ''}>${inFlight ? 'RUNNING…' : 'RUN NEW CAMPAIGN'}</button>
     ${campaigns.length ? campaigns.map((c, i) => {
       const tone = SBWCitations.campaignBadgeTone(c.status);
       return `<div class="sp-row" data-cid="${spEsc(c.id)}">
@@ -247,10 +259,12 @@ async function sectionCampaigns(body, run) {
       </div>`;
     }).join('') : spEmpty('⌸', 'NO CAMPAIGNS YET', 'Run one to discover directories and audit every listing automatically.')}`;
 
-  document.getElementById('spRun').addEventListener('click', () => runCampaign(spBiz.id));
+  if (!inFlight) {
+    document.getElementById('spRun').addEventListener('click', () => runCampaign(spBiz.id));
+  }
 
-  const running = campaigns.filter(c => c.status === 'running' || c.status === 'pending').length;
-  setFoot(`${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}${running ? ` · ${running} active` : ''}`);
+  const activeCount = campaigns.filter(c => c.status === 'running' || c.status === 'pending').length;
+  setFoot(`${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}${activeCount ? ` · ${activeCount} active` : ''}`);
 }
 
 // The site runs a campaign synchronously and can take longer than the
@@ -259,8 +273,13 @@ async function sectionCampaigns(body, run) {
 // instead of reporting failure. See SBWCitations.shouldPollAfterTrigger /
 // pollUntilDone (src/lib/citations-ui.js).
 async function runCampaign(businessId) {
+  if (campaignInFlight.has(businessId)) return;
+  campaignInFlight.add(businessId);
+
   const btn = document.getElementById('spRun');
-  if (btn) { btn.disabled = true; btn.textContent = 'STARTING…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'RUNNING…'; }
+
+  let needsReauth = false;
 
   try {
     await SBW.ct.triggerCampaign(businessId);
@@ -277,17 +296,25 @@ async function runCampaign(businessId) {
       });
       setFoot(done ? 'Campaign complete' : 'Still running — check back soon');
     } else if (e.code === 'unauthorized') {
-      initSidePanel();
-      return;
+      needsReauth = true;
     } else {
-      if (btn) { btn.disabled = false; btn.textContent = 'RUN NEW CAMPAIGN'; }
       setFoot('Failed: ' + SBWCitations.ctErrorMessage(e.code, e.message));
-      return;
     }
+  } finally {
+    // Always clear the flag, on every path (success, poll, failure, or
+    // reauth) — otherwise a failed trigger would permanently lock out
+    // retries for that business.
+    campaignInFlight.delete(businessId);
+  }
+
+  if (needsReauth) {
+    initSidePanel();
+    return;
   }
 
   // Refresh stats/list only if the user hasn't switched businesses or
-  // sections while the campaign (or the poll) was running.
+  // sections while the campaign (or the poll) was running. This re-render
+  // is also what clears the disabled "RUNNING…" button state.
   if (spBiz && spBiz.id === businessId && spSection === 'campaigns') {
     loadSection('campaigns');
   }

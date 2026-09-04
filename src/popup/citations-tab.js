@@ -200,13 +200,23 @@ function renderPicker(el, businesses) {
     });
   });
 
-  // Fill citation counts without blocking the render
+  // Fill citation counts without blocking the render. `authFlipped` guards
+  // against every concurrent call independently trying to flip back to the
+  // signed-out view on a shared 401 (e.g. an expired/revoked key).
+  let authFlipped = false;
   businesses.forEach(async b => {
     try {
       const s = await SBW.ct.stats(b.id);
       const cell = el.querySelector(`[data-cites="${b.id}"]`);
       if (cell) cell.textContent = `${s.total_citations} cites`;
-    } catch (e) { /* leave the dash */ }
+    } catch (e) {
+      if (e.code === 'unauthorized' && !authFlipped) {
+        authFlipped = true;
+        refreshCitations();
+        return;
+      }
+      // otherwise leave the dash
+    }
   });
 }
 
@@ -524,7 +534,10 @@ async function loadSidecarData() {
       foot.textContent = `${cfBiz.name} · ${stats.total_citations} citation${stats.total_citations === 1 ? '' : 's'}${avg}`;
     }
     if (!cfResult) renderResult();
-  } catch (e) { /* footer stays with just the name */ }
+  } catch (e) {
+    if (e.code === 'unauthorized') { await refreshCitations(); return; }
+    // otherwise the footer stays with just the name
+  }
 }
 
 /* ---------- nav ---------- */
