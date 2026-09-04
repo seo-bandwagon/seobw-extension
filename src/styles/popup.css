@@ -368,6 +368,23 @@ body {
 }
 .domain-history-link:hover { color: var(--pink-hover); border-bottom-color: var(--pink); }
 
+/* "Add current tab as outlet" — popup analysis header, link building */
+.lb-add-outlet-mini { padding: 0 14px 10px; flex: none; }
+.lb-add-btn-mini {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--paper-70);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.lb-add-btn-mini:hover { border-color: var(--pink); color: var(--white); }
+.lb-add-btn-mini:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Collapsible sections */
 .section { flex: none; }
 .section-header {
@@ -1171,6 +1188,140 @@ body {
 .sp-shot-meta { padding: 6px 8px; }
 .sp-shot-date { font-family: var(--font-mono); font-size: 9px; color: var(--paper-70); }
 .sp-shot-host { font-family: var(--font-mono); font-size: 8px; color: var(--paper-50); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================================
+   SIDE PANEL — mode toggle (CITATIONS | LINKS)
+   ============================================================ */
+
+.sp-mode { display: flex; gap: 4px; padding: 8px 14px 0; flex: none; }
+.sp-mode button {
+  flex: 1;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 6px 0 5px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--paper-50);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.sp-mode button:hover { color: var(--paper-95); }
+.sp-mode button.active { background: var(--pink); border-color: var(--pink); color: var(--white); }
+
+/* ============================================================
+   SIDE PANEL — LINKS mode (outlets / pitches / results)
+   ============================================================ */
+
+.lb-add-outlet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lb-add-btn {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--pink);
+  border: 1px solid var(--pink);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.lb-add-btn:hover { background: var(--pink-hover); }
+.lb-add-btn:disabled { background: var(--surface-3); border-color: var(--hairline); color: var(--paper-50); cursor: not-allowed; }
+.lb-skip-scoring {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: var(--paper-50);
+  cursor: pointer;
+}
+.lb-skip-scoring input[type="checkbox"] { width: 12px; height: 12px; cursor: pointer; accent-color: var(--pink); }
+
+.lb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lb-card-top { display: flex; align-items: center; gap: 9px; }
+.lb-pitch-subject { font-family: var(--font-body); font-size: 11.5px; color: var(--paper-95); }
+.lb-pitch-body {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--paper-70);
+  white-space: pre-wrap;
+}
+.lb-expand {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  background: none;
+  border: none;
+  color: var(--paper-50);
+  border-bottom: 1px dashed var(--edge);
+  cursor: pointer;
+  padding: 0;
+}
+.lb-expand:hover { color: var(--pink); border-bottom-color: var(--pink); }
+
+.lb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.lb-actions button {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--paper-70);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.lb-actions button:hover { border-color: var(--pink); color: var(--white); }
+.lb-actions button[data-act="reject"]:hover { border-color: var(--error); color: var(--error); }
+.lb-actions button:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--hairline); color: var(--paper-50); }
+
+.lb-set-sender { font-family: var(--font-mono); font-size: 9px; color: var(--pink); text-decoration: none; border-bottom: 1px dashed var(--pink-30); }
+.lb-set-sender:hover { border-bottom-color: var(--pink); }
+
+.lb-results-spend {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--paper-95);
+  padding: 12px 14px 4px;
+}
+.lb-results-sub {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--paper-70);
+  padding: 14px 14px 4px;
+}
+.lb-funnel { width: 100%; border-collapse: collapse; margin: 4px 14px; width: calc(100% - 28px); }
+.lb-funnel td {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--paper-70);
+  padding: 3px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lb-funnel td:last-child { text-align: right; color: var(--paper-95); }
+.lb-list-row { padding: 3px 14px; }
 
 /* ============================================================
    FOOTER (popup) — data collection toggle

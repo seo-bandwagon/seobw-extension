@@ -1,13 +1,38 @@
-// SEO Bandwagon side panel — citations API (src/lib/api.js SBW.ct.*)
-// Sections: businesses · campaigns · citations
+// SEO Bandwagon side panel — citations API (src/lib/api.js SBW.ct.*) and
+// link-building API (SBW.lb.*)
+//
+// Two modes, toggled above the section nav and persisted in
+// chrome.storage.local.spMode:
+//   citations — sections: businesses · campaigns · citations
+//   links     — sections: outlets · pitches · results
+//
+// SBW.ct.* throws (CtError) on a non-ok response; SBW.lb.* does NOT — every
+// lb.* call is branched on `.ok`/`.code` inline rather than via try/catch.
 
+let spMode = 'citations';  // 'citations' | 'links'
 let spSection = 'businesses';
-let spBiz = null;           // selected business
+let spBiz = null;           // selected business (citations mode)
 let spBusinesses = [];
 let spFilter = '';          // active filter chip value
 let spRunId = 0;            // bumped per render so stale async loops bail out
 
 const SP_STORE_KEY = 'cfSelectedBusiness';
+
+const MODE_SECTIONS = {
+  citations: ['businesses', 'campaigns', 'citations'],
+  links: ['outlets', 'pitches', 'results']
+};
+const MODE_DEFAULT_SECTION = { citations: 'businesses', links: 'outlets' };
+const NAV_HTML = {
+  citations: `
+    <button class="active" data-section="businesses">BUSINESSES</button>
+    <button data-section="campaigns">CAMPAIGNS</button>
+    <button data-section="citations">CITATIONS</button>`,
+  links: `
+    <button class="active" data-section="outlets">OUTLETS</button>
+    <button data-section="pitches">PITCHES</button>
+    <button data-section="results">RESULTS</button>`
+};
 
 /* ---------- helpers ---------- */
 
@@ -60,6 +85,8 @@ function spSkeleton(rows) {
 // src/popup/citations-tab.js's checkSignedIn) — duplicated rather than
 // shared because it's the one piece of UI wiring both surfaces need and
 // this codebase keeps tab/panel wiring independent (see spEsc/esc, etc.).
+// Shared by both modes — a key with only link-building scopes is still
+// "signed in"; forbidden shows up per-section instead (see lbErrorMessage).
 async function checkSignedIn() {
   const settings = await SBW.getApiSettings();
   if (!settings.apiKey) return { signedIn: false };
@@ -92,6 +119,10 @@ async function initSidePanel() {
 
   const auth = await checkSignedIn();
   if (!auth.signedIn) {
+    // Leave #spModeNav's static markup alone (same as #spNav below) — its
+    // buttons are only ever toggled/replaced, never rebuilt from scratch, so
+    // clearing them here would leave the mode toggle permanently empty if
+    // the user reconnects without a full page reload.
     document.getElementById('spFilters').innerHTML = '';
     body.innerHTML = spEmpty('◎', 'NOT CONNECTED', 'Open the extension options page and connect your SEO Bandwagon account to see your citation data here.', 'spConnect', 'CONNECT');
     document.getElementById('spConnect').addEventListener('click', () => {
@@ -103,21 +134,80 @@ async function initSidePanel() {
   document.getElementById('spUser').textContent = auth.user ? spInitials(auth.user.name || auth.user.email) : '';
   document.getElementById('spUser').title = auth.user?.email || '';
 
-  try {
-    spBusinesses = await SBW.ct.businesses();
-  } catch (e) {
-    body.innerHTML = spEmpty('⚠', "CAN'T REACH SEO BANDWAGON", SBWCitations.ctErrorMessage(e.code, e.message), 'spRetry', 'TRY AGAIN');
-    document.getElementById('spRetry').addEventListener('click', initSidePanel);
-    return;
-  }
+  const storedMode = await chrome.storage.local.get('spMode');
+  spMode = storedMode.spMode === 'links' ? 'links' : 'citations';
+  renderModeNav();
+  renderSectionNav(spMode);
+  setExportVisible(spMode === 'citations');
+  spSection = MODE_DEFAULT_SECTION[spMode];
+  spFilter = '';
 
-  const stored = await chrome.storage.local.get(SP_STORE_KEY);
-  spBiz = spBusinesses.find(b => b.id === stored[SP_STORE_KEY]) || spBusinesses[0] || null;
+  if (spMode === 'citations') {
+    try {
+      spBusinesses = await SBW.ct.businesses();
+    } catch (e) {
+      body.innerHTML = spEmpty('⚠', "CAN'T REACH SEO BANDWAGON", SBWCitations.ctErrorMessage(e.code, e.message), 'spRetry', 'TRY AGAIN');
+      document.getElementById('spRetry').addEventListener('click', initSidePanel);
+      return;
+    }
+
+    const stored = await chrome.storage.local.get(SP_STORE_KEY);
+    spBiz = spBusinesses.find(b => b.id === stored[SP_STORE_KEY]) || spBusinesses[0] || null;
+  }
 
   loadSection(spSection);
 }
 
-/* ---------- nav + filters ---------- */
+/* ---------- mode toggle ---------- */
+
+function renderModeNav() {
+  document.querySelectorAll('#spModeNav button').forEach(b => b.classList.toggle('active', b.dataset.mode === spMode));
+}
+function renderSectionNav(mode) {
+  document.getElementById('spNav').innerHTML = NAV_HTML[mode];
+}
+function setExportVisible(visible) {
+  const btn = document.getElementById('spExport');
+  if (btn) btn.hidden = !visible;
+}
+
+document.getElementById('spModeNav').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  switchMode(btn.dataset.mode);
+});
+
+async function switchMode(mode) {
+  if (mode === spMode || !MODE_SECTIONS[mode]) return;
+  spMode = mode;
+  await chrome.storage.local.set({ spMode: mode });
+  renderModeNav();
+  renderSectionNav(mode);
+  setExportVisible(mode === 'citations');
+  spSection = MODE_DEFAULT_SECTION[mode];
+  spFilter = '';
+
+  // Businesses are only fetched up front for citations mode (see
+  // initSidePanel) — if the panel started in links mode, fetch them now,
+  // the first time citations mode is opened.
+  if (mode === 'citations' && !spBusinesses.length) {
+    try {
+      spBusinesses = await SBW.ct.businesses();
+      const stored = await chrome.storage.local.get(SP_STORE_KEY);
+      spBiz = spBusinesses.find(b => b.id === stored[SP_STORE_KEY]) || spBusinesses[0] || null;
+    } catch (e) {
+      if (e.code === 'unauthorized') { initSidePanel(); return; }
+      renderFilters([]);
+      document.getElementById('spBody').innerHTML = spEmpty('⚠', "CAN'T REACH SEO BANDWAGON", SBWCitations.ctErrorMessage(e.code, e.message), 'spRetryMode', 'TRY AGAIN');
+      document.getElementById('spRetryMode')?.addEventListener('click', () => switchMode(mode));
+      return;
+    }
+  }
+
+  loadSection(spSection);
+}
+
+/* ---------- section nav + filters ---------- */
 
 document.getElementById('spNav').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
@@ -155,6 +245,9 @@ async function loadSection(name) {
       case 'businesses': return await sectionBusinesses(body, run);
       case 'campaigns': return await sectionCampaigns(body, run);
       case 'citations': return await sectionCitations(body, run);
+      case 'outlets': return await sectionOutlets(body, run);
+      case 'pitches': return await sectionPitches(body, run);
+      case 'results': return await sectionResults(body, run);
     }
   } catch (e) {
     if (run !== spRunId) return;
@@ -366,6 +459,395 @@ async function sectionCitations(body, run) {
   const scored = all.filter(c => c.nap_match_score != null);
   const avg = scored.length ? Math.round(scored.reduce((s, c) => s + c.nap_match_score, 0) / scored.length * 100) : null;
   setFoot(`${rows.length} shown · ${all.length} total${avg != null ? ` · ${avg}% avg` : ''}`);
+}
+
+/* ---------- link building: shared bits ---------- */
+
+// prospect/pitch id -> in-flight review/dispatch action, same guard pattern
+// as campaignInFlight above — a re-render (section switch and back) must not
+// re-enable a button while its request is still outstanding.
+const lbInFlight = new Set();
+
+let spSenderAddress = null;      // from the last GET .../pitches response
+let spPitchesById = {};          // id -> pitch, so Gmail compose/mark-sent
+                                  // don't need another round trip
+
+function setCardActionsDisabled(id, disabled) {
+  const card = document.querySelector(`.lb-card[data-id="${id}"]`);
+  if (!card) return;
+  card.querySelectorAll('.lb-actions button').forEach(b => { b.disabled = disabled; });
+}
+
+async function openSetSenderPage() {
+  const settings = await SBW.getApiSettings();
+  const origin = settings.apiUrl.replace(/\/api$/, '');
+  chrome.tabs.create({ url: `${origin}/dashboard/link-building` });
+}
+
+/* ---------- outlets ---------- */
+
+function outletCard(o) {
+  const pct = o.quality_score != null ? Math.round(Number(o.quality_score)) : null;
+  const journalists = o.journalist_count || 0;
+  return `<div class="lb-card" data-id="${spEsc(o.id)}">
+    <div class="lb-card-top">
+      <div class="sp-row-body">
+        <div class="sp-row-t"><a href="https://${spEsc(o.domain)}" target="_blank" rel="noopener">${spEsc(o.domain)}</a></div>
+        <div class="sp-row-s">${journalists} journalist${journalists === 1 ? '' : 's'}${o.is_competitor ? ' · competitor' : ''}</div>
+      </div>
+      ${pct != null ? spBar(pct) : '<div class="sp-bar"></div>'}
+      <span class="badge-mono${pct != null ? ' ' + spBadgeCls(pct) : ''}">${pct != null ? pct : '—'}</span>
+    </div>
+    <div class="lb-actions">
+      <button data-act="approve">APPROVE</button>
+      <button data-act="hold">HOLD</button>
+      <button data-act="reject">REJECT</button>
+    </div>
+  </div>`;
+}
+
+const OUTLET_STATUS_CHIPS = [
+  { k: 'QUALIFIED', v: 'qualified' },
+  { k: 'HELD', v: 'held' },
+  { k: 'APPROVED', v: 'approved' },
+  { k: 'CANDIDATE', v: 'candidate' }
+];
+
+async function sectionOutlets(body, run) {
+  if (!spFilter) spFilter = 'qualified';
+  renderFilters(OUTLET_STATUS_CHIPS);
+
+  const res = await SBW.lb.prospects(spFilter);
+  if (!isCurrent(run)) return;
+
+  const addBar = `<div class="lb-add-outlet">
+    <button class="lb-add-btn" id="spAddOutlet">+ ADD CURRENT TAB AS OUTLET</button>
+    <label class="lb-skip-scoring"><input type="checkbox" id="spSkipScoring"> Skip scoring — send straight to review</label>
+  </div>`;
+
+  if (!res.ok) {
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+    body.innerHTML = addBar + spEmpty('⚠', 'SOMETHING BROKE', SBWLinkBuildingUI.lbErrorMessage(res.code, (res.data && res.data.error)), 'spRetryLb', 'TRY AGAIN');
+    document.getElementById('spAddOutlet')?.addEventListener('click', addCurrentTabAsOutlet);
+    document.getElementById('spRetryLb')?.addEventListener('click', () => loadSection('outlets'));
+    setFoot('');
+    return;
+  }
+
+  const prospects = (res.data && res.data.prospects) || [];
+
+  if (!prospects.length) {
+    body.innerHTML = addBar + spEmpty('⌸', 'NO OUTLETS', `Nothing ${spFilter} right now.`);
+    document.getElementById('spAddOutlet')?.addEventListener('click', addCurrentTabAsOutlet);
+    setFoot('0 outlets');
+    return;
+  }
+
+  body.innerHTML = addBar + prospects.map(outletCard).join('');
+
+  document.getElementById('spAddOutlet')?.addEventListener('click', addCurrentTabAsOutlet);
+  body.querySelectorAll('.lb-card').forEach(card => {
+    const id = card.dataset.id;
+    card.querySelector('[data-act="approve"]')?.addEventListener('click', () => reviewOutlet(id, 'approve'));
+    card.querySelector('[data-act="hold"]')?.addEventListener('click', () => reviewOutlet(id, 'hold'));
+    card.querySelector('[data-act="reject"]')?.addEventListener('click', () => reviewOutlet(id, 'reject'));
+  });
+
+  setFoot(`${prospects.length} outlet${prospects.length === 1 ? '' : 's'}`);
+}
+
+async function reviewOutlet(id, action) {
+  if (lbInFlight.has(id)) return;
+
+  let reason;
+  if (action === 'reject') {
+    const input = window.prompt('Reason for rejecting this outlet (min 3 characters):');
+    if (input === null) return; // cancelled
+    reason = input.trim();
+    if (reason.length < 3) { setFoot('Reason must be at least 3 characters'); return; }
+  }
+
+  lbInFlight.add(id);
+  setCardActionsDisabled(id, true);
+  try {
+    const res = await SBW.lb.reviewProspects([id], action, reason);
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+    if (res.ok) {
+      setFoot(action === 'approve' ? 'Outlet approved' : action === 'hold' ? 'Outlet held' : 'Outlet rejected');
+      if (spSection === 'outlets') loadSection('outlets');
+      return;
+    }
+    setFoot(SBWLinkBuildingUI.lbErrorMessage(res.code, (res.data && res.data.error) || 'Failed to record review'));
+  } finally {
+    lbInFlight.delete(id);
+    setCardActionsDisabled(id, false);
+  }
+}
+
+async function addCurrentTabAsOutlet() {
+  const btn = document.getElementById('spAddOutlet');
+  const skip = document.getElementById('spSkipScoring');
+  if (!btn || btn.disabled) return;
+
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.textContent = 'ADDING…';
+
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs && tabs[0];
+    if (!tab || !tab.url) { setFoot('No active tab URL'); return; }
+
+    const skipScoring = !!(skip && skip.checked);
+    const res = await SBW.lb.addOutlet({
+      url: tab.url,
+      name: tab.title,
+      status: skipScoring ? 'qualified' : 'candidate'
+    });
+
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+
+    const msg = SBWLinkBuildingUI.outletAddMessage(res);
+    if (msg) setFoot(msg);
+
+    if (res.ok && spSection === 'outlets') loadSection('outlets');
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = prevText; }
+  }
+}
+
+/* ---------- pitches ---------- */
+
+function contactBadge(status) {
+  if (status === 'valid') return 'b-ok';
+  if (status === 'invalid') return 'b-err';
+  return 'b-warn';
+}
+
+function pitchCardTop(p) {
+  const c = p.contact || {};
+  const status = c.verification_status || 'unverified';
+  return `<div class="lb-card-top">
+    <div class="sp-row-body">
+      <div class="sp-row-t">${spEsc(c.full_name || 'Unknown contact')} <span class="badge-mono ${contactBadge(status)}">${spEsc(status)}</span></div>
+      <div class="sp-row-s">${spEsc(c.email || 'no email on file')} · ${spEsc((p.prospect && p.prospect.domain) || '')}</div>
+    </div>
+  </div>`;
+}
+
+function pitchDraftCard(p) {
+  const bodyText = p.body_markdown || '';
+  const preview = bodyText.length > 180 ? bodyText.slice(0, 180) + '…' : bodyText;
+  return `<div class="lb-card" data-id="${spEsc(p.id)}">
+    ${pitchCardTop(p)}
+    <div class="lb-pitch-subject">${spEsc(p.subject_line)}</div>
+    <div class="lb-pitch-body" data-collapsed="true">${spEsc(preview)}</div>
+    ${bodyText.length > 180 ? '<button class="lb-expand" data-act="expand">Expand</button>' : ''}
+    <div class="lb-actions">
+      <button data-act="approve">APPROVE</button>
+      <button data-act="reject">REJECT</button>
+    </div>
+  </div>`;
+}
+
+function pitchApprovedCard(p) {
+  const gmailAction = spSenderAddress
+    ? `<button data-act="gmail">Open Gmail compose</button>`
+    : `<a href="#" class="lb-set-sender" data-act="set-sender">Set your sender address on the dashboard</a>`;
+  return `<div class="lb-card" data-id="${spEsc(p.id)}">
+    ${pitchCardTop(p)}
+    <div class="lb-pitch-subject">${spEsc(p.subject_line)}</div>
+    <div class="lb-actions">
+      ${gmailAction}
+      <button data-act="sent">Mark sent</button>
+    </div>
+  </div>`;
+}
+
+function pitchSentRow(p) {
+  return `<div class="lb-card" data-id="${spEsc(p.id)}">
+    ${pitchCardTop(p)}
+    <div class="lb-pitch-subject">${spEsc(p.subject_line)}</div>
+  </div>`;
+}
+
+const PITCH_STATUS_CHIPS = [
+  { k: 'DRAFT', v: 'draft' },
+  { k: 'APPROVED', v: 'approved' },
+  { k: 'SENT', v: 'sent' }
+];
+
+async function sectionPitches(body, run) {
+  if (!spFilter) spFilter = 'draft';
+  renderFilters(PITCH_STATUS_CHIPS);
+
+  const res = await SBW.lb.pitches(spFilter);
+  if (!isCurrent(run)) return;
+
+  if (!res.ok) {
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+    body.innerHTML = spEmpty('⚠', 'SOMETHING BROKE', SBWLinkBuildingUI.lbErrorMessage(res.code, (res.data && res.data.error)), 'spRetryLb', 'TRY AGAIN');
+    document.getElementById('spRetryLb')?.addEventListener('click', () => loadSection('pitches'));
+    setFoot('');
+    return;
+  }
+
+  const pitches = (res.data && res.data.pitches) || [];
+  spSenderAddress = (res.data && res.data.senderAddress) || null;
+  spPitchesById = {};
+  pitches.forEach(p => { spPitchesById[p.id] = p; });
+
+  if (!pitches.length) {
+    body.innerHTML = spEmpty('⌸', 'NO PITCHES', `Nothing ${spFilter} right now.`);
+    setFoot('0 pitches');
+    return;
+  }
+
+  const renderCard = spFilter === 'approved' ? pitchApprovedCard : spFilter === 'sent' ? pitchSentRow : pitchDraftCard;
+  body.innerHTML = pitches.map(renderCard).join('');
+
+  wirePitchActions(body);
+  setFoot(`${pitches.length} pitch${pitches.length === 1 ? '' : 'es'}`);
+}
+
+function wirePitchActions(body) {
+  body.querySelectorAll('[data-act="expand"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.lb-card');
+      const id = card.dataset.id;
+      const bodyEl = card.querySelector('.lb-pitch-body');
+      const full = (spPitchesById[id] && spPitchesById[id].body_markdown) || '';
+      const collapsed = bodyEl.dataset.collapsed !== 'false';
+      if (collapsed) {
+        bodyEl.textContent = full;
+        bodyEl.dataset.collapsed = 'false';
+        btn.textContent = 'Collapse';
+      } else {
+        bodyEl.textContent = full.length > 180 ? full.slice(0, 180) + '…' : full;
+        bodyEl.dataset.collapsed = 'true';
+        btn.textContent = 'Expand';
+      }
+    });
+  });
+
+  body.querySelectorAll('[data-act="approve"]').forEach(btn => {
+    btn.addEventListener('click', () => reviewPitch(btn.closest('.lb-card').dataset.id, 'approve'));
+  });
+  body.querySelectorAll('[data-act="reject"]').forEach(btn => {
+    btn.addEventListener('click', () => reviewPitch(btn.closest('.lb-card').dataset.id, 'reject'));
+  });
+  body.querySelectorAll('[data-act="gmail"]').forEach(btn => {
+    btn.addEventListener('click', () => openGmailCompose(btn.closest('.lb-card').dataset.id));
+  });
+  body.querySelectorAll('[data-act="sent"]').forEach(btn => {
+    btn.addEventListener('click', () => markPitchSent(btn.closest('.lb-card').dataset.id));
+  });
+  body.querySelectorAll('[data-act="set-sender"]').forEach(a => {
+    a.addEventListener('click', (e) => { e.preventDefault(); openSetSenderPage(); });
+  });
+}
+
+async function reviewPitch(id, action) {
+  if (lbInFlight.has(id)) return;
+
+  let reason;
+  if (action === 'reject') {
+    const input = window.prompt('Reason for rejecting this pitch (min 3 characters):');
+    if (input === null) return; // cancelled
+    reason = input.trim();
+    if (reason.length < 3) { setFoot('Reason must be at least 3 characters'); return; }
+  }
+
+  lbInFlight.add(id);
+  setCardActionsDisabled(id, true);
+  try {
+    const res = await SBW.lb.reviewPitch(id, action, reason ? { reason } : {});
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+    if (res.ok) {
+      setFoot(action === 'approve' ? 'Pitch approved' : 'Pitch rejected');
+      if (spSection === 'pitches') loadSection('pitches');
+      return;
+    }
+    setFoot(SBWLinkBuildingUI.pitchReviewErrorMessage(res) || 'Failed to record review');
+  } finally {
+    lbInFlight.delete(id);
+    setCardActionsDisabled(id, false);
+  }
+}
+
+function openGmailCompose(id) {
+  const p = spPitchesById[id];
+  const email = p && p.contact && p.contact.email;
+  if (!p || !spSenderAddress || !email) { setFoot('Missing sender address or contact email'); return; }
+
+  const url = SBWLinkBuildingUI.gmailComposeUrl({
+    senderAddress: spSenderAddress,
+    email,
+    subject: p.subject_line,
+    body: p.body_markdown
+  });
+  chrome.tabs.create({ url });
+}
+
+async function markPitchSent(id) {
+  if (lbInFlight.has(id)) return;
+
+  lbInFlight.add(id);
+  setCardActionsDisabled(id, true);
+  try {
+    const res = await SBW.lb.markSent(id);
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+    if (res.ok) {
+      setFoot('Marked sent');
+      if (spSection === 'pitches') loadSection('pitches');
+      return;
+    }
+    setFoot(SBWLinkBuildingUI.pitchReviewErrorMessage(res) || 'Failed to mark sent');
+  } finally {
+    lbInFlight.delete(id);
+    setCardActionsDisabled(id, false);
+  }
+}
+
+/* ---------- results ---------- */
+
+async function sectionResults(body, run) {
+  renderFilters([]);
+
+  const res = await SBW.lb.results();
+  if (!isCurrent(run)) return;
+
+  if (!res.ok) {
+    if (res.code === 'unauthorized') { initSidePanel(); return; }
+    body.innerHTML = spEmpty('⚠', 'SOMETHING BROKE', SBWLinkBuildingUI.lbErrorMessage(res.code, (res.data && res.data.error)), 'spRetryLb', 'TRY AGAIN');
+    document.getElementById('spRetryLb')?.addEventListener('click', () => loadSection('results'));
+    setFoot('');
+    return;
+  }
+
+  const data = res.data || {};
+  const rows = SBWLinkBuildingUI.funnelRows(data);
+  const spend = (data.spend && data.spend.totalUsd) || 0;
+  const placements = (data.placements || []).slice(0, 5);
+  const sends = (data.sends || []).slice(0, 5);
+
+  body.innerHTML = `
+    <div class="lb-results-spend">Spend to date: $${spEsc(spend.toFixed(2))}</div>
+    <table class="lb-funnel">
+      ${rows.map(r => `<tr><td>${spEsc(r.label)}</td><td>${spEsc(r.value)}</td></tr>`).join('')}
+    </table>
+    <div class="lb-results-sub">LAST PLACEMENTS</div>
+    ${placements.length
+      ? placements.map(p => `<div class="sp-row-s lb-list-row">${spEsc(p.outlet_domain || '—')} · ${spEsc(p.anchor_text || 'no anchor')} · ${spEsc(spDate(p.published_at || p.detected_at))}</div>`).join('')
+      : '<div class="sp-row-s lb-list-row">None yet</div>'}
+    <div class="lb-results-sub">LAST SENDS</div>
+    ${sends.length
+      ? sends.map(s => `<div class="sp-row-s lb-list-row">${spEsc(s.domain || '—')} · ${spEsc(s.full_name || '')} · ${spEsc(spDate(s.sent_at))}</div>`).join('')
+      : '<div class="sp-row-s lb-list-row">None yet</div>'}
+  `;
+
+  const prospectsTotal = rows.find(r => r.label === 'Prospects')?.value ?? 0;
+  setFoot(`${prospectsTotal} prospect${prospectsTotal === 1 ? '' : 's'} tracked`);
 }
 
 /* ---------- footer ---------- */

@@ -235,6 +235,11 @@ function renderResults(data) {
   /* --- Domain history (populated async by loadDomainHistory) --- */
   html += `<div id="domainHistory" class="domain-history" hidden></div>`;
 
+  /* --- Add current tab as a link-building outlet --- */
+  html += `<div class="lb-add-outlet-mini">
+    <button type="button" id="addOutletBtn" class="lb-add-btn-mini">+ ADD AS OUTLET</button>
+  </div>`;
+
   /* --- Issues --- */
   const issueBadge = score.issues.length
     ? badge(`${score.issues.length} ${score.issues.length === 1 ? 'ISSUE' : 'ISSUES'}`, score.issues.length > 3 ? 'b-err' : 'b-warn')
@@ -395,6 +400,33 @@ function wireSeoTab() {
 
   document.getElementById('copyBtn').addEventListener('click', () => copyToClipboard(pageData));
   document.getElementById('exportBtn').addEventListener('click', () => exportAsJson(pageData));
+
+  document.getElementById('addOutletBtn')?.addEventListener('click', addCurrentTabAsOutlet);
+}
+
+// Guards against a double-click firing two POSTs while the first is still
+// in flight — same intent as sidepanel.js's lbInFlight set, just for the
+// single button the popup has.
+let addOutletInFlight = false;
+
+async function addCurrentTabAsOutlet() {
+  if (addOutletInFlight) return;
+  const btn = document.getElementById('addOutletBtn');
+  if (!btn || !currentTab || !currentTab.url) return;
+
+  addOutletInFlight = true;
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.textContent = 'ADDING…';
+
+  try {
+    const res = await SBW.lb.addOutlet({ url: currentTab.url, name: currentTab.title, status: 'candidate' });
+    const msg = SBWLinkBuildingUI.outletAddMessage(res);
+    if (msg) setSeoStatus(msg, res.ok ? 'success' : 'error');
+  } finally {
+    addOutletInFlight = false;
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = prevText; }
+  }
 }
 
 function setSeoStatus(msg, type) {

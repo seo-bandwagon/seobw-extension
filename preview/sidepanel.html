@@ -13,6 +13,11 @@
     <span class="sp-user" id="spUser"></span>
   </header>
 
+  <nav class="sp-mode" id="spModeNav">
+    <button class="active" data-mode="citations">CITATIONS</button>
+    <button data-mode="links">LINKS</button>
+  </nav>
+
   <nav class="sp-nav" id="spNav">
     <button class="active" data-section="businesses">BUSINESSES</button>
     <button data-section="campaigns">CAMPAIGNS</button>
@@ -28,11 +33,12 @@
 
   <script src="../src/lib/api.js"></script>
   <script src="../src/lib/citations-ui.js"></script>
+  <script src="../src/lib/link-building-ui.js"></script>
   <script>
     // sidepanel.js calls initSidePanel() at parse time (unlike the popup's
     // citations-tab.js, which only initializes on a later click) — the
-    // SBW.ct.* stub must already be in place before that runs, so it can't
-    // wait for DOMContentLoaded like the rest of stub.js's setup.
+    // SBW.ct.* / SBW.lb.* stubs must already be in place before that runs, so
+    // it can't wait for DOMContentLoaded like the rest of stub.js's setup.
     installSbwStubs();
   </script>
   <script src="../src/lib/nap-compare.js"></script>
@@ -43,6 +49,10 @@
     const SP_TARGET = new URLSearchParams(location.search).get('section');
     if (SP_TARGET) {
       setTimeout(() => document.querySelector(`#spNav button[data-section="${SP_TARGET}"]`)?.click(), 700);
+    }
+    // Pitches default to the draft filter — click into approved for that state.
+    if (PREVIEW_STATE === 'lb-pitches-approved') {
+      setTimeout(() => document.querySelector('#spFilters [data-v="approved"]')?.click(), 900);
     }
   </script>
 </body>

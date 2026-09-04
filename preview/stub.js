@@ -54,7 +54,67 @@ const FX = {
   ],
 
   napDrift: { name: 'Northside Dental', address: '412 Burnet Road, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com/offers', source: 'json-ld' },
-  napPerfect: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Suite 200, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com', source: 'json-ld' }
+  napPerfect: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Suite 200, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com', source: 'json-ld' },
+
+  // Link building (Task 5): outlets, pitches, and results. All rows use the
+  // exact field names the site's /api/link-building/* routes return.
+  outlets: [
+    { id: 'o1', domain: 'austinlocalnews.com', prospect_type: 'blog', quality_score: '78.5',
+      score_breakdown: { authority: 22, relevance: 26, data_friendliness: 15, warmth: 10.5, unmeasured: [], heuristic: [] },
+      is_warm_target: true, is_competitor: false, status: 'qualified',
+      journalist_count: 2, journalists: [
+        { full_name: 'Priya Shah', priority: 'primary', has_email: true, verification_status: 'valid' },
+        { full_name: 'Marcus Lee', priority: 'secondary', has_email: true, verification_status: 'unverified' }
+      ] },
+    { id: 'o2', domain: 'texashomeservicesreport.com', prospect_type: 'trade_press', quality_score: '61.0',
+      score_breakdown: { authority: 18, relevance: 20, data_friendliness: 8, warmth: 15, unmeasured: [], heuristic: ['relevance'] },
+      is_warm_target: false, is_competitor: true, status: 'qualified',
+      journalist_count: 1, journalists: [
+        { full_name: 'Owen Cole', priority: 'secondary', has_email: false, verification_status: null }
+      ] },
+    { id: 'o3', domain: 'atxsmallbiz.org', prospect_type: 'nonprofit', quality_score: '57.2',
+      score_breakdown: { authority: 14, relevance: 22, data_friendliness: 8, warmth: 13.2, unmeasured: [], heuristic: [] },
+      is_warm_target: false, is_competitor: false, status: 'qualified', journalist_count: 0, journalists: [] }
+  ],
+
+  pitchesDraft: [
+    { id: 'p1', angle_type: 'data_story', subject_line: 'A dataset your churn story is missing',
+      body_markdown: 'Hi Priya,\n\nYour piece on North Austin home services touched on listing churn — we track exactly that across 53 metros weekly. Top-3 retention on Maps sits at 2.6% churn this edition, dated within the last 14 days.\n\nHappy to share the full methodology and the underlying numbers if useful for a follow-up.\n\nBest,\nDana',
+      status: 'draft',
+      contact: { full_name: 'Priya Shah', email: 'priya@austinlocalnews.com', verification_status: 'valid' },
+      prospect: { domain: 'austinlocalnews.com', quality_score: '78.5' } },
+    { id: 'p2', angle_type: 'correction', subject_line: 'Correction data for your last home-services roundup',
+      body_markdown: 'Hi Owen,\n\nYour home-services roundup cited a stat that has since moved — happy to send the current measured figure and source if it helps a correction or update.\n\nBest,\nDana',
+      status: 'draft',
+      contact: { full_name: 'Owen Cole', email: null, verification_status: 'unverified' },
+      prospect: { domain: 'texashomeservicesreport.com', quality_score: '61.0' } }
+  ],
+
+  pitchesApproved: [
+    { id: 'p3', angle_type: 'data_story', subject_line: 'Follow-up: local SEO churn dataset for nonprofits',
+      body_markdown: 'Hi Dana,\n\nFollowing up on the churn dataset for small-business listings — full numbers attached below.\n\nBest,\nDana',
+      status: 'approved',
+      contact: { full_name: 'Dana Ruiz', email: 'dana.ruiz@atxsmallbiz.org', verification_status: 'valid' },
+      prospect: { domain: 'atxsmallbiz.org', quality_score: '57.2' } }
+  ],
+
+  lbResults: {
+    funnel: {
+      prospects_total: 46, awaiting_review: 9, approved_outlets: 14, held: 4, archived: 19,
+      journalists: 22, with_email: 15, verified_valid: 11, drafts: 3, approved_pitches: 2,
+      rejected_pitches: 5, sent: 6, placements: 3, placements_from_pitches: 2
+    },
+    spend: { totalUsd: 18.42 },
+    placements: [
+      { outlet_domain: 'austinlocalnews.com', anchor_text: 'local SEO churn data', published_at: '2026-08-20T10:00:00', dofollow: true },
+      { outlet_domain: 'texashomeservicesreport.com', anchor_text: 'ranking report', published_at: '2026-07-30T10:00:00', dofollow: false },
+      { outlet_domain: 'atxsmallbiz.org', anchor_text: 'listing churn study', published_at: '2026-07-12T10:00:00', dofollow: true }
+    ],
+    sends: [
+      { domain: 'atxsmallbiz.org', full_name: 'Dana Ruiz', sent_at: '2026-08-22T09:00:00' },
+      { domain: 'austinlocalnews.com', full_name: 'Priya Shah', sent_at: '2026-08-18T09:00:00' }
+    ]
+  }
 };
 
 // A small PNG rendered on the fly so the proof-card thumbnail (and Download
@@ -94,6 +154,18 @@ const TAB_URLS = {
   'main-unknown': 'https://example.com/some-page',
   default: 'https://www.yelp.com/biz/northside-dental-austin'
 };
+const TAB_TITLES = {
+  'main-unknown': 'Some Page',
+  default: 'Northside Dental Co. - Yelp'
+};
+
+// Side panel preview states drive the LINKS mode straight from a query
+// param — pre-seed the persisted mode before sidepanel.js's initSidePanel()
+// reads chrome.storage.local.spMode (see preview/sidepanel.html: the stub
+// must be fully in place before that script runs).
+if (PREVIEW_STATE.startsWith('lb-')) {
+  store.spMode = 'links';
+}
 
 window.chrome = {
   runtime: {
@@ -140,7 +212,8 @@ window.chrome = {
   tabs: {
     query(_, cb) {
       const url = TAB_URLS[PREVIEW_STATE] || TAB_URLS.default;
-      const tabs = [{ id: 1, url, windowId: 1 }];
+      const title = TAB_TITLES[PREVIEW_STATE] || TAB_TITLES.default;
+      const tabs = [{ id: 1, url, title, windowId: 1 }];
       if (cb) { cb(tabs); return; }
       return Promise.resolve(tabs);
     },
@@ -188,6 +261,28 @@ function installSbwStubs() {
   SBW.ct.triggerCampaign = () => delay({
     id: 'k0', status: 'completed', campaign_type: 'discovery', created_at: new Date().toISOString()
   });
+
+  // SBW.lb.* never throws — every method resolves the same
+  // { ok, status, data, code } shape sbwFetch returns for a real call.
+  SBW.lb.addOutlet = ({ url, name, status }) => {
+    let domain = 'added-outlet.example.com';
+    try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch { /* keep fallback */ }
+    return delay({ ok: true, status: 201, data: { id: 'new-outlet', domain, status, created: true }, code: 'ok' });
+  };
+  SBW.lb.prospects = (status) => delay({
+    ok: true, status: 200,
+    data: { prospects: status === 'qualified' || !status ? FX.outlets : [], counts: [{ status: 'qualified', n: FX.outlets.length }] },
+    code: 'ok'
+  });
+  SBW.lb.reviewProspects = (ids, action) => delay({ ok: true, status: 200, data: { action, requested: ids.length, updated: ids.length }, code: 'ok' });
+  SBW.lb.pitches = (status) => {
+    const list = status === 'approved' ? FX.pitchesApproved : status === 'sent' ? [] : FX.pitchesDraft;
+    return delay({ ok: true, status: 200, data: { pitches: list, counts: [], senderAddress: 'dana@northsidedental.com' }, code: 'ok' });
+  };
+  SBW.lb.reviewPitch = (id, action) => delay({ ok: true, status: 200, data: { action, id, status: action === 'approve' ? 'approved' : 'rejected' }, code: 'ok' });
+  SBW.lb.markSent = (id) => delay({ ok: true, status: 200, data: { id, status: 'sent' }, code: 'ok' });
+  SBW.lb.results = () => delay({ ok: true, status: 200, data: FX.lbResults, code: 'ok' });
+
   window.sendToApi = () => {};
   window.autoSaveLocal = () => {};
 }

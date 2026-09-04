@@ -32,8 +32,11 @@
   <h2>Popup · SEO Analysis</h2>
   <div class="grid" id="g3"></div>
 
-  <h2>Side panel</h2>
+  <h2>Side panel · Citations mode</h2>
   <div class="grid" id="g4"></div>
+
+  <h2>Side panel · Links mode</h2>
+  <div class="grid" id="g5"></div>
 
   <script>
     const groups = {
@@ -72,6 +75,17 @@
       <div class="cell">
         <div class="cap"><b>${section}</b><span>${label}</span></div>
         <iframe src="sidepanel.html?state=main-known&section=${section}" width="380" height="620" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g5').innerHTML = [
+      ['lb-outlets', 'outlets', 'Outlets — qualified queue, add current tab'],
+      ['lb-pitches-draft', 'pitches', 'Pitches — drafts, approve/reject'],
+      ['lb-pitches-approved', 'pitches', 'Pitches — approved, Gmail compose + mark sent'],
+      ['lb-results', 'results', 'Results — funnel, spend, placements, sends']
+    ].map(([state, section, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="sidepanel.html?state=${state}&section=${section}" width="380" height="620" loading="lazy"></iframe>
       </div>`).join('');
   </script>
 </body>

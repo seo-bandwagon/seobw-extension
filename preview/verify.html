@@ -22,7 +22,15 @@ const CASES = [
   { q: 'popup.html?state=filed',        need: ['.alert-success'], click: '#cfReport' },
   { q: 'sidepanel.html?state=main-known&section=businesses',  need: ['.sp-row', '.sp-idx'] },
   { q: 'sidepanel.html?state=main-known&section=citations',   need: ['.sp-chip', '.sp-row', '.sp-bar'] },
-  { q: 'sidepanel.html?state=main-known&section=campaigns',   need: ['.sp-trigger', '.sp-row'] }
+  { q: 'sidepanel.html?state=main-known&section=campaigns',   need: ['.sp-trigger', '.sp-row'] },
+  { q: 'sidepanel.html?state=lb-outlets&section=outlets',
+    need: ['.sp-mode', '.sp-chip', '.lb-add-btn', '.lb-card', '.lb-actions'] },
+  { q: 'sidepanel.html?state=lb-pitches-draft&section=pitches',
+    need: ['.lb-card', '.lb-pitch-subject', '[data-act="approve"]', '[data-act="reject"]'] },
+  { q: 'sidepanel.html?state=lb-pitches-approved&section=pitches',
+    need: ['.lb-card', '.lb-pitch-subject', '[data-act="gmail"]', '[data-act="sent"]'] },
+  { q: 'sidepanel.html?state=lb-results&section=results',
+    need: ['.lb-funnel', '.lb-results-spend'] }
 ];
 
 const out = document.getElementById('out');
