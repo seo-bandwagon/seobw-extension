@@ -192,7 +192,7 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 ## Platform work (tracked elsewhere)
 
 SaaS-side items (GSC OAuth, dashboard rebuild, Search Console data display, site
-health dashboard) live in the main seobandwagon.dev Notion. The old extension
+health dashboard) live in the main SEO Bandwagon Notion. The old extension
 data-capture phases (content/meta/links capture, `/v1/captures` API, Supabase
 tables, `/captures` dashboard) shipped and remain live.
 
