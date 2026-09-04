@@ -1,36 +1,29 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.4.0",
-  "version_name": "1.4.0 — brand refresh",
-  "description": "Instant SEO analysis + CitationForge citation management: NAP checks, proof screenshots, and campaign triggers.",
+  "version": "1.5.0",
+  "version_name": "1.5.0 — SEO Bandwagon API",
+  "description": "Instant SEO analysis with A–F grades, plus local-SEO citation checks and link-building review, synced to your SEO Bandwagon account.",
   "permissions": [
     "activeTab",
     "storage",
     "contextMenus",
     "scripting",
-    "identity",
     "sidePanel",
     "tabs",
     "alarms"
   ],
-  "oauth2": {
-    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": [
-      "openid",
-      "email",
-      "profile"
-    ]
-  },
   "options_page": "src/options/options.html",
   "host_permissions": [
-    "https://seobandwagon.com/*",
-    "http://localhost:8000/*"
+    "https://seobandwagon.com/*"
   ],
   "optional_host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
+  "externally_connectable": {
+    "matches": ["https://seobandwagon.com/*"]
+  },
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_icon": {

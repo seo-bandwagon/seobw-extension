@@ -30,7 +30,24 @@ const CASES = [
   { q: 'sidepanel.html?state=lb-pitches-approved&section=pitches',
     need: ['.lb-card', '.lb-pitch-subject', '[data-act="gmail"]', '[data-act="sent"]'] },
   { q: 'sidepanel.html?state=lb-results&section=results',
-    need: ['.lb-funnel', '.lb-results-spend'] }
+    need: ['.lb-funnel', '.lb-results-spend'] },
+
+  // Task 7: domain history (popup.js's loadDomainHistory, src/lib/domain-history.js)
+  { q: 'popup.html?state=domain-history',
+    need: ['.seo-hero', '.domain-history-row', '.domain-history-line'] },
+
+  // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
+  // land on the same `#keyStatus.error` — one from an empty field, the other
+  // from a cached rejected key — see src/lib/options-logic.js's
+  // verifyStatusMessage().
+  { q: 'options.html?state=key-missing', need: ['#keyStatus.error'], click: '#verifyBtn' },
+  { q: 'options.html?state=key-invalid', need: ['#keyStatus.error'] },
+
+  // Task 7: capture sync-status badges (src/history/history.js's syncBadge(),
+  // src/lib/sync-state.js).
+  { q: 'history.html?state=capture-synced', need: ['.capture-item', '.badge-mono.b-ok'] },
+  { q: 'history.html?state=capture-pending', need: ['.capture-item', '.badge-mono.b-warn'] },
+  { q: 'history.html?state=capture-failed', need: ['.capture-item', '.badge-mono.b-err'] }
 ];
 
 const out = document.getElementById('out');

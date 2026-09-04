@@ -40,6 +40,15 @@
   <script src="../src/lib/api.js"></script>
   <script src="../src/lib/citations-ui.js"></script>
   <script src="../src/lib/link-building-ui.js"></script>
+  <script src="../src/lib/domain-history.js"></script>
+  <script>
+    // popup.js's top-level chrome.tabs.query(...) callback runs synchronously
+    // at parse time (like sidepanel.js's initSidePanel(), see sidepanel.html)
+    // — it calls SBW.quickDomain/capturesForUrl via loadDomainHistory() before
+    // stub.js's own DOMContentLoaded handler would otherwise install the
+    // stubs, so install them here instead.
+    installSbwStubs();
+  </script>
   <script src="../src/lib/nap-compare.js"></script>
   <script src="../src/lib/directory-matcher.js"></script>
   <script src="../src/popup/popup.js"></script>

@@ -1,9 +1,10 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.4.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.5.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
-Instant on-page SEO analysis plus CitationForge local-SEO citation management (NAP
-checks, proof screenshots, campaign triggers) in one extension.
+Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
+screenshots, campaign triggers), and link-building review, synced to your SEO
+Bandwagon account.
 
 ---
 
@@ -13,11 +14,11 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 | Change | Bump | Example |
 |---|---|---|
-| Bug fix, copy tweak, style polish, doc change bundled with a fix | **Patch** | 1.4.0 → 1.4.1 |
-| New user-facing feature | **Minor** | 1.4.x → 1.5.0 |
+| Bug fix, copy tweak, style polish, doc change bundled with a fix | **Patch** | 1.5.0 → 1.5.1 |
+| New user-facing feature | **Minor** | 1.5.x → 1.6.0 |
 | Rework that resets expectations (rare) | **Major** | 1.x → 2.0.0 |
 
-- **Stay on 1.4.x until a new feature lands.** Little changes increment the patch
+- **Stay on 1.5.x until a new feature lands.** Little changes increment the patch
   digit only.
 - The version lives in `manifest.json` (`version` + human-readable `version_name`).
   The popup footer and side panel header read it via `chrome.runtime.getManifest()`,
@@ -26,19 +27,67 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 ---
 
-## Where we are — v1.4.0 (Aug 2026)
+## Changelog — v1.5.0 (2026-09-03)
+
+Repoints the extension from CitationForge's own backend to the SEO Bandwagon
+site API (`seobandwagon.com/api`) and adds account sync throughout:
+
+- **Unified API client** (`src/lib/api.js`, `SBW` namespace) replaces the old
+  `citationforge-api.js`; every network call goes through `sbwFetch` with a
+  consistent `{ ok, status, data, code }` result shape.
+- **Capture sync + retry** — a `chrome.alarms`-driven drainer (`sbw-sync`,
+  every 15 min) posts locally-saved captures to `POST /api/v1/captures` with
+  exponential backoff (15 min → 6 hr, 5 attempts), tracked per-capture via
+  `src/lib/sync-state.js`; sync-status badges (synced/pending/failed/duplicate)
+  on the History page.
+- **Domain history strip** (`src/lib/domain-history.js`) — the popup's SEO
+  Analysis tab now shows this domain's and URL's capture history under the
+  score ring, backed by `SBW.quickDomain` / `SBW.capturesForUrl`.
+- **Citations re-pointed** to `/api/citations/*` (businesses, stats, citations,
+  campaigns) instead of the retired CitationForge backend.
+- **Link Building side panel** — outlets (qualified prospects), pitches
+  (draft/approved with approve/reject), and results (funnel, spend,
+  placements), plus "Add current tab as outlet" from the popup.
+- **Options page** rebuilt — verify/connect/disconnect a key, dashboard
+  shortcut links, and an Advanced section for pointing at a local dev API
+  (`optional_host_permissions` requested only if you use it).
+- **Chrome extension "Connect" flow** — `externally_connectable` lets
+  seobandwagon.com/dashboard/api-keys hand the extension a key directly via
+  `chrome.runtime.connect`/`sendMessage`, without copy-paste.
+- **Permissions diet** — dropped `identity` and the unused Google OAuth
+  `oauth2` block (account connection is an API key, not OAuth); dropped the
+  hardcoded `http://localhost:8000/*` host permission in favor of the
+  Options-gated optional one above.
+
+**Deferred to later versions:**
+- Proof-screenshot upload/storage — still local-download-only; needs object
+  storage on the site side before screenshots can attach to a filed citation.
+- SERP overlay re-enable — moved to v1.6.0, bundled with the Google
+  content-script work below (see "v1.6 — feature candidates").
+- Moving `lib/content-analysis.js` / `lib/dom-extraction.js` under `src/lib/`
+  — they're a runtime dependency of `src/content/analyzer.js` (injected before
+  it) and currently ship from the repo root; not moved this release to keep
+  the diff scoped to the API migration.
+
+---
+
+## Where we are — v1.5.0 (Sep 2026)
 
 - **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
   preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings, links & images with
   on-page highlighting, content stats + n-grams, tech stack detection, technical
-  panel. `src/content/analyzer.js` (~25 data categories).
-- **Citations tab (CitationForge)** — directory takeover header (40 curated
-  directories auto-detected), client-side NAP extraction (JSON-LD → microdata →
-  heuristic) and weighted match scoring, proof screenshot capture + upload,
-  one-click citation filing. `src/popup/citations-tab.js`, `src/lib/nap-compare.js`,
-  `src/content/nap-extractor.js`.
-- **Side panel** — businesses / campaigns / citations / proof gallery, CSV export.
-  `src/sidepanel/`.
+  panel, domain-history strip. `src/content/analyzer.js` (~25 data categories).
+- **Citations tab** — directory takeover header (40 curated directories
+  auto-detected), client-side NAP extraction (JSON-LD → microdata → heuristic)
+  and weighted match scoring, proof screenshot capture (local download only),
+  one-click citation filing against the SEO Bandwagon API.
+  `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`.
+- **Side panel** — Citations mode (businesses / campaigns / citations) and
+  Link Building mode (outlets / pitches / results), CSV export. `src/sidepanel/`.
+- **Capture sync** — local-first storage with account sync, retry, and History
+  page controls. `src/lib/sync-state.js`, `src/history/`.
+- **Options page** — connect/verify/disconnect a key, dashboard links, Advanced
+  local-dev endpoint. `src/options/`.
 - **GSC helper** — "Search in Incognito" button injected into Search Console
   performance rows. `src/content/gsc-serp.js`.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
@@ -70,7 +119,7 @@ composite score — free, no account gate.
 
 ---
 
-## v1.4.x — maintenance lane (patch bumps)
+## v1.5.x — maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 
@@ -79,8 +128,10 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 - [ ] Real directory favicons in the takeover header (cache via
       `https://www.google.com/s2/favicons`) — cosmetic
 - [ ] Scroll NAP result card into view on completion (partially done)
+- [ ] Move `lib/content-analysis.js` / `lib/dom-extraction.js` under `src/lib/`
+      (deferred from 1.5.0 — see changelog above)
 
-## v1.5 — feature candidates (competitor-informed, by value ÷ effort)
+## v1.6 — feature candidates (competitor-informed, by value ÷ effort)
 
 1. **Wire up the SERP overlay** — `src/overlay/serp-overlay.js` is *already
    written* (injects our captures-API domain stats into Google results) but was

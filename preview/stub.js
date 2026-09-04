@@ -56,6 +56,22 @@ const FX = {
   napDrift: { name: 'Northside Dental', address: '412 Burnet Road, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com/offers', source: 'json-ld' },
   napPerfect: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Suite 200, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com', source: 'json-ld' },
 
+  // Domain history (Task 3 / Task 7 `domain-history` state): SBW.quickDomain /
+  // SBW.capturesForUrl fixtures. capturedAt is fixed well in the past so it
+  // clears summarize()'s just-posted skew window regardless of when the
+  // preview loads.
+  quickDomain: { domain: 'northsidedental.com', avgWordCount: 780, schemaPercentage: 40, avgScore: 71, age: '6 months', sampleSize: 5 },
+  capturesForUrl: {
+    url: 'https://northsidedental.com/austin/family-dentistry',
+    domain: 'northsidedental.com',
+    totalCaptures: 3,
+    captures: [
+      { id: 'cap1', createdAt: '2026-08-13T10:00:00.000Z', overallScore: 70 },
+      { id: 'cap2', createdAt: '2026-07-30T10:00:00.000Z', overallScore: 66 },
+      { id: 'cap3', createdAt: '2026-07-16T10:00:00.000Z', overallScore: 62 }
+    ]
+  },
+
   // Link building (Task 5): outlets, pitches, and results. All rows use the
   // exact field names the site's /api/link-building/* routes return.
   outlets: [
@@ -167,6 +183,31 @@ if (PREVIEW_STATE.startsWith('lb-')) {
   store.spMode = 'links';
 }
 
+// `key-invalid` simulates a stored key that a prior /v1/me call already
+// rejected — options.js's showStoredKeyStatus() and citations-tab.js's
+// checkSignedIn() both short-circuit on sbwKeyStatus === 'invalid' without
+// another round trip, so this must be in place before either runs.
+if (PREVIEW_STATE === 'key-invalid') {
+  store.sbwKeyStatus = 'invalid';
+}
+
+// `capture-<status>` (history.html preview) seeds one local capture with
+// that sync status so history.js's real syncBadge() renders the matching
+// pill (see src/lib/sync-state.js for the status vocabulary).
+if (PREVIEW_STATE.startsWith('capture-')) {
+  const status = PREVIEW_STATE.slice('capture-'.length);
+  store.capture_1755700000000 = {
+    url: 'https://northsidedental.com/austin/family-dentistry',
+    capturedAt: '2026-08-20T14:00:00.000Z',
+    content: { wordCount: 842 },
+    links: { internal: { count: 34 }, external: { count: 8 } },
+    images: { total: 14 },
+    sync: { status, attempts: status === 'failed' ? 5 : 0 }
+  };
+}
+
+const sessionStore = {};
+
 window.chrome = {
   runtime: {
     lastError: null,
@@ -194,14 +235,34 @@ window.chrome = {
       set(obj, cb) { Object.assign(store, obj); if (cb) cb(); return Promise.resolve(); },
       remove(k, cb) { (Array.isArray(k) ? k : [k]).forEach(key => delete store[key]); if (cb) cb(); return Promise.resolve(); }
     },
-    // Every state except `signed-out` pretends a key is already saved, so
-    // checkSignedIn() (citations-tab.js / sidepanel.js) treats the preview as
-    // signed in without a real /v1/me round trip (SBW.verifyKey is stubbed
-    // below to resolve immediately).
+    // `session` mirrors `local` — used by resolveCached() (popup.js's
+    // domain-history cache) via SBWDomainHistory.cacheKey. Real chrome.storage
+    // areas don't share a namespace with each other; neither does this stub.
+    session: {
+      get(keys, cb) {
+        const out = {};
+        if (keys === null || keys === undefined) Object.assign(out, sessionStore);
+        else if (typeof keys === 'string') out[keys] = sessionStore[keys];
+        else if (Array.isArray(keys)) keys.forEach(k => out[k] = sessionStore[k]);
+        else Object.keys(keys).forEach(k => out[k] = sessionStore[k] ?? keys[k]);
+        const r = Promise.resolve(out);
+        if (cb) { cb(out); return; }
+        return r;
+      },
+      set(obj, cb) { Object.assign(sessionStore, obj); if (cb) cb(); return Promise.resolve(); },
+      remove(k, cb) { (Array.isArray(k) ? k : [k]).forEach(key => delete sessionStore[key]); if (cb) cb(); return Promise.resolve(); }
+    },
+    // Every state except `signed-out` / `key-missing` pretends a key is
+    // already saved, so checkSignedIn() (citations-tab.js / sidepanel.js) /
+    // showStoredKeyStatus() (options.js) treat the preview as signed in
+    // without a real /v1/me round trip (SBW.verifyKey is stubbed below to
+    // resolve immediately). `key-invalid` also has a key saved — it's the
+    // cached sbwKeyStatus above, not a missing key, that renders it as
+    // rejected.
     sync: {
       get(defaults, cb) {
         const result = Object.assign({}, defaults);
-        if (PREVIEW_STATE !== 'signed-out') {
+        if (PREVIEW_STATE !== 'signed-out' && PREVIEW_STATE !== 'key-missing') {
           result.apiKey = 'sbw_' + '0'.repeat(48);
         }
         cb(result);
@@ -252,6 +313,17 @@ function installSbwStubs() {
   const delay = (v, ms = 120) => new Promise(r => setTimeout(() => r(v), ms));
   // Never let the real network-hitting bits fire in a preview.
   SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });
+  // Domain history (popup.js's loadDomainHistory, `domain-history` state):
+  // every other state gets an empty/never-seen response so the strip stays
+  // hidden without touching real network stubs.
+  SBW.quickDomain = () => delay({
+    ok: true, status: 200, code: 'ok',
+    data: PREVIEW_STATE === 'domain-history' ? FX.quickDomain : { domain: null, avgWordCount: null, schemaPercentage: null, avgScore: null, age: null, sampleSize: 0 }
+  });
+  SBW.capturesForUrl = () => delay({
+    ok: true, status: 200, code: 'ok',
+    data: PREVIEW_STATE === 'domain-history' ? FX.capturesForUrl : { url: null, domain: null, totalCaptures: 0, captures: [] }
+  });
   SBW.ct.businesses = () => delay(PREVIEW_STATE === 'no-businesses' ? [] : FX.businesses);
   SBW.ct.business = id => delay(FX.businesses.find(b => b.id === id));
   SBW.ct.stats = id => delay(FX.stats[id] || FX.stats.b1, 260);
@@ -340,7 +412,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const go = async () => {
     const citTab = document.querySelector('.switcher button[data-tab="citations"]');
-    const needsCitations = PREVIEW_STATE !== 'seo';
+    // `domain-history` exercises the SEO Analysis tab (the strip renders
+    // under its score ring), same as `seo` — everything else lands on
+    // Citations.
+    const needsCitations = PREVIEW_STATE !== 'seo' && PREVIEW_STATE !== 'domain-history';
 
     if (needsCitations && citTab) citTab.click();
 

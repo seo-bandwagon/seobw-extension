@@ -38,6 +38,15 @@
   <h2>Side panel · Links mode</h2>
   <div class="grid" id="g5"></div>
 
+  <h2>Popup · Domain history</h2>
+  <div class="grid" id="g6"></div>
+
+  <h2>Options · Key states</h2>
+  <div class="grid" id="g7"></div>
+
+  <h2>History · Sync badges</h2>
+  <div class="grid" id="g8"></div>
+
   <script>
     const groups = {
       g1: [
@@ -86,6 +95,33 @@
       <div class="cell">
         <div class="cap"><b>${state}</b><span>${label}</span></div>
         <iframe src="sidepanel.html?state=${state}&section=${section}" width="380" height="620" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g6').innerHTML = [
+      ['domain-history', 'SEO Analysis tab — domain avg + prior-capture line under the score ring']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="popup.html?state=${state}" width="500" height="550" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g7').innerHTML = [
+      ['key-missing', 'Verify clicked with an empty field'],
+      ['key-invalid', 'Cached rejected key on load']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="options.html?state=${state}" width="420" height="520" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g8').innerHTML = [
+      ['capture-synced', 'synced badge'],
+      ['capture-pending', 'pending badge'],
+      ['capture-failed', 'failed badge']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="history.html?state=${state}" width="500" height="320" loading="lazy"></iframe>
       </div>`).join('');
   </script>
 </body>
