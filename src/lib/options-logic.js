@@ -88,6 +88,19 @@
     return res && res.ok ? 'success' : 'error';
   }
 
+  // ============================================
+  // Key rotation: did the field's value actually change from storage?
+  // ============================================
+  //
+  // Drives whether Save/Verify need to drop the cached sbwUser/sbwKeyStatus
+  // before re-verifying — rotating from key A to key B (or clearing the
+  // field) must not leave key A's cached "Connected as …" showing for the
+  // rest of its 10-minute TTL. Trimmed on both sides so trailing whitespace
+  // in the field doesn't count as a change; empty vs. empty is unchanged.
+  function keyChanged(prev, next) {
+    return String(prev || '').trim() !== String(next || '').trim();
+  }
+
   return {
     API_DEFAULT_URL,
     isLocalhostUrl,
@@ -95,6 +108,7 @@
     normalizeApiUrl,
     dashboardOrigin,
     verifyStatusMessage,
-    verifyStatusClass
+    verifyStatusClass,
+    keyChanged
   };
 });

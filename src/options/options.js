@@ -27,12 +27,26 @@ async function renderVerifyResult(res) {
   );
 }
 
+// True if `newKey` (already trimmed by the caller) differs from what's
+// currently in storage.sync — the shared "did the key rotate?" check for
+// both Save and Verify (SBWOptions.keyChanged, tested in isolation). A
+// changed key means any cached sbwUser/sbwKeyStatus belongs to the OLD key
+// and must be dropped before anything re-verifies, or a stale "Connected
+// as …" from key A would keep showing for up to sbwUser's 10-minute TTL
+// after switching to key B.
+async function keyChangedFromStorage(newKey) {
+  const stored = await chrome.storage.sync.get({ apiKey: '' });
+  return SBWOptions.keyChanged(stored.apiKey, newKey);
+}
+
 // On load: show the cached result if it's still fresh, otherwise re-verify —
-// same rule as checkSignedIn() in src/popup/citations-tab.js.
-async function showStoredKeyStatus() {
+// same rule as checkSignedIn() in src/popup/citations-tab.js. Takes the
+// already-loaded apiKey (from the single storage.sync read in
+// DOMContentLoaded below) instead of re-reading storage via
+// SBW.getApiSettings().
+async function showStoredKeyStatus(apiKey) {
   const statusEl = document.getElementById('keyStatus');
-  const settings = await SBW.getApiSettings();
-  if (!settings.apiKey) return;
+  if (!apiKey) return;
 
   const stored = await chrome.storage.local.get(['sbwUser', 'sbwKeyStatus']);
   if (stored.sbwKeyStatus === 'invalid') {
@@ -49,6 +63,9 @@ async function showStoredKeyStatus() {
   await renderVerifyResult(res);
 }
 
+// Always verifies the FIELD's current value — saving it to storage.sync
+// first (clearing any cache left over from a different key) so Verify and
+// Save can never disagree about which key is actually in effect.
 async function verifyKeyFromField() {
   const statusEl = document.getElementById('keyStatus');
   const key = document.getElementById('apiKey').value.trim();
@@ -57,8 +74,12 @@ async function verifyKeyFromField() {
     return;
   }
 
-  setStatus(statusEl, 'Verifying…', 'pending');
+  if (await keyChangedFromStorage(key)) {
+    await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus']);
+  }
   await new Promise(resolve => chrome.storage.sync.set({ apiKey: key }, resolve));
+
+  setStatus(statusEl, 'Verifying…', 'pending');
   const res = await SBW.verifyKey();
   await renderVerifyResult(res);
 }
@@ -131,22 +152,25 @@ async function initDataToggle() {
 
 /* ---------- load / save ---------- */
 
-document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.sync.get({
+document.addEventListener('DOMContentLoaded', async () => {
+  // Single storage.sync read — also backs showStoredKeyStatus below, instead
+  // of it separately calling SBW.getApiSettings() (which would just re-read
+  // the same apiKey out of the same storage area a second time).
+  const items = await new Promise(resolve => chrome.storage.sync.get({
     apiKey: '',
     apiUrl: 'https://seobandwagon.com/api',
     autoSave: false,
     showNotifications: true,
     localBackup: true
-  }, (items) => {
-    document.getElementById('apiKey').value = items.apiKey;
-    document.getElementById('apiUrl').value = items.apiUrl;
-    document.getElementById('autoSave').checked = items.autoSave;
-    document.getElementById('showNotifications').checked = items.showNotifications;
-    document.getElementById('localBackup').checked = items.localBackup;
-  });
+  }, resolve));
 
-  showStoredKeyStatus();
+  document.getElementById('apiKey').value = items.apiKey;
+  document.getElementById('apiUrl').value = items.apiUrl;
+  document.getElementById('autoSave').checked = items.autoSave;
+  document.getElementById('showNotifications').checked = items.showNotifications;
+  document.getElementById('localBackup').checked = items.localBackup;
+
+  showStoredKeyStatus(items.apiKey);
   initDataToggle();
 
   wireLink('linkHistory', () => {
@@ -161,22 +185,39 @@ document.getElementById('verifyBtn').addEventListener('click', verifyKeyFromFiel
 document.getElementById('disconnectBtn').addEventListener('click', disconnect);
 document.getElementById('saveAdvancedBtn').addEventListener('click', saveAdvancedApiUrl);
 
-// Save settings
-document.getElementById('saveBtn').addEventListener('click', () => {
+// Save settings. The key field is included here too (not just Verify) so a
+// user who pastes a new key and clicks "Save Settings" without noticing the
+// Verify button still gets a correct, non-stale key status — a changed key
+// drops the old key's cached sbwUser/sbwKeyStatus, and a non-empty key is
+// always re-verified after saving, so Save effectively verifies too.
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const keyField = document.getElementById('apiKey').value.trim();
+  const changed = await keyChangedFromStorage(keyField);
+  if (changed) {
+    await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus']);
+  }
+
   const settings = {
-    apiKey: document.getElementById('apiKey').value.trim(),
+    apiKey: keyField,
     autoSave: document.getElementById('autoSave').checked,
     showNotifications: document.getElementById('showNotifications').checked,
     localBackup: document.getElementById('localBackup').checked
   };
 
-  chrome.storage.sync.set(settings, () => {
-    const status = document.getElementById('status');
-    status.textContent = '✓ Settings saved successfully';
-    status.className = 'status success';
+  await new Promise(resolve => chrome.storage.sync.set(settings, resolve));
 
-    setTimeout(() => {
-      status.className = 'status';
-    }, 3000);
-  });
+  const status = document.getElementById('status');
+  status.textContent = '✓ Settings saved successfully';
+  status.className = 'status success';
+  setTimeout(() => {
+    status.className = 'status';
+  }, 3000);
+
+  if (keyField) {
+    setStatus(document.getElementById('keyStatus'), 'Verifying…', 'pending');
+    const res = await SBW.verifyKey();
+    await renderVerifyResult(res);
+  } else if (changed) {
+    setStatus(document.getElementById('keyStatus'), '', null);
+  }
 });

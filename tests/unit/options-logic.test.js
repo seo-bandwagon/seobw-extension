@@ -146,3 +146,22 @@ describe('verifyStatusClass', () => {
     expect(SBWOptions.verifyStatusClass(null)).toBe('error');
   });
 });
+
+describe('keyChanged', () => {
+  it('is false when the trimmed values are identical', () => {
+    expect(SBWOptions.keyChanged('sbw_abc123', 'sbw_abc123')).toBe(false);
+    expect(SBWOptions.keyChanged('sbw_abc123', '  sbw_abc123  ')).toBe(false);
+  });
+
+  it('is true when rotating from one key to a different one', () => {
+    expect(SBWOptions.keyChanged('sbw_abc123', 'sbw_xyz789')).toBe(true);
+  });
+
+  it('treats empty and empty as unchanged, but empty vs. non-empty as changed', () => {
+    expect(SBWOptions.keyChanged('', '')).toBe(false);
+    expect(SBWOptions.keyChanged('', '   ')).toBe(false);
+    expect(SBWOptions.keyChanged(undefined, '')).toBe(false);
+    expect(SBWOptions.keyChanged('sbw_abc123', '')).toBe(true);
+    expect(SBWOptions.keyChanged('', 'sbw_abc123')).toBe(true);
+  });
+});
