@@ -1,0 +1,99 @@
+{
+  "_comment": "JSON-LD for /compare/seo-chrome-extensions. Embed each object in its own <script type='application/ld+json'>. Competitor data verified against Chrome Web Store listings Aug 13, 2026 — re-verify quarterly. Populate SEO Bandwagon aggregateRating from the live listing at publish time; omit the aggregateRating block entirely if review count is still small.",
+  "softwareApplication": {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SEO Bandwagon",
+    "description": "Free Chrome extension for instant on-page SEO analysis with Core Web Vitals, SEO scoring, tech stack detection, and local SEO citation management: NAP checks, proof screenshots, and citation filing.",
+    "applicationCategory": "BrowserApplication",
+    "operatingSystem": "Chrome",
+    "brand": {
+      "@type": "Brand",
+      "name": "SEO Bandwagon"
+    },
+    "url": "https://seobandwagon.com",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  },
+  "itemList": {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "Best SEO Chrome Extensions in 2026, Compared",
+    "description": "Feature-by-feature comparison of the five most popular SEO Chrome extensions: SEO Bandwagon, SEOquake, Detailed SEO Extension, Ahrefs SEO Toolbar, and SEO Minion.",
+    "itemListOrder": "https://schema.org/ItemListOrderDescending",
+    "numberOfItems": 5,
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "SEO Bandwagon",
+        "url": "https://seobandwagon.com"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "SEOquake",
+        "url": "https://www.seoquake.com"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Detailed SEO Extension",
+        "url": "https://detailed.com/extension/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 4,
+        "name": "Ahrefs SEO Toolbar",
+        "url": "https://ahrefs.com/seo-toolbar"
+      },
+      {
+        "@type": "ListItem",
+        "position": 5,
+        "name": "SEO Minion",
+        "url": "https://keywordseverywhere.com/seominion/"
+      }
+    ]
+  },
+  "faqPage": {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is SEO Minion still free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. As of 2026, SEO Minion is available only to customers on a Keywords Everywhere Silver or higher plan. SEO Bandwagon, SEOquake, and Detailed remain free."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which SEO Chrome extension shows Core Web Vitals?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "SEO Bandwagon is the only extension in this comparison that measures Core Web Vitals (LCP, INP, CLS, FCP, TTFB) directly in the browser as you visit a page."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is the best free SEOquake alternative?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "For on-page checks with scoring and Core Web Vitals, SEO Bandwagon is a free alternative that adds local SEO citation management. Detailed is a strong free option for a lightweight, single-click on-page overview."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What Chrome extension checks NAP consistency for local SEO?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "SEO Bandwagon detects when you are viewing a business directory listing, extracts the listing's name, address, and phone number, and scores it against your master business record — then lets you capture a proof screenshot and file the citation."
+        }
+      }
+    ]
+  }
+}

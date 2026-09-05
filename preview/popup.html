@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../src/styles/popup.css">
+  <script src="stub.js"></script>
+</head>
+<body class="page-popup">
+  <header class="chrome">
+    <div class="chrome-mark">SB</div>
+    <div class="chrome-word">SEO BANDWAGON</div>
+    <nav class="switcher">
+      <button class="active" data-tab="seo">ANALYSIS</button>
+      <button data-tab="citations">CITATIONS</button>
+    </nav>
+  </header>
+
+  <div class="tab-panel active" id="tab-seo">
+    <div id="content"><div class="loading">Analyzing page…</div></div>
+  </div>
+
+  <div class="tab-panel" id="tab-citations">
+    <div id="cf-content"><div class="loading">Loading…</div></div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-toggle">
+      <label class="toggle-label">
+        <input type="checkbox" id="dataToggle" checked>
+        <span>HELP IMPROVE SEO INSIGHTS</span>
+      </label>
+      <span class="footer-right">
+        <span class="version-tag" id="versionTag"></span>
+        <a href="#" class="privacy-link">PRIVACY</a>
+      </span>
+    </div>
+  </footer>
+
+  <script src="../src/lib/sync-state.js"></script>
+  <script src="../src/lib/api.js"></script>
+  <script src="../src/lib/citations-ui.js"></script>
+  <script src="../src/lib/options-logic.js"></script>
+  <script src="../src/lib/link-building-ui.js"></script>
+  <script src="../src/lib/domain-history.js"></script>
+  <script>
+    // popup.js's top-level chrome.tabs.query(...) callback runs synchronously
+    // at parse time (like sidepanel.js's initSidePanel(), see sidepanel.html)
+    // — it calls SBW.quickDomain/capturesForUrl via loadDomainHistory() before
+    // stub.js's own DOMContentLoaded handler would otherwise install the
+    // stubs, so install them here instead.
+    installSbwStubs();
+  </script>
+  <script src="../src/lib/nap-compare.js"></script>
+  <script src="../src/lib/directory-matcher.js"></script>
+  <script src="../src/popup/popup.js"></script>
+  <script src="../src/popup/citations-tab.js"></script>
+</body>
+</html>

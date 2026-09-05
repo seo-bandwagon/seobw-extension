@@ -41,9 +41,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'highlight') {
     highlightElement(request.type);
     sendResponse({ success: true });
+  } else if (request.action === 'countSelection') {
+    const selection = window.getSelection().toString();
+    sendResponse(countText(selection));
   }
   return true;
 });
+
+function countText(text) {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  const characters = cleaned.length;
+  const charactersNoSpaces = cleaned.replace(/\s/g, '').length;
+  const words = cleaned ? cleaned.split(/\s+/).length : 0;
+  const sentences = cleaned ? (cleaned.match(/[.!?]+(\s|$)/g) || []).length : 0;
+  const readingTimeMin = Math.max(1, Math.ceil(words / 238));
+  return { characters, charactersNoSpaces, words, sentences, readingTimeMin };
+}
 
 
 async function hashContent(text) {

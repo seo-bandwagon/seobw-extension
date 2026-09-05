@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../src/styles/popup.css">
+  <script src="stub.js"></script>
+</head>
+<body class="page-sidepanel">
+  <header class="sp-head">
+    <div class="sp-mark">SB</div>
+    <div class="sp-word">SEO BANDWAGON</div>
+    <span class="version-tag" id="spVersion"></span>
+    <span class="sp-user" id="spUser"></span>
+  </header>
+
+  <nav class="sp-mode" id="spModeNav">
+    <button class="active" data-mode="citations">CITATIONS</button>
+    <button data-mode="links">LINKS</button>
+  </nav>
+
+  <nav class="sp-nav" id="spNav">
+    <button class="active" data-section="businesses">BUSINESSES</button>
+    <button data-section="campaigns">CAMPAIGNS</button>
+    <button data-section="citations">CITATIONS</button>
+  </nav>
+
+  <div id="spFilters"></div>
+  <div class="sp-scroll" id="spBody"><div class="loading">Loading…</div></div>
+  <footer class="sp-foot">
+    <span class="sp-foot-stat" id="spFootStat"></span>
+    <button class="sp-foot-link" id="spExport">Export CSV</button>
+  </footer>
+
+  <script src="../src/lib/api.js"></script>
+  <script src="../src/lib/citations-ui.js"></script>
+  <script src="../src/lib/link-building-ui.js"></script>
+  <script>
+    // sidepanel.js calls initSidePanel() at parse time (unlike the popup's
+    // citations-tab.js, which only initializes on a later click) — the
+    // SBW.ct.* / SBW.lb.* stubs must already be in place before that runs, so
+    // it can't wait for DOMContentLoaded like the rest of stub.js's setup.
+    installSbwStubs();
+  </script>
+  <script src="../src/lib/nap-compare.js"></script>
+  <script src="../src/lib/directory-matcher.js"></script>
+  <script src="../src/sidepanel/sidepanel.js"></script>
+  <script>
+    // Drive the requested side-panel section
+    const SP_TARGET = new URLSearchParams(location.search).get('section');
+    if (SP_TARGET) {
+      setTimeout(() => document.querySelector(`#spNav button[data-section="${SP_TARGET}"]`)?.click(), 700);
+    }
+    // Pitches default to the draft filter — click into approved for that state.
+    if (PREVIEW_STATE === 'lb-pitches-approved') {
+      setTimeout(() => document.querySelector('#spFilters [data-v="approved"]')?.click(), 900);
+    }
+  </script>
+</body>
+</html>

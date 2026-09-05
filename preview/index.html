@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SEO Bandwagon — layout preview</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;600&family=Space+Mono&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #F5F5F5; color: #000022; font-family: 'Space Grotesk', system-ui, sans-serif; padding: 32px 36px 60px; }
+    h1 { font-family: 'Bebas Neue', sans-serif; letter-spacing: .14em; font-size: 26px; margin-bottom: 4px; }
+    .sub { font-size: 12px; color: rgba(0,0,34,.55); margin-bottom: 26px; }
+    h2 { font-family: 'Bebas Neue', sans-serif; letter-spacing: .16em; font-size: 15px; margin: 34px 0 14px;
+         padding-top: 16px; border-top: 1px dashed rgba(0,0,34,.18); }
+    .grid { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; }
+    .cell { display: flex; flex-direction: column; gap: 8px; }
+    .cap { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; color: rgba(0,0,34,.55); max-width: 500px; }
+    .cap b { font-family: 'Space Mono', monospace; font-size: 10.5px; background: rgba(0,0,34,.08);
+             padding: 3px 7px; border-radius: 5px; color: #000022; font-weight: 700; }
+    iframe { border: 0; border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,34,.28); background: #000022; display: block; }
+  </style>
+</head>
+<body>
+  <h1>SEO Bandwagon — layout preview</h1>
+  <div class="sub">Real render code, stubbed APIs. Popups at true 500×550; side panel at 380×620.</div>
+
+  <h2>Popup · Citations</h2>
+  <div class="grid" id="g1"></div>
+
+  <h2>Popup · States</h2>
+  <div class="grid" id="g2"></div>
+
+  <h2>Popup · SEO Analysis</h2>
+  <div class="grid" id="g3"></div>
+
+  <h2>Side panel · Citations mode</h2>
+  <div class="grid" id="g4"></div>
+
+  <h2>Side panel · Links mode</h2>
+  <div class="grid" id="g5"></div>
+
+  <h2>Popup · Domain history</h2>
+  <div class="grid" id="g6"></div>
+
+  <h2>Options · Key states</h2>
+  <div class="grid" id="g7"></div>
+
+  <h2>History · Sync badges</h2>
+  <div class="grid" id="g8"></div>
+
+  <script>
+    const groups = {
+      g1: [
+        ['main-known', 'Directory detected — idle with recent checks'],
+        ['main-unknown', 'Untracked site — muted header'],
+        ['nap-drift', 'NAP check — fields drifting'],
+        ['nap-perfect', 'NAP check — everything matches'],
+        ['proof', 'Screenshot captured — proof card'],
+        ['filed', 'Citation filed — success alert']
+      ],
+      g2: [
+        ['signed-out', 'Signed out — benefit + proof strip'],
+        ['picker', 'No business selected — picker is the content'],
+        ['nap-loading', 'Loading — skeleton inherits row rhythm'],
+        ['nap-error', "Error — couldn't read the page"],
+        ['no-businesses', 'Empty — no businesses yet'],
+        ['no-citations', 'Empty — no citations for this business']
+      ],
+      g3: [['seo', 'SEO Analysis — score ring, sub-scores, sections']]
+    };
+
+    for (const [id, items] of Object.entries(groups)) {
+      document.getElementById(id).innerHTML = items.map(([state, label]) => `
+        <div class="cell">
+          <div class="cap"><b>${state}</b><span>${label}</span></div>
+          <iframe src="popup.html?state=${state}" width="500" height="550" loading="lazy"></iframe>
+        </div>`).join('');
+    }
+
+    document.getElementById('g4').innerHTML = [
+      ['businesses', 'Businesses — cards with NAP rails'],
+      ['citations', 'Citations — filter chips + terminal rows'],
+      ['campaigns', 'Campaigns — trigger + history']
+    ].map(([section, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${section}</b><span>${label}</span></div>
+        <iframe src="sidepanel.html?state=main-known&section=${section}" width="380" height="620" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g5').innerHTML = [
+      ['lb-outlets', 'outlets', 'Outlets — qualified queue, add current tab'],
+      ['lb-pitches-draft', 'pitches', 'Pitches — drafts, approve/reject'],
+      ['lb-pitches-approved', 'pitches', 'Pitches — approved, Gmail compose + mark sent'],
+      ['lb-results', 'results', 'Results — funnel, spend, placements, sends']
+    ].map(([state, section, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="sidepanel.html?state=${state}&section=${section}" width="380" height="620" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g6').innerHTML = [
+      ['domain-history', 'SEO Analysis tab — domain avg + prior-capture line under the score ring']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="popup.html?state=${state}" width="500" height="550" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g7').innerHTML = [
+      ['key-missing', 'Verify clicked with an empty field'],
+      ['key-invalid', 'Cached rejected key on load']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="options.html?state=${state}" width="420" height="520" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g8').innerHTML = [
+      ['capture-synced', 'synced badge'],
+      ['capture-pending', 'pending badge'],
+      ['capture-failed', 'failed badge']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="history.html?state=${state}" width="500" height="320" loading="lazy"></iframe>
+      </div>`).join('');
+  </script>
+</body>
+</html>

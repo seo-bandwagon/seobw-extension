@@ -10,3 +10,10 @@ test-results/
 playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Chrome refuses to load unpacked extensions containing files or directories
+# whose names start with "_" — keep design source material out of the load path.
+_*/
+
+# Packaged builds
+seo-bw-extension.zip

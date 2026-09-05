@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SEO Bandwagon - Capture History</title>
+  <link rel="stylesheet" href="../styles/popup.css">
+</head>
+<body class="page-history">
+  <div class="container">
+    <h1>
+      <img src="../icons/icon48.png" alt="">
+      Capture History
+    </h1>
+    <p class="subtitle">Local backup of analyzed pages</p>
+
+    <div id="legacyBanner" class="legacy-banner" hidden></div>
+
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search by URL...">
+      <button id="syncBtn" class="success">Sync to SEO Bandwagon</button>
+      <button id="retryFailedBtn">Retry failed</button>
+      <button id="exportUrlsBtn">Export URLs</button>
+      <button id="exportAllBtn">Export JSON</button>
+      <button id="clearBtn" class="danger">Clear History</button>
+    </div>
+    <div id="syncStatus" style="display:none; margin-bottom:16px; padding:12px; border-radius:6px; font-size:13px;"></div>
+    
+    <div class="capture-list" id="captureList">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+  
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Capture Details</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <pre id="modalData"></pre>
+    </div>
+  </div>
+  
+  <script src="../lib/sync-state.js"></script>
+  <script src="../lib/api.js"></script>
+  <script src="history.js"></script>
+</body>
+</html>
