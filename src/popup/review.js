@@ -41,26 +41,52 @@
     return document.getElementById('reviewStrip');
   }
 
+  // Fix round 1, item 7: every chrome.storage.local get/set is wrapped —
+  // a storage error (quota, a disabled-extension-context race on popup
+  // teardown, anything) must never throw out of recordAnalysis()/
+  // renderFromStorage(), since both are called from popup.js's bootstrap
+  // without their own try/catch around this module's calls. Falls back to
+  // the same "never analyzed, never prompted" default a genuinely-empty
+  // storage would return, and simply skips the write on failure — the
+  // ledger's threshold just doesn't advance that one time rather than the
+  // whole popup breaking.
   async function readState() {
-    const stored = await chrome.storage.local.get(STORAGE_KEY);
-    const state = stored && stored[STORAGE_KEY];
-    return state || { analyses: 0, prompted: false, installedAt: Date.now() };
+    try {
+      const stored = await chrome.storage.local.get(STORAGE_KEY);
+      const state = stored && stored[STORAGE_KEY];
+      return state || { analyses: 0, prompted: false, installedAt: Date.now() };
+    } catch (e) {
+      console.error('SBWReviewUI: storage read failed', e);
+      return { analyses: 0, prompted: false, installedAt: Date.now() };
+    }
   }
 
   async function writeState(state) {
-    await chrome.storage.local.set({ [STORAGE_KEY]: state });
+    try {
+      await chrome.storage.local.set({ [STORAGE_KEY]: state });
+    } catch (e) {
+      console.error('SBWReviewUI: storage write failed', e);
+    }
   }
 
   async function recordAnalysis() {
-    const state = await readState();
-    const next = globalThis.SBWReview.nextState(state, { type: 'analyzed' });
-    await writeState(next);
-    render(next);
+    try {
+      const state = await readState();
+      const next = globalThis.SBWReview.nextState(state, { type: 'analyzed' });
+      await writeState(next);
+      render(next);
+    } catch (e) {
+      console.error('SBWReviewUI: recordAnalysis failed', e);
+    }
   }
 
   async function renderFromStorage() {
-    const state = await readState();
-    render(state);
+    try {
+      const state = await readState();
+      render(state);
+    } catch (e) {
+      console.error('SBWReviewUI: renderFromStorage failed', e);
+    }
   }
 
   function render(state) {

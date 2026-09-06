@@ -320,8 +320,16 @@ function highlightElement(type, request) {
       });
       break;
     case 'nofollow':
-      document.querySelectorAll('a[rel*="nofollow"], a[rel*="ugc"], a[rel*="sponsored"]').forEach(el => {
-        el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-nofollow');
+      // Fix round 1, item 1: token-matched via the same
+      // SEOBWExtraction.isNofollowFamily() extractLinks() uses to count
+      // nofollow/ugc/sponsored, so the highlighted set and the counted set
+      // can never disagree (a coarse `rel*="nofollow"` substring selector
+      // both misses `rel="NOFOLLOW"` and over-matches `rel="me
+      // nofollowing"`).
+      document.querySelectorAll('a[rel]').forEach(el => {
+        if (self.SEOBWExtraction.isNofollowFamily(el.getAttribute('rel'))) {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-nofollow');
+        }
       });
       break;
     case 'images-missing-alt':

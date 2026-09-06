@@ -148,7 +148,9 @@ a new tab, nothing is fetched from the extension itself:
 - **site: search for this domain** — a `site:` search scoped to the page's
   hostname only (never the path or query string).
 - **Search Google for the selected text in quotes** (shown only when text is
-  selected) — the selection, capped at 200 characters, wrapped in quotes.
+  selected) — the selection, capped at 200 characters, wrapped in quotes
+  (any literal `"` in the selection is replaced with a space first, so it
+  can't close the wrapping quotes early).
 - **Open sitemap.xml** / **Open robots.txt** — origin-rooted, regardless of
   the current page's own path.
 
@@ -156,11 +158,13 @@ The same seven page-scoped items (everything except the selection search,
 which needs actual selected text the popup doesn't have) also appear as a
 small TOOLS row under the popup header. Every URL is built by
 `src/lib/tool-links.js` from `new URL(pageUrl)` — never a string-split of
-the origin — with every user-controlled part percent-encoded; a page that
-isn't `http(s)://` (an internal `chrome://` page, for instance) makes every
-tool return nothing rather than open something broken. Google's own tools
-here (Search Console, PageSpeed Insights, Rich Results Test) are named
-nominatively, never with a logo — see "Credits" below.
+the origin — with every user-controlled part percent-encoded and any
+embedded HTTP Basic Auth credentials in the page's own URL (`user:pw@host`)
+stripped before it's used anywhere; a page that isn't `http(s)://` (an
+internal `chrome://` page, for instance) makes every tool return nothing
+rather than open something broken. Google's own tools here (Search
+Console, PageSpeed Insights, Rich Results Test) are named nominatively,
+never with a logo — see "Credits" below.
 
 ### Exports
 
@@ -171,8 +175,26 @@ Link Check, Indexability, Hreflang, Rendering, and Structured Data (all
 document order — a "Copy outline" button next to it copies the same outline
 as indented plain text to your clipboard), **Images** (src, alt, has-alt,
 lazy-loaded, width/height where set), and **Links** (URL, anchor text, rel,
-internal/external). None of these leave your device until you choose to
-save or paste the file yourself.
+internal/external). Each of these three lists is capped at 500 rows; a CSV
+that hit the cap gets a final `# truncated to 500 rows` row and its button
+label reads "(first 500)" so the truncation is visible before you even
+click. A cached analysis captured before 1.6.0 shipped these lists has no
+`outline`/`list` field to export from — the affected button is disabled
+with a "Re-run the analysis to export this" tooltip instead of downloading
+a header-only file (Headings is the exception: it falls back to
+reconstructing a level-ordered outline from the older H1-H6 arrays, which
+did already exist, so its button and "Copy outline" stay enabled unless
+even those are missing). None of these leave your device until you choose
+to save or paste the file yourself — and, as of this fix round, none of
+the three lists themselves are included in a synced capture either (see
+"Privacy" below); only their counts are.
+
+Field notes for the Images CSV: an `<img>` using only `srcset` (no `src`)
+exports an empty Src; an `<img data-src="...">` used for lazy-loading
+exports that value as Src and is marked `lazy: true` even without a
+`loading="lazy"` attribute (this is how most lazy-load libraries actually
+work); otherwise `lazy` is only ever `loading="lazy"`. Width/height are the
+raw HTML attribute values, unmodified.
 
 ### Review prompt
 
@@ -191,8 +213,9 @@ Page analysis runs entirely in your browser. **Nothing leaves your device unless
 
 - the page URL and the capture timestamp
 - the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD, Microdata, RDFa) found on the page — types and property NAMES only (the missing-required/recommended chips and the "Eligible for" rollup need those); property VALUES are stripped before this is saved or synced, so a customer's name, price, or review text sitting in a page's own JSON-LD never leaves your device
-- headings and their text (H1–H6)
+- headings and their text (H1–H6 and ARIA headings)
 - link, image and media audits (internal/external link counts and anchor text, missing alt text, lazy-loaded images, iframes, media types, favicons/feeds)
+- as of this fix round, the CSV-export-only detail lists stay on this device only and are never part of a synced capture: the headings outline (level/text/order/ARIA), the full Images and Links CSV lists, and the up-to-50 nofollow/UGC/sponsored anchor list shown in the popup — only the counts above (link/image totals, nofollow/UGC/sponsored counts) sync
 - content statistics: word/character/sentence counts, and the page's top words and phrases
 - page technical facts: DOM element/script/stylesheet counts, load time, and URL depth
 - detected technologies (CMS, analytics, frameworks, etc.)

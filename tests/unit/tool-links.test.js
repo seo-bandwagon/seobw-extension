@@ -24,6 +24,13 @@ describe('SBWToolLinks namespace', () => {
 });
 
 const PAGE = 'https://example.com/some/page?x=1&y=two words';
+// Fix round 1, item 2: every kind now builds off `new URL(pageUrl).href`
+// (credential-cleared, and — as an unavoidable side effect — normalized:
+// a raw space in the query is percent-encoded to %20 by the URL
+// constructor itself, same as any real chrome.tabs URL already arrives
+// pre-encoded). Expectations below encode PAGE_HREF, not the raw PAGE
+// string, to match what the URL constructor actually normalizes it to.
+const PAGE_HREF = new URL(PAGE).href;
 
 describe('toolUrl — gsc', () => {
   it('builds a Search Console inspect URL with an encoded resource_id and id', () => {
@@ -31,7 +38,7 @@ describe('toolUrl — gsc', () => {
     expect(url).toBe(
       'https://search.google.com/search-console/inspect?resource_id=' +
       encodeURIComponent('https://example.com/') +
-      '&id=' + encodeURIComponent(PAGE)
+      '&id=' + encodeURIComponent(PAGE_HREF)
     );
   });
 
@@ -44,21 +51,21 @@ describe('toolUrl — gsc', () => {
 describe('toolUrl — wayback', () => {
   it('builds a Wayback Machine calendar URL with the page URL encoded', () => {
     const url = SBWToolLinks.toolUrl('wayback', { pageUrl: PAGE });
-    expect(url).toBe('https://web.archive.org/web/*/' + encodeURIComponent(PAGE));
+    expect(url).toBe('https://web.archive.org/web/*/' + encodeURIComponent(PAGE_HREF));
   });
 });
 
 describe('toolUrl — pagespeed', () => {
   it('builds a PageSpeed Insights URL with the page URL encoded', () => {
     const url = SBWToolLinks.toolUrl('pagespeed', { pageUrl: PAGE });
-    expect(url).toBe('https://pagespeed.web.dev/analysis?url=' + encodeURIComponent(PAGE));
+    expect(url).toBe('https://pagespeed.web.dev/analysis?url=' + encodeURIComponent(PAGE_HREF));
   });
 });
 
 describe('toolUrl — rich-results', () => {
   it('builds a Rich Results Test URL with the page URL encoded', () => {
     const url = SBWToolLinks.toolUrl('rich-results', { pageUrl: PAGE });
-    expect(url).toBe('https://search.google.com/test/rich-results?url=' + encodeURIComponent(PAGE));
+    expect(url).toBe('https://search.google.com/test/rich-results?url=' + encodeURIComponent(PAGE_HREF));
   });
 });
 
@@ -105,15 +112,28 @@ describe('toolUrl — quoted-search (selection)', () => {
     expect(url).toBe(expected);
   });
 
-  it('encodes special characters in the selection (quotes, ampersands)', () => {
-    const url = SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE, selection: 'say "hi" & bye' });
-    expect(url).toBe('https://www.google.com/search?q=%22' + encodeURIComponent('say "hi" & bye') + '%22');
+  it('encodes special characters in the selection (ampersands)', () => {
+    const url = SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE, selection: 'best & bye' });
+    expect(url).toBe('https://www.google.com/search?q=%22' + encodeURIComponent('best & bye') + '%22');
   });
 
   it('returns null for an empty or whitespace-only selection', () => {
     expect(SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE, selection: '' })).toBeNull();
     expect(SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE, selection: '   ' })).toBeNull();
     expect(SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE })).toBeNull();
+  });
+
+  // Fix round 1, item 13: a literal `"` inside the selection would
+  // otherwise close the wrapping quotes early — it's replaced with a space
+  // (then trimmed) before the selection is quoted and encoded.
+  it('replaces literal quote marks in the selection with a space', () => {
+    const url = SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE, selection: 'he said "hi"' });
+    expect(url).toBe('https://www.google.com/search?q=%22' + encodeURIComponent('he said  hi') + '%22');
+  });
+
+  it('trims a quote-turned-space at the edge of the selection', () => {
+    const url = SBWToolLinks.toolUrl('quoted-search', { pageUrl: PAGE, selection: '"leading and trailing"' });
+    expect(url).toBe('https://www.google.com/search?q=%22' + encodeURIComponent('leading and trailing') + '%22');
   });
 });
 
@@ -143,5 +163,48 @@ describe('toolUrl — rejects non-http(s) pageUrl', () => {
 describe('toolUrl — unknown kind', () => {
   it('returns null for an unrecognized kind', () => {
     expect(SBWToolLinks.toolUrl('not-a-real-kind', { pageUrl: PAGE })).toBeNull();
+  });
+});
+
+// Fix round 1, item 2: a pageUrl carrying embedded HTTP Basic Auth
+// credentials must never reach any produced URL — the raw opts.pageUrl
+// string is never used; every kind builds off a cleared-credential
+// `URL.href`.
+describe('toolUrl — strips embedded credentials from pageUrl (item 2)', () => {
+  const CRED_PAGE = 'http://user:pw@host.example/path';
+
+  it('never leaks the username or password into the gsc URL', () => {
+    const url = SBWToolLinks.toolUrl('gsc', { pageUrl: CRED_PAGE });
+    expect(url).not.toContain('user');
+    expect(url).not.toContain('pw');
+    expect(url).toContain(encodeURIComponent('http://host.example/path'));
+  });
+
+  it('never leaks credentials into the wayback URL', () => {
+    const url = SBWToolLinks.toolUrl('wayback', { pageUrl: CRED_PAGE });
+    expect(url).not.toContain('user');
+    expect(url).not.toContain('pw');
+  });
+
+  it('never leaks credentials into the pagespeed URL', () => {
+    const url = SBWToolLinks.toolUrl('pagespeed', { pageUrl: CRED_PAGE });
+    expect(url).not.toContain('user');
+    expect(url).not.toContain('pw');
+  });
+
+  it('never leaks credentials into the rich-results URL', () => {
+    const url = SBWToolLinks.toolUrl('rich-results', { pageUrl: CRED_PAGE });
+    expect(url).not.toContain('user');
+    expect(url).not.toContain('pw');
+  });
+
+  it('never leaks credentials into the origin-rooted sitemap/robots URLs', () => {
+    expect(SBWToolLinks.toolUrl('sitemap', { pageUrl: CRED_PAGE })).toBe('http://host.example/sitemap.xml');
+    expect(SBWToolLinks.toolUrl('robots', { pageUrl: CRED_PAGE })).toBe('http://host.example/robots.txt');
+  });
+
+  it('normalizes an uppercase scheme and host', () => {
+    const url = SBWToolLinks.toolUrl('sitemap', { pageUrl: 'HTTP://EXAMPLE.COM/path' });
+    expect(url).toBe('http://example.com/sitemap.xml');
   });
 });

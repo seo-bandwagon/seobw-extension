@@ -180,8 +180,12 @@ policy above.
   clipboard) buttons; `lib/dom-extraction.js`'s heading extraction now also
   builds a combined, document-order outline that includes
   `[role="heading"][aria-level]` elements the plain H1-H6 arrays ignore
-  (defaulting a missing/invalid `aria-level` to 2, per WAI-ARIA, and
-  clamping an out-of-range one into 1-6).
+  (an empty aria-level defaults to 2, per WAI-ARIA; role=heading without
+  aria-level is skipped entirely, since the selector itself requires the
+  attribute to be present; and an out-of-range numeric value clamps into
+  1-6). Fix round 1: an `aria-level` present on a real h1-h6 tag now wins
+  over the tag name (`<h2 role="heading" aria-level="3">` is level 3, not
+  2), and the outline is capped at 500 entries.
 - **Images and Links CSV export** — the existing Links & Images section
   gets its own "Export images CSV" (src, alt, has-alt, lazy-loaded,
   width/height where set) and "Export links CSV" (URL, anchor text, rel,
@@ -193,8 +197,15 @@ policy above.
   only `nofollow` was counted, and the existing Highlight button already
   treats all three as one family), and captures the first 50 matching
   anchors (`{ url, text, rel }`). The Links & Images section shows
-  "Nofollow N · UGC N · Sponsored N" plus an expandable list next to the
-  existing "Nofollow" highlight button.
+  "Nofollow N · UGC N · Sponsored N" plus a "Total links with any of
+  nofollow/ugc/sponsored: N" line (fix round 1 — the three per-token counts
+  can double-count a single anchor carrying more than one token) and an
+  expandable list next to the existing "Nofollow" highlight button. Fix
+  round 1 also switched the `rel` check from a substring search to real
+  space-separated token matching (`rel="NOFOLLOW"` now counts, `rel="me
+  nofollowing"` no longer does) and made the Highlight button use the exact
+  same token function, so the highlighted set and the counted set can never
+  disagree.
 - **One-time review prompt** (`src/lib/review-prompt.js`, `src/popup/
   review.js`, new `.review-strip`) — after the 5th analysis (cached-hit or
   fresh, either counts), a one-line strip offers "Leave a review" (opens

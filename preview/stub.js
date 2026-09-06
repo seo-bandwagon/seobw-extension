@@ -209,6 +209,23 @@ if (PREVIEW_STATE === 'review-strip') {
   store.sbwReview = { analyses: 5, prompted: false, installedAt: Date.now() };
 }
 
+// Fix round 1, item 6: two negative fixtures for the harness — `.review-strip`
+// must NOT render below the 5-analysis threshold, and must NOT render again
+// once `prompted` is already true no matter how high `analyses` has climbed
+// since (the ledger's "never re-prompt" ruling). Both leave popup.js's own
+// recordAnalysis() call to run for real (same as `review-strip` above) —
+// `getCachedAnalysis` always hits in this harness, so every state's own
+// analysis increments `analyses` by exactly 1: seeded at 3 here so the
+// popup's own increment lands on 4, still below the threshold. The
+// `-prompted` case seeds at 9 (any value >= 5 would do) with prompted:true,
+// which the increment to 10 doesn't change.
+if (PREVIEW_STATE === 'review-strip-none') {
+  store.sbwReview = { analyses: 3, prompted: false, installedAt: Date.now() };
+}
+if (PREVIEW_STATE === 'review-strip-prompted') {
+  store.sbwReview = { analyses: 9, prompted: true, installedAt: Date.now() };
+}
+
 // `key-invalid` simulates a stored key that a prior /v1/me call already
 // rejected — options.js's showStoredKeyStatus() and citations-tab.js's
 // checkSignedIn() both short-circuit on sbwKeyStatus === 'invalid' without

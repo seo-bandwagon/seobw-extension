@@ -177,7 +177,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     // pure-logic filter in SBWDomainHistory.summarize() is the second,
     // ordering-independent guard against the same race.
     loadDomainHistory(tab, response, analysisStartedAt);
-    autoSaveCapture(stripSchemaPropertiesForStorage(response));
+    autoSaveCapture(stripForStorage(response));
     globalThis.SBWReviewUI?.recordAnalysis();
 
     chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
@@ -365,13 +365,14 @@ function renderResults(data) {
     ).join('') +
     `<div class="highlight-buttons">
       <button class="highlight-btn" data-type="headings">Highlight headings</button>
-      <button type="button" class="section-action-btn" id="hdExportBtn">Export CSV</button>
-      <button type="button" class="section-action-btn" id="hdCopyBtn">Copy outline</button>
+      ${exportButtonHtml('hdExportBtn', 'Export CSV', SBWExportRows.headingsRows(data))}
+      ${exportButtonHtml('hdCopyBtn', 'Copy outline', SBWExportRows.headingsRows(data))}
     </div>`);
 
   /* --- Links & images --- */
   const missingAlt = data.images.missingAlt.count;
-  const nfList = (data.links.nofollowAnchors || []).slice(0, 50);
+  const nfAnchors = data.links.nofollowAnchors || [];
+  const nfList = nfAnchors.slice(0, 50);
   html += section('links', 'Links & Images',
     missingAlt ? badge(`${missingAlt} NO ALT`, 'b-err') : badge(`${data.links.internal.count + data.links.external.count} LINKS`, ''),
     `${dataRow('Internal', esc(data.links.internal.count))}
@@ -379,6 +380,7 @@ function renderResults(data) {
     ${dataRow('Nofollow', esc(data.links.nofollow))}
     ${dataRow('UGC', esc(data.links.ugc || 0))}
     ${dataRow('Sponsored', esc(data.links.sponsored || 0))}
+    ${nfAnchors.length ? dataRow('Total links with any of nofollow/ugc/sponsored', esc(nfAnchors.length)) : ''}
     ${dataRow('Images', esc(data.images.total))}
     ${dataRow('Missing alt', esc(missingAlt), missingAlt === 0 ? 'good' : 'bad')}
     ${nfList.length ? `<details class="nf-details">
@@ -394,8 +396,8 @@ function renderResults(data) {
       <button class="highlight-btn" data-type="links-external">External</button>
       <button class="highlight-btn" data-type="nofollow">Nofollow</button>
       <button class="highlight-btn" data-type="images-missing-alt">Missing alt</button>
-      <button type="button" class="section-action-btn" id="imgExportBtn">Export images CSV</button>
-      <button type="button" class="section-action-btn" id="lnkExportBtn">Export links CSV</button>
+      ${exportButtonHtml('imgExportBtn', 'Export images CSV', SBWExportRows.imagesRows(data))}
+      ${exportButtonHtml('lnkExportBtn', 'Export links CSV', SBWExportRows.linksRows(data))}
     </div>`);
 
   /* --- Content --- */
@@ -568,26 +570,34 @@ function setSeoStatus(msg, type) {
   if (msg) setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 2200);
 }
 
-// Fix round 1, IMPORTANT 5: a synced capture uploads structured-data type
-// names and property NAMES (for the missing-required/recommended chips and
-// the "Eligible for" rollup) but never property VALUES — those can carry
-// anything a page author put in JSON-LD/microdata/RDFa (reviewer PII,
-// pricing, internal SKUs). Only the copy handed to autoSaveCapture/
-// autoSaveLocal is stripped; `pageData` (module-level, set from the same
-// `response` right before this call) keeps its `properties` intact so
-// structured-data.js's "Copy JSON-LD" button still has the real data to
-// copy.
-function stripSchemaPropertiesForStorage(data) {
-  if (!data || !data.schemaValidation) return data;
-  const stripFn = globalThis.SBWSchema && globalThis.SBWSchema.stripForStorage;
-  // Fail closed: without the stripper, drop the block rather than persist
-  // page property values (privacy control — never silently pass through).
-  if (!stripFn) {
-    const copy = Object.assign({}, data);
-    delete copy.schemaValidation;
-    return copy;
+// Fix round 1, IMPORTANT 5 (Task 5) + item 3 (Task 7 fix round 1): a synced
+// capture uploads structured-data type names and property NAMES (for the
+// missing-required/recommended chips and the "Eligible for" rollup) but
+// never property VALUES, and — as of item 3 — never the four page-text
+// list fields the popup's own CSV/copy exports need (headings.outline,
+// links.list, links.nofollowAnchors, images.list); only their counts sync.
+// Only the copy handed to autoSaveCapture/autoSaveLocal is stripped;
+// `pageData` (module-level, set from the same `response` right before this
+// call) keeps everything intact so the export/copy buttons and
+// structured-data.js's "Copy JSON-LD" button still have the real data.
+//
+// The actual stripping logic lives in src/lib/capture-strip.js
+// (globalThis.SBWCaptureStrip) so it's unit-testable without chrome/DOM;
+// this wrapper is only the fail-closed fallback for the (should-never-
+// happen) case that module didn't load.
+function stripForStorage(data) {
+  if (globalThis.SBWCaptureStrip && typeof globalThis.SBWCaptureStrip.strip === 'function') {
+    return globalThis.SBWCaptureStrip.strip(data);
   }
-  return Object.assign({}, data, { schemaValidation: stripFn(data.schemaValidation) });
+  // Fail closed: without the stripper module, drop everything it would
+  // have stripped rather than risk uploading page text/property values.
+  if (!data) return data;
+  const copy = Object.assign({}, data);
+  delete copy.schemaValidation;
+  if (copy.headings) { copy.headings = Object.assign({}, copy.headings); delete copy.headings.outline; }
+  if (copy.links) { copy.links = Object.assign({}, copy.links); delete copy.links.list; delete copy.links.nofollowAnchors; }
+  if (copy.images) { copy.images = Object.assign({}, copy.images); delete copy.images.list; }
+  return copy;
 }
 
 async function autoSaveCapture(data) {
@@ -714,21 +724,40 @@ function exportAsJson(data) {
 
 /* ---------- headings outline / images / links CSV exports (Task 7) ---------- */
 
-// data.headings.outline (lib/dom-extraction.js, Task 7 item A) is document
-// order + ARIA-heading-aware; a cached analysis captured before this
-// shipped won't have it. Fall back to flattening the classic h1-h6 arrays
-// in level order — not true document order, but still useful, and never
-// throws on older data.
-function headingsOutlineRows(data) {
-  const outline = data && data.headings && Array.isArray(data.headings.outline) ? data.headings.outline : null;
-  if (outline) return outline;
-  const fallback = [];
-  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach((key, i) => {
-    ((data && data.headings && data.headings[key]) || []).forEach(text => {
-      fallback.push({ level: i + 1, text: String(text), order: fallback.length + 1 });
-    });
-  });
-  return fallback;
+// Row selection (including the pre-1.6.0-cached-analysis null case) lives
+// in src/lib/export-rows.js (globalThis.SBWExportRows) so it's unit-testable
+// without chrome/DOM — see tests/unit/export-rows.test.js.
+
+// Fix round 1, item 3: mirrors lib/dom-extraction.js's OUTLINE_CAP /
+// LINKS_LIST_CAP / IMAGES_LIST_CAP (all 500) — used here only to detect
+// "this list hit its cap" for the truncation row/label below, since
+// dom-extraction.js isn't loaded into the popup's own page (only injected
+// into the target tab).
+const EXPORT_ROW_CAP = 500;
+
+// Fix round 1, item 8: a rows value of `null` (see SBWExportRows above)
+// means the field doesn't exist on this cached analysis at all — render
+// the button disabled with an explanatory title instead of letting a click
+// export/copy a header-only/empty result.
+function exportButtonHtml(id, label, rows) {
+  if (!rows) {
+    return `<button type="button" class="section-action-btn" id="${id}" disabled title="Re-run the analysis to export this">${esc(label)}</button>`;
+  }
+  // Fix round 1, item 11: capped lists say so on the button itself, before
+  // the click — not just in the footer row inside the downloaded file.
+  const shownLabel = rows.length >= EXPORT_ROW_CAP ? `${label} (first ${EXPORT_ROW_CAP})` : label;
+  return `<button type="button" class="section-action-btn" id="${id}">${esc(shownLabel)}</button>`;
+}
+
+// Fix round 1, item 11: a guarded footer row ("# truncated to 500 rows")
+// appended to a capped export — same `SBWCsv.toCsv`/`cell()` formula-guard
+// path as every other row, just a plain row object with the message under
+// the first column and the rest blank.
+function withTruncationRow(rows, columns) {
+  if (rows.length < EXPORT_ROW_CAP) return rows;
+  const footer = {};
+  footer[columns[0].key] = '# truncated to ' + EXPORT_ROW_CAP + ' rows';
+  return rows.concat([footer]);
 }
 
 const HEADINGS_CSV_COLUMNS = [
@@ -750,16 +779,25 @@ function downloadCsv(prefix, rows, columns, pageUrl) {
   setSeoStatus('Exported', 'success');
 }
 
+// Each of the three functions below returns `null` (nothing exported/
+// copied, no "Exported" status set) when the button should have been
+// disabled — belt-and-suspenders in case a click reaches the handler
+// anyway (e.g. a disabled attribute stripped by a stale render).
 function exportHeadingsCsv(data) {
-  downloadCsv('headings', headingsOutlineRows(data), HEADINGS_CSV_COLUMNS, data && data.url);
+  const rows = SBWExportRows.headingsRows(data);
+  if (!rows) return null;
+  downloadCsv('headings', withTruncationRow(rows, HEADINGS_CSV_COLUMNS), HEADINGS_CSV_COLUMNS, data && data.url);
+  return true;
 }
 
 function copyHeadingsOutline(data) {
-  const rows = headingsOutlineRows(data);
+  const rows = SBWExportRows.headingsRows(data);
+  if (!rows) return null;
   const text = rows.map(r => '  '.repeat(Math.max(0, r.level - 1)) + r.text).join('\n');
   navigator.clipboard.writeText(text)
     .then(() => setSeoStatus('Outline copied', 'success'))
     .catch(() => setSeoStatus('Copy failed', 'error'));
+  return true;
 }
 
 const IMAGES_CSV_COLUMNS = [
@@ -772,8 +810,10 @@ const IMAGES_CSV_COLUMNS = [
 ];
 
 function exportImagesCsv(data) {
-  const rows = (data && data.images && Array.isArray(data.images.list)) ? data.images.list : [];
-  downloadCsv('images', rows, IMAGES_CSV_COLUMNS, data && data.url);
+  const rows = SBWExportRows.imagesRows(data);
+  if (!rows) return null;
+  downloadCsv('images', withTruncationRow(rows, IMAGES_CSV_COLUMNS), IMAGES_CSV_COLUMNS, data && data.url);
+  return true;
 }
 
 const LINKS_CSV_COLUMNS = [
@@ -784,6 +824,8 @@ const LINKS_CSV_COLUMNS = [
 ];
 
 function exportLinksCsv(data) {
-  const rows = (data && data.links && Array.isArray(data.links.list)) ? data.links.list : [];
-  downloadCsv('links', rows, LINKS_CSV_COLUMNS, data && data.url);
+  const rows = SBWExportRows.linksRows(data);
+  if (!rows) return null;
+  downloadCsv('links', withTruncationRow(rows, LINKS_CSV_COLUMNS), LINKS_CSV_COLUMNS, data && data.url);
+  return true;
 }

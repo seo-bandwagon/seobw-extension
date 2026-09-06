@@ -31,6 +31,14 @@
   // a huge selection shouldn't turn into a multi-kilobyte query string.
   const SELECTION_MAX_CHARS = 200;
 
+  // Fix round 1, item 2: never forward the raw `opts.pageUrl` string — a
+  // page URL with embedded HTTP Basic Auth credentials
+  // (`http://user:pw@host/path`) would otherwise carry `user`/`pw` straight
+  // into a GSC/PageSpeed/Wayback/Rich-Results URL we open in a new tab.
+  // Clearing `username`/`password` on the parsed URL and using its `.href`
+  // everywhere (instead of the original string) strips them, and as a
+  // side effect normalizes scheme/host casing the same way the browser
+  // would.
   function parsePageUrl(pageUrl) {
     if (!pageUrl) return null;
     let parsed;
@@ -40,6 +48,8 @@
       return null;
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    parsed.username = '';
+    parsed.password = '';
     return parsed;
   }
 
@@ -49,7 +59,7 @@
     if (!parsed) return null;
 
     const origin = parsed.origin;
-    const pageUrl = opts.pageUrl;
+    const pageUrl = parsed.href;
 
     switch (kind) {
       case 'gsc':
@@ -69,8 +79,13 @@
         return 'https://www.google.com/search?q=site:' + encodeURIComponent(parsed.hostname);
 
       case 'quoted-search': {
-        const raw = (opts.selection || '').slice(0, SELECTION_MAX_CHARS);
-        if (!raw.trim()) return null;
+        // Fix round 1, item 13: a literal `"` inside the selection would
+        // otherwise close the wrapping quotes early once encoded/decoded by
+        // Google's own query parsing — replace with a space before capping
+        // and quoting, then trim so a quote at either edge doesn't leave a
+        // stray trailing/leading space.
+        const raw = (opts.selection || '').slice(0, SELECTION_MAX_CHARS).replace(/"/g, ' ').trim();
+        if (!raw) return null;
         return 'https://www.google.com/search?q=%22' + encodeURIComponent(raw) + '%22';
       }
 

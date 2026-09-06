@@ -6,94 +6,111 @@ importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher
 const tabCache = {};
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Fix round 1, item 4: every `create()` gets a callback that reads and
+// discards `chrome.runtime.lastError` — without one, a duplicate-id
+// create() (extension update/reload re-firing onInstalled) surfaces as an
+// "Unchecked runtime.lastError" console warning even though the menu still
+// works. The `removeAll()` wrapper around every create() below is the real
+// fix for the underlying cause: onInstalled can fire more than once for a
+// single install (e.g. an update), and a plain create() with a duplicate id
+// the second time would otherwise leave stale items in place with their
+// OLD title if this listener's item list ever changes between versions.
+function createMenuItem(options) {
+  chrome.contextMenus.create(options, () => void chrome.runtime.lastError);
+}
+
 // Create context menu on install
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'analyze-page',
-    title: 'Analyze this page with SEO Bandwagon',
-    contexts: ['page']
-  });
-  
-  chrome.contextMenus.create({
-    id: 'analyze-link',
-    title: 'Analyze linked page',
-    contexts: ['link']
-  });
+  chrome.contextMenus.removeAll(() => {
+    void chrome.runtime.lastError;
 
-  chrome.contextMenus.create({
-    id: 'seo-count-selection',
-    title: 'Count words & characters',
-    contexts: ['selection']
-  });
+    createMenuItem({
+      id: 'analyze-page',
+      title: 'Analyze this page with SEO Bandwagon',
+      contexts: ['page']
+    });
 
-  // --- "SEO Bandwagon tools" submenu (Task 7, item C) ---
-  //
-  // Every child opens a new tab via chrome.tabs.create — none of this needs
-  // the optional <all_urls> permission (nothing here fetches a third-party
-  // URL from the extension itself; the new tab does its own normal
-  // navigation, like clicking a link). URLs are built by
-  // SBWToolLinks.toolUrl() (src/lib/tool-links.js), which parses pageUrl
-  // via `new URL()` and returns null for a non-http(s) page or an empty
-  // selection — onClicked below does nothing when that happens, so a
-  // context-menu click on an internal chrome:// page, for instance, is a
-  // silent no-op rather than opening something broken.
-  //
-  // The parent carries both 'page' and 'selection' contexts so it (and,
-  // via inherited context, the page-scoped children) still shows up when
-  // the click originated on selected text — Chrome's 'selection' context
-  // does not also imply 'page'.
-  chrome.contextMenus.create({
-    id: 'sbw-tools',
-    title: 'SEO Bandwagon tools',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-gsc',
-    parentId: 'sbw-tools',
-    title: 'Open in Google Search Console (URL inspection)',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-wayback',
-    parentId: 'sbw-tools',
-    title: 'Open in Wayback Machine',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-pagespeed',
-    parentId: 'sbw-tools',
-    title: 'Open in PageSpeed Insights',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-rich-results',
-    parentId: 'sbw-tools',
-    title: 'Test with Rich Results Test',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-site-search',
-    parentId: 'sbw-tools',
-    title: 'site: search for this domain',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-selection-search',
-    parentId: 'sbw-tools',
-    title: 'Search Google for the selected text in quotes',
-    contexts: ['selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-sitemap',
-    parentId: 'sbw-tools',
-    title: 'Open sitemap.xml',
-    contexts: ['page', 'selection']
-  });
-  chrome.contextMenus.create({
-    id: 'sbw-tools-robots',
-    parentId: 'sbw-tools',
-    title: 'Open robots.txt',
-    contexts: ['page', 'selection']
+    createMenuItem({
+      id: 'analyze-link',
+      title: 'Analyze linked page',
+      contexts: ['link']
+    });
+
+    createMenuItem({
+      id: 'seo-count-selection',
+      title: 'Count words & characters',
+      contexts: ['selection']
+    });
+
+    // --- "SEO Bandwagon tools" submenu (Task 7, item C) ---
+    //
+    // Every child opens a new tab via chrome.tabs.create — none of this needs
+    // the optional <all_urls> permission (nothing here fetches a third-party
+    // URL from the extension itself; the new tab does its own normal
+    // navigation, like clicking a link). URLs are built by
+    // SBWToolLinks.toolUrl() (src/lib/tool-links.js), which parses pageUrl
+    // via `new URL()` and returns null for a non-http(s) page or an empty
+    // selection — onClicked below does nothing when that happens, so a
+    // context-menu click on an internal chrome:// page, for instance, is a
+    // silent no-op rather than opening something broken.
+    //
+    // The parent carries both 'page' and 'selection' contexts so it (and,
+    // via inherited context, the page-scoped children) still shows up when
+    // the click originated on selected text — Chrome's 'selection' context
+    // does not also imply 'page'.
+    createMenuItem({
+      id: 'sbw-tools',
+      title: 'SEO Bandwagon tools',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-gsc',
+      parentId: 'sbw-tools',
+      title: 'Open in Google Search Console (URL inspection)',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-wayback',
+      parentId: 'sbw-tools',
+      title: 'Open in Wayback Machine',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-pagespeed',
+      parentId: 'sbw-tools',
+      title: 'Open in PageSpeed Insights',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-rich-results',
+      parentId: 'sbw-tools',
+      title: 'Test with Rich Results Test',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-site-search',
+      parentId: 'sbw-tools',
+      title: 'site: search for this domain',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-selection-search',
+      parentId: 'sbw-tools',
+      title: 'Search Google for the selected text in quotes',
+      contexts: ['selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-sitemap',
+      parentId: 'sbw-tools',
+      title: 'Open sitemap.xml',
+      contexts: ['page', 'selection']
+    });
+    createMenuItem({
+      id: 'sbw-tools-robots',
+      parentId: 'sbw-tools',
+      title: 'Open robots.txt',
+      contexts: ['page', 'selection']
+    });
   });
 });
 

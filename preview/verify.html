@@ -236,7 +236,18 @@ const CASES = [
   // fixture alone.
   { q: 'popup.html?state=review-strip',
     need: ['.review-strip', '#reviewLeaveBtn', '#reviewNoBtn'],
-    text: ['Chrome Web Store'] }
+    text: ['Chrome Web Store'] },
+
+  // Fix round 1, item 6: negative cases — below the 5-analysis threshold
+  // (4, about to become 5 via this popup's own real recordAnalysis() call
+  // — still not >= 5) and already-prompted (9, prompted:true — never
+  // re-prompts regardless of how high analyses has climbed).
+  { q: 'popup.html?state=review-strip-none',
+    need: ['.seo-hero'],
+    no: ['.review-strip'] },
+  { q: 'popup.html?state=review-strip-prompted',
+    need: ['.seo-hero'],
+    no: ['.review-strip'] }
 ];
 
 const out = document.getElementById('out');

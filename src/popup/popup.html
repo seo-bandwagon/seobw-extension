@@ -14,9 +14,9 @@
     </nav>
   </header>
 
-  <div id="reviewStrip"></div>
-
   <div class="tab-panel active" id="tab-seo">
+    <!-- Fix round 1, item 15: lives inside the ANALYSIS tab panel, not a header-level sibling of both panels, so it never renders while the CITATIONS tab is active. -->
+    <div id="reviewStrip"></div>
     <div id="content">
       <div class="loading">Analyzing page…</div>
     </div>
@@ -56,6 +56,7 @@
   <script src="citations-tab.js"></script>
   <script src="../lib/perms.js"></script>
   <script src="../lib/csv.js"></script>
+  <script src="../lib/export-rows.js"></script>
   <script src="../lib/link-check.js"></script>
   <script src="link-check.js"></script>
   <script src="../lib/redirect-chain.js"></script>
@@ -66,6 +67,7 @@
   <script src="../lib/ua-switch.js"></script>
   <script src="render-check.js"></script>
   <script src="../lib/structured-data.js"></script>
+  <script src="../lib/capture-strip.js"></script>
   <script src="../lib/credits.js"></script>
   <script src="structured-data.js"></script>
   <script src="../lib/tool-links.js"></script>
