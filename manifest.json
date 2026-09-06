@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.5.1",
-  "version_name": "1.5.1 — Search Console row actions",
+  "version": "1.5.2",
+  "version_name": "1.5.2 — Search Console row actions",
   "description": "Instant SEO analysis with A–F grades, plus local-SEO citation checks and link-building review, synced to your SEO Bandwagon account.",
   "permissions": [
     "activeTab",

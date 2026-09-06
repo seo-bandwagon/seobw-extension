@@ -39,6 +39,47 @@ describe('SBWGscInject', () => {
     expect(G.extractQuery(root.querySelector('tbody td'))).toBe('dexa scan reno');
   });
 
+  it('fallback text ignores Search Console hover-action labels that follow the value', () => {
+    const root = table(
+      `<tr><td><span>https://iriswellnesscenter.com/community-acupuncture/</span>` +
+      `<span class="tip">Copy URL to clipboard</span><span class="tip">Open in new tab</span><span class="tip">Inspect URL</span></td>` +
+      `<td>0</td><td>7</td></tr>`,
+    );
+    expect(G.extractQuery(root.querySelector('tbody td'))).toBe('https://iriswellnesscenter.com/community-acupuncture/');
+  });
+
+  it('[title] extraction skips action-label titles when the value itself has no title', () => {
+    const root = table(
+      `<tr><td><span>dexa scan reno</span><span title="Copy query to clipboard">c</span><span title="Open in new tab">o</span></td><td>0</td><td>7</td></tr>`,
+    );
+    expect(G.extractQuery(root.querySelector('tbody td'))).toBe('dexa scan reno');
+  });
+
+  it('isQueriesView: URL breakdown param decides when present', () => {
+    const root = table(row('x'));
+    expect(G.isQueriesView({ search: '?resource_id=sc-domain:a.com&breakdown=query' }, root)).toBe(true);
+    expect(G.isQueriesView({ search: '?resource_id=sc-domain:a.com&breakdown=page' }, root)).toBe(false);
+    expect(G.isQueriesView({ search: '?breakdown=country' }, root)).toBe(false);
+    expect(G.isQueriesView({ search: '?breakdown=device' }, root)).toBe(false);
+  });
+
+  it('isQueriesView: without a breakdown param, the table header decides; no header means the default (queries) tab', () => {
+    const root = table(row('x'));
+    expect(G.isQueriesView({ search: '?resource_id=sc-domain:a.com' }, root)).toBe(true);
+    document.body.innerHTML = `<table><thead><tr><th>Top pages</th><th>Clicks</th></tr></thead><tbody>${row('https://a.com/p')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
+    document.body.innerHTML = `<table><tbody>${row('x')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(true);
+  });
+
+  it('removeAll strips every injected group so a tab switch leaves nothing behind', () => {
+    const root = table(row('a b') + row('c d'));
+    G.injectAll(root, { open() {}, openPrivate() {} });
+    expect(root.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+    expect(G.removeAll(root)).toBe(2);
+    expect(root.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+  });
+
   it('injects two icons per data row, once, without needing native icons', () => {
     const root = table(row('a b') + row('c d') + `<tr><td><input type="checkbox"></td><td>1</td><td>2</td></tr>`);
     const calls = { open: [], priv: [] };

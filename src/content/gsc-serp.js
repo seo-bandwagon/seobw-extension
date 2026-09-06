@@ -56,6 +56,13 @@
 
   function scan() {
     if (!/\/performance\b/.test(location.pathname)) return;
+    // Queries tab only: on Pages/Countries/Devices/Dates/Search appearance
+    // the first cell is not a search query, so strip anything we injected
+    // before the SPA swapped the table in place.
+    if (!inject.isQueriesView(location, document)) {
+      inject.removeAll(document);
+      return;
+    }
     ensureStyles();
     inject.injectAll(document, handlers);
   }
