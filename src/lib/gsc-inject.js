@@ -35,17 +35,53 @@
     return false;
   }
 
+  // Labels of Search Console's own per-row hover actions. They are plain text
+  // inside the first cell (tooltip spans), so a naive textContent read
+  // returned "https://example.com/p/ Copy URL to clipboard Open in new tab
+  // Inspect URL" — that whole string went into the Google search.
+  const ACTION_LABEL = /^(copy\b|open\b|inspect\b|filter\b|view\b)/i;
+
   // Prefer a [title] (GSC puts the full, untruncated query/URL there); skip
-  // titles that belong to action buttons (native or ours).
+  // titles that belong to action buttons (native or ours) and titles that
+  // read like an action label. Otherwise take the FIRST non-empty text node
+  // in document order — the value always precedes the hover-action labels.
   function extractQuery(cell) {
     for (const el of cell.querySelectorAll('[title]')) {
-      if (el.closest('[role="button"], .' + ICON_GROUP)) continue;
+      if (el.closest('[role="button"], button, .' + ICON_GROUP)) continue;
       const t = (el.getAttribute('title') || '').trim();
-      if (t) return t;
+      if (t && !ACTION_LABEL.test(t)) return t;
     }
     const clone = cell.cloneNode(true);
-    clone.querySelectorAll('.' + ICON_GROUP + ', [role="button"]').forEach((n) => n.remove());
-    return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    clone.querySelectorAll('.' + ICON_GROUP + ', [role="button"], button').forEach((n) => n.remove());
+    const walker = cell.ownerDocument.createTreeWalker(clone, 4 /* NodeFilter.SHOW_TEXT */);
+    let node;
+    while ((node = walker.nextNode())) {
+      const t = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (t) return t;
+    }
+    return '';
+  }
+
+  // The icons only make sense on the Queries dimension — a page URL, country
+  // or device is not something to search Google for. Search Console encodes
+  // the tab in the URL (`breakdown=query|page|country|device|...`); when the
+  // param is absent (the default tab) fall back to the table's first header
+  // cell, and with neither assume the default, which is Queries.
+  function isQueriesView(loc, rootEl) {
+    const search = (loc && loc.search) || '';
+    const m = /[?&]breakdown=([^&]*)/.exec(search);
+    if (m) return decodeURIComponent(m[1]).toLowerCase() === 'query';
+    const th = rootEl && rootEl.querySelector && rootEl.querySelector('table th');
+    if (th) return /quer/i.test(th.textContent || '');
+    return true;
+  }
+
+  // Remove every injected group (used when the report switches away from
+  // the Queries tab in place — GSC is an SPA, rows are recycled).
+  function removeAll(rootEl) {
+    const groups = rootEl.querySelectorAll('.' + ICON_GROUP);
+    groups.forEach((g) => g.remove());
+    return groups.length;
   }
 
   function searchUrl(query) {
@@ -136,7 +172,7 @@
     '.' + ICON_CLASS + ':hover{background:rgba(245,55,150,.12);color:#c2185b}' +
     '.seo-bw-gsc-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;background:#000022;color:#f5f5f5;font:13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,34,.35);max-width:520px}';
 
-  const api = { ICON_GROUP, ICON_CLASS, CSS, isDataRow, isNumericCell, extractQuery, searchUrl, injectRow, injectAll, makeButton };
+  const api = { ICON_GROUP, ICON_CLASS, CSS, isDataRow, isNumericCell, extractQuery, searchUrl, injectRow, injectAll, removeAll, isQueriesView, makeButton };
   root.SBWGscInject = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
