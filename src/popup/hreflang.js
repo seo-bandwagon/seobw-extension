@@ -28,6 +28,7 @@
   let sectionEl = null;
   let tab = null;
   let pageData = null;
+  let permsUnsub = null; // unsubscribe for the pending SBWPerms.onAllUrlsGranted() watch, or null
 
   // See indexability.js/link-check.js for why this exists: every mount()
   // bumps `gen`, and the async continuation started by a click (onCheckClick)
@@ -79,18 +80,24 @@
   }
 
   // Unique, resolvable alternate URLs to check — dedup by URL (matches the
-  // worker's own dedup) and capped at 50 to mirror its hard ceiling, so the
-  // button's "(N)" count is never a promise the worker can't keep.
+  // worker's own dedup), excludes the page's own URL (its return tag isn't
+  // fetched — it's validated locally, the same way validateSet() already
+  // checks for a self-referencing entry), and caps at 50 to mirror the
+  // worker's hard ceiling, so the button's "(N)" count is never a promise
+  // the worker can't keep.
   function checkableUrls() {
     const hf = pageData && pageData.hreflang;
     if (!hf) return [];
+    const pageUrl = (pageData && pageData.url) || (tab && tab.url);
+    const pageNorm = (pageUrl && globalThis.SBWHreflang) ? SBWHreflang.normalizeUrl(pageUrl) : null;
     const seen = new Set();
     const urls = [];
     (hf.entries || []).forEach(e => {
-      if (e && e.url && !seen.has(e.url)) {
-        seen.add(e.url);
-        urls.push(e.url);
-      }
+      if (!e || !e.url) return;
+      if (seen.has(e.url)) return;
+      if (pageNorm && e.url === pageNorm) return;
+      seen.add(e.url);
+      urls.push(e.url);
     });
     return urls.slice(0, 50);
   }
@@ -98,7 +105,20 @@
   /* ---------- mount / (re)init ---------- */
 
   function mount(container, data) {
-    if (!container || typeof globalThis.SBWHreflang === 'undefined') return;
+    if (!container) return;
+    if (permsUnsub) { permsUnsub(); permsUnsub = null; }
+
+    // Without the lib there's no way to validate a set or check return tags
+    // — but a whole-section bailout would silently show nothing at all.
+    // Fall back to the same "no hreflang tags" note an actually-empty page
+    // gets, rather than leaving a gap where the section would be.
+    if (typeof globalThis.SBWHreflang === 'undefined') {
+      sectionEl = null;
+      ++gen;
+      renderEmptyNote(container);
+      return;
+    }
+
     const { section, getCurrentTab } = popup();
     if (!section) return;
 
@@ -155,6 +175,20 @@
     if (my !== gen) return;
     state = has ? 'ready' : 'no-permission';
     render();
+    if (!has) watchForGrant(my);
+  }
+
+  // Re-renders out of the "Allow access" card the moment the permission is
+  // granted some other way while this popup is still open — e.g. from
+  // chrome://extensions in another tab, rather than only through this
+  // card's own Allow button (item 9, task-3 fix round 1).
+  function watchForGrant(my) {
+    if (permsUnsub) { permsUnsub(); permsUnsub = null; }
+    permsUnsub = SBWPerms.onAllUrlsGranted(() => {
+      if (my !== gen || state !== 'no-permission') return;
+      state = 'ready';
+      render();
+    });
   }
 
   /* ---------- render ---------- */
@@ -265,9 +299,11 @@
     checkState = 'checking';
     render();
 
+    // No pageUrl in this message — the worker's checkHreflangAlternates
+    // handler only ever needs the candidate `urls` to fetch; reciprocity()
+    // below is computed here in the popup, which already has pageUrl.
     const res = await sendToWorker({
       action: 'checkHreflangAlternates',
-      pageUrl: (pageData && pageData.url) || (tab && tab.url),
       urls
     });
     if (my !== gen) return;

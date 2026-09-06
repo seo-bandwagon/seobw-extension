@@ -85,7 +85,10 @@
     }
     const recanon = recanonicalize(raw);
     if (recanon && recanon !== raw && CANONICAL_RE.test(recanon)) {
-      return Object.assign({ valid: false, casing: true, xDefault: false }, splitParsed(recanon));
+      // `suggestion` carries the corrected tag string itself (not just its
+      // parsed parts) so callers can say "use en-US" without having to
+      // reassemble language/script/region back into a tag.
+      return Object.assign({ valid: false, casing: true, xDefault: false, suggestion: recanon }, splitParsed(recanon));
     }
     return { valid: false, xDefault: false };
   }
@@ -118,6 +121,16 @@
     const pageNorm = normalizeUrl(pageUrl);
     const pageProtocol = protocolOf(pageUrl);
 
+    // Set-level chip text is built alongside each entry's own issues below —
+    // a casing defect and a structurally invalid tag get visibly different
+    // chip text (`Non-canonical casing: "EN-us" (use en-US)` vs
+    // `Invalid hreflang tag: en_US`) rather than collapsing to one generic
+    // "invalid" message, since the fix for one is "just fix the case" and
+    // the fix for the other is "this isn't a language tag at all".
+    const tagSetIssues = [];
+    const relativeSetIssues = [];
+    const protocolSetIssues = [];
+
     const outEntries = list.map(raw => {
       const lang = raw && raw.lang;
       const href = raw && raw.href;
@@ -126,14 +139,26 @@
       const issues = [];
 
       if (!tag.valid) {
-        issues.push(tag.casing ? `Non-canonical casing for "${lang}"` : `Invalid hreflang tag "${lang}"`);
+        if (tag.casing) {
+          issues.push(`Non-canonical casing for "${lang}" (use ${tag.suggestion})`);
+          tagSetIssues.push(`Non-canonical casing: "${lang}" (use ${tag.suggestion})`);
+        } else {
+          issues.push(`Invalid hreflang tag "${lang}"`);
+          tagSetIssues.push(`Invalid hreflang tag: ${lang}`);
+        }
       }
       if (!url) {
         issues.push('Unresolvable href');
       } else {
-        if (!isAbsolute(href)) issues.push('Relative href');
+        if (!isAbsolute(href)) {
+          issues.push('Relative href');
+          relativeSetIssues.push(`Relative href for hreflang "${lang}"`);
+        }
         const proto = protocolOf(url);
-        if (pageProtocol && proto && proto !== pageProtocol) issues.push('Protocol differs from page');
+        if (pageProtocol && proto && proto !== pageProtocol) {
+          issues.push('Protocol differs from page');
+          protocolSetIssues.push(`Protocol differs from page for hreflang "${lang}"`);
+        }
       }
 
       return { lang, url, valid: tag.valid && !!url, issues, xDefault: !!tag.xDefault };
@@ -174,17 +199,7 @@
       if (count > 1) setIssues.push(`Same URL declared under multiple hreflang tags: ${url}`);
     });
 
-    outEntries.forEach(e => {
-      if (e.issues.some(i => /^Relative href$/.test(i))) {
-        setIssues.push(`Relative href for hreflang "${e.lang}"`);
-      }
-      if (e.issues.some(i => /^Protocol differs from page$/.test(i))) {
-        setIssues.push(`Protocol differs from page for hreflang "${e.lang}"`);
-      }
-      if (e.issues.some(i => /^Invalid hreflang tag/.test(i) || /^Non-canonical casing/.test(i))) {
-        setIssues.push(`Invalid hreflang tag: ${e.lang}`);
-      }
-    });
+    setIssues.push(...tagSetIssues, ...relativeSetIssues, ...protocolSetIssues);
 
     return {
       entries: outEntries.map(({ xDefault, ...rest }) => rest),
@@ -201,16 +216,54 @@
     return m[2] !== undefined ? m[2] : (m[3] !== undefined ? m[3] : m[4]);
   }
 
-  // [{ lang, href }] from <link rel="alternate" hreflang="…" href="…"> found
-  // in the first 256 KB of `html`'s <head> — attribute order/quoting
+  // [{ lang, href, url }] from <link rel="alternate" hreflang="…" href="…">
+  // found in the first 256 KB of `html`'s <head> — attribute order/quoting
   // agnostic, body-placed links ignored. No DOM parser dependency (this runs
   // in the background service worker, which has no `document`).
+  //
+  // `baseUrl` is the page's own URL (the worker passes `res.url`, i.e. the
+  // URL AFTER following redirects, not whatever was originally requested) —
+  // used both to resolve a `<base href>` found in the head and, combined
+  // with that base, to resolve every relative `href` into an absolute `url`
+  // returned alongside the raw `href`.
   function extractHreflangFromHtml(html, baseUrl) {
     if (!html || typeof html !== 'string') return [];
     const clipped = html.slice(0, 256 * 1024);
-    const headMatch = clipped.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-    if (!headMatch) return [];
-    const headHtml = headMatch[1];
+
+    // Locate the <head>...</head> span. A real, complete document has a
+    // literal </head>; a truncated fetch (hit the 256 KB cap mid-head) or a
+    // malformed one (head never closed) doesn't. In that case, fall back to
+    // everything up to the first <body (a still-truncated document at least
+    // stops there), or — if there's no <body> either — everything that's
+    // left, so a genuinely cut-off response still yields whatever <link>
+    // tags appeared before the cut instead of silently finding nothing.
+    const headOpenMatch = clipped.match(/<head[^>]*>/i);
+    const headStart = headOpenMatch ? headOpenMatch.index + headOpenMatch[0].length : 0;
+    const afterHeadOpen = clipped.slice(headStart);
+    const headCloseIdx = afterHeadOpen.search(/<\/head>/i);
+    let headHtml;
+    if (headCloseIdx !== -1) {
+      headHtml = afterHeadOpen.slice(0, headCloseIdx);
+    } else {
+      const bodyIdx = afterHeadOpen.search(/<body[^>]*>/i);
+      headHtml = bodyIdx !== -1 ? afterHeadOpen.slice(0, bodyIdx) : afterHeadOpen;
+    }
+
+    // Strip HTML comments before scanning — a commented-out <link> (left
+    // behind mid-edit, or a debugging toggle) is not a live hreflang tag.
+    headHtml = headHtml.replace(/<!--[\s\S]*?-->/g, '');
+
+    // Honor a <base href> in the head, resolved against baseUrl — it changes
+    // what every relative href in the document actually points to.
+    let effectiveBase = baseUrl;
+    const baseTagMatch = headHtml.match(/<base\b[^>]*>/i);
+    if (baseTagMatch) {
+      const baseHref = getAttr(baseTagMatch[0], 'href');
+      if (baseHref) {
+        const resolvedBase = normalizeUrl(baseHref, baseUrl);
+        if (resolvedBase) effectiveBase = resolvedBase;
+      }
+    }
 
     const entries = [];
     const linkTagRe = /<link\b[^>]*>/gi;
@@ -223,15 +276,17 @@
       if (!hreflang) continue;
       const href = getAttr(tag, 'href');
       if (!href) continue;
-      entries.push({ lang: hreflang, href });
+      const url = normalizeUrl(href, effectiveBase);
+      entries.push({ lang: hreflang, href, url });
     }
     return entries;
   }
 
   // pageEntries: [{ lang, url }] (the page's OWN declared alternates, i.e.
   // SBWHreflang.validateSet(...).entries with a resolvable url). fetched:
-  // Map<url, { status, entries: [{lang,href}], linkHeaderEntries: [...] }>
-  // (worker's checkHreflangAlternates reply, keyed by the alternate URL).
+  // Map<url, { status, finalUrl?, entries: [{lang,href,url?}],
+  // linkHeaderEntries: [...] }> (worker's checkHreflangAlternates reply,
+  // keyed by the alternate URL AS DECLARED on the page, pre-redirect).
   //
   // For each alternate: 'unreachable' when it was never fetched (dropped by
   // the 50-URL cap) or came back with no usable status (0, or >=400); 'yes'
@@ -260,11 +315,28 @@
         return;
       }
 
+      // A relative return link on the alternate page resolves against
+      // wherever that page actually ended up (its finalUrl, after any
+      // redirect), not the pre-redirect URL this page originally declared
+      // for it — those can be different directories entirely. `rec.entries`
+      // (from extractHreflangFromHtml) already carries a pre-resolved `url`
+      // for each HTML <link> when one was resolvable, computed against the
+      // alternate's own finalUrl (and its own <base href>, if any); that's
+      // used as-is when present, since re-resolving it here against a
+      // different base would only make it wrong again. Only a bare href (no
+      // pre-resolved url — e.g. a hand-built fixture) or a Link-header
+      // entry (whose url per RFC 8288 may itself be relative) falls back to
+      // resolving against `base` here.
+      const base = rec.finalUrl || rec.url || entry.url;
       const combined = [].concat(rec.entries || [], rec.linkHeaderEntries || []);
       const urls = combined
-        .map(e => normalizeUrl(e.href !== undefined ? e.href : e.url, entry.url))
+        .map(e => {
+          if (!e) return null;
+          if (e.href !== undefined) return e.url || normalizeUrl(e.href, base);
+          return normalizeUrl(e.url, base);
+        })
         .filter(Boolean);
-      const alternateNorm = normalizeUrl(entry.url);
+      const alternateNorm = normalizeUrl(base);
       const hasReturn = pageNorm ? urls.some(u => u === pageNorm) : false;
       const selfRefOnAlternate = alternateNorm ? urls.some(u => u === alternateNorm) : false;
 

@@ -77,6 +77,13 @@ describe('parseLangTag — tag grammar table', () => {
     expect(SBWHreflang.parseLangTag(null).valid).toBe(false);
     expect(SBWHreflang.parseLangTag('!!!').valid).toBe(false);
   });
+
+  it('accepts a bare 3-letter language code', () => {
+    const r = SBWHreflang.parseLangTag('fil'); // Filipino
+    expect(r.valid).toBe(true);
+    expect(r.language).toBe('fil');
+    expect(r.region).toBeUndefined();
+  });
 });
 
 describe('normalizeUrl', () => {
@@ -158,6 +165,27 @@ describe('validateSet', () => {
     expect(result.entries[0].issues.length).toBeGreaterThan(0);
     expect(result.issues.some(i => /invalid/i.test(i))).toBe(true);
   });
+
+  it('gives distinct set-level chip text for a casing defect vs a structurally invalid tag', () => {
+    const casingResult = SBWHreflang.validateSet(
+      [{ lang: 'EN-us', href: 'https://example.com/en' }], pageUrl
+    );
+    expect(casingResult.issues).toContain('Non-canonical casing: "EN-us" (use en-US)');
+
+    const invalidResult = SBWHreflang.validateSet(
+      [{ lang: 'en_US', href: 'https://example.com/en' }], pageUrl
+    );
+    expect(invalidResult.issues).toContain('Invalid hreflang tag: en_US');
+  });
+
+  it('excludes an x-default sharing a URL with a language variant from the same-URL info issue', () => {
+    const entries = [
+      { lang: 'en', href: 'https://example.com/en/page' },
+      { lang: 'x-default', href: 'https://example.com/en/page' }
+    ];
+    const result = SBWHreflang.validateSet(entries, pageUrl);
+    expect(result.issues.some(i => /same url/i.test(i))).toBe(false);
+  });
 });
 
 describe('extractHreflangFromHtml', () => {
@@ -201,6 +229,69 @@ describe('extractHreflangFromHtml', () => {
     expect(SBWHreflang.extractHreflangFromHtml('<html><body>hi</body></html>', baseUrl)).toEqual([]);
     expect(SBWHreflang.extractHreflangFromHtml('', baseUrl)).toEqual([]);
     expect(SBWHreflang.extractHreflangFromHtml(null, baseUrl)).toEqual([]);
+  });
+
+  it('matches attribute names case-insensitively, including uppercase HREFLANG=', () => {
+    const html = `<html><head>
+      <link REL="alternate" HREFLANG="en" HREF="https://example.com/en/page">
+    </head></html>`;
+    const entries = SBWHreflang.extractHreflangFromHtml(html, baseUrl);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].lang).toBe('en');
+  });
+
+  it('extracts a self-closing <link ... /> tag', () => {
+    const html = `<html><head>
+      <link rel="alternate" hreflang="en" href="https://example.com/en/page" />
+    </head></html>`;
+    const entries = SBWHreflang.extractHreflangFromHtml(html, baseUrl);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].lang).toBe('en');
+  });
+
+  it('ignores a hreflang link inside an HTML comment', () => {
+    const html = `<html><head>
+      <!-- <link rel="alternate" hreflang="es" href="https://example.com/es/page"> -->
+      <link rel="alternate" hreflang="en" href="https://example.com/en/page">
+    </head></html>`;
+    const entries = SBWHreflang.extractHreflangFromHtml(html, baseUrl);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].lang).toBe('en');
+  });
+
+  it('falls back to the slice up to <body> when the head has no closing </head> tag', () => {
+    const html = `<html><head>
+      <link rel="alternate" hreflang="en" href="https://example.com/en/page">
+      <link rel="alternate" hreflang="fr" href="https://example.com/fr/page">
+    <body><p>malformed markup, head never closed</p></body></html>`;
+    const entries = SBWHreflang.extractHreflangFromHtml(html, baseUrl);
+    expect(entries.map(e => e.lang).sort()).toEqual(['en', 'fr']);
+  });
+
+  it('falls back to the whole clipped string when the HTML is truncated mid-head (no </head>, no <body>)', () => {
+    const html = `<html><head>
+      <link rel="alternate" hreflang="en" href="https://example.com/en/page">
+      <link rel="alternate" hreflang="de" href="https://example.com/de/pa`; // cut off mid-tag
+    const entries = SBWHreflang.extractHreflangFromHtml(html, baseUrl);
+    expect(entries.map(e => e.lang)).toContain('en');
+  });
+
+  it('resolves a relative href against baseUrl and returns an absolute url alongside the raw href', () => {
+    const html = `<html><head>
+      <link rel="alternate" hreflang="fr" href="/fr/page">
+    </head></html>`;
+    const entries = SBWHreflang.extractHreflangFromHtml(html, 'https://example.com/en/page');
+    expect(entries[0].href).toBe('/fr/page');
+    expect(entries[0].url).toBe('https://example.com/fr/page');
+  });
+
+  it('honors a <base href> in the head, resolved against baseUrl', () => {
+    const html = `<html><head>
+      <base href="/intl/">
+      <link rel="alternate" hreflang="fr" href="fr/page">
+    </head></html>`;
+    const entries = SBWHreflang.extractHreflangFromHtml(html, 'https://example.com/en/page');
+    expect(entries[0].url).toBe('https://example.com/intl/fr/page');
   });
 });
 
@@ -258,5 +349,26 @@ describe('reciprocity', () => {
     const result = SBWHreflang.reciprocity(pageUrl, [pageEntries[0]], fetched);
     expect(result.entries[0].returnTag).toBe('unreachable');
     expect(result.entries[0].status).toBeNull();
+  });
+
+  it("resolves a relative return link against the alternate's finalUrl (post-redirect), not its pre-redirect declared URL", () => {
+    // pageUrl2 is what the return link ACTUALLY resolves to once resolved
+    // against the alternate's real landing spot (finalUrl); resolving the
+    // same relative href against the pre-redirect key instead (the bug this
+    // fixes) lands on plain 'https://example.com/en/page', which must NOT
+    // count as a match here.
+    const pageUrl2 = 'https://example.com/regional/en/page';
+    const preRedirectAlternateUrl = 'https://example.com/fr/page';
+    const entries = [{ lang: 'fr', url: preRedirectAlternateUrl }];
+    const fetched = new Map([
+      [preRedirectAlternateUrl, {
+        status: 200,
+        finalUrl: 'https://example.com/regional/fr/page',
+        entries: [{ lang: 'en', href: '../en/page' }],
+        linkHeaderEntries: []
+      }]
+    ]);
+    const result = SBWHreflang.reciprocity(pageUrl2, entries, fetched);
+    expect(result.entries[0].returnTag).toBe('yes');
   });
 });

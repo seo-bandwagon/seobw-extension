@@ -41,9 +41,37 @@
     return chrome.permissions.request({ origins: ['<all_urls>'] });
   }
 
+  // Calls `cb()` whenever the <all_urls> permission is granted while this
+  // subscription is active — covers a popup left open on the "Allow access"
+  // card while the permission is granted some other way (chrome://extensions
+  // in another tab, a different popup's own Allow button) instead of through
+  // this card's button. chrome.permissions.onAdded fires for ANY permission
+  // grant, not just this one, and Chrome doesn't guarantee the event's own
+  // `permissions.origins` will read back as exactly `['<all_urls>']` for
+  // every way of granting it — so rather than parsing the event payload,
+  // this just re-checks hasAllUrls() itself on every event and only calls
+  // `cb` once that comes back true. Returns an unsubscribe function; a
+  // no-op subscription (never calls `cb`, still returns a safe-to-call
+  // unsubscribe) when chrome.permissions.onAdded isn't available in this
+  // context.
+  function onAllUrlsGranted(cb) {
+    if (!chrome.permissions || !chrome.permissions.onAdded ||
+        typeof chrome.permissions.onAdded.addListener !== 'function') {
+      return () => {};
+    }
+    const listener = () => {
+      Promise.resolve(hasAllUrls()).then((has) => { if (has) cb(); });
+    };
+    chrome.permissions.onAdded.addListener(listener);
+    return () => {
+      try { chrome.permissions.onAdded.removeListener(listener); } catch (e) { /* already gone */ }
+    };
+  }
+
   return {
     ALL_URLS_REASON,
     hasAllUrls,
-    requestAllUrls
+    requestAllUrls,
+    onAllUrlsGranted
   };
 });

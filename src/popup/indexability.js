@@ -22,6 +22,7 @@
   let sectionEl = null;
   let tab = null;
   let pageData = null;
+  let permsUnsub = null; // unsubscribe for the pending SBWPerms.onAllUrlsGranted() watch, or null
 
   // See link-check.js for why this exists: every mount() bumps `gen`, and
   // every async continuation (init/loadChain/onTraceClick) captures its own
@@ -105,6 +106,7 @@
 
     pageData = data;
     tab = getCurrentTab ? getCurrentTab() : null;
+    if (permsUnsub) { permsUnsub(); permsUnsub = null; }
     const my = ++gen;
     state = 'checking-permission';
     chain = null;
@@ -140,11 +142,26 @@
     if (!has) {
       state = 'no-permission';
       render();
+      watchForGrant(my);
       return;
     }
     state = 'ready';
     render();
     await loadChain(my);
+  }
+
+  // Re-renders out of the "Allow access" card the moment the permission is
+  // granted some other way while this popup is still open — e.g. from
+  // chrome://extensions in another tab, rather than only through this
+  // card's own Allow button (item 9, task-3 fix round 1).
+  function watchForGrant(my) {
+    if (permsUnsub) { permsUnsub(); permsUnsub = null; }
+    permsUnsub = SBWPerms.onAllUrlsGranted(() => {
+      if (my !== gen || state !== 'no-permission') return;
+      state = 'ready';
+      render();
+      loadChain(my);
+    });
   }
 
   async function loadChain(my) {

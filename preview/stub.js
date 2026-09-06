@@ -637,18 +637,9 @@ const SEO_FIXTURE = {
   },
   links: { internal: { count: 34 }, external: { count: 8 }, nofollow: 3 },
   images: { total: 14, missingAlt: { count: 3 } },
-  // Task 3: matches HREFLANG_FETCHED above — three alternates, none of them
-  // an x-default or self-reference, so hf.issues carries both of those
-  // set-level findings for the chips row to render something real.
-  hreflang: {
-    count: 3,
-    issues: ['Missing x-default hreflang', 'Missing self-referencing hreflang'],
-    entries: [
-      { lang: 'en', href: 'https://northsidedental.com/en/austin-dentist', url: 'https://northsidedental.com/en/austin-dentist', valid: true, issues: [] },
-      { lang: 'es', href: 'https://northsidedental.com/es/dentista-austin', url: 'https://northsidedental.com/es/dentista-austin', valid: true, issues: [] },
-      { lang: 'fr', href: 'https://northsidedental.com/fr/dentiste-austin', url: 'https://northsidedental.com/fr/dentiste-austin', valid: true, issues: [] }
-    ]
-  },
+  // hreflang is assigned below, after this literal, via a lazy getter (see
+  // HREFLANG_RAW_ENTRIES / the Object.defineProperty call) — not inline
+  // here.
   technical: { domElements: 1240, scripts: 12, stylesheets: 4, urlDepth: 2, loadTimeMs: 1840 },
   webVitals: { lcp: 2180, inp: 640, cls: 0.04, fcp: 1210, ttfb: 420 },
   textToHtml: { ratio: 18, textSize: 5310, htmlSize: 29500, status: 'good' },
@@ -659,6 +650,38 @@ const SEO_FIXTURE = {
     { name: 'Elementor', category: 'Builder', icon: '' }
   ]
 };
+
+// Task 3 fix round item 11: build SEO_FIXTURE.hreflang by running the REAL
+// SBWHreflang.validateSet() over a plain entry list, instead of a hand-typed
+// shadow of what validateSet is expected to produce. A hand-typed copy can
+// silently drift from the library (exactly the class of set-level-message
+// regression the Task 3 review caught in src/lib/hreflang.js) without this
+// fixture ever noticing — running the real function means a regression
+// shows up here too.
+//
+// Matches HREFLANG_FETCHED above — three alternates, none of them an
+// x-default or self-reference, so the computed issues carry both of those
+// set-level findings for the chips row to render something real.
+//
+// Defined as a lazy getter, not a plain property, because SBWHreflang isn't
+// loaded yet when this file's own top-level statements run: stub.js is the
+// very first <script>, in <head>, while src/lib/hreflang.js loads near the
+// end of <body> (see popup.html / preview/popup.html). Nothing reads
+// SEO_FIXTURE.hreflang until handleMessage() answers a real 'analyze' /
+// 'getCachedAnalysis' call, well after every body <script> has run — same
+// reasoning as chainFixture() above for SBWRedirects.
+const HREFLANG_RAW_ENTRIES = [
+  { lang: 'en', href: 'https://northsidedental.com/en/austin-dentist' },
+  { lang: 'es', href: 'https://northsidedental.com/es/dentista-austin' },
+  { lang: 'fr', href: 'https://northsidedental.com/fr/dentiste-austin' }
+];
+Object.defineProperty(SEO_FIXTURE, 'hreflang', {
+  enumerable: true,
+  get() {
+    const result = SBWHreflang.validateSet(HREFLANG_RAW_ENTRIES, SEO_FIXTURE.url);
+    return { count: HREFLANG_RAW_ENTRIES.length, issues: result.issues, entries: result.entries };
+  }
+});
 
 /* ---------- drive the requested state after the real code boots ---------- */
 

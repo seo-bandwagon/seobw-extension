@@ -3,7 +3,7 @@
 // the right origins shape and propagate the boolean result, and the reason
 // copy used verbatim by the UI card.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — the module attaches
 // itself to `globalThis.SBWPerms` rather than an ESM default export.
@@ -15,6 +15,7 @@ describe('SBWPerms namespace', () => {
     expect(SBWPerms).toBeTruthy();
     expect(typeof SBWPerms.hasAllUrls).toBe('function');
     expect(typeof SBWPerms.requestAllUrls).toBe('function');
+    expect(typeof SBWPerms.onAllUrlsGranted).toBe('function');
   });
 
   it('exposes a plain-language ALL_URLS_REASON covering both fetch and trace-in-a-tab', () => {
@@ -74,5 +75,65 @@ describe('requestAllUrls', () => {
   it('propagates false when the user declines', async () => {
     globalThis.chrome.permissions.request = () => Promise.resolve(false);
     expect(await SBWPerms.requestAllUrls()).toBe(false);
+  });
+});
+
+describe('onAllUrlsGranted', () => {
+  let listeners;
+  let has;
+
+  beforeEach(() => {
+    listeners = [];
+    has = false;
+    globalThis.chrome = {
+      permissions: {
+        contains: () => Promise.resolve(has),
+        request: () => Promise.resolve(false),
+        onAdded: {
+          addListener: (fn) => listeners.push(fn),
+          removeListener: (fn) => {
+            const i = listeners.indexOf(fn);
+            if (i !== -1) listeners.splice(i, 1);
+          }
+        }
+      }
+    };
+  });
+
+  it('registers a chrome.permissions.onAdded listener and calls cb once hasAllUrls() reports true', async () => {
+    const cb = vi.fn();
+    SBWPerms.onAllUrlsGranted(cb);
+    expect(listeners).toHaveLength(1);
+
+    has = true;
+    listeners[0]({ origins: ['<all_urls>'] });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call cb when the event fires but hasAllUrls() still reports false', async () => {
+    const cb = vi.fn();
+    SBWPerms.onAllUrlsGranted(cb);
+    listeners[0]({ origins: ['https://example.com/*'] });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('returns an unsubscribe function that removes the listener', () => {
+    const unsub = SBWPerms.onAllUrlsGranted(() => {});
+    expect(listeners).toHaveLength(1);
+    unsub();
+    expect(listeners).toHaveLength(0);
+  });
+
+  it('returns a safe no-op unsubscribe when chrome.permissions.onAdded is unavailable', () => {
+    globalThis.chrome = { permissions: { contains: () => Promise.resolve(false), request: () => Promise.resolve(false) } };
+    const cb = vi.fn();
+    const unsub = SBWPerms.onAllUrlsGranted(cb);
+    expect(typeof unsub).toBe('function');
+    expect(() => unsub()).not.toThrow();
+    expect(cb).not.toHaveBeenCalled();
   });
 });

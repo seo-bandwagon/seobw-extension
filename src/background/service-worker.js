@@ -668,9 +668,13 @@ const HREFLANG_GLOBAL = 4;
 
 // Reads at most `maxBytes` of `res`'s body via its ReadableStream reader,
 // then cancels the stream — the rest of a large response is never pulled
-// over the wire into memory. Falls back to res.text() (whole body) only if
-// this environment's Response has no streaming body reader (not expected in
-// a real Chrome service worker, kept for robustness).
+// over the wire into memory. The final chunk is sliced down to exactly the
+// remaining budget (rather than appending it whole) so `received` — and the
+// returned text — never overshoots `maxBytes`; without that, one oversized
+// read landing right at the cap could push the total past it. Falls back to
+// res.text() (whole body) only if this environment's Response has no
+// streaming body reader (not expected in a real Chrome service worker, kept
+// for robustness).
 async function readCappedBody(res, maxBytes) {
   if (!res.body || typeof res.body.getReader !== 'function') {
     try { return await res.text(); } catch (e) { return ''; }
@@ -683,8 +687,12 @@ async function readCappedBody(res, maxBytes) {
     while (received < maxBytes) {
       const { done, value } = await reader.read();
       if (done) break;
-      received += value.byteLength;
-      text += decoder.decode(value, { stream: true });
+      let chunk = value;
+      if (received + chunk.byteLength > maxBytes) {
+        chunk = chunk.slice(0, maxBytes - received);
+      }
+      received += chunk.byteLength;
+      text += decoder.decode(chunk, { stream: true });
     }
   } finally {
     try { reader.cancel(); } catch (e) { /* already drained/closed */ }
@@ -695,22 +703,45 @@ async function readCappedBody(res, maxBytes) {
 // One GET, capped/timed exactly like probeLink() above but reading (a
 // bounded amount of) the body, since this check needs the alternate's own
 // declared hreflang set, not just a status code.
+//
+// The fetch itself and the body read are in separate try/catches: if the
+// fetch throws (DNS failure, connection refused, the 10s abort firing before
+// headers ever arrive), there's genuinely no response — status 0 is honest.
+// But if headers DID arrive and only the body read aborts partway through
+// (a slow/large response hitting the same AbortController on a big page),
+// collapsing that to status 0 would misreport a real, known status as
+// unreachable. That case keeps the real `res.status` and flags
+// `bodyTruncated: true` instead — whatever <link>/Link-header entries were
+// found in the partial body are still used, just possibly incomplete.
 async function fetchHreflangAlternate(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HREFLANG_TIMEOUT_MS);
+  let res;
   try {
-    const res = await fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store', signal: controller.signal });
-    const html = await readCappedBody(res, HREFLANG_MAX_BYTES);
-    clearTimeout(timer);
-    const entries = SBWHreflang.extractHreflangFromHtml(html, res.url || url);
-    const linkHeaderValue = (typeof res.headers.get === 'function') ? res.headers.get('link') : null;
-    const linkHeaderEntries = (SBWRedirects.parseLinkHeader(linkHeaderValue) || [])
-      .filter(e => (e.rel || '').toLowerCase().split(/\s+/).includes('alternate') && e.hreflang);
-    return { url, status: res.status, entries, linkHeaderEntries };
+    res = await fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store', signal: controller.signal });
   } catch (e) {
     clearTimeout(timer);
-    return { url, status: 0, entries: [], linkHeaderEntries: [] };
+    return { url, finalUrl: url, status: 0, entries: [], linkHeaderEntries: [] };
   }
+
+  let html = '';
+  let bodyTruncated = false;
+  try {
+    html = await readCappedBody(res, HREFLANG_MAX_BYTES);
+  } catch (e) {
+    bodyTruncated = true;
+  }
+  clearTimeout(timer);
+
+  const finalUrl = res.url || url;
+  const entries = SBWHreflang.extractHreflangFromHtml(html, finalUrl);
+  const linkHeaderValue = (typeof res.headers.get === 'function') ? res.headers.get('link') : null;
+  const linkHeaderEntries = (SBWRedirects.parseLinkHeader(linkHeaderValue) || [])
+    .filter(e => (e.rel || '').toLowerCase().split(/\s+/).includes('alternate') && e.hreflang);
+
+  const result = { url, finalUrl, status: res.status, entries, linkHeaderEntries };
+  if (bodyTruncated) result.bodyTruncated = true;
+  return result;
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
