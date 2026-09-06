@@ -15,7 +15,7 @@ Instant on-page SEO analysis, local-SEO citation checks, and link-building revie
 - **Citations** — detects 40 curated local-SEO directories on the current page, extracts the page's NAP (JSON-LD → microdata → heuristic) and scores it against your business record, captures a proof screenshot, and files the citation to your account in one click.
 - **Link Building** — side panel view of your outlets (qualified prospects), pitches (draft/approved), and results (placements, funnel, spend), plus "Add current tab as outlet."
 - **SERP overlay** — on Google's own results pages, a stats bar under each organic result, one-click results/PAA export, and a location simulator for seeing what searchers in another metro are shown.
-- **Search Console helpers** — row-level "open in Google Search" actions and compare-mode math (percent change, sort/filter, copy as TSV) on Search Console's own Performance report.
+- **Search Console helpers** — row-level "open in Google Search" actions and compare-mode percent-change badges on Search Console's own Performance report.
 - **Tools** — a right-click "SEO Bandwagon tools" submenu (and matching popup row) for Google Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine, `site:` search, and sitemap.xml/robots.txt shortcuts.
 
 ## Installation
@@ -93,14 +93,11 @@ the math and controls Search Console itself doesn't show:
 - A **% change** column next to each metric's pair of columns in the table,
   coloured the same way, with the raw current/previous values in the cell's
   tooltip.
-- A small toolbar above the table: a metric picker, **Sort ▼ (biggest
-  drops)** / **Sort ▲ (biggest gains)** / **Original order** (reorders the
-  table rows, never removes any), filter chips for **All** / **Drops ≥ 25%**
-  / **Gains ≥ 25%** (hides non-matching rows, never deletes them), and
-  **Copy as TSV** to copy the visible rows to your clipboard.
-- A summary line under the table totalling the currently visible rows:
-  clicks and impressions summed, CTR and Average position weighted by
-  impressions, each with its own change and direction.
+- A small percent badge inside each row's Difference cell ("▲ 10%", "▼ 50%",
+  "▲ new" when the previous period was zero; colour follows the metric's
+  direction, so a lower position is green). Nothing else changes: no extra
+  columns, no toolbar, no sorting or filtering, no copies of the table — the
+  report looks the way Google draws it.
 
 Everything here is computed from the numbers already on the page. Nothing is
 sent anywhere — there is no network call involved at all.

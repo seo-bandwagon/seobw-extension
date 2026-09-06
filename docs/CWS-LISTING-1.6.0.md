@@ -86,7 +86,7 @@ SEARCH CONSOLE HELPERS
 On a Google Search Console Performance report's Queries tab, adds two
 one-click "open in Google Search" actions (a normal tab and a private
 window) to each query row, and — when comparing two date ranges — percent-
-change math, sort and filter controls, and a copy-as-TSV button, all
+change badges on the metric cards and inside each row's Difference cell, all
 computed from the numbers already on the page.
 
 TOOLS MENU
@@ -188,8 +188,8 @@ Rendering section. The consent text shown at request time, verbatim
 **Content-script match on Google Search Console** (`https://search.google.com/search-console/*`,
 pre-existing since 1.5.1) — adds two small "open in Google Search" icons to
 each row of a Performance report's Queries tab, and, when a report compares
-two date ranges, percent-change math, sort/filter controls and a
-copy-as-TSV button. Everything here reads the report table already
+two date ranges, small percent-change badges on the metric cards and inside
+each row's Difference cell. Everything here reads the report table already
 rendered on the page; nothing is fetched or sent anywhere.
 
 **Content-script match on Google's own results pages** (`https://www.google.com/search*`
