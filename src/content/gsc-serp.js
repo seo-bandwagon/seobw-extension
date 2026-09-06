@@ -104,6 +104,22 @@
 
   let scheduled = false;
   let injecting = false;
+  // A GSC re-render that lands in the microtask right after scan() would be
+  // indistinguishable from our own mutations by timing alone; the own-node
+  // filter runs FIRST so it is recognised as foreign, and if it arrives while
+  // `injecting` is still set we remember it and scan once more afterwards.
+  // Safe because apply() is a true no-op on unchanged state, so the extra
+  // scan terminates in one pass.
+  let missed = false;
+
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      runScan();
+    });
+  }
 
   function runScan() {
     injecting = true;
@@ -113,24 +129,24 @@
     // before flipping it back off on the next macrotask.
     setTimeout(() => {
       injecting = false;
+      if (missed) {
+        missed = false;
+        schedule();
+      }
     }, 0);
   }
 
   const observer = new MutationObserver((records) => {
-    if (injecting) return;
     if (records.length && records.every(recordIsOwnMutation)) return;
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
-      runScan();
-    });
+    if (injecting) {
+      missed = true;
+      return;
+    }
+    schedule();
   });
-  // Defensive only: the `__seoBwGscSerpLoaded` guard above means this never
-  // actually happens on a real page load, but disconnect any prior instance
-  // (e.g. a test harness re-importing this module) before observing again.
+  // Module-scoped; the test harness reaches it through the hook below only.
   if (window.__seoBwGscSerpObserver) window.__seoBwGscSerpObserver.disconnect();
-  window.__seoBwGscSerpObserver = observer;
+  Object.defineProperty(window, '__seoBwGscSerpObserver', { value: observer, configurable: true, enumerable: false, writable: true });
   observer.observe(document.documentElement, { childList: true, subtree: true });
   runScan();
 })();

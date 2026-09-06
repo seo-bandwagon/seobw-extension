@@ -523,7 +523,14 @@
   // boundary between the "s" and the "1", both word characters).
   function spacedText(el) {
     if (typeof document === 'undefined' || !document.createTreeWalker) return (el.textContent || '').trim();
-    const walker = document.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */, null);
+    // Skip text under our own injected nodes (badges) so a card's measured
+    // text — and the 200-char qualification guard — never includes them.
+    const walker = document.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */, {
+      acceptNode: (n) => {
+        const parent = n.parentElement;
+        return parent && parent.closest && parent.closest('[' + MARK + ']') ? 2 /* FILTER_REJECT */ : 1;
+      },
+    });
     const parts = [];
     let node = walker.nextNode();
     while (node) {
@@ -537,14 +544,6 @@
   // fix-1 item 2: normalize the typographic minus sign here too, and add a
   // boundary after the K/M/B/% suffix so it can't swallow the leading
   // letter of a following word (mirrors the parseMetric fix).
-  function extractNumberTokens(text) {
-    const normalized = String(text).replace(/−/g, '-');
-    const re = /<\s*\d[\d,.\s]*%|-?\d[\d,\s]*(?:\.\d+)?\s*(?:K|M|B|%)?(?![\w.])/gi;
-    const tokens = [];
-    let match;
-    while ((match = re.exec(normalized)) !== null) tokens.push(match[0]);
-    return tokens;
-  }
 
   // fix-1 item 2: a qualifying "numeric leaf" is a DOM text node whose whole
   // trimmed content is nothing but a parsable number -- no letters at all.
@@ -593,9 +592,12 @@
     const qualifies = candidates
       .filter((el) => !el.closest('table'))
       .map((el) => {
-        const text = (el.textContent || '').trim();
+        // Measure the card's OWN text (our injected badge excluded): a card
+        // near the cap would otherwise qualify once, grow past it after the
+        // badge is appended, and freeze at its first value.
+        const text = spacedText(el).trim();
         if (!text || text.length > 200) return null;
-        const kind = cardKindAtStart(spacedText(el));
+        const kind = cardKindAtStart(text);
         if (!kind) return null;
         const leaves = collectNumericLeaves(el);
         if (leaves.length < 2) return null;
@@ -838,6 +840,8 @@
     const chipsWrap = document.createElement('span');
     chipsWrap.className = 'seo-bw-cmp-chips';
     let activeFilter = persisted.filter || 'all';
+    // F5: an active sort survives a GSC re-render just like the filter does.
+    let activeSort = persisted.sort || null;
     const chipAll = makeChip('All', activeFilter === 'all');
     const chipDrops = makeChip('Drops ≥ 25%', activeFilter === 'drops');
     const chipGains = makeChip('Gains ≥ 25%', activeFilter === 'gains');
@@ -857,7 +861,7 @@
     strip.appendChild(copyBtn);
 
     function saveState() {
-      if (TOOL_STATE) TOOL_STATE.set(table, { metric: select.value, filter: activeFilter });
+      if (TOOL_STATE) TOOL_STATE.set(table, { metric: select.value, filter: activeFilter, sort: activeSort });
     }
 
     function visibleRowResults() {
@@ -921,6 +925,8 @@
       if (existing) existing.replaceWith(built); else parent.insertBefore(built, table);
       table.hidden = true;
       table.setAttribute('data-seo-bw-sorted-active', '1');
+      activeSort = dir;
+      saveState();
     }
 
     function showOriginal() {
@@ -929,11 +935,14 @@
       if (existing) existing.remove();
       table.hidden = false;
       table.removeAttribute('data-seo-bw-sorted-active');
+      activeSort = null;
+      saveState();
     }
 
     btnDrop.addEventListener('click', () => showSorted('drop'));
     btnGain.addEventListener('click', () => showSorted('gain'));
     btnOrig.addEventListener('click', showOriginal);
+    if (activeSort) showSorted(activeSort);
 
     copyBtn.addEventListener('click', () => {
       const results = visibleRowResults();
@@ -1020,6 +1029,12 @@
     // actually in compare mode.
     if (colsList.some((c) => c !== null)) {
       findMetricCards(scope, true).forEach(applyCardBadge);
+    } else {
+      // Compare mode ended (single-range report again): a badge left behind
+      // would describe numbers that no longer exist on the tile.
+      Array.prototype.slice
+        .call(scope.querySelectorAll('[' + MARK + '="badge"]'))
+        .forEach((n) => n.remove());
     }
     tables.forEach((t, i) => applyToTable(t, colsList[i]));
   }

@@ -122,4 +122,32 @@ describe('gsc-serp runner — mutation-observer self-mutation guard', () => {
 
     expect(applySpy).toHaveBeenCalled();
   });
+
+  it('F2: a foreign mutation that lands while the runner is still injecting is not lost', async () => {
+    buildReport();
+    const compare = window.SBWGscCompare;
+    const realApply = compare.apply.bind(compare);
+    let injectedForeignRow = false;
+    // On the second scan, GSC "re-renders" a new row synchronously while our
+    // own scan is running (inside the `injecting` window). Before the fix this
+    // mutation batch was dropped and the new row never got a % change cell.
+    const applySpy = vi.spyOn(compare, 'apply').mockImplementation((root) => {
+      realApply(root);
+      if (applySpy.mock.calls.length === 2 && !injectedForeignRow) {
+        injectedForeignRow = true;
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>new query</td><td>900</td><td>1,000</td><td>-100</td>';
+        document.querySelector('table:not([data-seo-bw-compare]) tbody').appendChild(tr);
+      }
+    });
+    await loadRunner();
+    // Trigger scan #2 with an external change.
+    document.querySelector('table:not([data-seo-bw-compare]) tbody td:nth-child(2)').textContent = '1,300';
+    for (let i = 0; i < 4; i++) { await frame(); await macrotask(); }
+    expect(injectedForeignRow).toBe(true);
+    const newRow = [...document.querySelectorAll('tbody tr')].find((tr) => /new query/.test(tr.textContent));
+    expect(newRow).toBeTruthy();
+    expect(newRow.querySelector('.seo-bw-cmp-cell')).not.toBeNull();
+    applySpy.mockRestore();
+  });
 });

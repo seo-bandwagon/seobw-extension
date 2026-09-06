@@ -382,3 +382,73 @@ describe('SBWGscCompare.apply — clearInjected survives sort-broken sibling ord
     expect(table.hidden).toBe(false);
   });
 });
+
+// Re-review findings F1 / F3 / F5 (fix round 1 follow-up).
+describe('SBWGscCompare.apply — re-review regressions', () => {
+  function compareReport() {
+    document.body.innerHTML = `
+      <div id="cards">
+        <div role="button">Total clicks<div>1,230</div><div>vs</div><div>1,000</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Top queries</th><th>Clicks Last 3 months</th><th>Clicks Previous 3 months</th><th>Difference</th></tr></thead>
+        <tbody>
+          <tr><td>roofing repair denver</td><td>1,230</td><td>1,000</td><td>+230</td></tr>
+          <tr><td>plumber tacoma</td><td>500</td><td>1,000</td><td>-500</td></tr>
+        </tbody>
+      </table>`;
+    return document.body;
+  }
+
+  it('F1: removes card badges when the report leaves compare mode', () => {
+    const root = compareReport();
+    C.apply(root);
+    expect(root.querySelectorAll('.seo-bw-cmp-badge').length).toBe(1);
+    // GSC re-renders the same table as a single-range report.
+    const ths = root.querySelectorAll('thead th');
+    ths[1].textContent = 'Clicks';
+    ths[2].remove();
+    ths[3].remove();
+    root.querySelectorAll('tbody tr').forEach((tr) => { tr.children[3].remove(); tr.children[2].remove(); });
+    C.apply(root);
+    expect(root.querySelectorAll('.seo-bw-cmp-badge').length).toBe(0);
+  });
+
+  it('F3: a card near the length cap keeps refreshing after its badge is appended', () => {
+    const root = compareReport();
+    const card = root.querySelector('[role="button"]');
+    const filler = document.createElement('div');
+    filler.textContent = 'x'.repeat(160); // label + numbers + filler ≈ 190 chars of own text
+    card.insertBefore(filler, card.children[0]);
+    C.apply(root);
+    const badge1 = card.querySelector('.seo-bw-cmp-badge');
+    expect(badge1).not.toBeNull();
+    const first = badge1.textContent;
+    card.querySelectorAll('div')[1].textContent = '2,000'; // current value changes
+    C.apply(root);
+    const badge2 = card.querySelector('.seo-bw-cmp-badge');
+    expect(badge2).not.toBeNull();
+    expect(badge2.textContent).not.toBe(first);
+    expect(badge2.textContent).toContain('+1,000');
+  });
+
+  it('F5: an active sort survives a rebuild caused by a GSC re-render', () => {
+    const root = compareReport();
+    C.apply(root);
+    const table = root.querySelector('table:not([data-seo-bw-compare])');
+    const strip = root.querySelector('.seo-bw-cmp-tools');
+    const btnDrop = [...strip.querySelectorAll('button')].find((b) => /biggest drops/.test(b.textContent));
+    btnDrop.click();
+    expect(root.querySelector('[data-seo-bw-compare="sorted"]')).not.toBeNull();
+    expect(table.hidden).toBe(true);
+    // External change → rebuild
+    table.querySelector('tbody td:nth-child(2)').textContent = '1,300';
+    C.apply(root);
+    expect(root.querySelector('[data-seo-bw-compare="sorted"]')).not.toBeNull();
+    expect(table.hidden).toBe(true);
+    const btnOrig = [...root.querySelector('.seo-bw-cmp-tools').querySelectorAll('button')].find((b) => /Original order/.test(b.textContent));
+    btnOrig.click();
+    expect(root.querySelector('[data-seo-bw-compare="sorted"]')).toBeNull();
+    expect(table.hidden).toBe(false);
+  });
+});
