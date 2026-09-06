@@ -16,6 +16,7 @@
 
   const inject = window.SBWGscInject;
   if (!inject) return;
+  const compare = window.SBWGscCompare;
 
   let hinted = false;
   function hint(text) {
@@ -50,7 +51,7 @@
     if (document.getElementById('seo-bw-gsc-styles')) return;
     const style = document.createElement('style');
     style.id = 'seo-bw-gsc-styles';
-    style.textContent = inject.CSS;
+    style.textContent = inject.CSS + (compare ? compare.CSS : '');
     (document.head || document.documentElement).appendChild(style);
   }
 
@@ -65,6 +66,7 @@
     }
     ensureStyles();
     inject.injectAll(document, handlers);
+    if (compare) compare.apply(document);
   }
 
   let scheduled = false;

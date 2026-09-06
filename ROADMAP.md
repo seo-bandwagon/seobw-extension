@@ -114,6 +114,15 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   `src/content/gsc-serp.js`. Replaces the 1.4/1.5 "Search in Incognito" injector,
   which only fired when GSC's own hover icons were already in the DOM and so
   never appeared on a freshly loaded report.
+- **GSC compare-mode math (1.5.1)** — when a Performance report compares two
+  date ranges, adds percent change to the metric summary cards and a "%
+  change" table column (direction-aware colour; a lower Average position
+  counts as good), CTR expressed in percentage points, a metric-picker +
+  sort/filter/copy-as-TSV toolbar above the table, and a visible-row totals
+  line below it. `src/lib/gsc-compare.js`, loaded after `gsc-inject.js` in
+  `manifest.json`. Pure math + detection are unit-tested against fixture
+  tables (no live GSC DOM available); everything computes client-side and
+  nothing is sent anywhere.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real

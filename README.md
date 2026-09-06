@@ -51,7 +51,9 @@ The Advanced API URL field (Options page) is an allowlist, not "any URL": `seoba
 
 There is no `identity` permission and no OAuth — connecting an account is just an API key.
 
-## Search Console row actions
+## Search Console helpers
+
+### Row actions
 
 On any Search Console **Performance** report (Queries or Pages), every data row
 gets two small icons after the query/URL: **Open in Google Search** (new tab)
@@ -63,6 +65,30 @@ Private windows need the browser's permission: turn on **Allow in Private**
 (Brave) or **Allow in Incognito** (Chrome) for SEO Bandwagon on the
 extensions page. Until then the private icon opens a normal window and shows a
 one-time hint saying so.
+
+### Compare mode
+
+When a Performance report is comparing two date ranges, the extension adds
+the math and controls Search Console itself doesn't show:
+
+- A small badge on each metric summary card with the percent change
+  (percentage points for CTR) and colour — green when the metric moved in
+  the good direction, red when it didn't (a lower **Average position** counts
+  as good).
+- A **% change** column next to each metric's pair of columns in the table,
+  coloured the same way, with the raw current/previous values in the cell's
+  tooltip.
+- A small toolbar above the table: a metric picker, **Sort ▼ (biggest
+  drops)** / **Sort ▲ (biggest gains)** / **Original order** (reorders the
+  table rows, never removes any), filter chips for **All** / **Drops ≥ 25%**
+  / **Gains ≥ 25%** (hides non-matching rows, never deletes them), and
+  **Copy as TSV** to copy the visible rows to your clipboard.
+- A summary line under the table totalling the currently visible rows:
+  clicks and impressions summed, CTR and Average position weighted by
+  impressions, each with its own change and direction.
+
+Everything here is computed from the numbers already on the page. Nothing is
+sent anywhere — there is no network call involved at all.
 
 ## Privacy
 
@@ -116,7 +142,8 @@ src/
   content/                # Page analyzer + GSC Search Console helper
   history/                # Capture history page (search, export, sync, retry)
   lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
-                           # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js
+                           # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
+                           # gsc-inject.js + gsc-compare.js (Search Console helpers)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
   overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
   popup/                  # Popup UI: SEO Analysis tab + Citations tab
