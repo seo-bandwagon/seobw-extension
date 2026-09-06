@@ -54,7 +54,7 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `sidePanel` | The Link Building and Citations side panel |
 | `tabs` | Read the active tab's URL to open dashboard links in new tabs, **and** — via `chrome.tabs.onUpdated` in the background service worker — read every tab's URL as it finishes loading to match it against a bundled list of citation directories and paint the "DIR" toolbar badge. That match is local hostname comparison only; the URL is never sent anywhere for it |
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
-| `webRequest` | Observe the current tab's own redirects, status codes and response headers (Indexability section) — only after you've granted `<all_urls>` below. Fires on nothing without that permission, and never reads response bodies |
+| `webRequest` | Observes top-level navigations in every tab (a fixed listener filter, `types: ['main_frame']`) — not just the one you're looking at — buffering the last 25 redirect/status/response-header events per tab in `chrome.storage.session`; only the buffer for the tab you currently have the popup open on is ever read, by the Indexability panel. Cleared when that tab closes, the browser restarts, or the optional permission below is revoked. Fires on nothing without `<all_urls>` below, and never reads a response body |
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
 | `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
@@ -70,8 +70,8 @@ There is no `identity` permission and no OAuth — connecting an account is just
 
 ### Row actions
 
-On any Search Console **Performance** report (Queries or Pages), every data row
-gets two small icons after the query/URL: **Open in Google Search** (new tab)
+On a Search Console **Performance** report's **Queries** tab only, every data
+row gets two small icons after the query: **Open in Google Search** (new tab)
 and **Open in Google Search (private window)**. The icons are dim until you
 hover the row. Nothing is sent anywhere — the extension only opens
 `https://www.google.com/search?q=<row text>`.
@@ -221,10 +221,10 @@ Page analysis runs entirely in your browser. **Nothing leaves your device unless
 **A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 
 - the page URL and the capture timestamp
-- the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD, Microdata, RDFa) found on the page — types and property NAMES only (the missing-required/recommended chips and the "Eligible for" rollup need those); property VALUES are stripped before this is saved or synced, so a customer's name, price, or review text sitting in a page's own JSON-LD never leaves your device
+- the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD, Microdata, RDFa) found on the page — types and property NAMES only (the missing-required/recommended chips and the "Eligible for" rollup need those); property VALUES are stripped before this is saved or synced, so a customer's name, price, or review text sitting in a page's own JSON-LD never leaves your device. This includes the raw JSON-LD blocks kept for the score calculator's own "has schema" check: each one — and each member of a `@graph`, one level down — is reduced to its type and its sorted top-level property names before it's saved or synced; structured-data blocks are reduced to their type and property names, never their values
 - headings and their text (H1–H6 and ARIA headings)
-- link, image and media audits (internal/external link counts and anchor text, missing alt text, lazy-loaded images, iframes, media types, favicons/feeds)
-- as of this fix round, the CSV-export-only detail lists stay on this device only and are never part of a synced capture: the headings outline (level/text/order/ARIA), the full Images and Links CSV lists, and the up-to-50 nofollow/UGC/sponsored anchor list shown in the popup — only the counts above (link/image totals, nofollow/UGC/sponsored counts) sync
+- link, image and media audits: internal/external link counts and up to 100 URLs each, up to 50 anchor texts with their href (`links.anchors`), missing-alt image count and up to 20 of those image srcs (`images.missingAlt.srcs`), up to 50 alt texts from images that have them (`images.altTexts`), lazy-loaded images, iframes, media types, favicons/feeds
+- as of this fix round, four CSV-export-only detail lists stay on this device only and are never part of a synced capture: the headings outline (level/text/order/ARIA), the full Images and Links CSV lists (`images.list`, `links.list`), and the up-to-50 nofollow/UGC/sponsored anchor list shown in the popup (`links.nofollowAnchors`) — only the link/image totals and nofollow/UGC/sponsored counts sync from those. This is separate from the older link/image fields listed just above (anchor text, internal/external URLs, missing-alt image srcs, alt texts), which do sync — they predate this fix round and aren't affected by it
 - content statistics: word/character/sentence counts, and the page's top words and phrases
 - page technical facts: DOM element/script/stylesheet counts, load time, and URL depth
 - detected technologies (CMS, analytics, frameworks, etc.)
@@ -234,7 +234,7 @@ Page analysis runs entirely in your browser. **Nothing leaves your device unless
 - a SHA-256 hash of the page's content, and the computed SEO score/grade
 - the extension version and your browser's user-agent string
 
-None of this is trimmed or summarized before sending — it's the same analysis object the popup renders from, sent unmodified. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
+Apart from the fields listed above as stripped, nothing else is trimmed or summarized before sending — it's the same analysis object the popup renders from. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
 
 **Upgrading from before 1.5.0?** Captures saved by an older version are never auto-uploaded on upgrade — they're marked "skipped" locally, and stay that way until you click "Include them in sync" on the History page, which is the only thing that opts them into the normal sync/retry flow described below.
 

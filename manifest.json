@@ -90,15 +90,5 @@
       },
       "description": "Analyze current page"
     }
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "src/history/history.html"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  }
 }

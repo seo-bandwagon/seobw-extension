@@ -83,10 +83,11 @@ sent anywhere for this — never your search query, never a page title or
 snippet.
 
 SEARCH CONSOLE HELPERS
-On a Google Search Console Performance report, adds a one-click "open in
-Google Search" action to each query/page row, and — when comparing two date
-ranges — percent-change math, sort and filter controls, and a copy-as-TSV
-button, all computed from the numbers already on the page.
+On a Google Search Console Performance report's Queries tab, adds two
+one-click "open in Google Search" actions (a normal tab and a private
+window) to each query row, and — when comparing two date ranges — percent-
+change math, sort and filter controls, and a copy-as-TSV button, all
+computed from the numbers already on the page.
 
 TOOLS MENU
 A right-click menu and a matching row in the popup for opening the current
@@ -95,7 +96,9 @@ Results Test, and the Wayback Machine, plus a domain-scoped site: search and
 shortcuts to the page's sitemap.xml and robots.txt.
 
 EXPORTS
-Every section above exports its results as a CSV file you save yourself.
+Link Check, Indexability, Hreflang, Rendering, Structured Data, the results
+overlay, and the headings/images/links tables each export a CSV you save
+yourself; the Search Console helpers copy TSV to the clipboard.
 
 ACCOUNT SYNC (OPTIONAL)
 Connect a free SEO Bandwagon account to sync your page analyses, check
@@ -137,8 +140,12 @@ string comparison only; the URL itself is never sent anywhere for it.
 that failed to sync to your account. Does nothing when no account is
 connected.
 
-**`webRequest`** — observes the current tab's own redirects, response status
-codes, and a fixed set of response headers, for the Indexability panel. It is
+**`webRequest`** — observes top-level navigations in every open tab (a fixed
+listener filter matching main-frame requests only), buffering each tab's last
+25 redirect/status/response-header events in `chrome.storage.session`. Only
+the buffer for the tab you currently have the popup open on is ever read —
+by the Indexability panel — and it's cleared when that tab closes, the
+browser restarts, or the optional permission below is revoked. It is
 observe-only: it never blocks, redirects, or modifies a request or response.
 It fires on nothing at all unless you've separately granted the optional
 `<all_urls>` permission below, and it never reads a response body.
@@ -178,12 +185,20 @@ Rendering section. The consent text shown at request time, verbatim
 > switch it off or close the tab. Nothing it sees on those sites is sent to
 > SEO Bandwagon. You can revoke this at any time from the extensions page.
 
+**Content-script match on Google Search Console** (`https://search.google.com/search-console/*`,
+pre-existing since 1.5.1) — adds two small "open in Google Search" icons to
+each row of a Performance report's Queries tab, and, when a report compares
+two date ranges, percent-change math, sort/filter controls and a
+copy-as-TSV button. Everything here reads the report table already
+rendered on the page; nothing is fetched or sent anywhere.
+
 **Content-script match on Google's own results pages** (`https://www.google.com/search*`
 and the same path on nine other Google TLDs) — this is a declared
 content-script match, not a host permission, so it is granted at install like
 any other content script rather than requested at first use. We recognize
-this widens the install-time permission warning (roughly "Read and change
-your data on www.google.com and 9 other sites"), and justify it plainly: the
+this widens the install-time permission warning to cover 10 Google search
+hosts, on top of the search.google.com and seobandwagon.com access the
+extension already has, and justify it plainly: the
 script only reads the organic results already rendered on the page, sends
 nothing but the bare domain names of those results to our own API (never the
 search query, never a title or snippet), and is additive-only — it appends a
@@ -192,33 +207,63 @@ any existing content, including ads. Nothing is fetched from Google by the
 extension itself; the stats lookup goes through our own background service
 worker to our own API.
 
+**`web_accessible_resources`** — not present in this manifest. `src/history/
+history.html` (the capture-history page) is only ever opened by
+`chrome.tabs.create(chrome.runtime.getURL(...))` from the extension's own
+Options page (`src/options/options.js`) — a full-tab navigation between two
+of the extension's own pages, which Chrome always allows regardless of this
+key. No web page and no content script references it, so declaring it
+web-accessible would only widen exposure for no purpose; it has been
+removed rather than narrowed.
+
+**`externally_connectable`** (`https://seobandwagon.com/*`) — lets the
+"Connect Chrome extension" button on the seobandwagon.com dashboard message
+the extension directly (`chrome.runtime.onMessageExternal`) to hand it a
+freshly minted API key, which the extension then verifies the same way a
+key pasted into Options is verified. No other site can message the
+extension this way.
+
 ---
 
 ## 4. Single-purpose statement
 
-SEO Bandwagon analyzes the on-page SEO signals of the page you're viewing —
-scoring, links, structured data, indexability, and related checks — and
-optionally syncs that analysis, along with local-SEO citation and
-link-building data, to your own SEO Bandwagon account.
+SEO Bandwagon analyses the SEO signals of the page you are viewing and syncs
+that analysis — and the local-SEO citation and outreach records derived from
+it — to the user's own SEO Bandwagon account.
 
 ---
 
 ## 5. Data-use disclosures (Privacy tab checkboxes)
 
-**What is collected** — Website content: the URL and extracted on-page
-metadata (title, meta tags, headings, links, images, structured-data type
-and property names, technical facts) of the specific pages you choose to
-analyze, sent only if you've connected an account and turned on the
-data-collection setting. On Google's own search results pages, the bare
-domain names of the organic results currently shown (never the search
-query).
+Chrome's Privacy tab asks for a yes/no against nine data categories. Ours,
+with the reasoning behind each:
 
-**What is NOT collected** — No personal communications (email, messages,
-chats). No financial or payment information. No health information. No
-authentication credentials beyond your own SEO Bandwagon API key, which you
-paste in yourself. No location data. No browsing history beyond the specific
-page you click "Analyze" on, or the search-results page a domain lookup runs
-on.
+- **Personally identifiable information — No.** A synced capture carries the
+  page URL and its extracted metadata — structured-data blocks are reduced to
+  their type and property names, never values — not anything identifying the
+  person using the extension. The user's own SEO Bandwagon account email is
+  held server-side by seobandwagon.com; the extension never collects it.
+- **Health information — No.**
+- **Financial and payment information — No.**
+- **Authentication information — Yes.** The user's SEO Bandwagon API key is
+  stored locally (`chrome.storage`) and sent as a Bearer header to
+  `seobandwagon.com` only — never to any other host, never to a page being
+  analyzed.
+- **Personal communications — No.**
+- **Location — No.**
+- **Web history — Yes.** Each synced capture carries the URL and timestamp of
+  a page the user chose to analyze. Separately, the results-overlay lookup
+  sends the bare domain names of search results currently displayed on a
+  Google results page — domains shown, not a browsing history and not pages
+  visited.
+- **User activity — No.**
+- **Website content — Yes.** Extracted metadata of the pages a user chooses
+  to analyze (title, meta tags, headings, links, images, structured-data type
+  and property names, technical facts).
+
+A user with the data-collection setting off sends nothing but the bare-domain
+overlay lookup described above; a signed-out user (no API key configured)
+sends nothing at all.
 
 **Certifications** — This data is not sold to third parties. It is not used
 for purposes unrelated to the extension's stated SEO-analysis and
@@ -257,8 +302,10 @@ No account is required to exercise every permission-bearing feature below.
   Check," click "Check N links." Click "Allow access to check other sites"
   first if prompted — this is the optional `<all_urls>` grant.
 - **Indexability**: open the popup on any page — the panel populates as soon
-  as the optional permission above is granted. To test "Trace another URL,"
-  type any URL into the trace field and submit.
+  as the optional permission above is granted, then reload the page (or
+  click "Reload to capture") — HTTP signals are only recorded on a
+  navigation. To test "Trace another URL," type any URL into the trace field
+  and submit.
 - **Hreflang**: open the popup on a page with `hreflang` tags (or any page —
   the tag table renders even with zero tags). "Check return tags" needs the
   same optional permission.

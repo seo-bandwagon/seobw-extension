@@ -336,10 +336,10 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   page controls. `src/lib/sync-state.js`, `src/history/`.
 - **Options page** — connect/verify/disconnect a key, dashboard links, Advanced
   local-dev endpoint. `src/options/`.
-- **GSC row actions (1.5.1) + compare mode (1.5.2)** — two icons on every Search
-  Console Performance row (open in Google Search, and in a private window), plus
-  percent-change math, sort/filter and copy-as-TSV when a report compares two
-  date ranges. `src/lib/gsc-inject.js`, `src/lib/gsc-compare.js`, `src/content/gsc-serp.js`.
+- **GSC row actions (1.5.1) + compare mode (1.5.2)** — two icons on every row of
+  a Search Console Performance report's Queries tab (open in Google Search, and
+  in a private window), plus percent-change math, sort/filter and copy-as-TSV
+  when a report compares two date ranges. `src/lib/gsc-inject.js`, `src/lib/gsc-compare.js`, `src/content/gsc-serp.js`.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real

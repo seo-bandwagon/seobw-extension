@@ -342,8 +342,8 @@ async function checkShellDrift(realUrl, previewUrl, label) {
 // synchronous XHR so the preview can never silently drift from the shipped
 // version. This re-checks that from the outside: parse manifest.json the
 // same way a reviewer would, load the popup fixture, and diff its rendered
-// footer text against it — catches a bump to one file without the other
-// (or a build that ships a stale manifest.json next to fresh code).
+// footer text against it — catches a broken `stampVersion()` or a missing
+// `#versionTag` element in the popup fixture.
 async function checkReleaseVersion() {
   const manifest = await (await fetch('../manifest.json')).json();
   const expected = 'v' + manifest.version;

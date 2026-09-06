@@ -22,6 +22,18 @@
 // loaded. This module composes that existing behavior with the four new
 // omissions rather than replacing it.
 //
+// meta.schema (fix round 2, item 1) is a FIFTH field in the same class,
+// missed by Task 5's fix round because it isn't produced by SBWSchema at
+// all: lib/dom-extraction.js's extractMeta() parses every JSON-LD <script>
+// block on the page RAW — full property values included — for the score
+// calculator's own "does this page have schema at all" check. The site
+// never reads it (only `schemaValidation` is consumed —
+// src/app/api/v1/captures/route.ts in the seobandwagon.com repo), so each
+// block is reduced to `{ '@type', keys }` — its type(s) as declared and its
+// sorted top-level property NAMES, never a value, never a nested object.
+// A `@graph` array gets the same treatment one level down, under `graph`.
+//
+
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWCaptureStrip` when loaded as a classic <script>, and
 // exports via CommonJS when loaded by Vitest / Node.
@@ -40,6 +52,35 @@
     const copy = Object.assign({}, obj);
     keys.forEach(function (k) { delete copy[k]; });
     return copy;
+  }
+
+  function keysOf(obj) {
+    return Object.keys(obj).sort();
+  }
+
+  // { '@type', keys } for one JSON-LD node — never the node's own values,
+  // never a nested object. `@type` is passed through as found (a string or
+  // an array of strings): it's the schema.org vocabulary type, not
+  // page-authored content, same reasoning as keeping counts elsewhere in
+  // this file.
+  function reduceNode(node) {
+    if (!node || typeof node !== 'object') return node;
+    const out = { keys: keysOf(node) };
+    if (Object.prototype.hasOwnProperty.call(node, '@type')) {
+      out['@type'] = node['@type'];
+    }
+    return out;
+  }
+
+  function reduceSchemaBlock(block) {
+    if (Array.isArray(block)) return block.map(reduceSchemaBlock);
+    if (!block || typeof block !== 'object') return block;
+
+    const out = reduceNode(block);
+    if (Array.isArray(block['@graph'])) {
+      out.graph = block['@graph'].map(reduceNode);
+    }
+    return out;
   }
 
   function strip(data) {
@@ -68,6 +109,12 @@
 
     if (out.images && out.images.list) {
       out = Object.assign({}, out, { images: omit(out.images, ['list']) });
+    }
+
+    if (out.meta && Array.isArray(out.meta.schema) && out.meta.schema.length) {
+      out = Object.assign({}, out, {
+        meta: Object.assign({}, out.meta, { schema: out.meta.schema.map(reduceSchemaBlock) })
+      });
     }
 
     return out;

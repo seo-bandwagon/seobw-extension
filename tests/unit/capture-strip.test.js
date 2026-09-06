@@ -107,4 +107,89 @@ describe('strip', () => {
       }
     });
   });
+
+  // fix round 2, item 1 — `meta.schema` (lib/dom-extraction.js's extractMeta())
+  // is the RAW parsed JSON-LD blocks, values included, kept for the score
+  // calculator's own "has schema" check. Task 5's stripForStorage only ever
+  // touched `schemaValidation` (SBWSchema's own parsed/validated items); this
+  // block was never reduced and its property values — a plumber's phone
+  // number, a business's address, a review's text — synced verbatim.
+  describe('meta.schema (fix round 2, item 1)', () => {
+    it('reduces a schema block to its @type and sorted top-level property names, dropping every value', () => {
+      const data = {
+        url: 'https://example.com/',
+        meta: {
+          schema: [
+            {
+              '@context': 'https://schema.org',
+              '@type': 'Plumber',
+              name: 'Acme Plumbing',
+              telephone: '206-555-0100',
+              address: { '@type': 'PostalAddress', streetAddress: '1 Main St' },
+              aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.8', reviewCount: '12' }
+            }
+          ]
+        }
+      };
+
+      const out = SBWCaptureStrip.strip(data);
+
+      expect(out.meta.schema).toEqual([
+        { '@type': 'Plumber', keys: ['@context', '@type', 'address', 'aggregateRating', 'name', 'telephone'] }
+      ]);
+      expect(JSON.stringify(out.meta.schema)).not.toContain('206-555');
+    });
+
+    it('flattens @graph members to { @type, keys } under a graph array, one level deep', () => {
+      const data = {
+        meta: {
+          schema: [
+            {
+              '@context': 'https://schema.org',
+              '@graph': [
+                { '@type': 'Organization', name: 'Acme', telephone: '206-555-0100' },
+                { '@type': 'WebSite', url: 'https://example.com/' }
+              ]
+            }
+          ]
+        }
+      };
+
+      const out = SBWCaptureStrip.strip(data);
+
+      expect(out.meta.schema[0]['@type']).toBeUndefined();
+      expect(out.meta.schema[0].keys).toEqual(['@context', '@graph']);
+      expect(out.meta.schema[0].graph).toEqual([
+        { '@type': 'Organization', keys: ['@type', 'name', 'telephone'] },
+        { '@type': 'WebSite', keys: ['@type', 'url'] }
+      ]);
+      expect(JSON.stringify(out.meta.schema)).not.toContain('206-555');
+    });
+
+    it('preserves an array-valued @type as-is (a type name, not page-authored content)', () => {
+      const data = { meta: { schema: [{ '@type': ['LocalBusiness', 'Plumber'], name: 'Acme' }] } };
+      const out = SBWCaptureStrip.strip(data);
+      expect(out.meta.schema).toEqual([{ '@type': ['LocalBusiness', 'Plumber'], keys: ['@type', 'name'] }]);
+    });
+
+    it('leaves other meta fields untouched', () => {
+      const data = { meta: { title: { text: 'Hi', length: 2 }, schema: [{ '@type': 'Article', headline: 'h' }] } };
+      const out = SBWCaptureStrip.strip(data);
+      expect(out.meta.title).toEqual({ text: 'Hi', length: 2 });
+    });
+
+    it('passes through unchanged when meta.schema is absent or empty', () => {
+      const withoutSchema = { meta: { title: { text: 'x', length: 1 } } };
+      expect(SBWCaptureStrip.strip(withoutSchema)).toEqual(withoutSchema);
+
+      const emptySchema = { meta: { schema: [] } };
+      expect(SBWCaptureStrip.strip(emptySchema)).toEqual(emptySchema);
+    });
+
+    it('does not mutate the input', () => {
+      const data = { meta: { schema: [{ '@type': 'Article', headline: 'h' }] } };
+      SBWCaptureStrip.strip(data);
+      expect(data.meta.schema[0].headline).toBe('h');
+    });
+  });
 });
