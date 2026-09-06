@@ -35,6 +35,7 @@
   let traceState = 'idle'; // 'idle' | 'loading' | 'done' | 'error'
   let traceResult = null;
   let traceError = null;
+  let traceInputValue = ''; // survives render()'s innerHTML rebuild — see render()
 
   function popup() {
     return globalThis.SBWPopup || {};
@@ -44,7 +45,21 @@
     return (popup().esc || (x => String(x)))(s);
   }
 
+  // Escapes both label and value — the safe default for the plain-text
+  // rows this panel renders (Cache-Control, Content-Type, HSTS, CSP).
   function dataRow(label, value, cls) {
+    return `<div class="data-row">
+      <span class="data-label">${esc(label)}</span>
+      <span class="data-value${cls ? ' ' + cls : ''}">${esc(value)}</span>
+    </div>`;
+  }
+
+  // Raw variant — only for a call site that intentionally passes pre-built
+  // markup (e.g. an inline chip/badge) rather than plain text. Nothing in
+  // this file currently needs it; kept alongside dataRow() so a future row
+  // that does can reach for the right one instead of losing the escaping
+  // dataRow() now does by default.
+  function dataRowHtml(label, value, cls) {
     return `<div class="data-row">
       <span class="data-label">${esc(label)}</span>
       <span class="data-value${cls ? ' ' + cls : ''}">${value}</span>
@@ -97,6 +112,7 @@
     traceState = 'idle';
     traceResult = null;
     traceError = null;
+    traceInputValue = '';
 
     const holder = document.createElement('div');
     holder.innerHTML = section('indexability', 'INDEXABILITY', '<span class="ix-badge-slot"></span>', '<div class="ix-body"></div>');
@@ -135,8 +151,27 @@
     if (!tab || !tab.id) { render(); return; }
     const res = await sendToWorker({ action: 'getRedirectChain', tabId: tab.id });
     if (my !== gen) return;
-    chain = (res && res.chain) || null;
-    events = (res && res.events) || [];
+    let nextChain = (res && res.chain) || null;
+    let nextEvents = (res && res.events) || [];
+
+    // Staleness guard (closes M-9): a tab can navigate away and back, or the
+    // popup can be reopened on a tab whose last-captured chain belongs to a
+    // page it no longer shows (e.g. the worker had nothing fresh yet and
+    // this is left over from a previous load). If the chain's own final URL
+    // doesn't match what the tab is actually showing right now, it describes
+    // a different page — treat it as if nothing had been captured rather
+    // than show a verdict for the wrong URL.
+    if (nextChain && nextChain.finalUrl && tab.url) {
+      const finalNorm = SBWRedirects.normalizeUrlForCompare(nextChain.finalUrl);
+      const tabNorm = SBWRedirects.normalizeUrlForCompare(tab.url);
+      if (finalNorm !== tabNorm) {
+        nextChain = null;
+        nextEvents = [];
+      }
+    }
+
+    chain = nextChain;
+    events = nextEvents;
     render();
   }
 
@@ -171,10 +206,22 @@
 
   function render() {
     if (!sectionEl) return;
+    // renderBody() rebuilds .ix-body's innerHTML from scratch on every call
+    // (state changes, trace results, a reload finishing) — that would wipe
+    // out whatever the user had typed into "Trace another URL" mid-render
+    // (e.g. loadChain() resolving right after they start typing) unless the
+    // value is captured here and reapplied to the freshly built input below.
+    const existingInput = sectionEl.querySelector('#ixTraceInput');
+    if (existingInput) traceInputValue = existingInput.value;
+
     const bodyEl = sectionEl.querySelector('.ix-body');
     if (bodyEl) bodyEl.innerHTML = renderBody();
     const badgeSlot = sectionEl.querySelector('.ix-badge-slot');
     if (badgeSlot) badgeSlot.outerHTML = renderBadgeSlot();
+
+    const newInput = sectionEl.querySelector('#ixTraceInput');
+    if (newInput && traceInputValue) newInput.value = traceInputValue;
+
     wire();
   }
 
@@ -182,8 +229,16 @@
     const { badge } = popup();
     let inner = '';
     if (state === 'ready') {
-      const { result } = computeVerdict();
-      inner = result.indexable ? badge('INDEXABLE', 'b-ok') : badge('NOT INDEXABLE', 'b-err');
+      // No false INDEXABLE (fix round item 5): with nothing captured yet,
+      // indexability() would only be judging DOM signals — that's not the
+      // same claim as "this page is indexable," so the badge stays neutral
+      // rather than green.
+      if (isEmptyChain(chain)) {
+        inner = badge('UNKNOWN');
+      } else {
+        const { result } = computeVerdict();
+        inner = result.indexable ? badge('INDEXABLE', 'b-ok') : badge('NOT INDEXABLE', 'b-err');
+      }
     }
     return `<span class="ix-badge-slot">${inner}</span>`;
   }
@@ -208,13 +263,14 @@
   }
 
   function renderReadyBody() {
+    const chainEmpty = isEmptyChain(chain);
     const { result, headers, canonicalHeaderEntry } = computeVerdict();
     return `
-      ${renderVerdict(result)}
+      ${chainEmpty ? renderUnknownVerdict() : renderVerdict(result)}
       <div class="ix-section-label">Redirect chain</div>
       ${renderChainBlock()}
       <div class="ix-section-label">Response headers</div>
-      ${renderHeadersBlock(headers, canonicalHeaderEntry)}
+      ${renderHeadersBlock(headers, canonicalHeaderEntry, chainEmpty)}
       <div class="ix-actions">
         <button type="button" class="ix-export-btn" id="ixExportBtn"${events.length ? '' : ' disabled'}>Export CSV</button>
       </div>
@@ -232,11 +288,23 @@
     ${result.reasons.length > 1 ? `<div class="ix-verdict-extra">${result.reasons.slice(1).map(esc).join(' · ')}</div>` : ''}`;
   }
 
+  // No false INDEXABLE (fix round item 5): nothing has been captured for
+  // this tab, so there is no HTTP signal to judge — a DOM-only verdict would
+  // silently omit noindex delivered via X-Robots-Tag, a non-200 final
+  // status, or a canonical response header, any of which can flip the real
+  // answer. Say so plainly instead of guessing green.
+  function renderUnknownVerdict() {
+    return `<div class="ix-verdict">
+      <span class="badge-mono">UNKNOWN</span>
+      <span class="ix-verdict-label">From page HTML only — reload to capture HTTP signals</span>
+    </div>`;
+  }
+
   function renderHopRow(hop) {
     return `<div class="ix-hop">
       <span class="ix-hop-url" title="${esc(hop.from || '')}">${esc(truncateMiddle(hop.from || '—', 34))}</span>
       <span class="ix-arrow">→</span>
-      <span class="badge-mono ${statusBadgeClass(hop.status)}">${hop.status}</span>
+      <span class="badge-mono ${statusBadgeClass(hop.status)}">${esc(hop.status)}</span>
       <span class="ix-arrow">→</span>
       <span class="ix-hop-url" title="${esc(hop.to || '')}">${esc(truncateMiddle(hop.to || '—', 34))}</span>
     </div>`;
@@ -244,7 +312,7 @@
 
   function renderFinalRow(c) {
     return `<div class="ix-final">
-      <span class="badge-mono ${statusBadgeClass(c.finalStatus)}">${c.finalStatus === null ? '—' : c.finalStatus}</span>
+      <span class="badge-mono ${statusBadgeClass(c.finalStatus)}">${c.finalStatus === null ? '—' : esc(c.finalStatus)}</span>
       <span class="ix-hop-url" title="${esc(c.finalUrl || '')}">${esc(truncateMiddle(c.finalUrl || '—', 50))}</span>
       ${c.hasClientRedirect ? '<span class="ix-chip">Client-side redirect</span>' : ''}
       ${c.loops ? '<span class="badge-mono b-err">Loop detected</span>' : ''}
@@ -262,16 +330,26 @@
       ${renderFinalRow(chain)}`;
   }
 
-  function renderHeadersBlock(headers, canonicalHeaderEntry) {
+  function renderHeadersBlock(headers, canonicalHeaderEntry, chainEmpty) {
     const h = headers || {};
     const xrt = h['x-robots-tag'] ? SBWRedirects.parseXRobotsTag(h['x-robots-tag']) : null;
+    // Direct URL comparison (closes M-9) — this used to route through
+    // indexability(), which exists to compute an indexable/not-indexable
+    // verdict, not to answer "do these two URLs match"; normalizeUrlForCompare
+    // is the actual primitive that call needed, and is now exported for it.
     const headerMatchesDom = (canonicalHeaderEntry && pageData && pageData.meta && pageData.meta.canonical)
-      ? SBWRedirects.indexability({ finalStatus: 200, canonicalDom: canonicalHeaderEntry.url, pageUrl: pageData.meta.canonical }).canonicalMatches
+      ? SBWRedirects.normalizeUrlForCompare(canonicalHeaderEntry.url) === SBWRedirects.normalizeUrlForCompare(pageData.meta.canonical)
       : null;
 
-    const directiveChips = (xrt && xrt.directives.length)
-      ? xrt.directives.map(d => `<span class="badge-mono ${(d === 'noindex' || d === 'nofollow') ? 'b-err' : ''}">${esc(d)}</span>`).join(' ')
-      : '<span class="ix-muted">none captured</span>';
+    // No false INDEXABLE (fix round item 5): with no response captured for
+    // this tab, "none captured" / "Absent" read as real negative findings
+    // (no X-Robots-Tag, no HSTS) when they're actually just unobserved —
+    // "not observed" says only what's true.
+    const directiveChips = chainEmpty
+      ? '<span class="ix-muted">not observed</span>'
+      : (xrt && xrt.directives.length)
+        ? xrt.directives.map(d => `<span class="badge-mono ${(d === 'noindex' || d === 'nofollow') ? 'b-err' : ''}">${esc(d)}</span>`).join(' ')
+        : '<span class="ix-muted">none captured</span>';
 
     const canonicalHeaderHtml = canonicalHeaderEntry
       ? `${esc(truncateMiddle(canonicalHeaderEntry.url, 40))} ${headerMatchesDom === null ? ''
@@ -279,19 +357,26 @@
           : '<span class="badge-mono b-err">differs ✗</span>'}`
       : '<span class="ix-muted">none</span>';
 
+    const hstsRow = chainEmpty
+      ? dataRow('HSTS', 'not observed', 'warn')
+      : dataRow('HSTS', h['strict-transport-security'] ? 'Present' : 'Absent', h['strict-transport-security'] ? 'good' : 'warn');
+    const cspRow = chainEmpty
+      ? dataRow('CSP', 'not observed', 'warn')
+      : dataRow('CSP', h['content-security-policy'] ? 'Present' : 'Absent', h['content-security-policy'] ? 'good' : 'warn');
+
     return `<div class="ix-headers">
       <div class="ix-header-row">
         <span class="ix-header-k">X-Robots-Tag</span>
         <span class="ix-header-v">${directiveChips}</span>
       </div>
-      ${dataRow('Cache-Control', esc(h['cache-control'] || '—'))}
-      ${dataRow('Content-Type', esc(h['content-type'] || '—'))}
+      ${dataRow('Cache-Control', h['cache-control'] || '—')}
+      ${dataRow('Content-Type', h['content-type'] || '—')}
       <div class="ix-header-row">
         <span class="ix-header-k">Link rel=canonical</span>
         <span class="ix-header-v">${canonicalHeaderHtml}</span>
       </div>
-      ${dataRow('HSTS', h['strict-transport-security'] ? 'Present' : 'Absent', h['strict-transport-security'] ? 'good' : 'warn')}
-      ${dataRow('CSP', h['content-security-policy'] ? 'Present' : 'Absent', h['content-security-policy'] ? 'good' : 'warn')}
+      ${hstsRow}
+      ${cspRow}
     </div>`;
   }
 

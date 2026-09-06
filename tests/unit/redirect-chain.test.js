@@ -13,7 +13,7 @@ const SBWRedirects = globalThis.SBWRedirects;
 describe('SBWRedirects namespace', () => {
   it('attaches to globalThis.SBWRedirects', () => {
     expect(SBWRedirects).toBeTruthy();
-    ['pickHeaders', 'parseXRobotsTag', 'parseLinkHeader', 'chainSummary', 'indexability']
+    ['pickHeaders', 'parseXRobotsTag', 'parseLinkHeader', 'chainSummary', 'indexability', 'normalizeUrlForCompare']
       .forEach(fn => expect(typeof SBWRedirects[fn]).toBe('function'));
   });
 });
@@ -106,8 +106,50 @@ describe('parseXRobotsTag', () => {
   });
 
   it('returns an empty-but-shaped result for no value', () => {
-    expect(SBWRedirects.parseXRobotsTag('')).toEqual({ directives: [], noindex: false, nofollow: false, agents: [] });
-    expect(SBWRedirects.parseXRobotsTag(undefined)).toEqual({ directives: [], noindex: false, nofollow: false, agents: [] });
+    const empty = { directives: [], noindex: false, nofollow: false, agents: [], byAgent: {} };
+    expect(SBWRedirects.parseXRobotsTag('')).toEqual(empty);
+    expect(SBWRedirects.parseXRobotsTag(undefined)).toEqual(empty);
+  });
+
+  it('treats "unavailable_after: <date>" as one directive, not a UA prefix', () => {
+    const out = SBWRedirects.parseXRobotsTag('unavailable_after: 25-Jun-2026 15:00:00 EST');
+    expect(out.directives).toEqual(['unavailable_after: 25-jun-2026 15:00:00 est']);
+    expect(out.agents).toEqual([]);
+    expect(out.byAgent).toEqual({});
+  });
+
+  it('treats "max-snippet: -1" as one directive, not a UA prefix for "-1"', () => {
+    const out = SBWRedirects.parseXRobotsTag('max-snippet: -1');
+    expect(out.directives).toEqual(['max-snippet: -1']);
+    expect(out.agents).toEqual([]);
+    expect(out.byAgent).toEqual({});
+  });
+
+  // UA-scoped folding (fix round item 7): only googlebot/robots/* directives
+  // fold into noindex/nofollow — an unrecognized crawler's own directives
+  // still show up in byAgent for display, but never flip our verdict.
+  it('does not fold a non-Google agent\'s noindex into the top-level verdict', () => {
+    const out = SBWRedirects.parseXRobotsTag('bingbot: noindex');
+    expect(out.noindex).toBe(false);
+    expect(out.directives).toEqual([]);
+    expect(out.byAgent.bingbot).toEqual(['noindex']);
+  });
+
+  it('folds a googlebot-scoped noindex into the top-level verdict', () => {
+    const out = SBWRedirects.parseXRobotsTag('googlebot: noindex');
+    expect(out.noindex).toBe(true);
+    expect(out.agents).toEqual(['googlebot']);
+    expect(out.byAgent.googlebot).toEqual(['noindex']);
+  });
+
+  it('folds "robots:" and "*:" prefixes the same way as "googlebot:"', () => {
+    const robots = SBWRedirects.parseXRobotsTag('robots: noindex');
+    expect(robots.noindex).toBe(true);
+    expect(robots.byAgent.robots).toEqual(['noindex']);
+
+    const wildcard = SBWRedirects.parseXRobotsTag('*: noindex');
+    expect(wildcard.noindex).toBe(true);
+    expect(wildcard.byAgent['*']).toEqual(['noindex']);
   });
 });
 
@@ -136,6 +178,18 @@ describe('parseLinkHeader', () => {
   it('returns [] for no value', () => {
     expect(SBWRedirects.parseLinkHeader('')).toEqual([]);
     expect(SBWRedirects.parseLinkHeader(undefined)).toEqual([]);
+  });
+
+  // A naive /,(?=\s*<)/ split misfires here: the quoted title contains a
+  // comma immediately followed by whitespace and "<", which looks just like
+  // the start of the next entry unless the parser tracks that it's still
+  // inside a quoted param.
+  it('does not split on a comma inside a quoted param even when followed by "<"', () => {
+    const value = '<https://example.com/a>; rel="canonical"; title="issue #12, <needs-fix>", <https://example.com/b>; rel="canonical"';
+    const out = SBWRedirects.parseLinkHeader(value);
+    expect(out.length).toBe(2);
+    expect(out[0].url).toBe('https://example.com/a');
+    expect(out[1].url).toBe('https://example.com/b');
   });
 });
 
@@ -180,6 +234,21 @@ describe('chainSummary', () => {
   it('handles an empty event list', () => {
     const out = SBWRedirects.chainSummary([]);
     expect(out).toEqual({ hops: [], finalUrl: null, finalStatus: null, hopCount: 0, hasClientRedirect: false, loops: false });
+  });
+
+  // The capture window can close mid-chain (tab closed, trace timed out)
+  // before a terminal 'response' event ever lands — finalUrl should still
+  // fall back to the last redirect's target rather than staying null, and
+  // finalStatus (which only a 'response' event can supply) stays null.
+  it('falls back finalUrl to the last hop\'s target when no terminal response was captured', () => {
+    const events = [
+      { kind: 'redirect', url: 'https://a.example/', statusCode: 301, location: 'https://b.example/', headers: {} },
+      { kind: 'redirect', url: 'https://b.example/', statusCode: 302, location: 'https://c.example/', headers: {} }
+    ];
+    const out = SBWRedirects.chainSummary(events);
+    expect(out.finalUrl).toBe('https://c.example/');
+    expect(out.finalStatus).toBeNull();
+    expect(out.hopCount).toBe(2);
   });
 });
 
@@ -238,5 +307,17 @@ describe('indexability', () => {
   it('null canonicalMatches when no canonical is known', () => {
     const out = SBWRedirects.indexability({ finalStatus: 200, pageUrl: 'https://example.com/' });
     expect(out.canonicalMatches).toBeNull();
+  });
+});
+
+describe('normalizeUrlForCompare', () => {
+  it('is exported for reuse outside indexability() (popup staleness/canonical checks)', () => {
+    expect(SBWRedirects.normalizeUrlForCompare('https://www.example.com/page/'))
+      .toBe(SBWRedirects.normalizeUrlForCompare('http://example.com/page'));
+  });
+
+  it('returns null for no url', () => {
+    expect(SBWRedirects.normalizeUrlForCompare(null)).toBeNull();
+    expect(SBWRedirects.normalizeUrlForCompare(undefined)).toBeNull();
   });
 });

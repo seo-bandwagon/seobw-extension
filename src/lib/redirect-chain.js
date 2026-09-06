@@ -64,15 +64,25 @@
     'max-image-preview', 'max-video-preview'
   ];
 
+  // A UA-prefixed segment only affects OUR verdict when the agent is one
+  // Google itself treats the header as addressed to (a bare "googlebot" or
+  // "robots", or the wildcard "*") — see Google's X-Robots-Tag docs. A real
+  // header can carry directives scoped to other crawlers (e.g.
+  // "bingbot: noindex") that this extension has no business folding into
+  // its own indexable/not-indexable call. Those still show up, verbatim,
+  // in `byAgent` for display.
+  const APPLIED_AGENTS = ['googlebot', 'robots', '*'];
+
   function parseXRobotsTag(value) {
-    const empty = { directives: [], noindex: false, nofollow: false, agents: [] };
+    const empty = { directives: [], noindex: false, nofollow: false, agents: [], byAgent: {} };
     if (!value) return empty;
 
     const directiveSet = new Set();
     const agentSet = new Set();
+    const byAgent = {};
 
     String(value).split(',').map(s => s.trim()).filter(Boolean).forEach(segment => {
-      const m = segment.match(/^([a-z0-9_.-]+)\s*:\s*(.+)$/i);
+      const m = segment.match(/^([a-z0-9_.*-]+)\s*:\s*(.+)$/i);
       if (m && KNOWN_DIRECTIVES.includes(m[1].toLowerCase())) {
         // A known directive that happens to carry its own colon-separated
         // value — keep it whole rather than splitting on the colon.
@@ -80,12 +90,18 @@
         return;
       }
 
-      let body = segment;
       if (m) {
-        agentSet.add(m[1].toLowerCase());
-        body = m[2];
+        const agent = m[1].toLowerCase();
+        const toks = m[2].split(/\s+/).filter(Boolean).map(t => t.toLowerCase());
+        byAgent[agent] = (byAgent[agent] || []).concat(toks);
+        if (APPLIED_AGENTS.includes(agent)) {
+          agentSet.add(agent);
+          toks.forEach(tok => directiveSet.add(tok));
+        }
+        return;
       }
-      body.split(/\s+/).filter(Boolean).forEach(tok => directiveSet.add(tok.toLowerCase()));
+
+      segment.split(/\s+/).filter(Boolean).forEach(tok => directiveSet.add(tok.toLowerCase()));
     });
 
     const directives = Array.from(directiveSet);
@@ -93,16 +109,45 @@
       directives,
       noindex: directives.includes('noindex'),
       nofollow: directives.includes('nofollow'),
-      agents: Array.from(agentSet)
+      agents: Array.from(agentSet),
+      byAgent
     };
   }
 
-  // RFC 8288 basics: split on a comma that starts a new "<url>" entry (a
-  // comma can legally appear inside a quoted param, but never inside the
-  // <...> URL reference itself), then pull url/rel/hreflang out of each.
+  // Split on a comma that starts a new "<url>" entry — but only when that
+  // comma is outside a quoted param. A comma can legally appear inside a
+  // quoted title/param (RFC 8288), and if that quoted text itself happens
+  // to contain "<" right after the comma (e.g. title="issue #12, <fix>"),
+  // a plain /,(?=\s*<)/ regex would misfire and split mid-param. Tracking
+  // the running double-quote count (even = outside a quoted span) is enough
+  // to tell the two cases apart without a full RFC 8288 parser.
+  function splitLinkHeaderEntries(value) {
+    const str = String(value);
+    const parts = [];
+    let start = 0;
+    let quoteCount = 0;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      if (ch === '"') quoteCount++;
+      if (ch === ',' && quoteCount % 2 === 0) {
+        let j = i + 1;
+        while (j < str.length && /\s/.test(str[j])) j++;
+        if (str[j] === '<') {
+          parts.push(str.slice(start, i));
+          start = j;
+          i = j - 1;
+        }
+      }
+    }
+    parts.push(str.slice(start));
+    return parts;
+  }
+
+  // RFC 8288 basics: split into "<url>; params" entries, then pull
+  // url/rel/hreflang out of each.
   function parseLinkHeader(value) {
     if (!value) return [];
-    const parts = String(value).split(/,(?=\s*<)/);
+    const parts = splitLinkHeaderEntries(value);
     const out = [];
 
     parts.forEach(part => {
@@ -233,6 +278,7 @@
     parseXRobotsTag,
     parseLinkHeader,
     chainSummary,
-    indexability
+    indexability,
+    normalizeUrlForCompare
   };
 });

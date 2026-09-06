@@ -171,10 +171,17 @@ const MANIFEST = (() => {
 const store = {};
 const TAB_URLS = {
   'main-unknown': 'https://example.com/some-page',
+  // indexability.js's staleness guard (fix round item 6) treats a captured
+  // chain as stale when its finalUrl doesn't match the current tab's URL —
+  // this has to agree with REDIRECT_CHAIN_EVENTS' final response URL below,
+  // or the fixture would look stale and the `indexability-chain` state
+  // would render as if nothing had been captured.
+  'indexability-chain': 'https://northsidedental.com/austin/family-dentistry',
   default: 'https://www.yelp.com/biz/northside-dental-austin'
 };
 const TAB_TITLES = {
   'main-unknown': 'Some Page',
+  'indexability-chain': 'Family Dentistry in North Austin | Northside Dental Co.',
   default: 'Northside Dental Co. - Yelp'
 };
 

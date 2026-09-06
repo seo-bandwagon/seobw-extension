@@ -25,7 +25,12 @@
   }
 })(function () {
 
-  const ALL_URLS_REASON = 'To check links, hreflang alternates and redirects, the extension has to fetch pages on other sites from your browser. It sends no cookies and nothing it fetches is sent to SEO Bandwagon. You can revoke this at any time from chrome://extensions.';
+  // Amended in Task 2's fix round (ruling I-8) to cover both ways this
+  // permission gets used — a plain fetch (link checker, hreflang, redirect
+  // probe) AND opening a URL in a background tab (Indexability's
+  // "trace-a-URL"), which the original wording ("fetch pages... from your
+  // browser") didn't describe. Later features reuse this string verbatim.
+  const ALL_URLS_REASON = 'To check links, hreflang alternates and redirects, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page.';
 
   function hasAllUrls() {
     return chrome.permissions.contains({ origins: ['<all_urls>'] });

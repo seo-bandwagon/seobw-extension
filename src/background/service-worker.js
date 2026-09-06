@@ -424,92 +424,147 @@ chrome.runtime.onConnect.addListener((port) => {
 // Observing another origin's response headers and Location hops needs the
 // same optional <all_urls> host permission the link checker gates on
 // (SBWPerms) — webRequest/webNavigation see nothing without it. This block
-// never requests that permission itself; it only checks whether it's
-// already there, at worker start and again on chrome.permissions.onAdded,
-// and (de)registers accordingly. `redirectListenersRegistered` makes both
-// call sites idempotent — permissions.onAdded can fire more than once for
-// the same grant across a worker's lifetime.
+// never requests that permission itself; it only tracks whether the grant
+// is currently there.
+//
+// Ruling I-1: the four listeners below are registered UNCONDITIONALLY and
+// SYNCHRONOUSLY at worker top level, not after an `await SBWPerms.hasAllUrls()`
+// — a listener added after an await can miss events that fire in the gap
+// between the worker waking up and that await resolving. Instead, a
+// module-level `allUrlsGranted` flag gates every handler body; each one
+// returns immediately when it's false. This is belt-and-braces (webRequest/
+// webNavigation already deliver nothing without the host permission), but it
+// means a grant that lands mid-session via permissions.onAdded starts being
+// observed on the very next event, with nothing to (re)register, and a
+// revoked grant (permissions.onRemoved) stops observing immediately.
 const REDIRECTS_MAX_EVENTS = 25;
 const TRACE_TIMEOUT_MS = 20000;
 
-let redirectListenersRegistered = false;
+let allUrlsGranted = false;
+SBWPerms.hasAllUrls().then((v) => { allUrlsGranted = v; });
+
 const lastMainFrameRequestId = {}; // tabId -> requestId, so a duplicate onBeforeRequest call for the same navigation can't wipe a buffer mid-capture
+
+// Per-tab buffer: a module-level Map is the source of truth — instant to
+// read/write and immune to the read-modify-write races a bare
+// chrome.storage.session.get()-then-set() has under overlapping calls.
+// chrome.storage.session is a mirror only, kept up to date through a single
+// promise chain (`writeQueue`) so mirror writes land in the order they were
+// queued instead of racing each other. Reads prefer the Map; only a worker
+// restart (Map empty for that tab) falls back to reading the mirror.
+const redirectBuffers = new Map(); // tabId -> events[]
+let writeQueue = Promise.resolve();
 
 function redirectsKey(tabId) {
   return `redirects:${tabId}`;
 }
 
 async function readRedirectBuffer(tabId) {
+  if (redirectBuffers.has(tabId)) return redirectBuffers.get(tabId);
   const key = redirectsKey(tabId);
   const stored = await chrome.storage.session.get(key);
   const entry = stored && stored[key];
-  return (entry && Array.isArray(entry.events)) ? entry.events : [];
+  const events = (entry && Array.isArray(entry.events)) ? entry.events : [];
+  redirectBuffers.set(tabId, events);
+  return events;
 }
 
-async function appendRedirectEvent(tabId, event) {
+function queueBufferWrite(tabId, events) {
+  const key = redirectsKey(tabId);
+  writeQueue = writeQueue
+    .then(() => chrome.storage.session.set({ [key]: { events, updatedAt: Date.now() } }))
+    .catch(() => { /* a failed mirror write must not wedge the queue for later tabs */ });
+  return writeQueue;
+}
+
+function appendRedirectEvent(tabId, event) {
   if (tabId === undefined || tabId === null || tabId < 0) return; // -1 = not a real tab (prerender/service worker requests)
-  const events = (await readRedirectBuffer(tabId)).concat([event]).slice(-REDIRECTS_MAX_EVENTS);
-  await chrome.storage.session.set({ [redirectsKey(tabId)]: { events, updatedAt: Date.now() } });
+  const events = (redirectBuffers.get(tabId) || []).concat([event]).slice(-REDIRECTS_MAX_EVENTS);
+  redirectBuffers.set(tabId, events);
+  queueBufferWrite(tabId, events);
 }
 
-async function resetRedirectBuffer(tabId) {
+function resetRedirectBuffer(tabId) {
   if (tabId === undefined || tabId === null || tabId < 0) return;
-  await chrome.storage.session.set({ [redirectsKey(tabId)]: { events: [], updatedAt: Date.now() } });
+  redirectBuffers.set(tabId, []);
+  queueBufferWrite(tabId, []);
 }
 
 function clearRedirectBuffer(tabId) {
+  redirectBuffers.delete(tabId);
+  delete lastMainFrameRequestId[tabId];
   chrome.storage.session.remove(redirectsKey(tabId));
 }
 
-function registerRedirectListeners() {
-  if (redirectListenersRegistered) return;
-  redirectListenersRegistered = true;
-
-  const FILTER = { urls: ['<all_urls>'], types: ['main_frame'] };
-
-  chrome.webRequest.onBeforeRequest.addListener((details) => {
-    const tabId = details.tabId;
-    if (tabId < 0) return;
-    if (lastMainFrameRequestId[tabId] === details.requestId) return;
-    lastMainFrameRequestId[tabId] = details.requestId;
-    resetRedirectBuffer(tabId);
-  }, FILTER);
-
-  chrome.webRequest.onBeforeRedirect.addListener((details) => {
-    appendRedirectEvent(details.tabId, {
-      kind: 'redirect',
-      url: details.url,
-      statusCode: details.statusCode,
-      location: details.redirectUrl,
-      headers: SBWRedirects.pickHeaders(details.responseHeaders)
-    });
-  }, FILTER, ['responseHeaders']);
-
-  chrome.webRequest.onHeadersReceived.addListener((details) => {
-    if (details.statusCode >= 300 && details.statusCode < 400) return; // 3xx hops are captured by onBeforeRedirect
-    appendRedirectEvent(details.tabId, {
-      kind: 'response',
-      url: details.url,
-      statusCode: details.statusCode,
-      headers: SBWRedirects.pickHeaders(details.responseHeaders)
-    });
-  }, FILTER, ['responseHeaders']);
-
-  chrome.webNavigation.onCommitted.addListener((details) => {
-    if (details.frameId !== 0) return;
-    if (Array.isArray(details.transitionQualifiers) && details.transitionQualifiers.includes('client_redirect')) {
-      appendRedirectEvent(details.tabId, { kind: 'client_redirect', url: details.url });
-    }
+// permissions.onRemoved (below): a revoked grant should leave nothing
+// behind for any tab, not just the active one, so this sweeps every
+// `redirects:*` key rather than the single current tab's.
+function clearAllRedirectBuffers() {
+  redirectBuffers.clear();
+  chrome.storage.session.get(null, (items) => {
+    const keys = Object.keys(items || {}).filter(k => k.startsWith('redirects:'));
+    if (keys.length) chrome.storage.session.remove(keys);
   });
 }
 
-(async () => {
-  if (await SBWPerms.hasAllUrls()) registerRedirectListeners();
-})();
+const REDIRECT_FILTER = { urls: ['<all_urls>'], types: ['main_frame'] };
+
+chrome.webRequest.onBeforeRequest.addListener((details) => {
+  if (!allUrlsGranted) return;
+  const tabId = details.tabId;
+  if (tabId < 0) return;
+  if (lastMainFrameRequestId[tabId] === details.requestId) return;
+  lastMainFrameRequestId[tabId] = details.requestId;
+  resetRedirectBuffer(tabId);
+}, REDIRECT_FILTER);
+
+chrome.webRequest.onBeforeRedirect.addListener((details) => {
+  if (!allUrlsGranted) return;
+  appendRedirectEvent(details.tabId, {
+    kind: 'redirect',
+    url: details.url,
+    statusCode: details.statusCode,
+    location: details.redirectUrl,
+    headers: SBWRedirects.pickHeaders(details.responseHeaders)
+  });
+}, REDIRECT_FILTER, ['responseHeaders']);
+
+// Only the statuses a browser actually auto-follows are "hops" captured by
+// onBeforeRedirect above (301/302/303/307/308). 304 Not Modified, and the
+// rarely-seen 300/305, are terminal responses the browser hands back as-is
+// — they must land here as the chain's final entry, not be swallowed by a
+// blanket "3xx" check.
+const BROWSER_FOLLOWED_REDIRECTS = [301, 302, 303, 307, 308];
+
+chrome.webRequest.onHeadersReceived.addListener((details) => {
+  if (!allUrlsGranted) return;
+  if (BROWSER_FOLLOWED_REDIRECTS.includes(details.statusCode)) return;
+  appendRedirectEvent(details.tabId, {
+    kind: 'response',
+    url: details.url,
+    statusCode: details.statusCode,
+    headers: SBWRedirects.pickHeaders(details.responseHeaders)
+  });
+}, REDIRECT_FILTER, ['responseHeaders']);
+
+chrome.webNavigation.onCommitted.addListener((details) => {
+  if (!allUrlsGranted) return;
+  if (details.frameId !== 0) return;
+  if (Array.isArray(details.transitionQualifiers) && details.transitionQualifiers.includes('client_redirect')) {
+    appendRedirectEvent(details.tabId, { kind: 'client_redirect', url: details.url });
+  }
+});
 
 chrome.permissions.onAdded.addListener((perms) => {
   if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
-    registerRedirectListeners();
+    allUrlsGranted = true;
+  }
+});
+
+chrome.permissions.onRemoved.addListener((perms) => {
+  if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
+    allUrlsGranted = false;
+    clearAllRedirectBuffers();
   }
 });
 
@@ -548,7 +603,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return;
       }
       const tabId = newTab.id;
-      await resetRedirectBuffer(tabId);
+      // No explicit reset here (item 3 of the fix round): the new tab's own
+      // first navigation fires onBeforeRequest with a requestId this tab has
+      // never seen, which resets its buffer on its own. An explicit reset
+      // right here raced that natural one — whichever ran last could wipe a
+      // redirect event the other had just appended.
 
       await new Promise((resolve) => {
         let settled = false;
@@ -557,18 +616,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           settled = true;
           clearTimeout(timer);
           chrome.webNavigation.onCompleted.removeListener(onCompleted);
+          chrome.tabs.onRemoved.removeListener(onRemoved);
           resolve();
         };
         const timer = setTimeout(finish, TRACE_TIMEOUT_MS);
         function onCompleted(details) {
           if (details.tabId === tabId && details.frameId === 0) finish();
         }
+        // The traced tab can disappear before it finishes loading (closed by
+        // the user, a policy block, a crash) — without this, a closed tab
+        // would sit waiting for the full 20s timeout instead of resolving
+        // the moment there's nothing left to wait for.
+        function onRemoved(removedTabId) {
+          if (removedTabId === tabId) finish();
+        }
         chrome.webNavigation.onCompleted.addListener(onCompleted);
+        chrome.tabs.onRemoved.addListener(onRemoved);
       });
 
-      const events = await readRedirectBuffer(tabId);
-      try { await chrome.tabs.remove(tabId); } catch (e) { /* tab already gone */ }
-      clearRedirectBuffer(tabId);
+      let events = [];
+      try {
+        events = await readRedirectBuffer(tabId);
+      } finally {
+        // Close the tab and drop its buffer even if the read above throws —
+        // an open background tab or a leaked buffer entry must not outlive
+        // a failed read.
+        try { await chrome.tabs.remove(tabId); } catch (e) { /* tab already gone */ }
+        clearRedirectBuffer(tabId);
+      }
 
       sendResponse({ chain: SBWRedirects.chainSummary(events), events });
     })();

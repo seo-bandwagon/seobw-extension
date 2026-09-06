@@ -17,12 +17,13 @@ describe('SBWPerms namespace', () => {
     expect(typeof SBWPerms.requestAllUrls).toBe('function');
   });
 
-  it('exposes a plain-language ALL_URLS_REASON', () => {
+  it('exposes a plain-language ALL_URLS_REASON covering both fetch and trace-in-a-tab', () => {
     expect(typeof SBWPerms.ALL_URLS_REASON).toBe('string');
-    expect(SBWPerms.ALL_URLS_REASON).toMatch(/fetch pages on other sites/i);
-    expect(SBWPerms.ALL_URLS_REASON).toMatch(/no cookies/i);
-    expect(SBWPerms.ALL_URLS_REASON).toMatch(/not.*sent to SEO Bandwagon|nothing it fetches is sent to SEO Bandwagon/i);
-    expect(SBWPerms.ALL_URLS_REASON).toMatch(/chrome:\/\/extensions/);
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/look at pages on other sites/i);
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/without cookies/i);
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/opens that url in a background tab/i);
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/nothing it sees on those sites is sent to SEO Bandwagon/i);
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/revoke this at any time from the extensions page/i);
   });
 });
 

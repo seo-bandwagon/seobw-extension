@@ -45,10 +45,10 @@ policy above.
   The check never runs on its own — it starts only from a real click on
   "Check N links".
 - **Optional `<all_urls>` permission** (`src/lib/perms.js`) — requested only
-  when you click "Allow access to check other sites" in the Link Check
-  section, never at install and never automatically. Revocable any time from
-  `chrome://extensions`. The same optional/on-first-use pattern is planned
-  for the upcoming hreflang and redirect checks.
+  when you click "Allow access to check other sites" in the Link Check or
+  Indexability section, never at install and never automatically. Revocable
+  any time from the extensions page. The same optional/on-first-use pattern
+  covers hreflang checks as they ship.
 - **Indexability panel** (`src/popup/indexability.js`, new "INDEXABILITY"
   section in the SEO Analysis tab, directly after "Page Meta") — the
   background service worker observes the current tab's main-frame redirect
@@ -56,7 +56,8 @@ policy above.
   `chrome.webRequest`/`chrome.webNavigation` (`X-Robots-Tag`, `Cache-Control`,
   `Content-Type`, `Link`, and whether HSTS/CSP are present — see
   `src/lib/redirect-chain.js`), only once you've granted the same optional
-  `<all_urls>` permission. Combines that with the page's DOM `meta[robots]`/
+  `<all_urls>` permission — the same permission card as Link Check's shows
+  when it hasn't been. Combines that with the page's DOM `meta[robots]`/
   canonical to render an indexable/not-indexable verdict, shows the hop-by-hop
   chain (with client-side-redirect and loop detection), lets you trace a
   different URL from a background tab, and exports the captured hops to CSV.
