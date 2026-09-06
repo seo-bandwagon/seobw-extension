@@ -39,6 +39,22 @@ describe('parseMetric', () => {
     expect(() => C.parseMetric([1, 2, 3])).not.toThrow();
     expect(C.parseMetric('not a number')).toBeNull();
   });
+
+  // fix-1 item 2 (CRITICAL): the K/M/B/% suffix must not swallow the first
+  // letter of a following word ("3 months" is not "3 M"). A case-insensitive
+  // suffix match with no boundary treated the "m" in "months" as mega.
+  it('does not mistake the leading letter of a following word for a suffix', () => {
+    expect(C.parseMetric('Last 3 months')).toBe(3);
+    expect(C.parseMetric('Previous 3 months')).toBe(3);
+    expect(C.parseMetric('2 billion dollars')).toBe(2); // "b" of "billion" is not B
+  });
+
+  // fix-1 item 7 (MINOR): the typographic minus sign U+2212, which GSC can
+  // render in a Difference column, must parse the same as an ASCII hyphen.
+  it('parses the U+2212 minus sign as a negative sign', () => {
+    expect(C.parseMetric('−500')).toBe(-500);
+    expect(C.parseMetric('−')).toBeNull(); // lone minus is a placeholder, not zero
+  });
 });
 
 describe('metricKind', () => {
@@ -153,6 +169,16 @@ describe('splitPair', () => {
     expect(C.splitPair('1,234')).toBeNull();
     expect(C.splitPair('')).toBeNull();
   });
+
+  // fix-1 item 6 (IMPORTANT): a single value with a parenthesised percentage
+  // annotation ("1,234 (5%)") is not a cur/prev pair -- the second "part"
+  // carries letters/brackets, not a second bare number.
+  it('rejects a part that is a parenthesised percentage annotation', () => {
+    expect(C.splitPair('1,234 (5%)')).toBeNull();
+  });
+  it('rejects parts containing letters', () => {
+    expect(C.splitPair('1,234 clicks')).toBeNull();
+  });
 });
 
 // ---- detectCompareColumns fixtures --------------------------------------
@@ -237,6 +263,55 @@ describe('detectCompareColumns', () => {
   it('returns null when there is no table', () => {
     expect(C.detectCompareColumns(null)).toBeNull();
   });
+
+  // fix-1 item 5 (IMPORTANT): pairing must key off the word "previous" in the
+  // header text, not encounter order -- GSC (or a differently-localised
+  // build) may render the previous-period column first.
+  it('identifies prevIdx by header text, not position, when headers are reversed', () => {
+    const table = tableFromHtml(`
+      <table>
+        <thead><tr><th>Top queries</th><th>Clicks Previous 3 months</th><th>Clicks Last 3 months</th></tr></thead>
+        <tbody>
+          <tr><td>roofing repair denver</td><td>987</td><td>1,234</td></tr>
+        </tbody>
+      </table>`);
+    const cols = C.detectCompareColumns(table);
+    expect(cols).not.toBeNull();
+    expect(cols.metrics).toEqual([{ kind: 'clicks', curIdx: 2, prevIdx: 1, diffIdx: null }]);
+  });
+
+  // fix-1 item 6 (IMPORTANT): the single-header/two-numbers fallback must not
+  // fire off a value that merely carries a percentage annotation in the same
+  // cell -- that is one number with commentary, not a cur/prev pair, and it
+  // must hold across a MAJORITY of rows, not just one.
+  it('does not treat a value+percentage-annotation column as compare mode', () => {
+    const table = tableFromHtml(`
+      <table>
+        <thead><tr><th>Query</th><th>Clicks</th></tr></thead>
+        <tbody>
+          <tr><td>a</td><td>1,234 (5%)</td></tr>
+          <tr><td>b</td><td>500 (2%)</td></tr>
+          <tr><td>c</td><td>10 (1%)</td></tr>
+        </tbody>
+      </table>`);
+    expect(C.detectCompareColumns(table)).toBeNull();
+  });
+
+  it('requires the two-number fallback to hold on a majority of rows', () => {
+    const table = tableFromHtml(`
+      <table>
+        <thead><tr><th>Query</th><th>Clicks</th></tr></thead>
+        <tbody>
+          <tr><td>a</td><td>1,234
+987</td></tr>
+          <tr><td>b</td><td>500</td></tr>
+          <tr><td>c</td><td>10</td></tr>
+        </tbody>
+      </table>`);
+    // Only 1 of 3 rows carries a pair -- not a majority, so this is an
+    // ordinary table, not compare mode.
+    expect(C.detectCompareColumns(table)).toBeNull();
+  });
 });
 
 describe('computeRow', () => {
@@ -270,6 +345,21 @@ describe('computeRow', () => {
     const tr = table.querySelector('tbody tr');
     const row = C.computeRow(tr, cols);
     expect(row.metrics.clicks).toMatchObject({ cur: 1234, prev: 987, delta: 247 });
+  });
+
+  // fix-1 item 9 (MINOR): the label's [title] path skipped the whitespace
+  // collapse the plain-textContent path already did, so a title with an
+  // embedded newline or run of spaces leaked straight into the TSV export.
+  it('collapses whitespace in a [title]-sourced label the same as the textContent path', () => {
+    const table = tableFromHtml(`
+      <table>
+        <thead><tr><th>Query</th><th>Clicks Last 3 months</th><th>Clicks Previous 3 months</th></tr></thead>
+        <tbody><tr><td><span title="roofing   repair\ndenver">roofing…</span></td><td>1,234</td><td>987</td></tr></tbody>
+      </table>`);
+    const cols = C.detectCompareColumns(table);
+    const tr = table.querySelector('tbody tr');
+    const row = C.computeRow(tr, cols);
+    expect(row.label).toBe('roofing repair denver');
   });
 });
 
@@ -318,6 +408,36 @@ describe('summarize', () => {
     const totals = C.summarize([]);
     expect(totals.count).toBe(0);
     expect(totals.clicks).toBeUndefined();
+  });
+
+  // fix-1 item 8 (MINOR): a metric object being present on a row is not the
+  // same as it carrying real data -- both sides can be null (e.g. every row
+  // in the visible set is a dash placeholder), and totals for that metric
+  // should not appear at all in that case.
+  it('does not report a metric total when neither side is ever finite', () => {
+    const rows = [
+      { label: 'a', metrics: { clicks: { cur: null, prev: null } } },
+      { label: 'b', metrics: { clicks: { cur: null, prev: null } } },
+    ];
+    const totals = C.summarize(rows);
+    expect(totals.clicks).toBeUndefined();
+  });
+
+  // fix-1 item 8 (MINOR): the plain-average CTR/position fallback (used only
+  // when clicks/impressions aren't available to weight it) must average each
+  // side over the rows that actually HAVE that side, not share one counter --
+  // otherwise a row with only a previous-period value dilutes the current
+  // average (or vice versa).
+  it('averages CTR fallback current and previous over separate counts', () => {
+    const rows = [
+      { label: 'a', metrics: { ctr: { cur: 10, prev: null } } },
+      { label: 'b', metrics: { ctr: { cur: 20, prev: 4 } } },
+    ];
+    const totals = C.summarize(rows);
+    // cur average over 2 rows that have cur: (10+20)/2 = 15
+    expect(totals.ctr.cur).toBeCloseTo(15, 6);
+    // prev average over the 1 row that has prev: 4/1 = 4 (not 4/2 = 2)
+    expect(totals.ctr.prev).toBeCloseTo(4, 6);
   });
 });
 

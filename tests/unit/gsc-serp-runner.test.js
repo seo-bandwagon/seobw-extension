@@ -1,0 +1,125 @@
+// fix-1 item 1b (CRITICAL): the Search Console runner (src/content/gsc-serp.js)
+// must ignore mutations it caused itself, or its MutationObserver-driven
+// scan() loop never settles. These tests load the real runner script (fresh
+// each time, bypassing its own `window.__seoBwGscSerpLoaded` load guard)
+// against the real gsc-inject.js/gsc-compare.js libraries so the mutations
+// it reacts to are the genuine ones those libraries produce.
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+await import('../../src/lib/gsc-inject.js');
+await import('../../src/lib/gsc-compare.js');
+
+function buildReport() {
+  document.body.innerHTML = `
+    <div id="cards">
+      <div role="button">Total clicks<div>1,230</div><div>vs</div><div>1,000</div></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Top queries</th>
+        <th>Clicks Last 3 months</th><th>Clicks Previous 3 months</th><th>Difference</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>roofing repair denver</td><td>1,230</td><td>1,000</td><td>+230</td></tr>
+        <tr><td>plumber tacoma</td><td>500</td><td>1,000</td><td>-500</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function setPerformancePath() {
+  window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x');
+}
+
+async function loadRunner() {
+  delete window.__seoBwGscSerpLoaded;
+  // Cache-busting query param forces Vite to re-evaluate the module (and so
+  // re-run its side-effecting IIFE) instead of returning the cached export.
+  await import(/* @vite-ignore */ '../../src/content/gsc-serp.js?t=' + Math.random());
+}
+
+function frame() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+function macrotask() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe('gsc-serp runner — mutation-observer self-mutation guard', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    document.querySelectorAll('#seo-bw-gsc-styles').forEach((n) => n.remove());
+    setPerformancePath();
+    window.chrome = { runtime: { sendMessage: vi.fn() } };
+  });
+
+  it('settles within 3 animation frames (apply()/injectAll() stop being called again)', async () => {
+    buildReport();
+    const applySpy = vi.spyOn(window.SBWGscCompare, 'apply');
+
+    await loadRunner();
+    expect(applySpy.mock.calls.length).toBeGreaterThanOrEqual(1); // the synchronous initial scan()
+
+    let lastCount = applySpy.mock.calls.length;
+    let settledWithinFrames = -1;
+    for (let i = 1; i <= 3; i++) {
+      await frame();
+      await macrotask();
+      if (applySpy.mock.calls.length === lastCount) {
+        settledWithinFrames = i;
+        break;
+      }
+      lastCount = applySpy.mock.calls.length;
+    }
+    expect(settledWithinFrames).toBeGreaterThan(-1);
+
+    // One more frame with no external changes: still nothing further fires.
+    const finalCount = applySpy.mock.calls.length;
+    await frame();
+    await macrotask();
+    expect(applySpy.mock.calls.length).toBe(finalCount);
+  });
+
+  it('does not react to a mutation confined to its own injected nodes', async () => {
+    buildReport();
+    await loadRunner();
+    // Let the initial load settle first.
+    await frame();
+    await macrotask();
+    await frame();
+    await macrotask();
+
+    const applySpy = vi.spyOn(window.SBWGscCompare, 'apply');
+    const injectSpy = vi.spyOn(window.SBWGscInject, 'injectAll');
+
+    const summary = document.querySelector('.seo-bw-cmp-summary');
+    expect(summary).toBeTruthy();
+    summary.textContent = 'poked directly by something else in the page';
+
+    await frame();
+    await macrotask();
+
+    expect(applySpy).not.toHaveBeenCalled();
+    expect(injectSpy).not.toHaveBeenCalled();
+  });
+
+  it('still reacts to a genuine external DOM change (a new GSC row)', async () => {
+    buildReport();
+    await loadRunner();
+    await frame();
+    await macrotask();
+    await frame();
+    await macrotask();
+
+    const applySpy = vi.spyOn(window.SBWGscCompare, 'apply');
+
+    const table = document.querySelector('table');
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>new query</td><td>10</td><td>5</td><td>+5</td>';
+    table.tBodies[0].appendChild(tr);
+
+    await frame();
+    await macrotask();
+
+    expect(applySpy).toHaveBeenCalled();
+  });
+});

@@ -28,8 +28,10 @@
     } catch (e) {
       return null;
     }
-    // Normalize non-breaking / narrow no-break spaces (locale thousand seps).
-    s = s.replace(/[\u00A0\u202F]/g, ' ').trim();
+    // Normalize non-breaking / narrow no-break spaces (locale thousand seps)
+    // and the typographic minus sign U+2212 (GSC can render one in a
+    // Difference column) to a plain ASCII hyphen (fix-1 item 7).
+    s = s.replace(/[\u00A0\u202F]/g, ' ').replace(/\u2212/g, '-').trim();
     if (!s) return null;
     if (/^[-\u2010-\u2015]+$/.test(s)) return null; // '-', en/em dash, figure dash, etc.
 
@@ -40,7 +42,12 @@
       return Number.isFinite(n) ? n / 2 : null;
     }
 
-    const m = s.match(/(-?\d[\d,\s]*(?:\.\d+)?)\s*(K|M|B|%)?/i);
+    // fix-1 item 2 (CRITICAL): the suffix must not be allowed to match the
+    // leading letter of a following word -- "3 months" is not "3 M"; the
+    // case-insensitive M/mega suffix was matching the "m" of "months".
+    // Requiring that no word character or "." immediately follows the
+    // suffix rejects that while still matching a genuine "1.2K"/"3.4M".
+    const m = s.match(/(-?\d[\d,\s]*(?:\.\d+)?)\s*(K|M|B|%)?(?![\w.])/i);
     if (!m) return null;
     const numStr = m[1].replace(/[,\s]/g, '');
     const n = parseFloat(numStr);
@@ -134,12 +141,21 @@
 
   // A metric cell/header that GSC rendered as one column holding both values
   // (e.g. "1,234\n987") → { cur, prev } | null.
+  // A "part" must be a bare number (with optional K/M/B/% suffix) -- no
+  // letters and no brackets. Rejects a single value with a parenthesised
+  // percentage annotation, e.g. "1,234 (5%)", which is one number with
+  // commentary, not a cur/prev pair (fix-1 item 6).
+  function isPlainNumberPart(s) {
+    return !/[A-Za-z()\[\]{}]/.test(s);
+  }
+
   function splitPair(text) {
     if (text === null || text === undefined) return null;
     const s = String(text);
     let parts = s.split(/[\n\r]+|\s{2,}/).map((p) => p.trim()).filter(Boolean);
     if (parts.length < 2) parts = s.trim().split(/\s+/).filter(Boolean);
     if (parts.length !== 2) return null;
+    if (!isPlainNumberPart(parts[0]) || !isPlainNumberPart(parts[1])) return null;
     const cur = parseMetric(parts[0]);
     const prev = parseMetric(parts[1]);
     if (cur === null || prev === null) return null;
@@ -164,7 +180,14 @@
     return headerRow ? getRowCells(headerRow) : [];
   }
 
+  // fix-1 item 11 (MINOR): prefer the actual <tbody> element's rows -- this
+  // is what naturally excludes a <tfoot> totals row (table.rows includes
+  // every section) -- and only fall back to "everything but the header row"
+  // when the table has no <tbody> at all.
   function getBodyRows(table) {
+    if (table.tBodies && table.tBodies.length > 0) {
+      return Array.prototype.slice.call(table.tBodies[0].rows);
+    }
     const headerRow = getHeaderRow(table);
     return Array.prototype.filter.call(table.rows, (tr) => tr !== headerRow);
   }
@@ -184,6 +207,7 @@
     const metrics = [];
     const pending = {};
     let lastCompleted = null;
+    const PREVIOUS_RE = /\bprevious\b/i;
 
     items.forEach((item) => {
       if (/difference/i.test(item.text)) {
@@ -196,9 +220,28 @@
         return;
       }
       if (pending[kind] === undefined) {
-        pending[kind] = item.idx;
+        pending[kind] = item;
       } else {
-        const entry = { kind, curIdx: pending[kind], prevIdx: item.idx, diffIdx: null };
+        // fix-1 item 5 (IMPORTANT): when exactly one of the pair's headers
+        // says "previous", that one is prevIdx regardless of which header
+        // came first. Positional order (first seen = cur) is only a
+        // fallback for when neither or both headers say "previous".
+        const first = pending[kind];
+        const second = item;
+        const firstIsPrev = PREVIOUS_RE.test(first.text);
+        const secondIsPrev = PREVIOUS_RE.test(second.text);
+        let curIdx, prevIdx;
+        if (firstIsPrev && !secondIsPrev) {
+          curIdx = second.idx;
+          prevIdx = first.idx;
+        } else if (secondIsPrev && !firstIsPrev) {
+          curIdx = first.idx;
+          prevIdx = second.idx;
+        } else {
+          curIdx = first.idx;
+          prevIdx = second.idx;
+        }
+        const entry = { kind, curIdx, prevIdx, diffIdx: null };
         metrics.push(entry);
         lastCompleted = entry;
         delete pending[kind];
@@ -206,16 +249,20 @@
     });
 
     // Fallback: a single header for a kind might be GSC rendering the pair
-    // as one combined column. Only trust that if body cells actually carry
-    // two numbers — otherwise this is just an ordinary, non-compare table.
+    // as one combined column. Only trust that if a MAJORITY of body rows
+    // actually carry two numbers there (fix-1 item 6) — one stray row
+    // (or none) is not enough to call an ordinary single-value column
+    // compare mode.
     const bodyRows = getBodyRows(table);
     Object.keys(pending).forEach((kind) => {
-      const idx = pending[kind];
-      const hasPair = bodyRows.some((tr) => {
+      const idx = pending[kind].idx;
+      const matchCount = bodyRows.filter((tr) => {
         const cells = getRowCells(tr);
         return cells[idx] && splitPair(cells[idx].textContent || '') !== null;
-      });
-      if (hasPair) metrics.push({ kind, curIdx: idx, prevIdx: idx, diffIdx: null });
+      }).length;
+      if (bodyRows.length > 0 && matchCount > bodyRows.length / 2) {
+        metrics.push({ kind, curIdx: idx, prevIdx: idx, diffIdx: null });
+      }
     });
 
     if (metrics.length === 0) return null;
@@ -226,7 +273,10 @@
     if (!cell) return '';
     const titled = cell.querySelector && cell.querySelector('[title]');
     if (titled) {
-      const t = (titled.getAttribute('title') || '').trim();
+      // fix-1 item 9 (MINOR): collapse whitespace here too -- a [title]
+      // with an embedded newline or run of spaces was leaking straight
+      // into the label (and from there into the TSV export) uncollapsed.
+      const t = (titled.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
       if (t) return t;
     }
     return (cell.textContent || '').replace(/\s+/g, ' ').trim();
@@ -272,44 +322,61 @@
     const rows = Array.isArray(rowResults) ? rowResults : [];
     const totals = { count: rows.length };
 
+    // fix-1 item 8 (MINOR): a metric object being present on a row is not
+    // the same as it carrying real data (both sides can be null dash
+    // placeholders), so haveClicks/haveImps are only set true once we see a
+    // FINITE value on at least one side -- otherwise an all-dash column
+    // would still print a spurious "0 -> 0" total.
     let haveClicks = false;
     let haveImps = false;
     let haveCtr = false;
     let havePos = false;
     let clicksCur = 0, clicksPrev = 0;
     let impsCur = 0, impsPrev = 0;
-    let ctrSumCur = 0, ctrSumPrev = 0, ctrCount = 0;
-    let posSumCur = 0, posSumPrev = 0, posCount = 0;
+    // fix-1 item 8: current and previous each get their OWN row count for
+    // the plain-average fallback, so a row with only one side present
+    // doesn't dilute the other side's average.
+    let ctrSumCur = 0, ctrCurCount = 0, ctrSumPrev = 0, ctrPrevCount = 0;
+    let posSumCur = 0, posCurCount = 0, posSumPrev = 0, posPrevCount = 0;
     let posWCur = 0, posWPrev = 0, posWeightCur = 0, posWeightPrev = 0;
 
     rows.forEach((row) => {
       const m = (row && row.metrics) || {};
       if (m.clicks) {
-        haveClicks = true;
-        if (isNum(m.clicks.cur)) clicksCur += m.clicks.cur;
-        if (isNum(m.clicks.prev)) clicksPrev += m.clicks.prev;
+        const curFinite = isNum(m.clicks.cur);
+        const prevFinite = isNum(m.clicks.prev);
+        if (curFinite || prevFinite) haveClicks = true;
+        if (curFinite) clicksCur += m.clicks.cur;
+        if (prevFinite) clicksPrev += m.clicks.prev;
       }
       if (m.impressions) {
-        haveImps = true;
-        if (isNum(m.impressions.cur)) impsCur += m.impressions.cur;
-        if (isNum(m.impressions.prev)) impsPrev += m.impressions.prev;
+        const curFinite = isNum(m.impressions.cur);
+        const prevFinite = isNum(m.impressions.prev);
+        if (curFinite || prevFinite) haveImps = true;
+        if (curFinite) impsCur += m.impressions.cur;
+        if (prevFinite) impsPrev += m.impressions.prev;
       }
       if (m.ctr) {
-        haveCtr = true;
-        if (isNum(m.ctr.cur)) { ctrSumCur += m.ctr.cur; ctrCount++; }
-        if (isNum(m.ctr.prev)) ctrSumPrev += m.ctr.prev;
+        const curFinite = isNum(m.ctr.cur);
+        const prevFinite = isNum(m.ctr.prev);
+        if (curFinite || prevFinite) haveCtr = true;
+        if (curFinite) { ctrSumCur += m.ctr.cur; ctrCurCount++; }
+        if (prevFinite) { ctrSumPrev += m.ctr.prev; ctrPrevCount++; }
       }
       if (m.position) {
-        havePos = true;
+        const curFinite = isNum(m.position.cur);
+        const prevFinite = isNum(m.position.prev);
+        if (curFinite || prevFinite) havePos = true;
         const wCur = m.impressions && isNum(m.impressions.cur) ? m.impressions.cur : null;
         const wPrev = m.impressions && isNum(m.impressions.prev) ? m.impressions.prev : null;
-        if (isNum(m.position.cur)) {
+        if (curFinite) {
           posSumCur += m.position.cur;
-          posCount++;
+          posCurCount++;
           if (wCur !== null) { posWCur += m.position.cur * wCur; posWeightCur += wCur; }
         }
-        if (isNum(m.position.prev)) {
+        if (prevFinite) {
           posSumPrev += m.position.prev;
+          posPrevCount++;
           if (wPrev !== null) { posWPrev += m.position.prev * wPrev; posWeightPrev += wPrev; }
         }
       }
@@ -323,18 +390,18 @@
     // column); only falls back to a plain average of per-row CTR values
     // when clicks/impressions aren't there to weight it (judgment call).
     if (haveClicks && haveImps) {
-      const ctrCur = impsCur > 0 ? (clicksCur / impsCur) * 100 : (ctrCount > 0 ? ctrSumCur / ctrCount : null);
-      const ctrPrev = impsPrev > 0 ? (clicksPrev / impsPrev) * 100 : (ctrCount > 0 ? ctrSumPrev / ctrCount : null);
+      const ctrCur = impsCur > 0 ? (clicksCur / impsCur) * 100 : (ctrCurCount > 0 ? ctrSumCur / ctrCurCount : null);
+      const ctrPrev = impsPrev > 0 ? (clicksPrev / impsPrev) * 100 : (ctrPrevCount > 0 ? ctrSumPrev / ctrPrevCount : null);
       totals.ctr = buildTotal(ctrCur, ctrPrev, 'ctr');
     } else if (haveCtr) {
-      const ctrCur = ctrCount > 0 ? ctrSumCur / ctrCount : null;
-      const ctrPrev = ctrCount > 0 ? ctrSumPrev / ctrCount : null;
+      const ctrCur = ctrCurCount > 0 ? ctrSumCur / ctrCurCount : null;
+      const ctrPrev = ctrPrevCount > 0 ? ctrSumPrev / ctrPrevCount : null;
       totals.ctr = buildTotal(ctrCur, ctrPrev, 'ctr');
     }
 
     if (havePos) {
-      const posCur = posWeightCur > 0 ? posWCur / posWeightCur : (posCount > 0 ? posSumCur / posCount : null);
-      const posPrev = posWeightPrev > 0 ? posWPrev / posWeightPrev : (posCount > 0 ? posSumPrev / posCount : null);
+      const posCur = posWeightCur > 0 ? posWCur / posWeightCur : (posCurCount > 0 ? posSumCur / posCurCount : null);
+      const posPrev = posWeightPrev > 0 ? posWPrev / posWeightPrev : (posPrevCount > 0 ? posSumPrev / posPrevCount : null);
       totals.position = buildTotal(posCur, posPrev, 'position');
     }
 
@@ -429,89 +496,167 @@
   const TOOLS_CLASS = 'seo-bw-cmp-tools';
   const SUMMARY_CLASS = 'seo-bw-cmp-summary';
   const CHIP_CLASS = 'seo-bw-cmp-chip';
+  const SORTED_TABLE_CLASS = 'seo-bw-cmp-sorted-table';
+  const HIDDEN_MARK = 'data-seo-bw-hidden';
 
-  // tbody element → array of row labels in the order first observed. Reused
-  // across apply() calls so our own sort buttons (which reorder the DOM and
-  // so retrigger the runner's MutationObserver) don't clobber "true" order.
-  const ORIGINAL_ORDER = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  // table → { metric, filter }, persisted across rebuilds (fix-1 item 4) so
+  // that a table re-render (real data change) doesn't silently reset a
+  // user's metric/filter choice back to defaults.
+  const TOOL_STATE = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
 
-  function sameLabelSet(a, b) {
-    if (!a || !b || a.length !== b.length) return false;
-    const set = new Set(a);
-    return b.every((x) => set.has(x));
+  const CARD_KIND_RE = /^\s*(?:total |average )?(clicks|impressions|ctr|position)\b/i;
+
+  // fix-1 item 2 (CRITICAL): the metric word must be at the START of the
+  // card's text, not just present anywhere in it -- a chip like "Position
+  // filter: between 2 and 10" contains "position" but is not a metric card.
+  function cardKindAtStart(text) {
+    const m = CARD_KIND_RE.exec(text);
+    return m ? m[1].toLowerCase() : null;
   }
 
-  function findKindInText(text) {
-    // Leading \b only: card text often concatenates the label straight into
-    // its numbers with no whitespace (e.g. "Average position6.2vs8.3"), and
-    // digits are word characters, so a trailing \b would never match there.
-    const s = text.toLowerCase();
-    if (/\bctr/.test(s)) return 'ctr';
-    if (/\bclick/.test(s)) return 'clicks';
-    if (/\bimpression/.test(s)) return 'impressions';
-    if (/\bposition/.test(s)) return 'position';
-    return null;
+  // Card markup often concatenates the label straight into its numbers with
+  // no whitespace between sibling text nodes (e.g. the label div followed
+  // directly by a value div renders as "Total clicks1,230" in textContent).
+  // Join each text node's trimmed content with a single space so the
+  // START-anchored word-boundary check above sees "Total clicks 1,230" (a
+  // real boundary after "clicks") instead of "Total clicks1,230" (no
+  // boundary between the "s" and the "1", both word characters).
+  function spacedText(el) {
+    if (typeof document === 'undefined' || !document.createTreeWalker) return (el.textContent || '').trim();
+    const walker = document.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */, null);
+    const parts = [];
+    let node = walker.nextNode();
+    while (node) {
+      const t = (node.textContent || '').trim();
+      if (t) parts.push(t);
+      node = walker.nextNode();
+    }
+    return parts.join(' ');
   }
 
+  // fix-1 item 2: normalize the typographic minus sign here too, and add a
+  // boundary after the K/M/B/% suffix so it can't swallow the leading
+  // letter of a following word (mirrors the parseMetric fix).
   function extractNumberTokens(text) {
-    const re = /<\s*\d[\d,.\s]*%|-?\d[\d,\s]*(?:\.\d+)?\s*(?:K|M|B|%)?/gi;
+    const normalized = String(text).replace(/−/g, '-');
+    const re = /<\s*\d[\d,.\s]*%|-?\d[\d,\s]*(?:\.\d+)?\s*(?:K|M|B|%)?(?![\w.])/gi;
     const tokens = [];
     let match;
-    while ((match = re.exec(text)) !== null) tokens.push(match[0]);
+    while ((match = re.exec(normalized)) !== null) tokens.push(match[0]);
     return tokens;
   }
 
-  function extractNumbers(text) {
-    return extractNumberTokens(text)
-      .map(parseMetric)
-      .filter((n) => n !== null);
+  // fix-1 item 2: a qualifying "numeric leaf" is a DOM text node whose whole
+  // trimmed content is nothing but a parsable number -- no letters at all.
+  // This is what lets us reject a chip like "Position filter: between 2 and
+  // 10" (one text node, and it has letters) while still finding the two
+  // number leaves inside a real metric card's child elements.
+  function isPureNumberLeaf(text) {
+    const t = (text || '').trim();
+    if (!t) return false;
+    if (/[A-Za-z]/.test(t)) return false;
+    return parseMetric(t) !== null;
+  }
+
+  function collectNumericLeaves(el) {
+    const leaves = [];
+    if (typeof document === 'undefined' || !document.createTreeWalker) return leaves;
+    // Skip text nodes inside anything WE injected (e.g. our own badge span)
+    // -- otherwise re-running this on a card that already carries our badge
+    // would pick up the badge's own rendered numbers as if they were fresh
+    // current/previous values, corrupting the very value it computed from.
+    const walker = document.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */, {
+      acceptNode(node) {
+        if (node.parentElement && node.parentElement.closest('[' + MARK + ']')) return 2; // FILTER_REJECT
+        return 1; // FILTER_ACCEPT
+      },
+    });
+    let node = walker.nextNode();
+    while (node) {
+      const t = (node.textContent || '').trim();
+      if (t && isPureNumberLeaf(t)) leaves.push(parseMetric(t));
+      node = walker.nextNode();
+    }
+    return leaves;
   }
 
   // A GSC metric summary tile is a `[role="button"]` toggle (same structural
   // anchor gsc-inject.js already relies on elsewhere) whose text names a
-  // metric and carries the current + previous totals. Deepest-match only, so
-  // a wrapping ancestor with the same text isn't double-counted.
-  function findMetricCards(scope) {
+  // metric AT THE START and whose only numeric leaf text nodes are the
+  // current + previous totals (fix-1 item 2). The card pass only runs when
+  // some table on the page is already in compare mode, so an ordinary
+  // (non-compare) report page never gets badged cards from a coincidental
+  // metric-shaped label.
+  function findMetricCards(scope, anyCompare) {
+    if (!anyCompare) return [];
     const candidates = Array.prototype.slice.call(scope.querySelectorAll('[role="button"]'));
     const qualifies = candidates
       .filter((el) => !el.closest('table'))
       .map((el) => {
         const text = (el.textContent || '').trim();
         if (!text || text.length > 200) return null;
-        const kind = findKindInText(text);
+        const kind = cardKindAtStart(spacedText(el));
         if (!kind) return null;
-        const nums = extractNumbers(text);
-        if (nums.length < 2) return null;
-        return { el, kind, cur: nums[0], prev: nums[1] };
+        const leaves = collectNumericLeaves(el);
+        if (leaves.length < 2) return null;
+        const [cur, prev] = leaves.slice(-2);
+        return { el, kind, cur, prev };
       })
       .filter(Boolean);
     return qualifies.filter((c) => !qualifies.some((other) => other.el !== c.el && c.el.contains(other.el)));
   }
 
+  // fix-1 item 1a (CRITICAL): skip the DOM write entirely when the badge's
+  // text/class would be unchanged -- otherwise every apply() call mutates
+  // the badge (even to the same value), which the runner's MutationObserver
+  // sees and reacts to, which re-triggers apply(): an observer loop that
+  // never settles.
   function applyCardBadge(card) {
     const { el, kind, cur, prev } = card;
     const { text } = formatDelta(kind, cur, prev);
     const better = isBetter(kind, cur, prev);
-    const cls = better === null ? 'flat' : better ? 'good' : 'bad';
+    const cls = BADGE_CLASS + ' ' + (better === null ? 'flat' : better ? 'good' : 'bad');
+    const title = 'current → previous: ' + formatRaw(kind, cur) + ' → ' + formatRaw(kind, prev);
     let badge = el.querySelector('.' + BADGE_CLASS);
     if (!badge) {
       badge = document.createElement('span');
       badge.setAttribute(MARK, 'badge');
       el.appendChild(badge);
     }
-    badge.className = BADGE_CLASS + ' ' + cls;
-    badge.textContent = text;
-    badge.title = 'current → previous: ' + formatRaw(kind, cur) + ' → ' + formatRaw(kind, prev);
+    if (badge.className !== cls) badge.className = cls;
+    if (badge.textContent !== text) badge.textContent = text;
+    if (badge.title !== title) badge.title = title;
   }
 
+  // Removes every node we ever injected for this table: pct-header/pct-cell
+  // cells inside it, the tools strip, the summary line, and (fix-1 item 3)
+  // our own sorted-copy table -- none of which are guaranteed to be direct
+  // siblings of `table` any more once a sorted copy is showing, so (fix-1
+  // item 12) tools/summary/sorted are found by attribute on the table's
+  // PARENT rather than by sibling-walking. Also (fix-1 item 4) un-hides any
+  // row we hid via a filter, marked with `data-seo-bw-hidden` so we never
+  // touch a `hidden` GSC set for its own reasons.
   function clearInjected(table) {
     table.querySelectorAll('[' + MARK + ']').forEach((n) => n.remove());
-    const prev = table.previousElementSibling;
-    if (prev && prev.getAttribute && prev.getAttribute(MARK) === 'tools') prev.remove();
-    const next = table.nextElementSibling;
-    if (next && next.getAttribute && next.getAttribute(MARK) === 'summary') next.remove();
+    Array.prototype.forEach.call(table.querySelectorAll('[' + HIDDEN_MARK + ']'), (tr) => {
+      tr.removeAttribute(HIDDEN_MARK);
+      tr.hidden = false;
+    });
+    table.hidden = false;
+    table.removeAttribute('data-seo-bw-sorted-active');
+    const parent = table.parentNode;
+    if (!parent) return;
+    ['tools', 'summary', 'sorted'].forEach((kind) => {
+      const el = parent.querySelector('[' + MARK + '="' + kind + '"]');
+      if (el) el.remove();
+    });
   }
 
+  // fix-1 item 10 (MINOR): a short/colspan row (e.g. a "no data" message row)
+  // has no cell at the anchor index. Previously we just skipped it, leaving
+  // that row without a matching cell in our injected column at all; now it
+  // still gets an (empty) marked cell so the column stays a real column for
+  // every body row.
   function insertPctColumns(table, cols) {
     const headerRow = getHeaderRow(table);
     const bodyRows = getBodyRows(table);
@@ -530,12 +675,17 @@
       bodyRows.forEach((tr) => {
         const cells = getRowCells(tr);
         const anchorCell = cells[anchor];
-        if (!anchorCell) return;
-        const row = computeRow(tr, cols);
-        const m2 = row && row.metrics[m.kind];
         const td = document.createElement('td');
         td.setAttribute(MARK, 'pct-cell');
         td.setAttribute('data-seo-bw-metric', m.kind);
+        if (!anchorCell) {
+          td.className = CELL_CLASS + ' flat';
+          td.textContent = '';
+          tr.appendChild(td);
+          return;
+        }
+        const row = computeRow(tr, cols);
+        const m2 = row && row.metrics[m.kind];
         if (m2 && isNum(m2.cur) && isNum(m2.prev)) {
           const better = isBetter(m.kind, m2.cur, m2.prev);
           td.className = CELL_CLASS + ' ' + (better === null ? 'flat' : better ? 'good' : 'bad');
@@ -579,14 +729,16 @@
   }
 
   function renderSummary(table, totals) {
-    let el = table.nextElementSibling;
-    if (!(el && el.getAttribute && el.getAttribute(MARK) === 'summary')) {
+    const parent = table.parentNode;
+    let el = parent.querySelector('[' + MARK + '="summary"]');
+    if (!el) {
       el = document.createElement('div');
       el.className = SUMMARY_CLASS;
       el.setAttribute(MARK, 'summary');
-      table.parentNode.insertBefore(el, table.nextSibling);
+      parent.insertBefore(el, table.nextSibling);
     }
-    el.textContent = buildSummaryText(totals);
+    const text = buildSummaryText(totals);
+    if (el.textContent !== text) el.textContent = text;
   }
 
   function makeChip(label, active) {
@@ -595,6 +747,58 @@
     chip.className = CHIP_CLASS + (active ? ' active' : '');
     chip.textContent = label;
     return chip;
+  }
+
+  // fix-1 item 3 (IMPORTANT): renders OUR OWN read-only table -- built from
+  // rowResults, never GSC's nodes -- so a sort can never move a row GSC owns.
+  function buildSortedTable(cols, sortedRows) {
+    const t = document.createElement('table');
+    t.setAttribute(MARK, 'sorted');
+    t.className = SORTED_TABLE_CLASS;
+
+    const thead = document.createElement('thead');
+    const headTr = document.createElement('tr');
+    const thLabel = document.createElement('th');
+    thLabel.textContent = 'Label';
+    headTr.appendChild(thLabel);
+    cols.metrics.forEach((m) => {
+      const label = m.kind.charAt(0).toUpperCase() + m.kind.slice(1);
+      ['current', 'previous', 'diff', '% change'].forEach((suffix) => {
+        const th = document.createElement('th');
+        th.textContent = label + ' ' + suffix;
+        headTr.appendChild(th);
+      });
+    });
+    thead.appendChild(headTr);
+    t.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    sortedRows.forEach((r) => {
+      const tr = document.createElement('tr');
+      const labelTd = document.createElement('td');
+      labelTd.textContent = r.label;
+      tr.appendChild(labelTd);
+      cols.metrics.forEach((m) => {
+        const rm = (r.metrics && r.metrics[m.kind]) || {};
+        const dec = m.kind === 'ctr' || m.kind === 'position' ? 1 : 0;
+        const curTd = document.createElement('td');
+        curTd.textContent = formatRaw(m.kind, rm.cur);
+        tr.appendChild(curTd);
+        const prevTd = document.createElement('td');
+        prevTd.textContent = formatRaw(m.kind, rm.prev);
+        tr.appendChild(prevTd);
+        const diffTd = document.createElement('td');
+        diffTd.textContent = isNum(rm.delta) ? formatNum(rm.delta, dec) : '—';
+        tr.appendChild(diffTd);
+        const pctTd = document.createElement('td');
+        pctTd.textContent = isNum(rm.pct) ? (rm.pct > 0 ? '+' : '') + formatNum(rm.pct, 1) + '%' : '—';
+        pctTd.className = CELL_CLASS;
+        tr.appendChild(pctTd);
+      });
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    return t;
   }
 
   function insertToolsStrip(table, cols) {
@@ -614,7 +818,11 @@
       opt.textContent = label;
       select.appendChild(opt);
     });
-    const firstKind = cols.metrics[0] && cols.metrics[0].kind;
+
+    // fix-1 item 4 (IMPORTANT): restore the persisted metric/filter choice
+    // for this table, if any, instead of always resetting to defaults.
+    const persisted = (TOOL_STATE && TOOL_STATE.get(table)) || {};
+    const firstKind = persisted.metric || (cols.metrics[0] && cols.metrics[0].kind);
     if (firstKind) select.value = firstKind;
 
     const btnDrop = document.createElement('button');
@@ -629,9 +837,10 @@
 
     const chipsWrap = document.createElement('span');
     chipsWrap.className = 'seo-bw-cmp-chips';
-    const chipAll = makeChip('All', true);
-    const chipDrops = makeChip('Drops ≥ 25%');
-    const chipGains = makeChip('Gains ≥ 25%');
+    let activeFilter = persisted.filter || 'all';
+    const chipAll = makeChip('All', activeFilter === 'all');
+    const chipDrops = makeChip('Drops ≥ 25%', activeFilter === 'drops');
+    const chipGains = makeChip('Gains ≥ 25%', activeFilter === 'gains');
     chipsWrap.appendChild(chipAll);
     chipsWrap.appendChild(chipDrops);
     chipsWrap.appendChild(chipGains);
@@ -647,7 +856,9 @@
     strip.appendChild(chipsWrap);
     strip.appendChild(copyBtn);
 
-    let activeFilter = 'all';
+    function saveState() {
+      if (TOOL_STATE) TOOL_STATE.set(table, { metric: select.value, filter: activeFilter });
+    }
 
     function visibleRowResults() {
       return getBodyRows(table)
@@ -663,13 +874,25 @@
     function applyFilter() {
       const allResults = getBodyRows(table).map((tr) => computeRow(tr, cols)).filter(Boolean);
       if (activeFilter === 'all') {
-        getBodyRows(table).forEach((tr) => { tr.hidden = false; });
+        getBodyRows(table).forEach((tr) => {
+          if (tr.hasAttribute(HIDDEN_MARK)) {
+            tr.removeAttribute(HIDDEN_MARK);
+            tr.hidden = false;
+          }
+        });
       } else {
         const opts = activeFilter === 'drops' ? { minDrop: 25 } : { minGain: 25 };
         const passing = new Set(filterByPct(allResults, select.value, opts).map((r) => r.label));
         getBodyRows(table).forEach((tr) => {
           const r = computeRow(tr, cols);
-          tr.hidden = !(r && passing.has(r.label));
+          const shouldHide = !(r && passing.has(r.label));
+          if (shouldHide) {
+            tr.hidden = true;
+            tr.setAttribute(HIDDEN_MARK, '1');
+          } else if (tr.hasAttribute(HIDDEN_MARK)) {
+            tr.removeAttribute(HIDDEN_MARK);
+            tr.hidden = false;
+          }
         });
       }
       updateSummary();
@@ -680,37 +903,37 @@
       chip.classList.add('active');
     }
 
-    select.addEventListener('change', applyFilter);
-    chipAll.addEventListener('click', () => { activeFilter = 'all'; setActiveChip(chipAll); applyFilter(); });
-    chipDrops.addEventListener('click', () => { activeFilter = 'drops'; setActiveChip(chipDrops); applyFilter(); });
-    chipGains.addEventListener('click', () => { activeFilter = 'gains'; setActiveChip(chipGains); applyFilter(); });
+    select.addEventListener('change', () => { saveState(); applyFilter(); });
+    chipAll.addEventListener('click', () => { activeFilter = 'all'; setActiveChip(chipAll); saveState(); applyFilter(); });
+    chipDrops.addEventListener('click', () => { activeFilter = 'drops'; setActiveChip(chipDrops); saveState(); applyFilter(); });
+    chipGains.addEventListener('click', () => { activeFilter = 'gains'; setActiveChip(chipGains); saveState(); applyFilter(); });
 
-    function reorderRows(orderedLabels) {
-      const tbody = table.tBodies[0] || table;
-      const byLabel = new Map();
-      getBodyRows(table).forEach((tr) => {
-        const r = computeRow(tr, cols);
-        if (r) byLabel.set(r.label, tr);
-      });
-      orderedLabels.forEach((label) => {
-        const tr = byLabel.get(label);
-        if (tr) tbody.appendChild(tr);
-      });
+    // fix-1 item 3 (IMPORTANT): sorting never touches a GSC row. Instead we
+    // render our own read-only table copy after the tools strip and hide
+    // (never remove) the real GSC table; "Original order" removes the copy
+    // and unhides it.
+    function showSorted(dir) {
+      const results = getBodyRows(table).map((tr) => computeRow(tr, cols)).filter(Boolean);
+      const ranked = rankByPct(results, select.value, dir);
+      const built = buildSortedTable(cols, ranked);
+      const parent = table.parentNode;
+      const existing = parent.querySelector('[' + MARK + '="sorted"]');
+      if (existing) existing.replaceWith(built); else parent.insertBefore(built, table);
+      table.hidden = true;
+      table.setAttribute('data-seo-bw-sorted-active', '1');
     }
 
-    btnDrop.addEventListener('click', () => {
-      const results = getBodyRows(table).map((tr) => computeRow(tr, cols)).filter(Boolean);
-      reorderRows(rankByPct(results, select.value, 'drop').map((r) => r.label));
-    });
-    btnGain.addEventListener('click', () => {
-      const results = getBodyRows(table).map((tr) => computeRow(tr, cols)).filter(Boolean);
-      reorderRows(rankByPct(results, select.value, 'gain').map((r) => r.label));
-    });
-    btnOrig.addEventListener('click', () => {
-      const tbody = table.tBodies[0] || table;
-      const order = ORIGINAL_ORDER && ORIGINAL_ORDER.get(tbody);
-      if (order) reorderRows(order);
-    });
+    function showOriginal() {
+      const parent = table.parentNode;
+      const existing = parent.querySelector('[' + MARK + '="sorted"]');
+      if (existing) existing.remove();
+      table.hidden = false;
+      table.removeAttribute('data-seo-bw-sorted-active');
+    }
+
+    btnDrop.addEventListener('click', () => showSorted('drop'));
+    btnGain.addEventListener('click', () => showSorted('gain'));
+    btnOrig.addEventListener('click', showOriginal);
 
     copyBtn.addEventListener('click', () => {
       const results = visibleRowResults();
@@ -726,23 +949,56 @@
     });
 
     table.parentNode.insertBefore(strip, table);
-    updateSummary();
+    saveState();
+    if (activeFilter !== 'all') applyFilter(); else updateSummary();
     return strip;
   }
 
-  function applyToTable(table) {
-    clearInjected(table);
-    const cols = detectCompareColumns(table);
-    if (!cols) return;
+  // fix-1 item 1a (CRITICAL): a lightweight fingerprint of everything that
+  // would change what we render -- header text, row order, and every mapped
+  // cur/prev value. Stored on the table itself so a re-run of apply() with
+  // truly unchanged data can bail out before touching the DOM at all.
+  function computeTableHash(table, rowResults) {
+    // Exclude cells WE injected (the "% change" header) from the header
+    // fingerprint -- otherwise the very first apply() call's own header
+    // insertion would change the hash out from under itself, and every
+    // subsequent call would see a "changed" header and rebuild forever.
+    const headerText = getHeaderCells(table)
+      .filter((c) => !c.hasAttribute(MARK))
+      .map((c) => (c.textContent || '').trim())
+      .join('|');
+    const rowsPart = rowResults
+      .map((r) => {
+        const metricsPart = Object.keys(r.metrics)
+          .sort()
+          .map((k) => k + ':' + r.metrics[k].cur + ',' + r.metrics[k].prev)
+          .join(';');
+        return r.label + '=' + metricsPart;
+      })
+      .join('||');
+    return headerText + '##' + rowsPart;
+  }
 
-    const tbody = table.tBodies[0] || table;
-    const rowResults = getBodyRows(table).map((tr) => computeRow(tr, cols)).filter(Boolean);
-    const labels = rowResults.map((r) => r.label);
-    if (ORIGINAL_ORDER) {
-      const stored = ORIGINAL_ORDER.get(tbody);
-      if (!stored || !sameLabelSet(stored, labels)) ORIGINAL_ORDER.set(tbody, labels.slice());
+  function applyToTable(table, colsArg) {
+    const cols = colsArg !== undefined ? colsArg : detectCompareColumns(table);
+    if (!cols) {
+      if (table.__sbwCmpHash !== undefined) {
+        clearInjected(table);
+        delete table.__sbwCmpHash;
+      }
+      return;
     }
 
+    const rowResults = getBodyRows(table).map((tr) => computeRow(tr, cols)).filter(Boolean);
+    const hash = computeTableHash(table, rowResults);
+    // fix-1 item 1a (CRITICAL): true no-op when nothing changed -- no
+    // clearInjected, no rebuild, zero DOM mutations, so a MutationObserver
+    // watching this subtree sees nothing from a second call with the same
+    // data.
+    if (table.__sbwCmpHash === hash) return;
+    table.__sbwCmpHash = hash;
+
+    clearInjected(table);
     insertPctColumns(table, cols);
     insertToolsStrip(table, cols);
   }
@@ -750,12 +1006,22 @@
   // apply(root) — scans for GSC metric summary tiles and compare-mode
   // Performance tables under `root` (defaults to `document`) and injects
   // badges/cells/tools/summary. Idempotent: safe to call again after GSC
-  // re-renders (existing injections are cleared and rebuilt each time).
+  // re-renders (existing injections are cleared and rebuilt each time a
+  // table's data actually changed; unchanged tables/cards are left alone).
   function apply(scopeRoot) {
     const scope = scopeRoot || document;
     if (!scope.querySelectorAll) return;
-    findMetricCards(scope).forEach(applyCardBadge);
-    Array.prototype.forEach.call(scope.querySelectorAll('table'), applyToTable);
+    // Never treat our own sorted-copy table as a GSC table to re-scan.
+    const tables = Array.prototype.slice
+      .call(scope.querySelectorAll('table'))
+      .filter((t) => t.getAttribute(MARK) !== 'sorted');
+    const colsList = tables.map((t) => detectCompareColumns(t));
+    // fix-1 item 2: only run the card pass when some table on the page is
+    // actually in compare mode.
+    if (colsList.some((c) => c !== null)) {
+      findMetricCards(scope, true).forEach(applyCardBadge);
+    }
+    tables.forEach((t, i) => applyToTable(t, colsList[i]));
   }
 
   const CSS =
@@ -773,7 +1039,9 @@
     '.seo-bw-cmp-chips{display:inline-flex;gap:4px}' +
     '.' + CHIP_CLASS + '{padding:3px 9px;border-radius:12px;border:1px solid #dadce0;background:#fff;cursor:pointer;font-size:12px;color:#202124}' +
     '.' + CHIP_CLASS + '.active{background:#000022;color:#fff;border-color:#000022}' +
-    '.' + SUMMARY_CLASS + '{margin:8px 0;font:12px/1.5 system-ui,sans-serif;color:#5f6368}';
+    '.' + SUMMARY_CLASS + '{margin:8px 0;font:12px/1.5 system-ui,sans-serif;color:#5f6368}' +
+    '.' + SORTED_TABLE_CLASS + '{border-collapse:collapse;font:13px/1.4 system-ui,sans-serif}' +
+    '.' + SORTED_TABLE_CLASS + ' th,.' + SORTED_TABLE_CLASS + ' td{padding:4px 10px;text-align:left;border-bottom:1px solid #e8eaed}';
 
   const api = {
     parseMetric,
