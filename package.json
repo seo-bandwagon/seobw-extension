@@ -5,7 +5,8 @@
   "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection. Dev tooling only — the extension itself ships as manifest.json + src/ (no build step).",
   "scripts": {
     "build": "echo 'No build step needed - load unpacked in Chrome'",
-    "zip": "zip -r seo-bw-extension.zip manifest.json lib/ src/ README.md ROADMAP.md -x '*.DS_Store'",
+    "zip": "zip -r seo-bw-extension.zip manifest.json lib/ src/ -x '*.DS_Store'",
+    "check:zip": "npm run zip && (node scripts/check-zip-manifest.mjs; rc=$?; rm -f seo-bw-extension.zip; exit $rc)",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",

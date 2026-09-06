@@ -56,6 +56,32 @@ function section(id, title, badgeHtml, body, open) {
   </div>`;
 }
 
+// Google SERP detection (Task 6, item D) — the same host+path shape as
+// manifest.json's serp-overlay content_scripts entry. Analyzing a Google
+// results page with the normal page analyzer is noise (it's not a page a
+// client owns); src/overlay/serp-overlay.js is what actually runs there.
+const GOOGLE_SERP_HOSTS = new Set([
+  'www.google.com', 'www.google.co.uk', 'www.google.ca', 'www.google.com.au',
+  'www.google.de', 'www.google.fr', 'www.google.es', 'www.google.it',
+  'www.google.nl', 'www.google.in'
+]);
+
+function isGoogleSerpUrl(url) {
+  try {
+    const u = new URL(url);
+    return GOOGLE_SERP_HOSTS.has(u.hostname.toLowerCase()) && u.pathname === '/search';
+  } catch (e) {
+    return false;
+  }
+}
+
+// Shared with feature UI modules loaded after this file (src/popup/<feature>.js,
+// e.g. link-check.js) so they render sections/badges the same way the main
+// SEO tab does, and can post status/reach the active tab without duplicating
+// this file's module-scoped state. setSeoStatus is a function declaration
+// (hoisted), so this works even though it's defined further down the file.
+globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => currentTab };
+
 /* ---------- tab switching ---------- */
 
 document.querySelectorAll('.switcher button').forEach(btn => {
@@ -99,6 +125,21 @@ initDataToggle();
 chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   const tab = tabs[0];
   currentTab = tab;
+
+  if (tab && tab.url && isGoogleSerpUrl(tab.url)) {
+    document.getElementById('content').innerHTML = `
+      <div class="empty sbw-serp-notice">
+        <div class="empty-title">SEARCH RESULTS PAGE</div>
+        <div class="empty-sub">This is a search results page — the SEO Bandwagon bar is shown under each result.</div>
+      </div>`;
+    // Task 7, item E: the review strip's visibility is a pure function of
+    // storage (analyses/prompted), never of what this popup open did or
+    // didn't analyze — a SERP-page open still shows it if a prior analysis
+    // already crossed the threshold.
+    globalThis.SBWReviewUI?.renderFromStorage();
+    return;
+  }
+
   // Recorded before the analyze message even goes out, so it predates any
   // capture this popup instance is about to post — see loadDomainHistory's
   // excludeSince, which uses it to keep a just-posted capture from being
@@ -116,11 +157,15 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       pageData = cached.data;
       renderResults(cached.data);
       loadDomainHistory(tab, cached.data, analysisStartedAt);
+      // A cached-hit popup open is still a real analysis from the user's
+      // point of view (they got a result), so it counts toward the
+      // review-prompt threshold same as a fresh one below.
+      globalThis.SBWReviewUI?.recordAnalysis();
       return;
     }
 
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/content/analyzer.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/content/analyzer.js'] });
     } catch (e) { /* already injected */ }
 
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
@@ -132,7 +177,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     // pure-logic filter in SBWDomainHistory.summarize() is the second,
     // ordering-independent guard against the same race.
     loadDomainHistory(tab, response, analysisStartedAt);
-    autoSaveCapture(response);
+    autoSaveCapture(stripForStorage(response));
+    globalThis.SBWReviewUI?.recordAnalysis();
 
     chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
 
@@ -152,6 +198,9 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
         <div class="empty-title">CAN'T READ THIS PAGE</div>
         <div class="empty-sub">Chrome blocks analysis on internal pages. Try refreshing, then click again.</div>
       </div>`;
+    // Never gated on this run's outcome (ruling, Task 7 item E) — an error
+    // page still shows the strip if a prior analysis already qualified.
+    globalThis.SBWReviewUI?.renderFromStorage();
   }
 });
 
@@ -314,22 +363,41 @@ function renderResults(data) {
           <span class="data-value">${esc(String(text).slice(0, 70))}</span>
         </div>`).join('')
     ).join('') +
-    `<div class="highlight-buttons"><button class="highlight-btn" data-type="headings">Highlight headings</button></div>`);
+    `<div class="highlight-buttons">
+      <button class="highlight-btn" data-type="headings">Highlight headings</button>
+      ${exportButtonHtml('hdExportBtn', 'Export CSV', SBWExportRows.headingsRows(data))}
+      ${exportButtonHtml('hdCopyBtn', 'Copy outline', SBWExportRows.headingsRows(data))}
+    </div>`);
 
   /* --- Links & images --- */
   const missingAlt = data.images.missingAlt.count;
+  const nfAnchors = data.links.nofollowAnchors || [];
+  const nfList = nfAnchors.slice(0, 50);
   html += section('links', 'Links & Images',
     missingAlt ? badge(`${missingAlt} NO ALT`, 'b-err') : badge(`${data.links.internal.count + data.links.external.count} LINKS`, ''),
     `${dataRow('Internal', esc(data.links.internal.count))}
     ${dataRow('External', esc(data.links.external.count))}
     ${dataRow('Nofollow', esc(data.links.nofollow))}
+    ${dataRow('UGC', esc(data.links.ugc || 0))}
+    ${dataRow('Sponsored', esc(data.links.sponsored || 0))}
+    ${nfAnchors.length ? dataRow('Total links with any of nofollow/ugc/sponsored', esc(nfAnchors.length)) : ''}
     ${dataRow('Images', esc(data.images.total))}
     ${dataRow('Missing alt', esc(missingAlt), missingAlt === 0 ? 'good' : 'bad')}
+    ${nfList.length ? `<details class="nf-details">
+      <summary class="nf-summary">Nofollow / UGC / sponsored links (${nfList.length})</summary>
+      <div class="nf-list">${nfList.map(l => `<div class="nf-row">
+        <span class="nf-row-rel">${esc(l.rel || '')}</span>
+        <span class="nf-row-anchor" title="${esc(l.text || '')}">${esc((l.text || '').slice(0, 40)) || '(no text)'}</span>
+        <span class="nf-row-url" title="${esc(l.url)}">${esc(l.url && l.url.length > 50 ? l.url.slice(0, 50) + '…' : (l.url || ''))}</span>
+      </div>`).join('')}</div>
+    </details>` : ''}
     <div class="highlight-buttons">
       <button class="highlight-btn" data-type="links-internal">Internal</button>
       <button class="highlight-btn" data-type="links-external">External</button>
       <button class="highlight-btn" data-type="nofollow">Nofollow</button>
       <button class="highlight-btn" data-type="images-missing-alt">Missing alt</button>
+      ${exportButtonHtml('imgExportBtn', 'Export images CSV', SBWExportRows.imagesRows(data))}
+      ${exportButtonHtml('lnkExportBtn', 'Export links CSV', SBWExportRows.linksRows(data))}
     </div>`);
 
   /* --- Content --- */
@@ -372,6 +440,26 @@ function renderResults(data) {
 
   content.innerHTML = html;
   wireSeoTab();
+  // Indexability mounts first: it inserts itself right after "Page Meta"
+  // (see src/popup/indexability.js). Hreflang mounts next and inserts
+  // itself right after Indexability (see src/popup/hreflang.js) — or, with
+  // no hreflang tags on the page, adds nothing but a muted line inside Page
+  // Meta instead. Rendering mounts next and inserts itself right after
+  // Hreflang, falling back the same way (see src/popup/render-check.js).
+  // Structured Data mounts next and inserts itself right after Rendering,
+  // falling back through the same chain (see src/popup/structured-data.js).
+  // Link Check — which just appends to the end of #content — always ends up
+  // last regardless of call order; mounting these first anyway keeps that
+  // intent readable here.
+  globalThis.SBWIndexabilityUI?.mount(document.getElementById('content'), data);
+  globalThis.SBWHreflangUI?.mount(document.getElementById('content'), data);
+  globalThis.SBWRenderCheckUI?.mount(document.getElementById('content'), data);
+  globalThis.SBWSchemaUI?.mount(document.getElementById('content'), data);
+  globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
+  // TOOLS row (Task 7, item C) — inserts itself as #content's first child,
+  // above the score hero, so it has to mount last (every mount() above
+  // targets a spot further down and would otherwise land above it).
+  globalThis.SBWToolsUI?.mount(document.getElementById('content'), data);
 }
 
 function wireSeoTab() {
@@ -401,6 +489,12 @@ function wireSeoTab() {
 
   document.getElementById('copyBtn').addEventListener('click', () => copyToClipboard(pageData));
   document.getElementById('exportBtn').addEventListener('click', () => exportAsJson(pageData));
+
+  // Task 7, item A/B: headings outline + images/links CSV exports.
+  document.getElementById('hdExportBtn')?.addEventListener('click', (e) => { e.stopPropagation(); exportHeadingsCsv(pageData); });
+  document.getElementById('hdCopyBtn')?.addEventListener('click', (e) => { e.stopPropagation(); copyHeadingsOutline(pageData); });
+  document.getElementById('imgExportBtn')?.addEventListener('click', (e) => { e.stopPropagation(); exportImagesCsv(pageData); });
+  document.getElementById('lnkExportBtn')?.addEventListener('click', (e) => { e.stopPropagation(); exportLinksCsv(pageData); });
 
   document.getElementById('addOutletBtn')?.addEventListener('click', addCurrentTabAsOutlet);
   initAddOutletButton();
@@ -474,6 +568,36 @@ function setSeoStatus(msg, type) {
   el.textContent = msg;
   el.className = 'status' + (type ? ' ' + type : '');
   if (msg) setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 2200);
+}
+
+// Fix round 1, IMPORTANT 5 (Task 5) + item 3 (Task 7 fix round 1): a synced
+// capture uploads structured-data type names and property NAMES (for the
+// missing-required/recommended chips and the "Eligible for" rollup) but
+// never property VALUES, and — as of item 3 — never the four page-text
+// list fields the popup's own CSV/copy exports need (headings.outline,
+// links.list, links.nofollowAnchors, images.list); only their counts sync.
+// Only the copy handed to autoSaveCapture/autoSaveLocal is stripped;
+// `pageData` (module-level, set from the same `response` right before this
+// call) keeps everything intact so the export/copy buttons and
+// structured-data.js's "Copy JSON-LD" button still have the real data.
+//
+// The actual stripping logic lives in src/lib/capture-strip.js
+// (globalThis.SBWCaptureStrip) so it's unit-testable without chrome/DOM;
+// this wrapper is only the fail-closed fallback for the (should-never-
+// happen) case that module didn't load.
+function stripForStorage(data) {
+  if (globalThis.SBWCaptureStrip && typeof globalThis.SBWCaptureStrip.strip === 'function') {
+    return globalThis.SBWCaptureStrip.strip(data);
+  }
+  // Fail closed: without the stripper module, drop everything it would
+  // have stripped rather than risk uploading page text/property values.
+  if (!data) return data;
+  const copy = Object.assign({}, data);
+  delete copy.schemaValidation;
+  if (copy.headings) { copy.headings = Object.assign({}, copy.headings); delete copy.headings.outline; }
+  if (copy.links) { copy.links = Object.assign({}, copy.links); delete copy.links.list; delete copy.links.nofollowAnchors; }
+  if (copy.images) { copy.images = Object.assign({}, copy.images); delete copy.images.list; }
+  return copy;
 }
 
 async function autoSaveCapture(data) {
@@ -596,4 +720,112 @@ function exportAsJson(data) {
   a.click();
   URL.revokeObjectURL(url);
   setSeoStatus('Exported', 'success');
+}
+
+/* ---------- headings outline / images / links CSV exports (Task 7) ---------- */
+
+// Row selection (including the pre-1.6.0-cached-analysis null case) lives
+// in src/lib/export-rows.js (globalThis.SBWExportRows) so it's unit-testable
+// without chrome/DOM — see tests/unit/export-rows.test.js.
+
+// Fix round 1, item 3: mirrors lib/dom-extraction.js's OUTLINE_CAP /
+// LINKS_LIST_CAP / IMAGES_LIST_CAP (all 500) — used here only to detect
+// "this list hit its cap" for the truncation row/label below, since
+// dom-extraction.js isn't loaded into the popup's own page (only injected
+// into the target tab).
+const EXPORT_ROW_CAP = 500;
+
+// Fix round 1, item 8: a rows value of `null` (see SBWExportRows above)
+// means the field doesn't exist on this cached analysis at all — render
+// the button disabled with an explanatory title instead of letting a click
+// export/copy a header-only/empty result.
+function exportButtonHtml(id, label, rows) {
+  if (!rows) {
+    return `<button type="button" class="section-action-btn" id="${id}" disabled title="Re-run the analysis to export this">${esc(label)}</button>`;
+  }
+  // Fix round 1, item 11: capped lists say so on the button itself, before
+  // the click — not just in the footer row inside the downloaded file.
+  const shownLabel = rows.length >= EXPORT_ROW_CAP ? `${label} (first ${EXPORT_ROW_CAP})` : label;
+  return `<button type="button" class="section-action-btn" id="${id}">${esc(shownLabel)}</button>`;
+}
+
+// Fix round 1, item 11: a guarded footer row ("# truncated to 500 rows")
+// appended to a capped export — same `SBWCsv.toCsv`/`cell()` formula-guard
+// path as every other row, just a plain row object with the message under
+// the first column and the rest blank.
+function withTruncationRow(rows, columns) {
+  if (rows.length < EXPORT_ROW_CAP) return rows;
+  const footer = {};
+  footer[columns[0].key] = '# truncated to ' + EXPORT_ROW_CAP + ' rows';
+  return rows.concat([footer]);
+}
+
+const HEADINGS_CSV_COLUMNS = [
+  { key: 'order', label: 'Order' },
+  { key: 'level', label: 'Level' },
+  { key: 'text', label: 'Text' }
+];
+
+function downloadCsv(prefix, rows, columns, pageUrl) {
+  const csv = SBWCsv.toCsv(rows, columns);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = SBWCsv.csvFilename(prefix, pageUrl || 'https://page.example/');
+  a.click();
+  // See link-check.js's onExportClick for why the revoke is deferred a tick.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setSeoStatus('Exported', 'success');
+}
+
+// Each of the three functions below returns `null` (nothing exported/
+// copied, no "Exported" status set) when the button should have been
+// disabled — belt-and-suspenders in case a click reaches the handler
+// anyway (e.g. a disabled attribute stripped by a stale render).
+function exportHeadingsCsv(data) {
+  const rows = SBWExportRows.headingsRows(data);
+  if (!rows) return null;
+  downloadCsv('headings', withTruncationRow(rows, HEADINGS_CSV_COLUMNS), HEADINGS_CSV_COLUMNS, data && data.url);
+  return true;
+}
+
+function copyHeadingsOutline(data) {
+  const rows = SBWExportRows.headingsRows(data);
+  if (!rows) return null;
+  const text = rows.map(r => '  '.repeat(Math.max(0, r.level - 1)) + r.text).join('\n');
+  navigator.clipboard.writeText(text)
+    .then(() => setSeoStatus('Outline copied', 'success'))
+    .catch(() => setSeoStatus('Copy failed', 'error'));
+  return true;
+}
+
+const IMAGES_CSV_COLUMNS = [
+  { key: 'src', label: 'Src' },
+  { key: 'alt', label: 'Alt' },
+  { key: 'hasAlt', label: 'Has Alt' },
+  { key: 'lazy', label: 'Lazy' },
+  { key: 'width', label: 'Width' },
+  { key: 'height', label: 'Height' }
+];
+
+function exportImagesCsv(data) {
+  const rows = SBWExportRows.imagesRows(data);
+  if (!rows) return null;
+  downloadCsv('images', withTruncationRow(rows, IMAGES_CSV_COLUMNS), IMAGES_CSV_COLUMNS, data && data.url);
+  return true;
+}
+
+const LINKS_CSV_COLUMNS = [
+  { key: 'url', label: 'URL' },
+  { key: 'anchor', label: 'Anchor' },
+  { key: 'rel', label: 'Rel' },
+  { key: 'type', label: 'Type' }
+];
+
+function exportLinksCsv(data) {
+  const rows = SBWExportRows.linksRows(data);
+  if (!rows) return null;
+  downloadCsv('links', withTruncationRow(rows, LINKS_CSV_COLUMNS), LINKS_CSV_COLUMNS, data && data.url);
+  return true;
 }

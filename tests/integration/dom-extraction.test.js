@@ -97,6 +97,92 @@ describe('extractHeadings', () => {
     expect(headings.h1.length).toBe(1);
     expect(headings.h1[0]).toBe('Real');
   });
+
+  // Task 7, item A: "No H7" — instead, a document-order outline (level,
+  // text, order) that also picks up ARIA heading roles the plain hN
+  // extraction above ignores. Used by the popup's headings CSV export and
+  // "Copy outline" button.
+  describe('outline (Task 7, item A)', () => {
+    it('lists real h1-h6 tags in document order with 1-based order numbers', () => {
+      const html = '<html><body>' +
+        '<h1>Title</h1><h3>Sub A</h3><h2>Section</h2><h3>Sub B</h3>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.outline).toEqual([
+        { level: 1, text: 'Title', order: 1 },
+        { level: 3, text: 'Sub A', order: 2 },
+        { level: 2, text: 'Section', order: 3 },
+        { level: 3, text: 'Sub B', order: 4 }
+      ]);
+    });
+
+    it('includes [role="heading"][aria-level] elements the plain hN arrays ignore', () => {
+      const html = '<html><body>' +
+        '<h1>Title</h1>' +
+        '<div role="heading" aria-level="2">ARIA Section</div>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      // The plain per-level arrays stay literal-tag-only...
+      expect(headings.h2).toEqual([]);
+      // ...but the outline sees both, in document order.
+      expect(headings.outline).toEqual([
+        { level: 1, text: 'Title', order: 1 },
+        { level: 2, text: 'ARIA Section', order: 2 }
+      ]);
+    });
+
+    it('defaults a non-numeric aria-level to 2, per WAI-ARIA', () => {
+      // The extraction selector is literally `[role="heading"][aria-level]`
+      // (matching the brief) — an element with role="heading" but no
+      // aria-level attribute at all isn't matched, only one where the
+      // attribute is present but not a usable number.
+      const html = '<html><body>' +
+        '<div role="heading" aria-level="not-a-number">Bad level</div>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.outline).toEqual([
+        { level: 2, text: 'Bad level', order: 1 }
+      ]);
+    });
+
+    it('does not include a role="heading" element with no aria-level attribute at all', () => {
+      const html = '<html><body><div role="heading">No level attr</div></body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.outline).toEqual([]);
+    });
+
+    it('clamps an out-of-range aria-level into 1-6', () => {
+      const html = '<html><body>' +
+        '<div role="heading" aria-level="9">Too deep</div>' +
+        '<div role="heading" aria-level="0">Too shallow</div>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.outline[0].level).toBe(6);
+      expect(headings.outline[1].level).toBe(1);
+    });
+
+    it('excludes empty-text headings from the outline, same as the hN arrays', () => {
+      const html = '<html><body>' +
+        '<h1></h1><h1>Real</h1><div role="heading" aria-level="2">   </div>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.outline).toEqual([{ level: 1, text: 'Real', order: 1 }]);
+    });
+
+    it('never double-counts an hN element that also carries role=heading', () => {
+      const html = '<html><body><h2 role="heading" aria-level="2">Once</h2></body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.outline.length).toBe(1);
+      expect(headings.outline[0]).toEqual({ level: 2, text: 'Once', order: 1 });
+    });
+  });
 });
 
 describe('extractLinks', () => {
@@ -141,6 +227,79 @@ describe('extractLinks', () => {
     // should not throw
     expect(() => extractLinks(d.window.document, d.window.location)).not.toThrow();
   });
+
+  // Task 7, item D: nofollow surfacing — ugc/sponsored counted separately
+  // from plain nofollow, plus a capped list of the actual anchors so the
+  // popup can render an expandable list next to the existing Highlight
+  // button (which already treats all three rel values as one family).
+  describe('ugc / sponsored / nofollowAnchors (Task 7, item D)', () => {
+    const html = '<html><body>' +
+      '<a href="https://example.com/a" rel="nofollow">Plain nofollow</a>' +
+      '<a href="https://example.com/b" rel="ugc">UGC only</a>' +
+      '<a href="https://example.com/c" rel="sponsored">Sponsored only</a>' +
+      '<a href="https://example.com/d" rel="noopener ugc nofollow">UGC + nofollow</a>' +
+      '<a href="https://example.com/e">Plain link</a>' +
+      '</body></html>';
+
+    it('counts nofollow, ugc, and sponsored as separate totals', () => {
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const links = extractLinks(d.window.document, d.window.location);
+      expect(links.nofollow).toBe(2); // a, d
+      expect(links.ugc).toBe(2);      // b, d
+      expect(links.sponsored).toBe(1); // c
+    });
+
+    it('lists every nofollow/ugc/sponsored anchor with url, text, and rel', () => {
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const links = extractLinks(d.window.document, d.window.location);
+      expect(links.nofollowAnchors.length).toBe(4); // a, b, c, d — not the plain link
+      expect(links.nofollowAnchors[0]).toEqual({
+        url: 'https://example.com/a', text: 'Plain nofollow', rel: 'nofollow'
+      });
+      expect(links.nofollowAnchors.some(l => l.url === 'https://example.com/e')).toBe(false);
+    });
+
+    it('caps nofollowAnchors at 50', () => {
+      const bigHtml = '<html><body>' +
+        Array.from({ length: 80 }, (_, i) =>
+          `<a href="https://example.com/n${i}" rel="nofollow">N${i}</a>`
+        ).join('') +
+        '</body></html>';
+      const d = new JSDOM(bigHtml, { url: FIXTURE_URL });
+      const links = extractLinks(d.window.document, d.window.location);
+      expect(links.nofollow).toBe(80);
+      expect(links.nofollowAnchors.length).toBe(50);
+    });
+  });
+
+  // Task 7, item B: a full per-link list (url, anchor text, rel, internal/
+  // external type) backing the popup's Links "Export CSV" button — richer
+  // than the existing `anchors` field (text/href only, no rel or type).
+  describe('list (Task 7, item B — links CSV export)', () => {
+    it('includes url, anchor, rel, and type for every parseable link', () => {
+      const html = '<html><body>' +
+        '<a href="https://seobandwagon.com/internal" rel="nofollow">Internal link</a>' +
+        '<a href="https://other-site.example/external">External link</a>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const links = extractLinks(d.window.document, d.window.location);
+      expect(links.list).toEqual([
+        { url: 'https://seobandwagon.com/internal', anchor: 'Internal link', rel: 'nofollow', type: 'internal' },
+        { url: 'https://other-site.example/external', anchor: 'External link', rel: '', type: 'external' }
+      ]);
+    });
+
+    it('excludes unparseable hrefs from the list without throwing', () => {
+      const html = '<html><body>' +
+        '<a href="https://valid.com">valid</a>' +
+        '<a href="javascript:void(0)">js</a>' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const links = extractLinks(d.window.document, d.window.location);
+      expect(links.list.length).toBe(1);
+      expect(links.list[0].url).toBe('https://valid.com/');
+    });
+  });
 });
 
 describe('extractImages', () => {
@@ -171,6 +330,31 @@ describe('extractImages', () => {
     const images = extractImages(d.window.document);
     expect(images.total).toBe(0);
     expect(images.missingAlt.count).toBe(0);
+  });
+
+  // Task 7, item B: a full per-image list (src, alt, hasAlt, lazy,
+  // width/height) backing the popup's Images "Export CSV" button.
+  describe('list (Task 7, item B — images CSV export)', () => {
+    it('includes src, alt, hasAlt, lazy, width, and height per image', () => {
+      const html = '<html><body>' +
+        '<img src="a.jpg" alt="A photo" width="640" height="480">' +
+        '<img src="b.jpg" loading="lazy">' +
+        '</body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const images = extractImages(d.window.document);
+      expect(images.list[0]).toEqual({
+        src: 'https://seobandwagon.com/a.jpg', alt: 'A photo', hasAlt: true, lazy: false, width: '640', height: '480'
+      });
+      expect(images.list[1]).toEqual({
+        src: 'https://seobandwagon.com/b.jpg', alt: '', hasAlt: false, lazy: true, width: null, height: null
+      });
+    });
+
+    it('returns an empty list for a page with no images', () => {
+      const d = new JSDOM('<html><body></body></html>', { url: FIXTURE_URL });
+      const images = extractImages(d.window.document);
+      expect(images.list).toEqual([]);
+    });
   });
 });
 

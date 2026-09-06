@@ -1,12 +1,22 @@
 # SEO Bandwagon Chrome Extension
 
+**Version 1.6.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
 ## What it does
 
 - **SEO Analysis** — score ring (0–100, A–F grade) with four sub-scores (Meta, Content, Links, Tech), page meta with a SERP preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), heading structure, link and image audit with on-page highlighting, content stats and n-grams, tech stack detection, and a domain-history strip showing this domain's and URL's past captures.
+- **Link Check** — probes every link on the page (status groups, on-page highlighting, CSV export); needs the optional "check other sites" permission.
+- **Indexability** — the page's redirect chain, response headers, and X-Robots-Tag, combined with its meta robots/canonical, into an indexable/not-indexable verdict; also traces any URL you type.
+- **Hreflang** — validates every declared `hreflang` tag (BCP 47 form, duplicates, self-reference, x-default) and, on request, fetches each alternate to confirm it links back.
+- **Rendering** — compares the page's raw (unrendered) HTML against what your browser actually rendered, and a "View as" switcher for testing server-side rendering and cloaking under a different user-agent.
+- **Structured Data** — extracts JSON-LD, Microdata, and RDFa, validates required/recommended properties per type, and shows which Google rich results an item is eligible for.
 - **Citations** — detects 40 curated local-SEO directories on the current page, extracts the page's NAP (JSON-LD → microdata → heuristic) and scores it against your business record, captures a proof screenshot, and files the citation to your account in one click.
 - **Link Building** — side panel view of your outlets (qualified prospects), pitches (draft/approved), and results (placements, funnel, spend), plus "Add current tab as outlet."
+- **SERP overlay** — on Google's own results pages, a stats bar under each organic result, one-click results/PAA export, and a location simulator for seeing what searchers in another metro are shown.
+- **Search Console helpers** — row-level "open in Google Search" actions and compare-mode math (percent change, sort/filter, copy as TSV) on Search Console's own Performance report.
+- **Tools** — a right-click "SEO Bandwagon tools" submenu (and matching popup row) for Google Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine, `site:` search, and sitemap.xml/robots.txt shortcuts.
 
 ## Installation
 
@@ -39,13 +49,18 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 |---|---|
 | `activeTab` | Read the current tab's URL/title when you click the icon or a keyboard shortcut |
 | `storage` | Save captures locally, cache API responses, and store your API key/settings |
-| `contextMenus` | The right-click "Analyze this page" / "Analyze linked page" / "Count words & characters" entries |
+| `contextMenus` | The right-click "Analyze this page" / "Analyze linked page" / "Count words & characters" entries, plus the "SEO Bandwagon tools" submenu (see "Tools" below) |
 | `scripting` | Inject the page-analysis script into the active tab on demand |
 | `sidePanel` | The Link Building and Citations side panel |
 | `tabs` | Read the active tab's URL to open dashboard links in new tabs, **and** — via `chrome.tabs.onUpdated` in the background service worker — read every tab's URL as it finishes loading to match it against a bundled list of citation directories and paint the "DIR" toolbar badge. That match is local hostname comparison only; the URL is never sent anywhere for it |
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
+| `webRequest` | Observes top-level navigations in every tab (a fixed listener filter, `types: ['main_frame']`) — not just the one you're looking at — buffering the last 25 redirect/status/response-header events per tab in `chrome.storage.session`; only the buffer for the tab you currently have the popup open on is ever read, by the Indexability panel. Cleared when that tab closes, the browser restarts, or the optional permission below is revoked. Fires on nothing without `<all_urls>` below, and never reads a response body |
+| `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
+| `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
+| `content_scripts` matches: `https://www.google.com/search*` and the same path on nine other Google TLDs (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.in`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, sends only bare domain names to `seobandwagon.com` (never your search query) to look up their stats, and copies results/PAA questions to your clipboard or a CSV only when you click. It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use, and doesn't touch the optional `<all_urls>` permission below at all: every stats lookup routes through the background worker's existing `seobandwagon.com` access, never a fetch from the page itself |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
+| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically). The consent text shown at request time, verbatim (`ALL_URLS_REASON` in `src/lib/perms.js`): *"To check links, hreflang alternates and redirects, and to compare a page's raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page."* |
 
 The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
@@ -55,8 +70,8 @@ There is no `identity` permission and no OAuth — connecting an account is just
 
 ### Row actions
 
-On any Search Console **Performance** report (Queries or Pages), every data row
-gets two small icons after the query/URL: **Open in Google Search** (new tab)
+On a Search Console **Performance** report's **Queries** tab only, every data
+row gets two small icons after the query: **Open in Google Search** (new tab)
 and **Open in Google Search (private window)**. The icons are dim until you
 hover the row. Nothing is sent anywhere — the extension only opens
 `https://www.google.com/search?q=<row text>`.
@@ -90,6 +105,115 @@ the math and controls Search Console itself doesn't show:
 Everything here is computed from the numbers already on the page. Nothing is
 sent anywhere — there is no network call involved at all.
 
+## SERP overlay
+
+On a Google results page (google.com and nine other Google TLDs — see the
+Permissions table below), the extension appends one small bar under each
+organic result and a toolbar under the results list. It never touches an ad
+or any Google UI — additive only, always: nothing is hidden, moved, covered,
+or restyled.
+
+**What's injected:**
+
+- A `.sbw-serp-bar` under each organic result, showing the domain and its
+  SEO Bandwagon stats (score, capture count) once looked up, with a small
+  **Analyze** link that opens the result in a new tab — the popup does the
+  analysis from there, the same as it would for any page you visit directly.
+- A toolbar with **Copy results (N)** (TSV to clipboard), **Export CSV**,
+  **Copy PAA (N)** (People-also-ask questions, to clipboard), and the
+  location simulator.
+
+**What's sent:** only the bare domain names of the results currently shown
+(deduped, looked up in successive batches of up to 20 per request — never
+truncated, just spread across further requests when there are more than
+20) go to `POST /api/domain/quick-batch` — never the search query, never a
+title or snippet. Each domain's response is cached in `chrome.storage.session`
+for 10 minutes, keyed by domain, so a domain already looked up isn't
+re-requested even when it reappears in a later batch of results. If no
+account is connected (or the key is rejected), each bar shows "Connect your
+account" once and doesn't retry; a bar shows "Unavailable" if the lookup
+itself failed to reach the worker. Extracted results and PAA questions never
+leave the browser at all — Copy/Export only ever touch your clipboard or a
+local file download.
+
+**Location simulator:** builds a Google search URL with location parameters
+(`uule`, `gl`, `hl`, optionally `pws=0` to turn off personalization) from a
+54-metro preset list or a typed canonical location name, and opens it in a
+new tab — or two, for the "Compare in two tabs" button. This **opens a
+search with location parameters so you can see what searchers in that area
+are shown**. It does not simulate Googlebot or any other crawler, and the
+extension never describes it that way.
+
+## Tools
+
+Right-click any page for a "SEO Bandwagon tools" submenu — every item opens
+a new tab, nothing is fetched from the extension itself:
+
+- **Open in Google Search Console (URL inspection)** — the page's origin as
+  the resource and the exact URL as the inspection target.
+- **Open in Wayback Machine** — that URL's archive.org calendar view.
+- **Open in PageSpeed Insights**
+- **Test with Rich Results Test**
+- **site: search for this domain** — a `site:` search scoped to the page's
+  hostname only (never the path or query string).
+- **Search Google for the selected text in quotes** (shown only when text is
+  selected) — the selection, capped at 200 characters, wrapped in quotes
+  (any literal `"` in the selection is replaced with a space first, so it
+  can't close the wrapping quotes early).
+- **Open sitemap.xml** / **Open robots.txt** — origin-rooted, regardless of
+  the current page's own path.
+
+The same seven page-scoped items (everything except the selection search,
+which needs actual selected text the popup doesn't have) also appear as a
+small TOOLS row under the popup header. Every URL is built by
+`src/lib/tool-links.js` from `new URL(pageUrl)` — never a string-split of
+the origin — with every user-controlled part percent-encoded and any
+embedded HTTP Basic Auth credentials in the page's own URL (`user:pw@host`)
+stripped before it's used anywhere; a page that isn't `http(s)://` (an
+internal `chrome://` page, for instance) makes every tool return nothing
+rather than open something broken. Google's own tools here (Search
+Console, PageSpeed Insights, Rich Results Test) are named nominatively,
+never with a logo — see "Credits" below.
+
+### Exports
+
+Besides the JSON export in the footer, individual sections export their own
+CSV (`src/lib/csv.js`, RFC 4180, UTF-8 BOM, formula-injection guarded):
+Link Check, Indexability, Hreflang, Rendering, and Structured Data (all
+1.6.0-earlier), plus, as of this feature: **Headings** (level, text,
+document order — a "Copy outline" button next to it copies the same outline
+as indented plain text to your clipboard), **Images** (src, alt, has-alt,
+lazy-loaded, width/height where set), and **Links** (URL, anchor text, rel,
+internal/external). Each of these three lists is capped at 500 rows; a CSV
+that hit the cap gets a final `# truncated to 500 rows` row and its button
+label reads "(first 500)" so the truncation is visible before you even
+click. A cached analysis captured before 1.6.0 shipped these lists has no
+`outline`/`list` field to export from — the affected button is disabled
+with a "Re-run the analysis to export this" tooltip instead of downloading
+a header-only file (Headings is the exception: it falls back to
+reconstructing a level-ordered outline from the older H1-H6 arrays, which
+did already exist, so its button and "Copy outline" stay enabled unless
+even those are missing). None of these leave your device until you choose
+to save or paste the file yourself — and, as of this fix round, none of
+the three lists themselves are included in a synced capture either (see
+"Privacy" below); only their counts are.
+
+Field notes for the Images CSV: an `<img>` using only `srcset` (no `src`)
+exports an empty Src; an `<img data-src="...">` used for lazy-loading
+exports that value as Src and is marked `lazy: true` even without a
+`loading="lazy"` attribute (this is how most lazy-load libraries actually
+work); otherwise `lazy` is only ever `loading="lazy"`. Width/height are the
+raw HTML attribute values, unmodified.
+
+### Review prompt
+
+After your 5th analysis, a one-line strip appears once, asking for a
+Chrome Web Store review — un-incentivized, and never tied to your score or
+whether the page could be analyzed at all. **Leave a review** opens the
+listing's reviews tab in a new tab; **No thanks** dismisses it. Either way
+it's marked as shown and never appears again (`chrome.storage.local`, key
+`sbwReview` — nothing about this is sent anywhere).
+
 ## Privacy
 
 Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, domain history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
@@ -97,9 +221,10 @@ Page analysis runs entirely in your browser. **Nothing leaves your device unless
 **A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 
 - the page URL and the capture timestamp
-- the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD) found on the page
-- headings and their text (H1–H6)
-- link, image and media audits (internal/external link counts and anchor text, missing alt text, lazy-loaded images, iframes, media types, favicons/feeds)
+- the extracted on-page SEO data: title/meta description, canonical, robots, Open Graph and Twitter Card tags, and any structured data (JSON-LD, Microdata, RDFa) found on the page — types and property NAMES only (the missing-required/recommended chips and the "Eligible for" rollup need those); property VALUES are stripped before this is saved or synced, so a customer's name, price, or review text sitting in a page's own JSON-LD never leaves your device. This includes the raw JSON-LD blocks kept for the score calculator's own "has schema" check: each one — and each member of a `@graph`, one level down — is reduced to its type and its sorted top-level property names before it's saved or synced; structured-data blocks are reduced to their type and property names, never their values
+- headings and their text (H1–H6 and ARIA headings)
+- link, image and media audits: internal/external link counts and up to 100 URLs each, up to 50 anchor texts with their href (`links.anchors`), missing-alt image count and up to 20 of those image srcs (`images.missingAlt.srcs`), up to 50 alt texts from images that have them (`images.altTexts`), lazy-loaded images, iframes, media types, favicons/feeds
+- as of this fix round, four CSV-export-only detail lists stay on this device only and are never part of a synced capture: the headings outline (level/text/order/ARIA), the full Images and Links CSV lists (`images.list`, `links.list`), and the up-to-50 nofollow/UGC/sponsored anchor list shown in the popup (`links.nofollowAnchors`) — only the link/image totals and nofollow/UGC/sponsored counts sync from those. This is separate from the older link/image fields listed just above (anchor text, internal/external URLs, missing-alt image srcs, alt texts), which do sync — they predate this fix round and aren't affected by it
 - content statistics: word/character/sentence counts, and the page's top words and phrases
 - page technical facts: DOM element/script/stylesheet counts, load time, and URL depth
 - detected technologies (CMS, analytics, frameworks, etc.)
@@ -109,15 +234,40 @@ Page analysis runs entirely in your browser. **Nothing leaves your device unless
 - a SHA-256 hash of the page's content, and the computed SEO score/grade
 - the extension version and your browser's user-agent string
 
-None of this is trimmed or summarized before sending — it's the same analysis object the popup renders from, sent unmodified. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
+Apart from the fields listed above as stripped, nothing else is trimmed or summarized before sending — it's the same analysis object the popup renders from. If that's more than you want synced, turn the data-collection toggle off; analysis still runs and saves locally, it just doesn't sync.
 
 **Upgrading from before 1.5.0?** Captures saved by an older version are never auto-uploaded on upgrade — they're marked "skipped" locally, and stay that way until you click "Include them in sync" on the History page, which is the only thing that opts them into the normal sync/retry flow described below.
 
 **Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot is never part of that payload — it only ever saves to your device (see `preview/DESIGN-GAPS.md` for the full-page-capture roadmap).
 
-**The SERP overlay is not active in 1.5.0** — `src/overlay/serp-overlay.js` exists but isn't registered as a content script (see ROADMAP's v1.6 candidates), so it sends nothing today. When it ships, the plan is a bare-domain batch lookup (`SBW.quickBatch`) with no other page data attached — this note will be updated to match whatever actually ships.
+**On Google search pages the extension sends the bare domain names of the results shown (never your query) to look up their stats; the results list and questions are copied only when you click.** See "SERP overlay" above for the full breakdown — the 10-minute local cache, the "Connect your account" no-retry behaviour, and the location simulator's copy rules.
+
+**Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per URL. This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
+
+**Indexability observes the current tab's own network requests** (Indexability section, 1.6.0+) — the current tab's main-frame redirects, status codes, and a fixed list of response headers (X-Robots-Tag, Cache-Control, Content-Type, Link, and whether HSTS/CSP are present), and only after you've granted the same optional `<all_urls>` permission; it's kept in `chrome.storage.session` and cleared when the tab closes or the browser restarts, and is never sent anywhere. "Trace another URL" opens a background tab to the URL you type, reads the same kind of data from it, and closes it — again nothing leaves your device unless you export the CSV yourself.
+
+**The hreflang return-tag check fetches the alternate pages you listed** (Hreflang section, 1.6.0+) — from your browser, credentials omitted (`credentials: 'omit'`), no caching, a 10-second timeout and at most 256 KB read per page, capped at 50 alternates. This only runs after you click "Check return tags" — everything above it (the tag table, code validity, duplicate/x-default/self-reference checks) reads only the current page's own HTML and needs no permission at all. Results stay on your device; nothing about them is sent to SEO Bandwagon unless you export the CSV yourself.
+
+**The raw-HTML vs rendered-DOM comparison fetches the current tab's own URL a second time, unrendered** (Rendering section, 1.6.0+) — from your browser, credentials omitted (`credentials: 'omit'`), no caching, a 10-second timeout, and at most 1 MB of body read. This only runs after you click "Compare raw HTML with rendered DOM," and only after you've granted the optional `<all_urls>` permission. The comparison — and the CSV export of it — never leaves your device.
+
+**The "View as" user-agent switcher rewrites a header, nothing more** (Rendering section, 1.6.0+) — choosing a preset other than Default sets a session-only `declarativeNetRequest` rule that rewrites the User-Agent header on requests from the current tab, then reloads that tab; switching back to Default (or closing the tab) removes it immediately. Nothing about which preset you chose, or what the page looked like under it, is sent anywhere. This is for testing how a page's server-side rendering or cloaking behaves under a different user-agent — not for bypassing a paywall, a login gate, or any other access control.
+
+**Structured data validation reads only the current page's own HTML — no permission, no fetch, at all** (Structured Data section, 1.6.0+) — `src/lib/structured-data.js` extracts every JSON-LD `<script>` block (including `@graph`, recursively — a `@graph` member that's itself an array or that carries its own nested `@graph` is flattened too), every WHATWG microdata `[itemscope]` tree (including properties referenced via `itemref` elsewhere in the document), and every basic RDFa Lite `[typeof]` tree already on the page, and checks each item against a required/recommended property table per type (Article, Product, LocalBusiness and every subtype we recognize — Plumber, Electrician, Restaurant, and around 100 others — Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, JobPosting). A type schema.org actually defines but that isn't on this list yet (e.g. `Service`) gets a "no required-property list for this type" note rather than a false "Unknown type" — that flag is reserved for a genuinely unrecognized `@type`. "Eligible for" only lists a Google rich-result feature when that item's required properties are all present, **and only for rich results Google currently shows** — it never promises "will get," since eligibility is necessary, not sufficient, for a rich result to actually appear. FAQPage and HowTo are validated as markup the same as any other type, but Google retired both rich results (FAQ in 2026-05/06, How-to earlier), so a complete item there renders "Valid markup; Google no longer shows a rich result for this type" instead of appearing in Eligible for. See "Credits" below for where those required/recommended lists come from.
+
+**The "SEO Bandwagon tools" menu and TOOLS row open a new tab — nothing is fetched by the extension** (1.6.0+): each item builds a URL from the current page's own address (and, for the quoted-search item, up to 200 characters of your selected text) and opens it with `chrome.tabs.create`, the same as clicking a link. No network request happens inside the extension for any of these.
 
 Nothing is sent without a key configured, regardless of the toggle.
+
+## Credits
+
+The Structured Data section's required/recommended property lists derive from:
+
+- **[schema.org](https://schema.org)** type and property definitions — [CC BY-SA 3.0](https://schema.org/docs/terms.html)
+- **[Google Search Central](https://developers.google.com/search/docs/appearance/structured-data)** structured-data documentation — CC BY 4.0
+
+Every type category the section validates against (Article, Product, LocalBusiness, Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, JobPosting) links back to the specific Google Search Central feature page or schema.org type page its list was derived from — see the "About & credits" link in the popup footer for the full, always-current list (`src/lib/credits.js`, read straight off `src/lib/structured-data.js`'s own table so the two can't drift apart). FAQPage and HowTo link to their schema.org type pages rather than a Google Search Central feature page, since Google no longer documents either as a rich result (both are validated-but-retired — see above). Google tools (Rich Results Test, Search Console) are named by name where relevant, never with logos.
+
+The same "About & credits" panel also lists the third-party tools the "SEO Bandwagon tools" menu and popup TOOLS row link out to — Google Search Console, PageSpeed Insights, Rich Results Test, and the Internet Archive's Wayback Machine — each named for identification only; none of them are affiliated with or endorse SEO Bandwagon.
 
 ## Local-first + sync/retry behaviour
 
@@ -138,15 +288,32 @@ Every analyzed page saves to `chrome.storage.local` immediately — no network r
 manifest.json           # Extension config (Manifest V3)
 lib/                     # Shared pure modules (content-analysis, dom-extraction) injected before analyzer.js
 src/
-  background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler
+  background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler,
+                         # redirect tracer (webRequest/webNavigation, gated on <all_urls>), raw-HTML fetch
+                         # and per-tab UA-switch DNR session rules (declarativeNetRequestWithHostAccess)
   content/                # Page analyzer + GSC Search Console helper
   history/                # Capture history page (search, export, sync, retry)
   lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
                            # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
                            # gsc-inject.js + gsc-compare.js (Search Console helpers)
+                           # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
+                           # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
+                           # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
+                           # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js
+                           # (user-agent presets + DNR rule shape), structured-data.js (JSON-LD/microdata/
+                           # RDFa extraction + required/recommended validation, no fetch), credits.js
+                           # (attribution data for the popup's About & credits panel), tool-links.js
+                           # (context-menu/TOOLS-row URL builder), review-prompt.js (one-time
+                           # review-prompt state machine)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
-  overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
-  popup/                  # Popup UI: SEO Analysis tab + Citations tab
+  overlay/                # SERP overlay content script (see "SERP overlay" above)
+  popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
+                           # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
+                           # + hreflang.js (Hreflang section — tag table, return-tag check)
+                           # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
+                           # + structured-data.js (Structured Data section — item/problem list, "Eligible
+                           # for", CSV export, and the footer's About & credits panel)
+                           # + tools.js (TOOLS row under the header) + review.js (the review-prompt strip)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/
@@ -188,7 +355,10 @@ Before every Chrome Web Store submission, also walk through [MANUAL_SMOKE_TEST.m
 ## Releasing
 
 ```bash
-npm run zip   # manifest.json lib/ src/ README.md ROADMAP.md → seo-bw-extension.zip
+npm run zip        # manifest.json lib/ src/ README.md ROADMAP.md → seo-bw-extension.zip
+npm run check:zip  # same, plus: fails if any file manifest.json/popup.html/options.html/
+                    # history.html/sidepanel.html reference is missing from the zip; deletes
+                    # the zip itself afterward (scripts/check-zip-manifest.mjs)
 ```
 
 Bump `version` and `version_name` in `manifest.json` first (see `ROADMAP.md`'s versioning policy). Unzip and inspect the listing before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/`, `src/`, `README.md`, `ROADMAP.md` and nothing else (no `preview/`, `tests/`, `node_modules/`, or internal docs).

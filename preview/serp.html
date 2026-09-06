@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SERP overlay preview</title>
+  <link rel="stylesheet" href="../src/overlay/serp-overlay.css">
+  <script src="stub.js"></script>
+  <style>
+    /* Loose approximation of a Google results page shell — just enough
+       structure for src/lib/serp.js's parseResults()/parsePaa() selectors
+       (a[href^="http"] + h3, [data-text-ad]/#tads/#bottomads,
+       [data-q]/[jsname][role="button"]) to have something real to find. */
+    body { font-family: arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #202124; }
+    #search { max-width: 600px; }
+    h3 { font-size: 18px; margin: 0 0 4px; }
+    a { color: #1a0dab; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div id="search">
+    <div id="tads">
+      <div data-text-ad="1">
+        <div>
+          <a href="https://ad-sponsor.example/landing"><h3>Sponsored Widget Deals</h3></a>
+          <div>Ad copy — buy widgets now.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fix round 1, item 14: AI-Overview block with one citation — its h3
+         must never get a bar; parseResults() rejects anything inside
+         [data-attrid*="Overview" i]. -->
+    <div data-attrid="AI Overview">
+      <div>
+        <a href="https://ai-overview-citation.example/source"><h3>AI Overview Citation</h3></a>
+      </div>
+    </div>
+
+    <!-- Fix round 1, item 14: shopping unit — [data-pla] is both an ad
+         container and a rejected non-organic surface; either alone would
+         exclude it. -->
+    <div data-pla="1">
+      <div>
+        <a href="https://shopping-unit.example/product"><h3>Shopping Unit Item</h3></a>
+      </div>
+    </div>
+
+    <div class="g">
+      <div>
+        <a href="https://first-result.example/page-one">
+          <h3>First Organic Result</h3>
+        </a>
+        <div>Snippet text for the first organic result on this fixture page.</div>
+        <!-- Fix round 1, item 14: a sitelinks cluster on the first organic
+             result, inside the same block findBlock() resolves for the main
+             anchor — containment dedupe must keep the organic count at 2,
+             not 4. -->
+        <div class="sitelinks-wrapper">
+          <div class="sitelink"><a href="https://first-result.example/sub-a"><h3>First Result Sitelink A</h3></a></div>
+          <div class="sitelink"><a href="https://first-result.example/sub-b"><h3>First Result Sitelink B</h3></a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g">
+      <div>
+        <a href="https://second-result.example/page-two">
+          <h3>Second Organic Result</h3>
+        </a>
+        <div>Snippet text for the second organic result on this fixture page.</div>
+      </div>
+    </div>
+
+    <div id="bottomads">
+      <div data-text-ad="1">
+        <div>
+          <a href="https://bottom-ad.example/landing"><h3>Bottom Ad Result</h3></a>
+        </div>
+      </div>
+    </div>
+
+    <div data-q="How do widgets work?">How do widgets work?</div>
+    <div jsname="xyz" role="button">What is the best widget?</div>
+
+    <!-- Fix round 1, item 14: chrome buttons — parsePaa()'s
+         [jsname][role="button"] fallback must reject these (too short/no
+         trailing "?"), not surface them as fake PAA questions. -->
+    <button jsname="tools" role="button">Tools</button>
+    <button jsname="filters" role="button">All filters</button>
+    <button jsname="feedback" role="button">Feedback</button>
+  </div>
+
+  <script src="../src/lib/serp.js"></script>
+  <script src="../src/overlay/serp-overlay.js"></script>
+</body>
+</html>

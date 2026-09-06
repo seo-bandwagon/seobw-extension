@@ -171,10 +171,22 @@ const MANIFEST = (() => {
 const store = {};
 const TAB_URLS = {
   'main-unknown': 'https://example.com/some-page',
+  // indexability.js's staleness guard (fix round item 6) treats a captured
+  // chain as stale when its finalUrl doesn't match the current tab's URL —
+  // this has to agree with REDIRECT_CHAIN_EVENTS' final response URL below,
+  // or the fixture would look stale and the `indexability-chain` state
+  // would render as if nothing had been captured.
+  'indexability-chain': 'https://northsidedental.com/austin/family-dentistry',
+  // Task 6, item D: popup.js's isGoogleSerpUrl() gate — this must match
+  // GOOGLE_SERP_HOSTS + a /search path exactly, or the notice never renders
+  // and the popup falls through to the normal analyzer bootstrap instead.
+  'serp-page': 'https://www.google.com/search?q=plumbers+near+austin',
   default: 'https://www.yelp.com/biz/northside-dental-austin'
 };
 const TAB_TITLES = {
   'main-unknown': 'Some Page',
+  'indexability-chain': 'Family Dentistry in North Austin | Northside Dental Co.',
+  'serp-page': 'plumbers near austin - Google Search',
   default: 'Northside Dental Co. - Yelp'
 };
 
@@ -184,6 +196,34 @@ const TAB_TITLES = {
 // must be fully in place before that script runs).
 if (PREVIEW_STATE.startsWith('lb-')) {
   store.spMode = 'links';
+}
+
+// Task 7, item G: `review-strip` pre-seeds sbwReview at the threshold —
+// src/popup/review.js's recordAnalysis() call in popup.js's bootstrap then
+// increments it to 6 before checking SBWReview.shouldPrompt(), same as a
+// real 5th-then-6th analysis would. Must be in place before popup.js's own
+// top-level chrome.tabs.query(...) callback runs (see popup.html's
+// installSbwStubs() comment above) — this file's own top-level code runs
+// at parse time, before that callback fires, so no extra wiring is needed.
+if (PREVIEW_STATE === 'review-strip') {
+  store.sbwReview = { analyses: 5, prompted: false, installedAt: Date.now() };
+}
+
+// Fix round 1, item 6: two negative fixtures for the harness — `.review-strip`
+// must NOT render below the 5-analysis threshold, and must NOT render again
+// once `prompted` is already true no matter how high `analyses` has climbed
+// since (the ledger's "never re-prompt" ruling). Both leave popup.js's own
+// recordAnalysis() call to run for real (same as `review-strip` above) —
+// `getCachedAnalysis` always hits in this harness, so every state's own
+// analysis increments `analyses` by exactly 1: seeded at 3 here so the
+// popup's own increment lands on 4, still below the threshold. The
+// `-prompted` case seeds at 9 (any value >= 5 would do) with prompted:true,
+// which the increment to 10 doesn't change.
+if (PREVIEW_STATE === 'review-strip-none') {
+  store.sbwReview = { analyses: 3, prompted: false, installedAt: Date.now() };
+}
+if (PREVIEW_STATE === 'review-strip-prompted') {
+  store.sbwReview = { analyses: 9, prompted: true, installedAt: Date.now() };
 }
 
 // `key-invalid` simulates a stored key that a prior /v1/me call already
@@ -223,12 +263,170 @@ if (PREVIEW_STATE === 'capture-legacy') {
 
 const sessionStore = {};
 
+// `link-check-reinject` (task-1-fix-1-brief item 1): simulates a cached
+// popup.js analysis load, where the content script was never (re-)injected.
+// The FIRST collectLinks send below fails like a real
+// "Could not establish connection. Receiving end does not exist." — the
+// popup's link-check.js is expected to catch that, call
+// chrome.scripting.executeScript (stubbed as a no-op success below) to
+// re-inject, and retry collectLinks once, which this counter then lets
+// succeed.
+let collectLinksAttempts = 0;
+
+// Link checker (Task 1, src/popup/link-check.js): ~12 mixed results — a
+// handful of ok/internal links, a couple of redirects, a 404/500/403, and
+// one timeout + one network failure — fed to both the `collectLinks`
+// content-script reply and the `link-check` port's progress/done stream so
+// the two line up like a real page would.
+const LINK_CHECK_FIXTURE = [
+  { url: 'https://northsidedental.com/', text: 'Home', rel: null, internal: true, status: 200 },
+  { url: 'https://northsidedental.com/services', text: 'Services', rel: null, internal: true, status: 200 },
+  { url: 'https://northsidedental.com/team', text: 'Meet the Team', rel: null, internal: true, status: 301, finalUrl: 'https://northsidedental.com/about-us' },
+  { url: 'https://northsidedental.com/spring-promo', text: 'Spring Promo', rel: null, internal: true, status: 404 },
+  { url: 'https://northsidedental.com/insurance', text: 'Insurance', rel: null, internal: true, status: 200 },
+  { url: 'https://northsidedental.com/api/internal-tool', text: 'Internal tool', rel: 'nofollow', internal: true, status: 500 },
+  { url: 'https://healthgrades.com/dentist/northside', text: 'Healthgrades listing', rel: null, internal: false, status: 200 },
+  { url: 'https://yelp.com/biz/northside-dental', text: 'Yelp reviews', rel: null, internal: false, status: 301, finalUrl: 'https://yelp.com/biz/northside-dental-austin-2' },
+  { url: 'https://oldpartner-site.example/referral', text: 'Referral partner', rel: null, internal: false, status: 0, error: 'timeout' },
+  { url: 'https://defunct-directory.example/listing', text: 'Old directory', rel: null, internal: false, status: 0, error: 'network' },
+  { url: 'https://northsidedental.com/blog/flossing-tips', text: 'Flossing Tips', rel: null, internal: true, status: 200 },
+  { url: 'https://facebook.com/northsidedental', text: 'Facebook', rel: 'nofollow', internal: false, status: 403 }
+];
+
+// Indexability panel (Task 2, src/popup/indexability.js, src/lib/redirect-chain.js):
+// two fixtures for the two worker messages it sends. `REDIRECT_CHAIN_EVENTS`
+// backs `getRedirectChain` for the `indexability-chain` state only — three
+// redirect hops (one of them via a client-side redirect in between) landing
+// on a final response whose X-Robots-Tag carries a UA-prefixed noindex, so
+// the panel's own SBWRedirects.indexability() call renders `.ix-verdict.bad`
+// without stub.js needing to fake a verdict itself. Every other state
+// (including `indexability-empty`) gets `{ chain: null }`, matching a tab
+// nothing has been captured for yet. `TRACE_EVENTS` backs `traceUrl` with an
+// unconditional 2-hop chain, regardless of state or the URL typed in.
+const REDIRECT_CHAIN_EVENTS = [
+  { kind: 'redirect', url: 'https://northsidedental.com/old-url', statusCode: 301, location: 'https://northsidedental.com/mid-url', headers: {} },
+  { kind: 'redirect', url: 'https://northsidedental.com/mid-url', statusCode: 302, location: 'https://northsidedental.com/austin/family-dentistry?ref=old', headers: {} },
+  { kind: 'client_redirect', url: 'https://northsidedental.com/austin/family-dentistry?ref=old' },
+  { kind: 'redirect', url: 'https://northsidedental.com/austin/family-dentistry?ref=old', statusCode: 301, location: 'https://northsidedental.com/austin/family-dentistry', headers: {} },
+  { kind: 'response', url: 'https://northsidedental.com/austin/family-dentistry', statusCode: 200, headers: [
+    { name: 'X-Robots-Tag', value: 'googlebot: noindex' },
+    { name: 'Cache-Control', value: 'no-store' },
+    { name: 'Content-Type', value: 'text/html; charset=utf-8' },
+    { name: 'Strict-Transport-Security', value: 'max-age=63072000' }
+  ] }
+];
+
+const TRACE_EVENTS = [
+  { kind: 'redirect', url: 'https://example.com/old', statusCode: 301, location: 'https://example.com/mid', headers: {} },
+  { kind: 'redirect', url: 'https://example.com/mid', statusCode: 301, location: 'https://example.com/new', headers: {} },
+  { kind: 'response', url: 'https://example.com/new', statusCode: 200, headers: [
+    { name: 'Cache-Control', value: 'public, max-age=3600' },
+    { name: 'Content-Type', value: 'text/html' }
+  ] }
+];
+
+// pickHeaders() runs the [{name,value}] arrays above into the flat shape
+// indexability.js expects — SBWRedirects is loaded later in document order
+// (see popup.html) but these fixtures are only read from handleMessage(),
+// which nothing calls until well after every body <script> has executed.
+function chainFixture(rawEvents) {
+  const events = rawEvents.map(ev => ev.kind === 'redirect' || ev.kind === 'response'
+    ? Object.assign({}, ev, { headers: SBWRedirects.pickHeaders(ev.headers) })
+    : ev);
+  return { chain: SBWRedirects.chainSummary(events), events };
+}
+
+// Hreflang panel (Task 3, src/popup/hreflang.js, src/lib/hreflang.js) — one
+// fixture for `checkHreflangAlternates`, matching task-3-brief item E: three
+// alternates off SEO_FIXTURE.hreflang below — `en` links back to the page
+// (reciprocal), `es` comes back 200 but never mentions the page (missing
+// return tag — this is the one `hreflang-checked` asserts as `.hf-return.bad`),
+// and `fr` 404s (unreachable). SEO_FIXTURE.url is the "en-US" self-reference
+// each alternate's own set would need to point back to for a real `yes`.
+// Rendering panel (Task 4, src/popup/render-check.js, src/lib/html-diff.js):
+// fixture for `fetchRawHtml`. Deliberately has NO <h1> at all (the DOM
+// analysis below has one — SEO_FIXTURE.headings.h1) and a DIFFERENT
+// canonical than SEO_FIXTURE.meta.canonical, so a real
+// SBWHtmlDiff.diffSummaries() call over this fixture renders a genuine
+// `.rc-row` table with a js-only h1 row, a changed canonical row, and a
+// `js-rendered` verdict — none of that is faked by the stub itself.
+const RAW_HTML_FIXTURE = `<!DOCTYPE html>
+<html><head>
+<title>Family Dentistry in North Austin | Northside Dental Co.</title>
+<meta name="description" content="Gentle family dentistry in North Austin. Same-week appointments.">
+<link rel="canonical" href="https://northsidedental.com/old-canonical">
+<meta name="robots" content="index, follow">
+</head>
+<body>
+<div id="root"><p>Loading…</p></div>
+</body></html>`;
+
+const HREFLANG_FETCHED = [
+  {
+    url: 'https://northsidedental.com/en/austin-dentist', status: 200,
+    entries: [
+      { lang: 'en', href: 'https://northsidedental.com/en/austin-dentist' },
+      { lang: 'en-US', href: 'https://northsidedental.com/austin/family-dentistry' }
+    ],
+    linkHeaderEntries: []
+  },
+  {
+    url: 'https://northsidedental.com/es/dentista-austin', status: 200,
+    entries: [{ lang: 'es', href: 'https://northsidedental.com/es/dentista-austin' }],
+    linkHeaderEntries: []
+  },
+  {
+    url: 'https://northsidedental.com/fr/dentiste-austin', status: 404,
+    entries: [], linkHeaderEntries: []
+  }
+];
+
 window.chrome = {
   runtime: {
     lastError: null,
     sendMessage(msg, cb) {
       const reply = handleMessage(msg);
       setTimeout(() => cb && cb(reply), 90);   // visible async, exercises loading states
+    },
+    // Link checker port (src/background/service-worker.js's onConnect
+    // handler). Only 'link-check' ports do anything; postMessage({type:
+    // 'start'}) replays LINK_CHECK_FIXTURE as one 'progress' event per
+    // link, then a 'done' with the full results array — mirroring the
+    // real worker's protocol exactly so link-check.js needs no preview-only
+    // branches.
+    connect(opts) {
+      const messageListeners = [];
+      const disconnectListeners = [];
+      let disconnected = false;
+      const port = {
+        name: opts && opts.name,
+        postMessage(msg) {
+          if (disconnected || !msg || msg.type !== 'start' || port.name !== 'link-check') return;
+          const total = LINK_CHECK_FIXTURE.length;
+          const results = [];
+          let i = 0;
+          const tick = () => {
+            if (disconnected) return;
+            if (i >= total) {
+              messageListeners.forEach(fn => fn({ type: 'done', results }));
+              return;
+            }
+            const result = Object.assign({ finalUrl: null, ms: 90 + i * 15 }, LINK_CHECK_FIXTURE[i]);
+            results.push(result);
+            i += 1;
+            messageListeners.forEach(fn => fn({ type: 'progress', done: i, total, result }));
+            setTimeout(tick, 35);
+          };
+          setTimeout(tick, 35);
+        },
+        onMessage: { addListener(fn) { messageListeners.push(fn); } },
+        onDisconnect: { addListener(fn) { disconnectListeners.push(fn); } },
+        disconnect() {
+          disconnected = true;
+          disconnectListeners.forEach(fn => fn());
+        }
+      };
+      return port;
     },
     getURL: p => p,
     getManifest: () => MANIFEST,
@@ -293,16 +491,82 @@ window.chrome = {
       if (cb) { cb(tabs); return; }
       return Promise.resolve(tabs);
     },
-    sendMessage(id, msg, cb) { const r = handleMessage(msg); if (cb) cb(r); return Promise.resolve(r); },
+    // A real chrome.tabs.sendMessage round-trips through the browser's
+    // extension messaging IPC, so it never resolves in the same tick as the
+    // call — it's a macrotask, not a microtask. Resolving this one via
+    // Promise.resolve() used to let popup.js's synchronous-looking analyze
+    // bootstrap (chrome.tabs.query -> ...sendMessage -> renderResults ->
+    // SBWLinkCheckUI.mount()) finish draining its microtask chain — and so
+    // call mount() — before the HTML parser had even reached the <script>
+    // tags below popup.js's, so link-check.js hadn't attached
+    // globalThis.SBWLinkCheckUI yet. A minimal setTimeout defers this past
+    // that parse, matching real timing instead of masking the race.
+    sendMessage(id, msg, cb) {
+      // See `collectLinksAttempts` above — only the `link-check-reinject`
+      // state's very first collectLinks call fails; everything else
+      // (including this same state's retry) behaves normally.
+      if (PREVIEW_STATE === 'link-check-reinject' && msg && msg.action === 'collectLinks' && collectLinksAttempts === 0) {
+        collectLinksAttempts += 1;
+        return new Promise(resolve => setTimeout(() => {
+          window.chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
+          if (cb) cb(undefined);
+          window.chrome.runtime.lastError = null; // real Chrome clears it right after the callback returns
+          resolve(undefined);
+        }, 0));
+      }
+      const r = handleMessage(msg);
+      return new Promise(resolve => setTimeout(() => { if (cb) cb(r); resolve(r); }, 0));
+    },
     create(o) { console.log('[preview] would open', o.url); },
-    captureVisibleTab(_, __, cb) { cb(SHOT); }
+    captureVisibleTab(_, __, cb) { cb(SHOT); },
+    // indexability.js's "Reload to capture" button (Task 2) — a real reload
+    // would eventually fire webNavigation.onCompleted and re-fetch the
+    // chain, but nothing in this offline harness ever navigates, so this is
+    // a no-op the click handler's own status message covers for.
+    reload(tabId, cb) { if (cb) cb(); }
   },
   scripting: { executeScript: () => Promise.resolve([]) },
   sidePanel: { open() {}, setPanelBehavior() {} },
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
   contextMenus: { create() {}, onClicked: { addListener() {} } },
   commands: { onCommand: { addListener() {} } },
-  windows: { create() {} }
+  windows: { create() {} },
+  // Task 2: the redirect tracer's raw capture surface. Nothing in this
+  // harness ever fires these — the fixtures above are served straight from
+  // the getRedirectChain/traceUrl message handlers instead — but
+  // indexability.js's "Reload to capture" button does register a real
+  // chrome.webNavigation.onCompleted listener, so that API has to exist.
+  webRequest: {
+    onBeforeRequest: { addListener() {}, removeListener() {} },
+    onBeforeRedirect: { addListener() {}, removeListener() {} },
+    onHeadersReceived: { addListener() {}, removeListener() {} }
+  },
+  webNavigation: {
+    onCommitted: { addListener() {}, removeListener() {} },
+    onCompleted: { addListener() {}, removeListener() {} }
+  },
+  // Task 4: the UA switcher's DNR session rules. Nothing in this offline
+  // harness ever inspects a real rule — render-check.js only reads the
+  // setUserAgent/getUserAgent message replies above — so this only needs to
+  // exist and resolve, matching the real chrome.declarativeNetRequest API
+  // shape closely enough that nothing throws if it's ever called directly.
+  declarativeNetRequest: {
+    updateSessionRules: () => Promise.resolve()
+  },
+  // src/lib/perms.js's SBWPerms.hasAllUrls()/requestAllUrls() — granted in
+  // every state except `link-check-noperm`, which exists to show the
+  // permission card (`.lc-perm-card`).
+  permissions: {
+    contains(query, cb) {
+      const granted = PREVIEW_STATE !== 'link-check-noperm';
+      if (cb) { cb(granted); return; }
+      return Promise.resolve(granted);
+    },
+    request(query, cb) {
+      if (cb) { cb(true); return; }
+      return Promise.resolve(true);
+    }
+  }
 };
 
 function handleMessage(msg) {
@@ -315,7 +579,67 @@ function handleMessage(msg) {
     case 'getCachedAnalysis': return { hit: true, data: SEO_FIXTURE };
     case 'storeAnalysis': return { ok: true };
     case 'openSidePanel': return { ok: true };
+    // src/content/analyzer.js's collectLinks() reply, consumed by
+    // src/popup/link-check.js's idle state ("Check N links").
+    case 'collectLinks':
+      return {
+        links: LINK_CHECK_FIXTURE.map(({ url, text, rel, internal }) => ({ url, text, rel, internal })),
+        total: LINK_CHECK_FIXTURE.length
+      };
     case 'analyze': return SEO_FIXTURE;
+    // Indexability panel (Task 2, src/popup/indexability.js) — background
+    // messages, not content-script ones, but chrome.runtime.sendMessage
+    // routes through this same handleMessage(). Only `indexability-chain`
+    // has anything captured; every other state (including
+    // `indexability-empty`) sees the "nothing captured for this tab yet"
+    // reply a fresh/never-reloaded tab would actually get.
+    case 'getRedirectChain':
+      return PREVIEW_STATE === 'indexability-chain' ? chainFixture(REDIRECT_CHAIN_EVENTS) : { chain: null };
+    case 'traceUrl':
+      if (!/^https?:\/\//i.test(msg.url || '')) return { error: 'invalid_url' };
+      return chainFixture(TRACE_EVENTS);
+    // Hreflang return-tag check (Task 3, src/popup/hreflang.js) — the real
+    // worker replies once with every fetched alternate; HREFLANG_FETCHED
+    // above mirrors SEO_FIXTURE.hreflang's three entries exactly (en
+    // reciprocal, es missing the return tag, fr 404).
+    case 'checkHreflangAlternates':
+      return { fetched: HREFLANG_FETCHED };
+    // Rendering panel (Task 4, src/popup/render-check.js) — `fetchRawHtml`
+    // always replies with RAW_HTML_FIXTURE above, regardless of which URL
+    // was asked for; `setUserAgent` echoes back whatever presetId it was
+    // sent (mirroring the real worker's reply shape) and `getUserAgent`
+    // is pre-seeded active for the `render-ua` state only, since this
+    // click-only harness has no way to drive a real <select> change event
+    // the way `render-diff` drives its button click.
+    case 'fetchRawHtml':
+      return { status: 200, finalUrl: msg.url, html: RAW_HTML_FIXTURE };
+    case 'setUserAgent':
+      return { ok: true, presetId: msg.presetId || 'default' };
+    case 'getUserAgent':
+      return { presetId: PREVIEW_STATE === 'render-ua' ? 'googlebot-desktop' : 'default' };
+    // SERP overlay (Task 6, src/overlay/serp-overlay.js) — the generic
+    // worker bridge (service-worker.js's `request.action === 'sbwFetch'`
+    // handler) the content script routes every domain-stats lookup through.
+    // preview/serp.html's fixture SERP has two organic results
+    // (first-result.example, second-result.example); this mirrors the real
+    // POST /api/domain/quick-batch response shape (results/invalid) so
+    // SBWSerp/serp-overlay.js's own rendering — not this stub — decides
+    // what each bar shows, including the "no data" branch for a domain the
+    // server has nothing on.
+    case 'sbwFetch':
+      if (msg.path === '/domain/quick-batch') {
+        return {
+          ok: true, status: 200, code: 'ok',
+          data: {
+            results: {
+              'first-result.example': { avgScore: 82, sampleSize: 4, schemaPercentage: 60, age: '2 years' },
+              'second-result.example': null
+            },
+            invalid: []
+          }
+        };
+      }
+      return { ok: false, status: 0, data: null, retryAfter: null, code: 'network' };
     default: return {};
   }
 }
@@ -324,6 +648,10 @@ function handleMessage(msg) {
    it has loaded — see the DOMContentLoaded handler below) ---------- */
 
 function installSbwStubs() {
+  // Task 6's serp.html doesn't load src/lib/api.js at all (the content
+  // script it previews talks to the worker bridge, never to SBW.* directly)
+  // — every other preview page does, so this only ever short-circuits there.
+  if (typeof SBW === 'undefined') return;
   const delay = (v, ms = 120) => new Promise(r => setTimeout(() => r(v), ms));
   // Never let the real network-hitting bits fire in a preview.
   SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });
@@ -408,6 +736,9 @@ const SEO_FIXTURE = {
   },
   links: { internal: { count: 34 }, external: { count: 8 }, nofollow: 3 },
   images: { total: 14, missingAlt: { count: 3 } },
+  // hreflang is assigned below, after this literal, via a lazy getter (see
+  // HREFLANG_RAW_ENTRIES / the Object.defineProperty call) — not inline
+  // here.
   technical: { domElements: 1240, scripts: 12, stylesheets: 4, urlDepth: 2, loadTimeMs: 1840 },
   webVitals: { lcp: 2180, inp: 640, cls: 0.04, fcp: 1210, ttfb: 420 },
   textToHtml: { ratio: 18, textSize: 5310, htmlSize: 29500, status: 'good' },
@@ -419,6 +750,85 @@ const SEO_FIXTURE = {
   ]
 };
 
+// Task 3 fix round item 11: build SEO_FIXTURE.hreflang by running the REAL
+// SBWHreflang.validateSet() over a plain entry list, instead of a hand-typed
+// shadow of what validateSet is expected to produce. A hand-typed copy can
+// silently drift from the library (exactly the class of set-level-message
+// regression the Task 3 review caught in src/lib/hreflang.js) without this
+// fixture ever noticing — running the real function means a regression
+// shows up here too.
+//
+// Matches HREFLANG_FETCHED above — three alternates, none of them an
+// x-default or self-reference, so the computed issues carry both of those
+// set-level findings for the chips row to render something real.
+//
+// Defined as a lazy getter, not a plain property, because SBWHreflang isn't
+// loaded yet when this file's own top-level statements run: stub.js is the
+// very first <script>, in <head>, while src/lib/hreflang.js loads near the
+// end of <body> (see popup.html / preview/popup.html). Nothing reads
+// SEO_FIXTURE.hreflang until handleMessage() answers a real 'analyze' /
+// 'getCachedAnalysis' call, well after every body <script> has run — same
+// reasoning as chainFixture() above for SBWRedirects.
+const HREFLANG_RAW_ENTRIES = [
+  { lang: 'en', href: 'https://northsidedental.com/en/austin-dentist' },
+  { lang: 'es', href: 'https://northsidedental.com/es/dentista-austin' },
+  { lang: 'fr', href: 'https://northsidedental.com/fr/dentiste-austin' }
+];
+Object.defineProperty(SEO_FIXTURE, 'hreflang', {
+  enumerable: true,
+  get() {
+    const result = SBWHreflang.validateSet(HREFLANG_RAW_ENTRIES, SEO_FIXTURE.url);
+    return { count: HREFLANG_RAW_ENTRIES.length, issues: result.issues, entries: result.entries };
+  }
+});
+
+// Task 5 (`schema-mixed`/`credits` states): four real extracted items — one
+// per source SBWSchema supports plus one that's deliberately incomplete —
+// and a fifth parse-error entry, run through the REAL SBWSchema.validateAll()
+// the same way SEO_FIXTURE.hreflang above runs the real SBWHreflang.validateSet()
+// (avoids a hand-typed shadow of validateAll's output silently drifting from
+// the library). Lazy getter for the same reason as hreflang: SBWSchema isn't
+// loaded yet when this file's own top-level statements run.
+const SCHEMA_RAW_ITEMS = [
+  // JSON-LD Article — complete: satisfies every required field, so this is
+  // the one that shows up in "Eligible for".
+  {
+    type: 'Article', source: 'json-ld',
+    properties: {
+      headline: 'Family Dentistry in North Austin',
+      image: 'https://northsidedental.com/og.jpg',
+      datePublished: '2026-06-01',
+      author: { '@type': 'Person', name: 'Dr. Dana Mercer' }
+    }
+  },
+  // JSON-LD Product — missing `offers` (required) entirely, so it renders
+  // a required-missing chip and stays out of "Eligible for".
+  {
+    type: 'Product', source: 'json-ld',
+    properties: { name: 'Teeth Whitening Kit', image: 'https://northsidedental.com/kit.jpg' }
+  },
+  // Microdata LocalBusiness — as SBWSchema.extractMicrodata() would hand it
+  // back (a plain {type, source, properties} item, not run through a real
+  // DOM walk here — the walk itself is covered by tests/unit/structured-data.test.js).
+  {
+    type: 'LocalBusiness', source: 'microdata',
+    properties: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Austin, TX 78757', telephone: '(512) 555-0134' }
+  },
+  // RDFa Person.
+  { type: 'Person', source: 'rdfa', properties: { name: 'Dr. Dana Mercer' } }
+];
+const SCHEMA_PARSE_ERROR = {
+  source: 'json-ld',
+  error: 'Unexpected end of JSON input',
+  snippet: '{ "@context": "https://schema.org", "@type": "Article", "headline": "Untitled'
+};
+Object.defineProperty(SEO_FIXTURE, 'schemaValidation', {
+  enumerable: true,
+  get() {
+    return SBWSchema.validateAll(SCHEMA_RAW_ITEMS.concat([SCHEMA_PARSE_ERROR]));
+  }
+});
+
 /* ---------- drive the requested state after the real code boots ---------- */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -427,9 +837,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const go = async () => {
     const citTab = document.querySelector('.switcher button[data-tab="citations"]');
     // `domain-history` exercises the SEO Analysis tab (the strip renders
-    // under its score ring), same as `seo` — everything else lands on
+    // under its score ring), same as `seo` — and the two link-check states
+    // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const needsCitations = PREVIEW_STATE !== 'seo' && PREVIEW_STATE !== 'domain-history';
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua', 'schema-mixed', 'credits'];
+    const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();
 

@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.5.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.6.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -26,6 +26,204 @@ Semantic-ish, three digits, driven by what the user would notice:
 - Docs-only changes (like this file) don't bump anything.
 
 ---
+
+## Changelog — v1.6.0 (2026-09-06)
+
+Extension competitor-parity work (Phase 3 of the SDD plan). Adds a broken-link
+checker, an indexability panel (redirect chain, headers, X-Robots-Tag),
+hreflang validation with return-tag checks, a raw-HTML-vs-rendered-DOM
+comparison with a per-tab user-agent switcher, structured-data validation
+(JSON-LD/Microdata/RDFa) with rich-result eligibility, a re-enabled and
+rewritten SERP overlay (stats bar, results/PAA export, location simulator), a
+right-click "SEO Bandwagon tools" menu, CSV export for headings/images/links,
+nofollow/UGC/sponsored link surfacing, and a one-time review prompt. New
+manifest permissions: `webRequest`, `webNavigation`,
+`declarativeNetRequestWithHostAccess`, and the optional `<all_urls>` host
+permission (requested on first use, never at install); a new content-script
+match on Google's own results pages.
+
+- **Broken-link checker** (`src/popup/link-check.js`, new "LINK CHECK" section
+  in the SEO Analysis tab) — collects every `a[href]` on the page
+  (`collectLinks` in `src/content/analyzer.js`, capped at 300, deduped by
+  normalized URL) and probes each one from the background service worker
+  (`HEAD`, retried once as `GET` on a 405/501 or a network error; 10 s
+  timeout; per-host concurrency 2, global concurrency 6 — see
+  `src/lib/link-check.js`). Results group into ok/redirect/4xx/5xx/timeout/
+  network chips, can be highlighted on the page (`highlight` action, type
+  `broken`), and export to CSV (`src/lib/csv.js`, RFC 4180, UTF-8 BOM).
+  The check never runs on its own — it starts only from a real click on
+  "Check N links".
+- **Optional `<all_urls>` permission** (`src/lib/perms.js`) — requested only
+  when you click "Allow access to check other sites" in the Link Check,
+  Indexability or Hreflang section, never at install and never automatically.
+  Revocable any time from the extensions page.
+- **Indexability panel** (`src/popup/indexability.js`, new "INDEXABILITY"
+  section in the SEO Analysis tab, directly after "Page Meta") — the
+  background service worker observes the current tab's main-frame redirect
+  chain, final status, and a fixed set of response headers via
+  `chrome.webRequest`/`chrome.webNavigation` (`X-Robots-Tag`, `Cache-Control`,
+  `Content-Type`, `Link`, and whether HSTS/CSP are present — see
+  `src/lib/redirect-chain.js`), only once you've granted the same optional
+  `<all_urls>` permission — the same permission card as Link Check's shows
+  when it hasn't been. Combines that with the page's DOM `meta[robots]`/
+  canonical to render an indexable/not-indexable verdict, shows the hop-by-hop
+  chain (with client-side-redirect and loop detection), lets you trace a
+  different URL from a background tab, and exports the captured hops to CSV.
+  Nothing captured is sent anywhere; it lives in `chrome.storage.session` and
+  clears when the tab closes.
+- **Hreflang validation with return tags** (`src/popup/hreflang.js`, new
+  "HREFLANG" section directly after Indexability; `src/lib/hreflang.js`) —
+  the content script's `analyzeHreflang()` now runs every declared
+  `<link rel="alternate" hreflang>` tag through BCP 47 canonical-form
+  validation (a wrong-case tag like `EN-us` is told apart from a
+  structurally invalid one), and flags duplicate language tags, the same
+  URL declared under multiple tags, relative hrefs, a protocol that differs
+  from the page, and the existing missing-x-default/missing-self-reference
+  checks. A page with no hreflang tags gets a one-line note in Page Meta
+  instead of an empty section. "Check return tags (N)" — gated on the same
+  optional `<all_urls>` permission, requested only on click — fetches each
+  declared alternate from the background worker (capped at 50 URLs, 2 per
+  host / 4 global concurrency, 10 s timeout, at most 256 KB of body read per
+  page) and reports whether each one's own hreflang set links back to this
+  page (yes / no / unreachable), exporting to CSV.
+- **HTML vs rendered DOM diff + user-agent switcher** (`src/popup/
+  render-check.js`, new "RENDERING" section directly after Hreflang;
+  `src/lib/html-diff.js`, `src/lib/ua-switch.js`) — "Compare raw HTML with
+  rendered DOM" fetches the current tab's own URL a second time from the
+  background worker (unrendered; same optional `<all_urls>` gate, 10 s
+  timeout, 1 MB body cap) and diffs it field-by-field against the page's
+  already-computed analysis (title, meta description, canonical, robots,
+  H1–H6 counts, link/image/JSON-LD counts, approximate word count, hreflang
+  count), rendering a static/hydrated/JavaScript-rendered verdict and
+  exporting the row table to CSV. "View as" adds a preset selector
+  (Googlebot Desktop, Googlebot Smartphone, Bingbot, iPhone Safari, or
+  Default) that rewrites the User-Agent header for exactly the current tab
+  via a `declarativeNetRequest` session rule and reloads it — for testing
+  server-side rendering and cloaking, never for bypassing a paywall or
+  "seeing Google as a bot." The rule is removed the moment you switch back
+  to Default or close the tab; a badge chip on the section header shows
+  when an override is still active. New manifest permission:
+  `declarativeNetRequestWithHostAccess` (works with the same optional
+  `<all_urls>` grant; no static rulesets ship with the extension).
+- **Structured data validation** (`src/popup/structured-data.js`, new
+  "STRUCTURED DATA" section directly after Rendering; `src/lib/
+  structured-data.js`) — the content script now extracts every JSON-LD
+  `<script>` block (flattening `@graph` and top-level arrays recursively — a
+  `@graph` member that's itself an array or that nests its own `@graph` is
+  flattened too — capturing a parse error as its own item rather than
+  dropping the whole block, and stripping a wrapping HTML comment or CDATA
+  section first), every WHATWG microdata `[itemscope]` tree (nested
+  itemscopes become nested items; properties referenced via `itemref`
+  elsewhere in the document are resolved in too; `content`/`href`/`src`/
+  `datetime` attribute value rules, with `href`/`src` resolved to an
+  absolute URL the same way the browser resolves them), and every basic
+  RDFa Lite `[typeof]` tree, then validates each item's properties against a
+  required/recommended table for Article (incl. NewsArticle/BlogPosting),
+  Product, LocalBusiness (and around 100 subtypes it recognizes — Plumber,
+  Electrician, Restaurant, Dentist, and the rest of schema.org's own
+  LocalBusiness tree), Organization, Person, BreadcrumbList, FAQPage, HowTo,
+  Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, and
+  JobPosting — plus specific shape checks (a genuinely unrecognized `@type`
+  — as opposed to a real schema.org type we just don't have a
+  required-property list for yet, which gets a note instead — every offer
+  in an `offers` array missing `price`/`priceCurrency` (or `lowPrice` for an
+  `AggregateOffer`), a non-ISO-8601 `datePublished`, an `image` that isn't a
+  URL or ImageObject, a BreadcrumbList item without `position`, a FAQPage
+  `mainEntity` without `acceptedAnswer`). "Eligible for" lists a Google
+  rich-result feature only when that item's required properties are all
+  present, **and only for rich results Google currently shows** — never
+  "will get." FAQPage and HowTo are validated as markup like any other type,
+  but Google retired both rich results, so a complete item there shows
+  "Valid markup; Google no longer shows a rich result for this type" instead
+  of appearing in Eligible for. No fetch, no permission: everything here
+  reads only the current page's own already-loaded DOM. Items export to
+  CSV; each item's underlying data copies as JSON — but only type names and
+  property NAMES are ever saved to a synced capture, never property VALUES.
+  The popup footer's new "About & credits" link opens a small in-popup panel
+  (`src/lib/credits.js`) crediting schema.org (CC BY-SA 3.0) and Google
+  Search Central's structured-data documentation (CC BY 4.0) for the
+  required/recommended tables, with a source link per type category;
+  Google tools are named nominatively, no logos.
+- **SERP overlay, re-enabled and rewritten** (`src/overlay/serp-overlay.js`,
+  `src/overlay/serp-overlay.css`, new `src/lib/serp.js`) — registered as a
+  content script on `google.com` and nine other Google TLDs' `/search`
+  pages, additive only: a `.sbw-serp-bar` appends under each organic result
+  (never inside the title/URL area, never near an ad — the parser excludes
+  `[data-text-ad]`/`#tads`/`#bottomads`/`[aria-label*="Ads"]` blocks
+  outright) showing the domain and a stats lookup, and a `.sbw-serp-tools`
+  toolbar appends once after the results container with **Copy results
+  (N)** (TSV), **Export CSV**, **Copy PAA (N)**, and a location simulator.
+  The stats lookup sends only bare domain names (deduped, capped at 20) to
+  `POST /api/domain/quick-batch` through the background worker's existing
+  bridge — never the query, never a title or snippet — cached in
+  `chrome.storage.session` for 10 minutes; a signed-out/rejected key shows
+  "Connect your account" once, with no retry. Results and PAA questions
+  stay entirely client-side (clipboard/CSV). The location simulator builds
+  a Google search URL (`uule`, `gl`, `hl`, optional `pws=0`) from a
+  54-metro preset list or a typed canonical name, and opens it — or two
+  locations at once via "Compare in two tabs" — described as "opens a
+  search with location parameters," never as seeing Google as a bot. The
+  old `/serp/collect` and `/analyze` calls, and the analyzer bootstrap that
+  ran on Google's own results pages, are deleted outright, not disabled;
+  the popup now shows a one-line notice on a Google results page instead
+  of running the normal page analyzer there.
+- **Context-menu SEO tools** (`src/lib/tool-links.js`, `src/background/
+  service-worker.js`, new "SEO Bandwagon tools" submenu) — Open in Google
+  Search Console (URL inspection), Open in Wayback Machine, Open in
+  PageSpeed Insights, Test with Rich Results Test, `site:` search for this
+  domain, Search Google for the selected text in quotes (selection only,
+  capped at 200 characters), and Open sitemap.xml / robots.txt. Every URL
+  is built from `new URL(pageUrl)` — never a string-split of the origin —
+  with every user-controlled part percent-encoded; a non-http(s) page makes
+  the click do nothing. The same seven page-scoped items (everything but
+  the selection search) also render as a small TOOLS row under the popup
+  header (`src/popup/tools.js`). Nothing is fetched by the extension for
+  any of these — each just opens a new tab. Google's own tools here are
+  named nominatively, no logos, and get their own "About & credits" rows
+  alongside PageSpeed Insights and the Wayback Machine
+  (`src/lib/credits.js`).
+- **Headings outline export + ARIA heading support** — no H7 (H1-H6 is the
+  HTML spec; Detailed's "H7" is a quirk, not implemented). Instead, the
+  existing Headings section gets "Export CSV" (level, text, document order)
+  and "Copy outline" (the same outline as indented plain text to your
+  clipboard) buttons; `lib/dom-extraction.js`'s heading extraction now also
+  builds a combined, document-order outline that includes
+  `[role="heading"][aria-level]` elements the plain H1-H6 arrays ignore
+  (an empty aria-level defaults to 2, per WAI-ARIA; role=heading without
+  aria-level is skipped entirely, since the selector itself requires the
+  attribute to be present; and an out-of-range numeric value clamps into
+  1-6). Fix round 1: an `aria-level` present on a real h1-h6 tag now wins
+  over the tag name (`<h2 role="heading" aria-level="3">` is level 3, not
+  2), and the outline is capped at 500 entries.
+- **Images and Links CSV export** — the existing Links & Images section
+  gets its own "Export images CSV" (src, alt, has-alt, lazy-loaded,
+  width/height where set) and "Export links CSV" (URL, anchor text, rel,
+  internal/external) buttons, backed by new `list` fields on
+  `extractImages()`/`extractLinks()` (`lib/dom-extraction.js`) — the JSON
+  export in the footer is untouched.
+- **Nofollow/UGC/sponsored surfacing** — `extractLinks()` now counts `ugc`
+  and `sponsored` rel values separately from plain `nofollow` (previously
+  only `nofollow` was counted, and the existing Highlight button already
+  treats all three as one family), and captures the first 50 matching
+  anchors (`{ url, text, rel }`). The Links & Images section shows
+  "Nofollow N · UGC N · Sponsored N" plus a "Total links with any of
+  nofollow/ugc/sponsored: N" line (fix round 1 — the three per-token counts
+  can double-count a single anchor carrying more than one token) and an
+  expandable list next to the existing "Nofollow" highlight button. Fix
+  round 1 also switched the `rel` check from a substring search to real
+  space-separated token matching (`rel="NOFOLLOW"` now counts, `rel="me
+  nofollowing"` no longer does) and made the Highlight button use the exact
+  same token function, so the highlighted set and the counted set can never
+  disagree.
+- **One-time review prompt** (`src/lib/review-prompt.js`, `src/popup/
+  review.js`, new `.review-strip`) — after the 5th analysis (cached-hit or
+  fresh, either counts), a one-line strip offers "Leave a review" (opens
+  the Chrome Web Store listing's reviews tab) or "No thanks"; both persist
+  `prompted: true` to `chrome.storage.local` before doing anything else, so
+  it never shows twice. Deliberately never gated on this analysis's score,
+  grade, or whether the page could even be read — the strip's visibility
+  is a pure function of stored state (`analyses`/`prompted`), checked even
+  from the "can't read this page" and Google-SERP-notice branches.
 
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
@@ -102,12 +300,25 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.5.0 (Sep 2026)
+## Where we are — v1.6.0 (Sep 2026)
 
 - **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
-  preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings, links & images with
-  on-page highlighting, content stats + n-grams, tech stack detection, technical
-  panel, domain-history strip. `src/content/analyzer.js` (~25 data categories).
+  preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings (with outline export),
+  links & images with on-page highlighting and CSV export, nofollow/UGC/sponsored
+  surfacing, content stats + n-grams, tech stack detection, technical panel,
+  domain-history strip. `src/content/analyzer.js` (~25 data categories).
+- **Link Check** — probes every link on the page, groups results by status,
+  highlights broken ones, exports CSV. `src/popup/link-check.js`, `src/lib/link-check.js`.
+- **Indexability** — redirect chain, response headers, X-Robots-Tag and a
+  computed verdict for the current tab or any traced URL. `src/popup/indexability.js`,
+  `src/lib/redirect-chain.js`.
+- **Hreflang** — tag validity, duplicates, x-default/self-reference, and
+  fetched return-tag reciprocity. `src/popup/hreflang.js`, `src/lib/hreflang.js`.
+- **Rendering** — raw-HTML-vs-rendered-DOM diff and a "View as" user-agent
+  switcher. `src/popup/render-check.js`, `src/lib/html-diff.js`, `src/lib/ua-switch.js`.
+- **Structured Data** — JSON-LD/Microdata/RDFa extraction, required/recommended
+  property validation, rich-result eligibility, and an About & credits panel.
+  `src/popup/structured-data.js`, `src/lib/structured-data.js`, `src/lib/credits.js`.
 - **Citations tab** — directory takeover header (40 curated directories
   auto-detected), client-side NAP extraction (JSON-LD → microdata → heuristic)
   and weighted match scoring, proof screenshot capture (local download only),
@@ -115,15 +326,20 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`.
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
   Link Building mode (outlets / pitches / results), CSV export. `src/sidepanel/`.
+- **SERP overlay** — stats bar under each organic result on Google's own
+  results pages, results/PAA export, location simulator. `src/overlay/serp-overlay.js`,
+  `src/lib/serp.js`.
+- **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
+  (Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine,
+  `site:` search, sitemap.xml/robots.txt). `src/lib/tool-links.js`.
 - **Capture sync** — local-first storage with account sync, retry, and History
   page controls. `src/lib/sync-state.js`, `src/history/`.
 - **Options page** — connect/verify/disconnect a key, dashboard links, Advanced
   local-dev endpoint. `src/options/`.
-- **GSC row actions (1.5.1)** — two icons on every Search Console Performance row:
-  open in Google Search, and in a private window. `src/lib/gsc-inject.js` +
-  `src/content/gsc-serp.js`. Replaces the 1.4/1.5 "Search in Incognito" injector,
-  which only fired when GSC's own hover icons were already in the DOM and so
-  never appeared on a freshly loaded report.
+- **GSC row actions (1.5.1) + compare mode (1.5.2)** — two icons on every row of
+  a Search Console Performance report's Queries tab (open in Google Search, and
+  in a private window), plus percent-change math, sort/filter and copy-as-TSV
+  when a report compares two date ranges. `src/lib/gsc-inject.js`, `src/lib/gsc-compare.js`, `src/content/gsc-serp.js`.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real
@@ -167,29 +383,19 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 
 ## v1.6 — feature candidates (competitor-informed, by value ÷ effort)
 
-1. **Wire up the SERP overlay** — `src/overlay/serp-overlay.js` is *already
-   written* (injects our captures-API domain stats into Google results) but was
-   never added to `manifest.json` content scripts. Parity: SEOquake, Ahrefs
-   Toolbar. Effort: small (manifest entry + brand-token restyle of
-   `serp-overlay.css`).
-2. **Broken link checker** — HEAD-request the links the analyzer already collects,
-   badge the failures, reuse on-page highlighting. Parity: SEO Minion, Ahrefs
-   Toolbar. Effort: medium (rate limiting, CORS fallback to `no-cors` opaque
-   checks).
-3. **Redirect tracer + HTTP headers** — follow a URL's redirect chain with status
-   codes and headers; pairs naturally with citation URL auditing (directory
-   listings redirect constantly). Parity: Ahrefs Toolbar (Detailed and SEOquake
-   lack it). Effort: medium (`fetch` with manual redirect handling in the service
-   worker).
-4. **Hreflang reciprocal validation** — `analyzer.js` already checks presence,
-   x-default, and self-reference; add cross-page reciprocity checking. Parity:
-   SEO Minion. Effort: medium.
-5. **SERP data export** — CSV of organic results from the overlay; the side panel
-   already has CSV export utilities to reuse. Parity: SEOquake, SEO Minion.
-   Effort: small once #1 lands.
-6. **SERP location simulator** — re-run the query with `&gl=`/`&uule=` params from
-   a country/city picker; high value for local SEO users checking rankings in
-   their service area. Parity: SEO Minion, Ahrefs Toolbar. Effort: small.
+All six shipped in v1.6.0 — see the "Changelog — v1.6.0" and "Where we are —
+v1.6.0" sections above for what actually landed:
+
+1. **Wire up the SERP overlay** — shipped as "SERP overlay, re-enabled and
+   rewritten."
+2. **Broken link checker** — shipped as "Broken-link checker."
+3. **Redirect tracer + HTTP headers** — shipped as "Indexability panel."
+4. **Hreflang reciprocal validation** — shipped as "Hreflang validation with
+   return tags."
+5. **SERP data export** — shipped as part of "SERP overlay, re-enabled and
+   rewritten" (Copy results / Export CSV / Copy PAA).
+6. **SERP location simulator** — shipped as part of "SERP overlay, re-enabled
+   and rewritten" (the location simulator).
 
 ## v1.6+ — needs backend or heavier lift
 

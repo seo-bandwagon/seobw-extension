@@ -16,6 +16,8 @@
   </header>
 
   <div class="tab-panel active" id="tab-seo">
+    <!-- Fix round 1, item 15: lives inside the ANALYSIS tab panel, not a header-level sibling of both panels, so it never renders while the CITATIONS tab is active. -->
+    <div id="reviewStrip"></div>
     <div id="content"><div class="loading">Analyzing page…</div></div>
   </div>
 
@@ -30,11 +32,14 @@
         <span>HELP IMPROVE SEO INSIGHTS</span>
       </label>
       <span class="footer-right">
+        <button type="button" id="creditsLink" class="credits-link">About &amp; credits</button>
         <span class="version-tag" id="versionTag"></span>
         <a href="#" class="privacy-link">PRIVACY</a>
       </span>
     </div>
   </footer>
+
+  <div class="credits" id="creditsPanel" hidden></div>
 
   <script src="../src/lib/sync-state.js"></script>
   <script src="../src/lib/api.js"></script>
@@ -54,5 +59,25 @@
   <script src="../src/lib/directory-matcher.js"></script>
   <script src="../src/popup/popup.js"></script>
   <script src="../src/popup/citations-tab.js"></script>
+  <script src="../src/lib/perms.js"></script>
+  <script src="../src/lib/csv.js"></script>
+  <script src="../src/lib/export-rows.js"></script>
+  <script src="../src/lib/link-check.js"></script>
+  <script src="../src/popup/link-check.js"></script>
+  <script src="../src/lib/redirect-chain.js"></script>
+  <script src="../src/popup/indexability.js"></script>
+  <script src="../src/lib/hreflang.js"></script>
+  <script src="../src/popup/hreflang.js"></script>
+  <script src="../src/lib/html-diff.js"></script>
+  <script src="../src/lib/ua-switch.js"></script>
+  <script src="../src/popup/render-check.js"></script>
+  <script src="../src/lib/structured-data.js"></script>
+  <script src="../src/lib/capture-strip.js"></script>
+  <script src="../src/lib/credits.js"></script>
+  <script src="../src/popup/structured-data.js"></script>
+  <script src="../src/lib/tool-links.js"></script>
+  <script src="../src/popup/tools.js"></script>
+  <script src="../src/lib/review-prompt.js"></script>
+  <script src="../src/popup/review.js"></script>
 </body>
 </html>

@@ -15,6 +15,8 @@
   </header>
 
   <div class="tab-panel active" id="tab-seo">
+    <!-- Fix round 1, item 15: lives inside the ANALYSIS tab panel, not a header-level sibling of both panels, so it never renders while the CITATIONS tab is active. -->
+    <div id="reviewStrip"></div>
     <div id="content">
       <div class="loading">Analyzing page…</div>
     </div>
@@ -33,11 +35,14 @@
         <span>HELP IMPROVE SEO INSIGHTS</span>
       </label>
       <span class="footer-right">
+        <button type="button" id="creditsLink" class="credits-link">About &amp; credits</button>
         <span class="version-tag" id="versionTag"></span>
         <a href="https://seobandwagon.com/privacy?utm_source=chrome_extension" target="_blank" rel="noopener" class="privacy-link">PRIVACY</a>
       </span>
     </div>
   </footer>
+
+  <div class="credits" id="creditsPanel" hidden></div>
 
   <script src="../lib/sync-state.js"></script>
   <script src="../lib/api.js"></script>
@@ -49,5 +54,25 @@
   <script src="../lib/directory-matcher.js"></script>
   <script src="popup.js"></script>
   <script src="citations-tab.js"></script>
+  <script src="../lib/perms.js"></script>
+  <script src="../lib/csv.js"></script>
+  <script src="../lib/export-rows.js"></script>
+  <script src="../lib/link-check.js"></script>
+  <script src="link-check.js"></script>
+  <script src="../lib/redirect-chain.js"></script>
+  <script src="indexability.js"></script>
+  <script src="../lib/hreflang.js"></script>
+  <script src="hreflang.js"></script>
+  <script src="../lib/html-diff.js"></script>
+  <script src="../lib/ua-switch.js"></script>
+  <script src="render-check.js"></script>
+  <script src="../lib/structured-data.js"></script>
+  <script src="../lib/capture-strip.js"></script>
+  <script src="../lib/credits.js"></script>
+  <script src="structured-data.js"></script>
+  <script src="../lib/tool-links.js"></script>
+  <script src="tools.js"></script>
+  <script src="../lib/review-prompt.js"></script>
+  <script src="review.js"></script>
 </body>
 </html>

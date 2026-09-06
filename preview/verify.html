@@ -42,6 +42,99 @@ const CASES = [
   { q: 'popup.html?state=domain-history',
     need: ['.seo-hero', '.domain-history-row', '.domain-history-line'] },
 
+  // Task 1: broken-link checker (src/popup/link-check.js, src/lib/perms.js,
+  // src/lib/link-check.js, src/lib/csv.js). `link-check-noperm` never
+  // clicks anything — SBWPerms.hasAllUrls() is stubbed false for this state
+  // so the permission card renders straight away. `link-check-results`
+  // clicks the idle "Check N links" button, which opens the `link-check`
+  // port stub.js replays a 12-item mixed fixture over.
+  { q: 'popup.html?state=link-check-noperm',
+    need: ['.seo-hero', '.lc-perm-card', '#lcAllowBtn'] },
+  { q: 'popup.html?state=link-check-results',
+    need: ['.seo-hero', '.lc-chip', '.lc-row', '.lc-group', '#lcHighlightBtn', '#lcExportBtn'],
+    click: '#lcCheckBtn' },
+
+  // task-1-fix-1-brief item 1: the first collectLinks send fails (as if the
+  // cached-analysis path never injected the content script — see
+  // stub.js's `collectLinksAttempts`); link-check.js must catch that,
+  // re-inject via executeScript, retry once, and land on the normal idle
+  // "Check N links" button rather than the error state.
+  { q: 'popup.html?state=link-check-reinject',
+    need: ['.seo-hero', '#lcCheckBtn'] },
+
+  // Task 2: indexability panel (src/popup/indexability.js, src/lib/
+  // redirect-chain.js). `indexability-chain` gets a 3-hop fixture with a
+  // client redirect and a googlebot noindex X-Robots-Tag on the final
+  // response — SBWRedirects.indexability() sees that noindex and renders
+  // the bad verdict itself, this isn't stub.js faking a verdict.
+  // `indexability-empty` is a tab nothing has been captured for yet.
+  { q: 'popup.html?state=indexability-chain',
+    need: ['.seo-hero', '.ix-verdict.bad', '.ix-hop', '#ixExportBtn'],
+    text: ['Client-side redirect'] },
+  { q: 'popup.html?state=indexability-empty',
+    need: ['.seo-hero', '.ix-empty', '#ixReloadBtn'] },
+
+  // Task 3: hreflang validation (src/popup/hreflang.js, src/lib/hreflang.js).
+  // `hreflang-set` renders the tag table (3 rows, one per SEO_FIXTURE.hreflang
+  // entry) before any return-tag check has run — the three distinct alternate
+  // URLs in the `text` list are the closest thing to a row-count assertion
+  // this harness's selector-existence engine can do. `hreflang-checked`
+  // clicks "Check return tags" and asserts the `es` alternate — which comes
+  // back 200 but never links back to the page — lands as `.hf-return.bad`.
+  { q: 'popup.html?state=hreflang-set',
+    need: ['.seo-hero', '.hf-row', '#hfCheckBtn'],
+    text: ['austin-dentist', 'dentista-austin', 'dentiste-austin'] },
+  { q: 'popup.html?state=hreflang-checked',
+    need: ['.seo-hero', '.hf-return.bad'],
+    click: '#hfCheckBtn' },
+
+  // Task 4: HTML vs rendered-DOM diff + user-agent switcher
+  // (src/popup/render-check.js, src/lib/html-diff.js, src/lib/ua-switch.js).
+  // `render-diff` clicks "Compare raw HTML with rendered DOM" — stub.js's
+  // RAW_HTML_FIXTURE has no <h1> and a different canonical than
+  // SEO_FIXTURE's rendered DOM, so a real SBWHtmlDiff.diffSummaries() call
+  // renders the row table and a non-"Static HTML" verdict, not a faked one.
+  // `render-ua` pre-seeds `getUserAgent` as already active (a real <select>
+  // change event isn't something this click-only harness can drive) so the
+  // section's own "UA override active" badge chip renders without a click.
+  { q: 'popup.html?state=render-diff',
+    need: ['.seo-hero', '.rc-row', '.rc-verdict', '#rcExportBtn'],
+    click: '#rcCompareBtn',
+    // Fix round 1, MINOR 13: a selector-only check still passes if the
+    // verdict regresses back to "Static HTML" (rc-verdict would still
+    // exist) — this fixture's missing <h1> and huge word-count growth over
+    // RAW_HTML_FIXTURE's near-empty body must keep landing on the
+    // JS-rendered verdict text itself, not just its container.
+    text: ['JavaScript-rendered'] },
+  { q: 'popup.html?state=render-ua',
+    need: ['.seo-hero', '.rc-badge-slot .badge-mono'],
+    text: ['UA OVERRIDE ACTIVE'] },
+
+  // Task 5: structured-data validation (src/popup/structured-data.js,
+  // src/lib/structured-data.js, src/lib/credits.js). `schema-mixed` renders
+  // SEO_FIXTURE.schemaValidation — a real SBWSchema.validateAll() call over
+  // four items (JSON-LD Article complete, JSON-LD Product missing offers,
+  // Microdata LocalBusiness, RDFa Person) plus one JSON-LD parse error (see
+  // stub.js's SCHEMA_RAW_ITEMS/SCHEMA_PARSE_ERROR) — no click needed, since
+  // (unlike every other 1.6.0 section) nothing here is gated on a
+  // permission or a fetch. The four distinct type names in `text` are this
+  // harness's usual stand-in for a literal "`.sd-item` ×4" count assertion
+  // (see hreflang-set's identical reasoning). `credits` clicks the popup
+  // footer's "About & credits" link and asserts the panel actually opened
+  // (`.credits:not([hidden])`, not just that the — always-present-but-
+  // hidden — container exists) with real per-type rows inside it.
+  { q: 'popup.html?state=schema-mixed',
+    need: ['.seo-hero', '.sd-item', '.sd-eligible', '.sd-errors'],
+    // Fix round 1, MINOR 12: withErrors is 2 (the Product missing `offers`
+    // plus the one JSON-LD parse error) — computed via SBWSchema.validateAll
+    // over stub.js's fixture, not guessed; a badge regression that starts
+    // reporting the wrong count fails this the same way a missing item would.
+    text: ['Article', 'Product', 'LocalBusiness', 'Person', 'Eligible for', '2 ITEMS WITH ERRORS'] },
+  { q: 'popup.html?state=credits',
+    need: ['.seo-hero', '.credits:not([hidden])', '.credits-type'],
+    click: '#creditsLink',
+    text: ['schema.org', 'Google Search Central', 'CC BY-SA 3.0', 'CC BY 4.0'] },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's
@@ -64,7 +157,97 @@ const CASES = [
   // which this offline harness can't do.
   { q: 'history.html?state=capture-legacy',
     need: ['#legacyBanner:not([hidden])', '#includeLegacyBtn'],
-    text: ['stored locally only', 'Include them in sync'] }
+    text: ['stored locally only', 'Include them in sync'] },
+
+  // Task 6, item D: popup.js's Google-SERP gate short-circuits the normal
+  // analyzer bootstrap (tab URL is a /search page on a Google host) and
+  // renders a one-line notice instead.
+  { q: 'popup.html?state=serp-page',
+    need: ['.sbw-serp-notice'],
+    text: ['search results page'] },
+
+  // Task 6: SERP overlay (src/overlay/serp-overlay.js, src/lib/serp.js).
+  // preview/serp.html is not a popup/sidepanel/options/history state — it's
+  // the content script itself, loaded as a plain <script> against a static
+  // fixture SERP (two organic results — the first carrying a sitelinks
+  // cluster —, one top ad block, an AI-Overview citation, a shopping unit,
+  // one bottom ad block, two PAA questions, and three non-question chrome
+  // buttons) via preview/stub.js's `sbwFetch` case for POST
+  // /domain/quick-batch. `serp-bars` asserts a bar lands under each of the
+  // two organic results and never inside either ad container (additive-only
+  // ruling); `serp-tools` asserts the toolbar's location-simulator
+  // `<select>` renders. Both load the same static page — nothing here is
+  // gated behind a click.
+  //
+  // Fix round 1, item 14: the original `no` selectors here
+  // (`#tads .sbw-serp-bar` etc.) are descendant selectors, which can never
+  // fail — bars are always inserted as a NEXT SIBLING of the block they're
+  // for (insertAdjacentElement('afterend', ...)), never as a descendant of
+  // an ad container, so the assertion was vacuous. The sibling-combinator
+  // forms below (`#tads + .sbw-serp-bar`, etc.) actually exercise the
+  // additive-only placement rule.
+  //
+  // The exact-count assertion ("bar count equals the organic count, 2") is
+  // also done with selectors, since this harness's engine only checks
+  // selector existence/absence, not counts, and (unlike a flatter fixture)
+  // each bar here lands one level down, as a sibling of the result's own
+  // inner block inside its `.g` — not as a sibling of another result's bar
+  // — so a single cross-page sibling-chain selector can't observe the
+  // total either way. Instead: the two `text` entries below confirm both
+  // (and only those two) organic domains got a bar, and the `no` list
+  // enumerates every non-organic surface on the fixture (both ad blocks,
+  // the AI-Overview citation, the shopping unit, and the sitelinks
+  // cluster's own sub-rows) to confirm none of them ever got one — between
+  // the two, nothing on this fixture could produce a 3rd bar.
+  { q: 'serp.html',
+    need: ['.sbw-serp-bar'],
+    no: [
+      '#tads .sbw-serp-bar', '#bottomads .sbw-serp-bar',
+      '[data-text-ad] + .sbw-serp-bar',
+      '#tads + .sbw-serp-bar', '#bottomads + .sbw-serp-bar',
+      '.commercial-unit-desktop-top + .sbw-serp-bar',
+      '[data-attrid*="Overview" i] + .sbw-serp-bar',
+      '[data-pla] + .sbw-serp-bar',
+      '.sitelinks-wrapper + .sbw-serp-bar',
+      '.sitelink + .sbw-serp-bar'
+    ],
+    text: ['first-result.example', 'second-result.example'] },
+  { q: 'serp.html',
+    need: ['.sbw-serp-tools', '.sbw-serp-tools select'] },
+
+  // Task 7 (1.6.0 parity), item C: the "SEO Bandwagon tools" popup TOOLS
+  // row (src/popup/tools.js, src/lib/tool-links.js) — 7 page-scoped kinds
+  // (the selection-based quoted-search tool is context-menu-only, see
+  // tools.js's module comment), rendered as plain links under the header.
+  // This harness's engine only checks selector existence, not counts (see
+  // the hreflang-set case's comment for the same limitation) — the 7
+  // distinct labels in `text` are the closest thing to a literal
+  // "`.tools a` × 7" assertion it can do.
+  { q: 'popup.html?state=tools-row',
+    need: ['.tools a'],
+    text: ['Search Console', 'Wayback Machine', 'PageSpeed Insights', 'Rich Results Test', 'site: search', 'sitemap.xml', 'robots.txt'] },
+
+  // Task 7 (1.6.0 parity), item E: the one-time review-prompt strip
+  // (src/popup/review.js, src/lib/review-prompt.js). stub.js pre-seeds
+  // sbwReview at analyses:5/prompted:false; popup.js's bootstrap then
+  // records this popup's own analysis (a real SBWReview.nextState() call,
+  // not a faked render), crossing to 6 — shouldPrompt() is true either way,
+  // but this exercises the real increment path rather than relying on the
+  // fixture alone.
+  { q: 'popup.html?state=review-strip',
+    need: ['.review-strip', '#reviewLeaveBtn', '#reviewNoBtn'],
+    text: ['Chrome Web Store'] },
+
+  // Fix round 1, item 6: negative cases — below the 5-analysis threshold
+  // (4, about to become 5 via this popup's own real recordAnalysis() call
+  // — still not >= 5) and already-prompted (9, prompted:true — never
+  // re-prompts regardless of how high analyses has climbed).
+  { q: 'popup.html?state=review-strip-none',
+    need: ['.seo-hero'],
+    no: ['.review-strip'] },
+  { q: 'popup.html?state=review-strip-prompted',
+    need: ['.seo-hero'],
+    no: ['.review-strip'] }
 ];
 
 const out = document.getElementById('out');
@@ -153,9 +336,41 @@ async function checkShellDrift(realUrl, previewUrl, label) {
   out.textContent = lines.join('\n');
 }
 
+// Task 8 (release step): the popup footer stamps its version from
+// `chrome.runtime.getManifest()` (src/popup/popup.js's stampVersion()) —
+// preview/stub.js's MANIFEST constant reads the real manifest.json via a
+// synchronous XHR so the preview can never silently drift from the shipped
+// version. This re-checks that from the outside: parse manifest.json the
+// same way a reviewer would, load the popup fixture, and diff its rendered
+// footer text against it — catches a broken `stampVersion()` or a missing
+// `#versionTag` element in the popup fixture.
+async function checkReleaseVersion() {
+  const manifest = await (await fetch('../manifest.json')).json();
+  const expected = 'v' + manifest.version;
+
+  const f = document.createElement('iframe');
+  f.style.cssText = 'width:500px;height:600px;position:absolute;left:-9999px';
+  f.src = 'popup.html?state=main-known';
+  const done = new Promise((resolve) => { f.onload = resolve; });
+  document.body.appendChild(f);
+  await done;
+  await waitFor(() => (f.contentDocument.getElementById('versionTag') || {}).textContent);
+  const actual = ((f.contentDocument.getElementById('versionTag') || {}).textContent || '').trim();
+  f.remove();
+
+  if (actual === expected) {
+    lines.push(`  OK   release: manifest.json version (${expected}) matches the popup footer`);
+  } else {
+    failures++;
+    lines.push(` FAIL  release: manifest.json version is "${expected}", popup footer shows "${actual}"`);
+  }
+  out.textContent = lines.join('\n');
+}
+
 (async () => {
   await checkShellDrift('../src/popup/popup.html', 'popup.html', 'popup');
   await checkShellDrift('../src/sidepanel/sidepanel.html', 'sidepanel.html', 'sidepanel');
+  await checkReleaseVersion();
   for (const c of CASES) await run(c);
   lines.push('', failures ? `${failures} FAILING` : 'ALL PASS');
   out.textContent = lines.join('\n');

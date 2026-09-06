@@ -39,11 +39,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyze') {
     analyzePage().then(results => sendResponse(results));
   } else if (request.action === 'highlight') {
-    highlightElement(request.type);
+    highlightElement(request.type, request);
     sendResponse({ success: true });
   } else if (request.action === 'countSelection') {
     const selection = window.getSelection().toString();
     sendResponse(countText(selection));
+  } else if (request.action === 'collectLinks') {
+    sendResponse(collectLinks());
   }
   return true;
 });
@@ -211,9 +213,45 @@ function detectTechStack() {
   return tech;
 }
 
+// ============ LINK COLLECTION (broken-link checker, Task 1) ============
+
+// Gathers every a[href] on the page for the popup's link checker to plan a
+// check against. self.SBWLinkCheck (lib/link-check.js, injected before this
+// file — see popup.js/service-worker.js's executeScript file lists) owns
+// normalizeUrl/hostKey so "absolute http(s) only, strip fragment, keep
+// query" and "www.-insensitive host" stay defined in exactly one place.
+// Returns { links, total }: `links` is capped at 300 (deduped by normalized
+// URL, first anchor text/rel wins); `total` is the uncapped deduped count so
+// the popup can show "first 300 of M".
+function collectLinks() {
+  // Defensive: this file can in principle run without lib/link-check.js
+  // ahead of it (an injection-order slip, or a re-inject retry that only
+  // pushed this file). Without the guard, referencing SBWLinkCheck below
+  // throws before sendResponse() runs, and the message channel never
+  // closes — the popup's sendToTab() would hang until Chrome's own timeout
+  // instead of surfacing a clean error.
+  if (typeof SBWLinkCheck === 'undefined') {
+    return { links: [], total: 0, error: 'lib_missing' };
+  }
+  const currentHost = SBWLinkCheck.hostKey(window.location.href);
+  const seen = new Map();
+
+  document.querySelectorAll('a[href]').forEach(el => {
+    const norm = SBWLinkCheck.normalizeUrl(el.getAttribute('href') ? el.href : null);
+    if (!norm || seen.has(norm)) return;
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const rel = el.getAttribute('rel');
+    const internal = SBWLinkCheck.hostKey(norm) === currentHost;
+    seen.set(norm, { url: norm, text, rel, internal });
+  });
+
+  const all = Array.from(seen.values());
+  return { links: all.slice(0, 300), total: all.length };
+}
+
 // ============ ELEMENT HIGHLIGHTING ============
 
-function highlightElement(type) {
+function highlightElement(type, request) {
   // Add styles if not present
   if (!document.getElementById('seo-toolkit-styles')) {
     const style = document.createElement('style');
@@ -226,6 +264,7 @@ function highlightElement(type) {
       .seo-toolkit-highlight-nofollow { outline-color: #f39c12 !important; background: rgba(243, 156, 18, 0.1) !important; }
       .seo-toolkit-highlight-image-missing-alt { outline-color: #e74c3c !important; background: rgba(231, 76, 60, 0.2) !important; }
       .seo-toolkit-highlight-image-has-alt { outline-color: #27ae60 !important; }
+      .seo-toolkit-highlight-broken { outline-color: #e5484d !important; background: rgba(229, 72, 77, 0.15) !important; }
       #seo-toolkit-counter {
         position: absolute;
         background: #333;
@@ -244,10 +283,10 @@ function highlightElement(type) {
   
   // Remove existing highlights
   document.querySelectorAll('.seo-toolkit-highlight').forEach(el => {
-    el.classList.remove('seo-toolkit-highlight', 'seo-toolkit-highlight-heading', 
+    el.classList.remove('seo-toolkit-highlight', 'seo-toolkit-highlight-heading',
       'seo-toolkit-highlight-link-internal', 'seo-toolkit-highlight-link-external',
       'seo-toolkit-highlight-nofollow', 'seo-toolkit-highlight-image-missing-alt',
-      'seo-toolkit-highlight-image-has-alt');
+      'seo-toolkit-highlight-image-has-alt', 'seo-toolkit-highlight-broken');
   });
   
   if (type === 'clear') return;
@@ -281,8 +320,16 @@ function highlightElement(type) {
       });
       break;
     case 'nofollow':
-      document.querySelectorAll('a[rel*="nofollow"], a[rel*="ugc"], a[rel*="sponsored"]').forEach(el => {
-        el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-nofollow');
+      // Fix round 1, item 1: token-matched via the same
+      // SEOBWExtraction.isNofollowFamily() extractLinks() uses to count
+      // nofollow/ugc/sponsored, so the highlighted set and the counted set
+      // can never disagree (a coarse `rel*="nofollow"` substring selector
+      // both misses `rel="NOFOLLOW"` and over-matches `rel="me
+      // nofollowing"`).
+      document.querySelectorAll('a[rel]').forEach(el => {
+        if (self.SEOBWExtraction.isNofollowFamily(el.getAttribute('rel'))) {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-nofollow');
+        }
       });
       break;
     case 'images-missing-alt':
@@ -303,6 +350,19 @@ function highlightElement(type) {
         }
       });
       break;
+    case 'broken': {
+      // request.urls are normalized (fragment-stripped) URLs from the link
+      // checker's results — compare against each anchor's own normalized
+      // href so a mid-page #anchor difference doesn't hide a real match.
+      const urls = new Set((request && request.urls) || []);
+      document.querySelectorAll('a[href]').forEach(el => {
+        const norm = typeof SBWLinkCheck !== 'undefined' ? SBWLinkCheck.normalizeUrl(el.href) : el.href.split('#')[0];
+        if (norm && urls.has(norm)) {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-broken');
+        }
+      });
+      break;
+    }
   }
 }
 
@@ -533,71 +593,88 @@ function analyzeAboveFold() {
   };
 }
 
+// Task 3: full tag-grammar + reciprocity validation lives in
+// self.SBWHreflang (src/lib/hreflang.js, injected before this file — see
+// popup.js/service-worker.js/link-check.js's executeScript file lists,
+// same pattern as SBWLinkCheck above). This only gathers the raw
+// {lang,href} pairs off the DOM and hands them to SBWHreflang.validateSet()
+// for code validity, duplicates, shared-URL, relative/protocol warnings,
+// x-default and self-reference — then merges the original `href` back onto
+// each validated entry (validateSet's own output only carries the resolved
+// `url`, not the raw href the page actually wrote).
 function analyzeHreflang() {
   const tags = document.querySelectorAll('link[rel="alternate"][hreflang]');
-  const entries = [];
+  const raw = [];
   tags.forEach(tag => {
-    entries.push({
+    raw.push({
       lang: tag.getAttribute('hreflang'),
       href: tag.getAttribute('href'),
     });
   });
 
-  const issues = [];
-  if (entries.length > 0) {
-    const hasXDefault = entries.some(e => e.lang === 'x-default');
-    if (!hasXDefault) issues.push('Missing x-default hreflang');
+  // Defensive fallback (see collectLinks() above for the same guard
+  // pattern): if lib/hreflang.js somehow isn't injected ahead of this file,
+  // fall back to the original light checks rather than throwing.
+  if (typeof SBWHreflang === 'undefined') {
+    const issues = [];
+    if (raw.length > 0) {
+      const hasXDefault = raw.some(e => e.lang === 'x-default');
+      if (!hasXDefault) issues.push('Missing x-default hreflang');
 
-    const currentUrl = window.location.href;
-    const hasSelfRef = entries.some(e => {
-      try { return new URL(e.href, window.location.origin).href === currentUrl; } catch { return false; }
-    });
-    if (!hasSelfRef) issues.push('Missing self-referencing hreflang');
+      const currentUrl = window.location.href;
+      const hasSelfRef = raw.some(e => {
+        try { return new URL(e.href, window.location.origin).href === currentUrl; } catch { return false; }
+      });
+      if (!hasSelfRef) issues.push('Missing self-referencing hreflang');
+    }
+    return { count: raw.length, entries: raw, issues };
   }
 
-  return { count: entries.length, entries, issues };
+  const validated = SBWHreflang.validateSet(raw, window.location.href);
+  const entries = validated.entries.map((v, i) => Object.assign({ href: raw[i] && raw[i].href }, v));
+  return { count: raw.length, entries, issues: validated.issues };
 }
 
+// Task 5: full JSON-LD + microdata + RDFa extraction and required/
+// recommended-property validation lives in self.SBWSchema
+// (src/lib/structured-data.js, injected before this file — see
+// popup.js/service-worker.js/link-check.js's executeScript file lists,
+// same pattern as SBWHreflang above). This gathers the raw material off
+// the DOM (JSON-LD script text, plus the document itself for the
+// microdata/RDFa walks) and hands it to SBWSchema.validateAll() — the key
+// name `schemaValidation` is unchanged from the old light version, but the
+// value is now that function's { items, counts, eligible } result rather
+// than a plain array.
 function analyzeSchemaValidation() {
-  const results = [];
-  const requiredFields = {
-    'Article': ['headline', 'author', 'datePublished', 'image'],
-    'Product': ['name', 'image', 'offers'],
-    'LocalBusiness': ['name', 'address', 'telephone'],
-    'Organization': ['name', 'url', 'logo'],
-    'Person': ['name'],
-    'BreadcrumbList': ['itemListElement'],
-    'FAQPage': ['mainEntity'],
-    'HowTo': ['name', 'step'],
-    'Recipe': ['name', 'recipeIngredient', 'recipeInstructions'],
-    'Event': ['name', 'startDate', 'location'],
-    'VideoObject': ['name', 'description', 'thumbnailUrl', 'uploadDate'],
-    'Review': ['itemReviewed', 'reviewRating', 'author'],
-    'WebSite': ['name', 'url'],
-    'WebPage': ['name'],
-  };
+  const scriptTexts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+    .map(s => s.textContent);
 
-  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-  scripts.forEach(script => {
-    try {
-      const data = JSON.parse(script.textContent);
-      const items = data['@graph'] || (Array.isArray(data) ? data : [data]);
-      items.forEach(item => {
-        const type = Array.isArray(item['@type']) ? item['@type'][0] : item['@type'];
-        if (!type) return;
-        const required = requiredFields[type] || [];
-        const missing = required.filter(f => !item[f] && !item[f.toLowerCase()]);
-        results.push({
-          type,
-          valid: missing.length === 0,
-          missingFields: missing,
-          fieldCount: Object.keys(item).filter(k => !k.startsWith('@')).length,
+  // Defensive fallback (see collectLinks()/analyzeHreflang() above for the
+  // same guard pattern): if lib/structured-data.js somehow isn't injected
+  // ahead of this file, fall back to a minimal JSON-LD-only, no-validation
+  // shape rather than throwing — still keyed the same way so callers don't
+  // need to special-case it.
+  if (typeof SBWSchema === 'undefined') {
+    const items = [];
+    scriptTexts.forEach(text => {
+      try {
+        const data = JSON.parse(text);
+        const nodes = data && data['@graph'] || (Array.isArray(data) ? data : [data]);
+        nodes.forEach(node => {
+          const type = Array.isArray(node['@type']) ? node['@type'][0] : node['@type'];
+          if (type) items.push({ type, source: 'json-ld', required: { missing: [], present: [] }, recommended: { missing: [] }, problems: [] });
         });
-      });
-    } catch (e) {}
-  });
+      } catch (e) { /* skip unparsable block */ }
+    });
+    return { items, counts: { byType: {}, bySource: {}, withErrors: 0 }, eligible: [] };
+  }
 
-  return results;
+  const raw = [].concat(
+    SBWSchema.extractJsonLd(scriptTexts),
+    SBWSchema.extractMicrodata(document),
+    SBWSchema.extractRdfa(document)
+  );
+  return SBWSchema.validateAll(raw);
 }
 
 function analyzeLazyImages() {
