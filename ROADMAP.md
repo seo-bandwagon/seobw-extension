@@ -49,6 +49,19 @@ policy above.
   section, never at install and never automatically. Revocable any time from
   `chrome://extensions`. The same optional/on-first-use pattern is planned
   for the upcoming hreflang and redirect checks.
+- **Indexability panel** (`src/popup/indexability.js`, new "INDEXABILITY"
+  section in the SEO Analysis tab, directly after "Page Meta") — the
+  background service worker observes the current tab's main-frame redirect
+  chain, final status, and a fixed set of response headers via
+  `chrome.webRequest`/`chrome.webNavigation` (`X-Robots-Tag`, `Cache-Control`,
+  `Content-Type`, `Link`, and whether HSTS/CSP are present — see
+  `src/lib/redirect-chain.js`), only once you've granted the same optional
+  `<all_urls>` permission. Combines that with the page's DOM `meta[robots]`/
+  canonical to render an indexable/not-indexable verdict, shows the hop-by-hop
+  chain (with client-side-redirect and loop detection), lets you trace a
+  different URL from a background tab, and exports the captured hops to CSV.
+  Nothing captured is sent anywhere; it lives in `chrome.storage.session` and
+  clears when the tab closes.
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension

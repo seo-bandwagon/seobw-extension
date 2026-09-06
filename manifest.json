@@ -11,7 +11,9 @@
     "scripting",
     "sidePanel",
     "tabs",
-    "alarms"
+    "alarms",
+    "webRequest",
+    "webNavigation"
   ],
   "options_page": "src/options/options.html",
   "host_permissions": [

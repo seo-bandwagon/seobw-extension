@@ -735,6 +735,121 @@ body {
 .lc-actions button:disabled:hover { border-color: var(--edge); color: var(--paper-40); }
 
 /* ============================================================
+   INDEXABILITY (src/popup/indexability.js)
+   — .lc-perm-card / .lc-perm-copy / .lc-allow-btn / .lc-loading are the
+   Link Check permission-card styles above, reused as-is for this panel's
+   own no-permission state.
+   ============================================================ */
+
+.ix-section-label {
+  padding: 10px 14px 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+}
+
+.ix-verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 4px;
+}
+.ix-verdict-label { font-family: var(--font-body); font-size: 11.5px; color: var(--paper-95); }
+.ix-verdict.bad .ix-verdict-label { color: var(--error); }
+.ix-verdict-extra {
+  padding: 0 14px 8px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--paper-50);
+}
+
+.ix-empty { padding: 10px 14px 14px; }
+.ix-muted {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--paper-50);
+  margin: 0 0 8px;
+}
+.ix-reload-btn, .ix-trace-btn, .ix-export-btn {
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-heading);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.ix-reload-btn:hover, .ix-trace-btn:hover, .ix-export-btn:hover { border-color: var(--pink); color: var(--white); }
+.ix-trace-btn:disabled, .ix-export-btn:disabled { color: var(--paper-40); border-color: var(--edge); cursor: default; }
+
+.ix-hops { border-top: 1px solid var(--hairline-soft); }
+.ix-hop, .ix-final {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.ix-hop-url {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--paper-95);
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ix-arrow { color: var(--paper-40); font-size: 10px; }
+.ix-chip {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--warning);
+  border: 1px solid rgba(245, 165, 36, 0.4);
+}
+
+.ix-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.ix-header-k { font-family: var(--font-body); font-size: 10.5px; color: var(--paper-50); flex: none; }
+.ix-header-v { font-family: var(--font-mono); font-size: 10px; color: var(--paper-95); text-align: right; }
+
+.ix-actions { padding: 10px 14px; }
+
+.ix-trace-form { display: flex; gap: 6px; padding: 4px 14px 10px; }
+.ix-trace-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  color: var(--paper-95);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.ix-trace { padding: 0 0 6px; }
+.ix-error {
+  padding: 0 14px 10px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--error);
+}
+
+/* ============================================================
    CITATIONS TAB
    ============================================================ */
 

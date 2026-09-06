@@ -44,9 +44,11 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `sidePanel` | The Link Building and Citations side panel |
 | `tabs` | Read the active tab's URL to open dashboard links in new tabs, **and** — via `chrome.tabs.onUpdated` in the background service worker — read every tab's URL as it finishes loading to match it against a bundled list of citation directories and paint the "DIR" toolbar badge. That match is local hostname comparison only; the URL is never sent anywhere for it |
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
+| `webRequest` | Observe the current tab's own redirects, status codes and response headers (Indexability section) — only after you've granted `<all_urls>` below. Fires on nothing without that permission, and never reads response bodies |
+| `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
-| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check section (never at install, never automatically) — it lets the extension fetch pages on other domains from your browser to check whether links resolve. Same optional/on-first-use pattern will cover hreflang and redirect checks as they ship. Revoke it any time from `chrome://extensions` |
+| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check or Indexability section (never at install, never automatically) — it lets the extension fetch pages on other domains from your browser to check whether links resolve, and lets `webRequest`/`webNavigation` above actually see anything. Same optional/on-first-use pattern covers hreflang checks as they ship. Revoke it any time from `chrome://extensions` |
 
 The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
@@ -120,6 +122,8 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per URL. This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
 
+**Indexability observes the current tab's own network requests** (Indexability section, 1.6.0+) — the current tab's main-frame redirects, status codes, and a fixed list of response headers (X-Robots-Tag, Cache-Control, Content-Type, Link, and whether HSTS/CSP are present), and only after you've granted the same optional `<all_urls>` permission; it's kept in `chrome.storage.session` and cleared when the tab closes or the browser restarts, and is never sent anywhere. "Trace another URL" opens a background tab to the URL you type, reads the same kind of data from it, and closes it — again nothing leaves your device unless you export the CSV yourself.
+
 Nothing is sent without a key configured, regardless of the toggle.
 
 ## Local-first + sync/retry behaviour
@@ -141,16 +145,20 @@ Every analyzed page saves to `chrome.storage.local` immediately — no network r
 manifest.json           # Extension config (Manifest V3)
 lib/                     # Shared pure modules (content-analysis, dom-extraction) injected before analyzer.js
 src/
-  background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler
+  background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler,
+                         # redirect tracer (webRequest/webNavigation, gated on <all_urls>)
   content/                # Page analyzer + GSC Search Console helper
   history/                # Capture history page (search, export, sync, retry)
   lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
                            # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
                            # gsc-inject.js + gsc-compare.js (Search Console helpers)
                            # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker)
+                           # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
+                           # redirect-chain.js (redirect/header/indexability logic, worker + popup share it)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
   overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
   popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
+                           # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/

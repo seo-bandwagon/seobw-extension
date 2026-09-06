@@ -253,6 +253,49 @@ const LINK_CHECK_FIXTURE = [
   { url: 'https://facebook.com/northsidedental', text: 'Facebook', rel: 'nofollow', internal: false, status: 403 }
 ];
 
+// Indexability panel (Task 2, src/popup/indexability.js, src/lib/redirect-chain.js):
+// two fixtures for the two worker messages it sends. `REDIRECT_CHAIN_EVENTS`
+// backs `getRedirectChain` for the `indexability-chain` state only — three
+// redirect hops (one of them via a client-side redirect in between) landing
+// on a final response whose X-Robots-Tag carries a UA-prefixed noindex, so
+// the panel's own SBWRedirects.indexability() call renders `.ix-verdict.bad`
+// without stub.js needing to fake a verdict itself. Every other state
+// (including `indexability-empty`) gets `{ chain: null }`, matching a tab
+// nothing has been captured for yet. `TRACE_EVENTS` backs `traceUrl` with an
+// unconditional 2-hop chain, regardless of state or the URL typed in.
+const REDIRECT_CHAIN_EVENTS = [
+  { kind: 'redirect', url: 'https://northsidedental.com/old-url', statusCode: 301, location: 'https://northsidedental.com/mid-url', headers: {} },
+  { kind: 'redirect', url: 'https://northsidedental.com/mid-url', statusCode: 302, location: 'https://northsidedental.com/austin/family-dentistry?ref=old', headers: {} },
+  { kind: 'client_redirect', url: 'https://northsidedental.com/austin/family-dentistry?ref=old' },
+  { kind: 'redirect', url: 'https://northsidedental.com/austin/family-dentistry?ref=old', statusCode: 301, location: 'https://northsidedental.com/austin/family-dentistry', headers: {} },
+  { kind: 'response', url: 'https://northsidedental.com/austin/family-dentistry', statusCode: 200, headers: [
+    { name: 'X-Robots-Tag', value: 'googlebot: noindex' },
+    { name: 'Cache-Control', value: 'no-store' },
+    { name: 'Content-Type', value: 'text/html; charset=utf-8' },
+    { name: 'Strict-Transport-Security', value: 'max-age=63072000' }
+  ] }
+];
+
+const TRACE_EVENTS = [
+  { kind: 'redirect', url: 'https://example.com/old', statusCode: 301, location: 'https://example.com/mid', headers: {} },
+  { kind: 'redirect', url: 'https://example.com/mid', statusCode: 301, location: 'https://example.com/new', headers: {} },
+  { kind: 'response', url: 'https://example.com/new', statusCode: 200, headers: [
+    { name: 'Cache-Control', value: 'public, max-age=3600' },
+    { name: 'Content-Type', value: 'text/html' }
+  ] }
+];
+
+// pickHeaders() runs the [{name,value}] arrays above into the flat shape
+// indexability.js expects — SBWRedirects is loaded later in document order
+// (see popup.html) but these fixtures are only read from handleMessage(),
+// which nothing calls until well after every body <script> has executed.
+function chainFixture(rawEvents) {
+  const events = rawEvents.map(ev => ev.kind === 'redirect' || ev.kind === 'response'
+    ? Object.assign({}, ev, { headers: SBWRedirects.pickHeaders(ev.headers) })
+    : ev);
+  return { chain: SBWRedirects.chainSummary(events), events };
+}
+
 window.chrome = {
   runtime: {
     lastError: null,
@@ -390,7 +433,12 @@ window.chrome = {
       return new Promise(resolve => setTimeout(() => { if (cb) cb(r); resolve(r); }, 0));
     },
     create(o) { console.log('[preview] would open', o.url); },
-    captureVisibleTab(_, __, cb) { cb(SHOT); }
+    captureVisibleTab(_, __, cb) { cb(SHOT); },
+    // indexability.js's "Reload to capture" button (Task 2) — a real reload
+    // would eventually fire webNavigation.onCompleted and re-fetch the
+    // chain, but nothing in this offline harness ever navigates, so this is
+    // a no-op the click handler's own status message covers for.
+    reload(tabId, cb) { if (cb) cb(); }
   },
   scripting: { executeScript: () => Promise.resolve([]) },
   sidePanel: { open() {}, setPanelBehavior() {} },
@@ -398,6 +446,20 @@ window.chrome = {
   contextMenus: { create() {}, onClicked: { addListener() {} } },
   commands: { onCommand: { addListener() {} } },
   windows: { create() {} },
+  // Task 2: the redirect tracer's raw capture surface. Nothing in this
+  // harness ever fires these — the fixtures above are served straight from
+  // the getRedirectChain/traceUrl message handlers instead — but
+  // indexability.js's "Reload to capture" button does register a real
+  // chrome.webNavigation.onCompleted listener, so that API has to exist.
+  webRequest: {
+    onBeforeRequest: { addListener() {}, removeListener() {} },
+    onBeforeRedirect: { addListener() {}, removeListener() {} },
+    onHeadersReceived: { addListener() {}, removeListener() {} }
+  },
+  webNavigation: {
+    onCommitted: { addListener() {}, removeListener() {} },
+    onCompleted: { addListener() {}, removeListener() {} }
+  },
   // src/lib/perms.js's SBWPerms.hasAllUrls()/requestAllUrls() — granted in
   // every state except `link-check-noperm`, which exists to show the
   // permission card (`.lc-perm-card`).
@@ -432,6 +494,17 @@ function handleMessage(msg) {
         total: LINK_CHECK_FIXTURE.length
       };
     case 'analyze': return SEO_FIXTURE;
+    // Indexability panel (Task 2, src/popup/indexability.js) — background
+    // messages, not content-script ones, but chrome.runtime.sendMessage
+    // routes through this same handleMessage(). Only `indexability-chain`
+    // has anything captured; every other state (including
+    // `indexability-empty`) sees the "nothing captured for this tab yet"
+    // reply a fresh/never-reloaded tab would actually get.
+    case 'getRedirectChain':
+      return PREVIEW_STATE === 'indexability-chain' ? chainFixture(REDIRECT_CHAIN_EVENTS) : { chain: null };
+    case 'traceUrl':
+      if (!/^https?:\/\//i.test(msg.url || '')) return { error: 'invalid_url' };
+      return chainFixture(TRACE_EVENTS);
     default: return {};
   }
 }
@@ -546,7 +619,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject'];
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();

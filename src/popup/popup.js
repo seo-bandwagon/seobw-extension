@@ -379,6 +379,11 @@ function renderResults(data) {
 
   content.innerHTML = html;
   wireSeoTab();
+  // Indexability mounts first: it inserts itself right after "Page Meta"
+  // (see src/popup/indexability.js), so Link Check — which just appends to
+  // the end of #content — always ends up last regardless of call order.
+  // Mounting it first anyway keeps that intent readable here.
+  globalThis.SBWIndexabilityUI?.mount(document.getElementById('content'), data);
   globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
 }
 

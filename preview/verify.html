@@ -62,6 +62,18 @@ const CASES = [
   { q: 'popup.html?state=link-check-reinject',
     need: ['.seo-hero', '#lcCheckBtn'] },
 
+  // Task 2: indexability panel (src/popup/indexability.js, src/lib/
+  // redirect-chain.js). `indexability-chain` gets a 3-hop fixture with a
+  // client redirect and a googlebot noindex X-Robots-Tag on the final
+  // response — SBWRedirects.indexability() sees that noindex and renders
+  // the bad verdict itself, this isn't stub.js faking a verdict.
+  // `indexability-empty` is a tab nothing has been captured for yet.
+  { q: 'popup.html?state=indexability-chain',
+    need: ['.seo-hero', '.ix-verdict.bad', '.ix-hop', '#ixExportBtn'],
+    text: ['Client-side redirect'] },
+  { q: 'popup.html?state=indexability-empty',
+    need: ['.seo-hero', '.ix-empty', '#ixReloadBtn'] },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's

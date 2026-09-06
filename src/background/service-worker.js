@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -56,6 +56,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // Clear cache when tab is closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   delete tabCache[tabId];
+  clearRedirectBuffer(tabId);
 });
 
 // Handle context menu clicks
@@ -416,6 +417,163 @@ chrome.runtime.onConnect.addListener((port) => {
 
     pump();
   });
+});
+
+// --- Redirect tracer: webRequest/webNavigation → Indexability panel (Task 2) ---
+//
+// Observing another origin's response headers and Location hops needs the
+// same optional <all_urls> host permission the link checker gates on
+// (SBWPerms) — webRequest/webNavigation see nothing without it. This block
+// never requests that permission itself; it only checks whether it's
+// already there, at worker start and again on chrome.permissions.onAdded,
+// and (de)registers accordingly. `redirectListenersRegistered` makes both
+// call sites idempotent — permissions.onAdded can fire more than once for
+// the same grant across a worker's lifetime.
+const REDIRECTS_MAX_EVENTS = 25;
+const TRACE_TIMEOUT_MS = 20000;
+
+let redirectListenersRegistered = false;
+const lastMainFrameRequestId = {}; // tabId -> requestId, so a duplicate onBeforeRequest call for the same navigation can't wipe a buffer mid-capture
+
+function redirectsKey(tabId) {
+  return `redirects:${tabId}`;
+}
+
+async function readRedirectBuffer(tabId) {
+  const key = redirectsKey(tabId);
+  const stored = await chrome.storage.session.get(key);
+  const entry = stored && stored[key];
+  return (entry && Array.isArray(entry.events)) ? entry.events : [];
+}
+
+async function appendRedirectEvent(tabId, event) {
+  if (tabId === undefined || tabId === null || tabId < 0) return; // -1 = not a real tab (prerender/service worker requests)
+  const events = (await readRedirectBuffer(tabId)).concat([event]).slice(-REDIRECTS_MAX_EVENTS);
+  await chrome.storage.session.set({ [redirectsKey(tabId)]: { events, updatedAt: Date.now() } });
+}
+
+async function resetRedirectBuffer(tabId) {
+  if (tabId === undefined || tabId === null || tabId < 0) return;
+  await chrome.storage.session.set({ [redirectsKey(tabId)]: { events: [], updatedAt: Date.now() } });
+}
+
+function clearRedirectBuffer(tabId) {
+  chrome.storage.session.remove(redirectsKey(tabId));
+}
+
+function registerRedirectListeners() {
+  if (redirectListenersRegistered) return;
+  redirectListenersRegistered = true;
+
+  const FILTER = { urls: ['<all_urls>'], types: ['main_frame'] };
+
+  chrome.webRequest.onBeforeRequest.addListener((details) => {
+    const tabId = details.tabId;
+    if (tabId < 0) return;
+    if (lastMainFrameRequestId[tabId] === details.requestId) return;
+    lastMainFrameRequestId[tabId] = details.requestId;
+    resetRedirectBuffer(tabId);
+  }, FILTER);
+
+  chrome.webRequest.onBeforeRedirect.addListener((details) => {
+    appendRedirectEvent(details.tabId, {
+      kind: 'redirect',
+      url: details.url,
+      statusCode: details.statusCode,
+      location: details.redirectUrl,
+      headers: SBWRedirects.pickHeaders(details.responseHeaders)
+    });
+  }, FILTER, ['responseHeaders']);
+
+  chrome.webRequest.onHeadersReceived.addListener((details) => {
+    if (details.statusCode >= 300 && details.statusCode < 400) return; // 3xx hops are captured by onBeforeRedirect
+    appendRedirectEvent(details.tabId, {
+      kind: 'response',
+      url: details.url,
+      statusCode: details.statusCode,
+      headers: SBWRedirects.pickHeaders(details.responseHeaders)
+    });
+  }, FILTER, ['responseHeaders']);
+
+  chrome.webNavigation.onCommitted.addListener((details) => {
+    if (details.frameId !== 0) return;
+    if (Array.isArray(details.transitionQualifiers) && details.transitionQualifiers.includes('client_redirect')) {
+      appendRedirectEvent(details.tabId, { kind: 'client_redirect', url: details.url });
+    }
+  });
+}
+
+(async () => {
+  if (await SBWPerms.hasAllUrls()) registerRedirectListeners();
+})();
+
+chrome.permissions.onAdded.addListener((perms) => {
+  if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
+    registerRedirectListeners();
+  }
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getRedirectChain') {
+    (async () => {
+      const events = await readRedirectBuffer(request.tabId);
+      if (!events.length) {
+        sendResponse({ chain: null });
+        return;
+      }
+      sendResponse({ chain: SBWRedirects.chainSummary(events), events });
+    })();
+    return true;
+  }
+
+  if (request.action === 'traceUrl') {
+    (async () => {
+      const url = request.url;
+      if (!/^https?:\/\//i.test(url || '')) {
+        sendResponse({ error: 'invalid_url' });
+        return;
+      }
+
+      const allowed = await SBWPerms.hasAllUrls();
+      if (!allowed) {
+        sendResponse({ error: 'no_permission' });
+        return;
+      }
+
+      let newTab;
+      try {
+        newTab = await chrome.tabs.create({ url, active: false });
+      } catch (e) {
+        sendResponse({ error: 'tab_open_failed' });
+        return;
+      }
+      const tabId = newTab.id;
+      await resetRedirectBuffer(tabId);
+
+      await new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          chrome.webNavigation.onCompleted.removeListener(onCompleted);
+          resolve();
+        };
+        const timer = setTimeout(finish, TRACE_TIMEOUT_MS);
+        function onCompleted(details) {
+          if (details.tabId === tabId && details.frameId === 0) finish();
+        }
+        chrome.webNavigation.onCompleted.addListener(onCompleted);
+      });
+
+      const events = await readRedirectBuffer(tabId);
+      try { await chrome.tabs.remove(tabId); } catch (e) { /* tab already gone */ }
+      clearRedirectBuffer(tabId);
+
+      sendResponse({ chain: SBWRedirects.chainSummary(events), events });
+    })();
+    return true;
+  }
 });
 
 // --- External connect handler (Chrome extension "connect" flow from the
