@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SERP overlay preview</title>
+  <link rel="stylesheet" href="../src/overlay/serp-overlay.css">
+  <script src="stub.js"></script>
+  <style>
+    /* Loose approximation of a Google results page shell — just enough
+       structure for src/lib/serp.js's parseResults()/parsePaa() selectors
+       (a[href^="http"] + h3, [data-text-ad]/#tads/#bottomads,
+       [data-q]/[jsname][role="button"]) to have something real to find. */
+    body { font-family: arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #202124; }
+    #search { max-width: 600px; }
+    h3 { font-size: 18px; margin: 0 0 4px; }
+    a { color: #1a0dab; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div id="search">
+    <div id="tads">
+      <div data-text-ad="1">
+        <div>
+          <a href="https://ad-sponsor.example/landing"><h3>Sponsored Widget Deals</h3></a>
+          <div>Ad copy — buy widgets now.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g">
+      <div>
+        <a href="https://first-result.example/page-one">
+          <h3>First Organic Result</h3>
+        </a>
+        <div>Snippet text for the first organic result on this fixture page.</div>
+      </div>
+    </div>
+
+    <div class="g">
+      <div>
+        <a href="https://second-result.example/page-two">
+          <h3>Second Organic Result</h3>
+        </a>
+        <div>Snippet text for the second organic result on this fixture page.</div>
+      </div>
+    </div>
+
+    <div id="bottomads">
+      <div data-text-ad="1">
+        <div>
+          <a href="https://bottom-ad.example/landing"><h3>Bottom Ad Result</h3></a>
+        </div>
+      </div>
+    </div>
+
+    <div data-q="How do widgets work?">How do widgets work?</div>
+    <div jsname="xyz" role="button">What is the best widget?</div>
+  </div>
+
+  <script src="../src/lib/serp.js"></script>
+  <script src="../src/overlay/serp-overlay.js"></script>
+</body>
+</html>

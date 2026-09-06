@@ -135,6 +135,29 @@ policy above.
   Search Central's structured-data documentation (CC BY 4.0) for the
   required/recommended tables, with a source link per type category;
   Google tools are named nominatively, no logos.
+- **SERP overlay, re-enabled and rewritten** (`src/overlay/serp-overlay.js`,
+  `src/overlay/serp-overlay.css`, new `src/lib/serp.js`) — registered as a
+  content script on `google.com` and nine other Google TLDs' `/search`
+  pages, additive only: a `.sbw-serp-bar` appends under each organic result
+  (never inside the title/URL area, never near an ad — the parser excludes
+  `[data-text-ad]`/`#tads`/`#bottomads`/`[aria-label*="Ads"]` blocks
+  outright) showing the domain and a stats lookup, and a `.sbw-serp-tools`
+  toolbar appends once after the results container with **Copy results
+  (N)** (TSV), **Export CSV**, **Copy PAA (N)**, and a location simulator.
+  The stats lookup sends only bare domain names (deduped, capped at 20) to
+  `POST /api/domain/quick-batch` through the background worker's existing
+  bridge — never the query, never a title or snippet — cached in
+  `chrome.storage.session` for 10 minutes; a signed-out/rejected key shows
+  "Connect your account" once, with no retry. Results and PAA questions
+  stay entirely client-side (clipboard/CSV). The location simulator builds
+  a Google search URL (`uule`, `gl`, `hl`, optional `pws=0`) from a
+  54-metro preset list or a typed canonical name, and opens it — or two
+  locations at once via "Compare in two tabs" — described as "opens a
+  search with location parameters," never as seeing Google as a bot. The
+  old `/serp/collect` and `/analyze` calls, and the analyzer bootstrap that
+  ran on Google's own results pages, are deleted outright, not disabled;
+  the popup now shows a one-line notice on a Google results page instead
+  of running the normal page analyzer there.
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension

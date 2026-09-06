@@ -7,6 +7,7 @@ Instant on-page SEO analysis, local-SEO citation checks, and link-building revie
 - **SEO Analysis** — score ring (0–100, A–F grade) with four sub-scores (Meta, Content, Links, Tech), page meta with a SERP preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), heading structure, link and image audit with on-page highlighting, content stats and n-grams, tech stack detection, and a domain-history strip showing this domain's and URL's past captures.
 - **Citations** — detects 40 curated local-SEO directories on the current page, extracts the page's NAP (JSON-LD → microdata → heuristic) and scores it against your business record, captures a proof screenshot, and files the citation to your account in one click.
 - **Link Building** — side panel view of your outlets (qualified prospects), pitches (draft/approved), and results (placements, funnel, spend), plus "Add current tab as outlet."
+- **SERP overlay** — on Google's own results pages, a stats bar under each organic result, one-click results/PAA export, and a location simulator for seeing what searchers in another metro are shown.
 
 ## Installation
 
@@ -48,6 +49,7 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
 | `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
+| `content_scripts` matches: `https://www.google.com/search*` and the same path on nine other Google TLDs (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.in`) | Runs the SERP overlay (bars under organic results, the results/PAA export toolbar, the location simulator) on Google's own results pages. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use, and doesn't touch the optional `<all_urls>` permission below at all: every stats lookup routes through the background worker's existing `seobandwagon.com` access, never a fetch from the page itself |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
 | `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically) — it lets the extension look at pages on other domains from your browser: fetching them (without cookies) to check whether links resolve, whether an hreflang alternate links back, or what a page's raw (unrendered) HTML looked like, and lets `webRequest`/`webNavigation` above actually see anything and the User-Agent switcher actually rewrite a header, plus opening a URL in a background tab like a normal visit when you use "Trace another URL." Revoke it any time from the extensions page |
 
@@ -94,6 +96,41 @@ the math and controls Search Console itself doesn't show:
 Everything here is computed from the numbers already on the page. Nothing is
 sent anywhere — there is no network call involved at all.
 
+## SERP overlay
+
+On a Google results page (google.com and nine other Google TLDs — see the
+Permissions table below), the extension appends one small bar under each
+organic result and a toolbar under the results list. It never touches an ad
+or any Google UI — additive only, always: nothing is hidden, moved, covered,
+or restyled.
+
+**What's injected:**
+
+- A `.sbw-serp-bar` under each organic result, showing the domain and its
+  SEO Bandwagon stats (score, capture count) once looked up, with a small
+  **Analyze** link that opens the result in a new tab — the popup does the
+  analysis from there, the same as it would for any page you visit directly.
+- A toolbar with **Copy results (N)** (TSV to clipboard), **Export CSV**,
+  **Copy PAA (N)** (People-also-ask questions, to clipboard), and the
+  location simulator.
+
+**What's sent:** only the bare domain names of the results currently shown
+(deduped, capped at 20 per batch) go to `POST /api/domain/quick-batch` —
+never the search query, never a title or snippet. The response is cached in
+`chrome.storage.session` for 10 minutes so revisiting the same results
+doesn't repeat the lookup. If no account is connected (or the key is
+rejected), each bar shows "Connect your account" once and doesn't retry.
+Extracted results and PAA questions never leave the browser at all — Copy/
+Export only ever touch your clipboard or a local file download.
+
+**Location simulator:** builds a Google search URL with location parameters
+(`uule`, `gl`, `hl`, optionally `pws=0` to turn off personalization) from a
+54-metro preset list or a typed canonical location name, and opens it in a
+new tab — or two, for the "Compare in two tabs" button. This **opens a
+search with location parameters so you can see what searchers in that area
+are shown**; it does not simulate Googlebot or any other crawler, and the
+extension never describes it that way.
+
 ## Privacy
 
 Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, domain history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
@@ -119,7 +156,7 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot is never part of that payload — it only ever saves to your device (see `preview/DESIGN-GAPS.md` for the full-page-capture roadmap).
 
-**The SERP overlay is not active in 1.5.0** — `src/overlay/serp-overlay.js` exists but isn't registered as a content script (see ROADMAP's v1.6 candidates), so it sends nothing today. When it ships, the plan is a bare-domain batch lookup (`SBW.quickBatch`) with no other page data attached — this note will be updated to match whatever actually ships.
+**On Google search pages the extension sends the bare domain names of the results shown (never your query) to look up their stats; the results list and questions are copied only when you click.** See "SERP overlay" above for the full breakdown — the 10-minute local cache, the "Connect your account" no-retry behaviour, and the location simulator's copy rules.
 
 **Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per URL. This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
 

@@ -177,11 +177,16 @@ const TAB_URLS = {
   // or the fixture would look stale and the `indexability-chain` state
   // would render as if nothing had been captured.
   'indexability-chain': 'https://northsidedental.com/austin/family-dentistry',
+  // Task 6, item D: popup.js's isGoogleSerpUrl() gate — this must match
+  // GOOGLE_SERP_HOSTS + a /search path exactly, or the notice never renders
+  // and the popup falls through to the normal analyzer bootstrap instead.
+  'serp-page': 'https://www.google.com/search?q=plumbers+near+austin',
   default: 'https://www.yelp.com/biz/northside-dental-austin'
 };
 const TAB_TITLES = {
   'main-unknown': 'Some Page',
   'indexability-chain': 'Family Dentistry in North Austin | Northside Dental Co.',
+  'serp-page': 'plumbers near austin - Google Search',
   default: 'Northside Dental Co. - Yelp'
 };
 
@@ -584,6 +589,29 @@ function handleMessage(msg) {
       return { ok: true, presetId: msg.presetId || 'default' };
     case 'getUserAgent':
       return { presetId: PREVIEW_STATE === 'render-ua' ? 'googlebot-desktop' : 'default' };
+    // SERP overlay (Task 6, src/overlay/serp-overlay.js) — the generic
+    // worker bridge (service-worker.js's `request.action === 'sbwFetch'`
+    // handler) the content script routes every domain-stats lookup through.
+    // preview/serp.html's fixture SERP has two organic results
+    // (first-result.example, second-result.example); this mirrors the real
+    // POST /api/domain/quick-batch response shape (results/invalid) so
+    // SBWSerp/serp-overlay.js's own rendering — not this stub — decides
+    // what each bar shows, including the "no data" branch for a domain the
+    // server has nothing on.
+    case 'sbwFetch':
+      if (msg.path === '/domain/quick-batch') {
+        return {
+          ok: true, status: 200, code: 'ok',
+          data: {
+            results: {
+              'first-result.example': { avgScore: 82, sampleSize: 4, schemaPercentage: 60, age: '2 years' },
+              'second-result.example': null
+            },
+            invalid: []
+          }
+        };
+      }
+      return { ok: false, status: 0, data: null, retryAfter: null, code: 'network' };
     default: return {};
   }
 }
@@ -592,6 +620,10 @@ function handleMessage(msg) {
    it has loaded — see the DOMContentLoaded handler below) ---------- */
 
 function installSbwStubs() {
+  // Task 6's serp.html doesn't load src/lib/api.js at all (the content
+  // script it previews talks to the worker bridge, never to SBW.* directly)
+  // — every other preview page does, so this only ever short-circuits there.
+  if (typeof SBW === 'undefined') return;
   const delay = (v, ms = 120) => new Promise(r => setTimeout(() => r(v), ms));
   // Never let the real network-hitting bits fire in a preview.
   SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });

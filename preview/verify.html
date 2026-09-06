@@ -157,7 +157,31 @@ const CASES = [
   // which this offline harness can't do.
   { q: 'history.html?state=capture-legacy',
     need: ['#legacyBanner:not([hidden])', '#includeLegacyBtn'],
-    text: ['stored locally only', 'Include them in sync'] }
+    text: ['stored locally only', 'Include them in sync'] },
+
+  // Task 6, item D: popup.js's Google-SERP gate short-circuits the normal
+  // analyzer bootstrap (tab URL is a /search page on a Google host) and
+  // renders a one-line notice instead.
+  { q: 'popup.html?state=serp-page',
+    need: ['.sbw-serp-notice'],
+    text: ['search results page'] },
+
+  // Task 6: SERP overlay (src/overlay/serp-overlay.js, src/lib/serp.js).
+  // preview/serp.html is not a popup/sidepanel/options/history state — it's
+  // the content script itself, loaded as a plain <script> against a static
+  // fixture SERP (two organic results, one top ad block, one bottom ad
+  // block, two PAA questions) via preview/stub.js's `sbwFetch` case for
+  // POST /domain/quick-batch. `serp-bars` asserts a bar lands under each of
+  // the two organic results and never inside either ad container (additive-
+  // only ruling); `serp-tools` asserts the toolbar's location-simulator
+  // `<select>` renders. Both load the same static page — nothing here is
+  // gated behind a click.
+  { q: 'serp.html',
+    need: ['.sbw-serp-bar'],
+    no: ['#tads .sbw-serp-bar', '#bottomads .sbw-serp-bar'],
+    text: ['first-result.example', 'second-result.example'] },
+  { q: 'serp.html',
+    need: ['.sbw-serp-tools', '.sbw-serp-tools select'] }
 ];
 
 const out = document.getElementById('out');

@@ -56,6 +56,25 @@ function section(id, title, badgeHtml, body, open) {
   </div>`;
 }
 
+// Google SERP detection (Task 6, item D) — the same host+path shape as
+// manifest.json's serp-overlay content_scripts entry. Analyzing a Google
+// results page with the normal page analyzer is noise (it's not a page a
+// client owns); src/overlay/serp-overlay.js is what actually runs there.
+const GOOGLE_SERP_HOSTS = new Set([
+  'www.google.com', 'www.google.co.uk', 'www.google.ca', 'www.google.com.au',
+  'www.google.de', 'www.google.fr', 'www.google.es', 'www.google.it',
+  'www.google.nl', 'www.google.in'
+]);
+
+function isGoogleSerpUrl(url) {
+  try {
+    const u = new URL(url);
+    return GOOGLE_SERP_HOSTS.has(u.hostname.toLowerCase()) && u.pathname === '/search';
+  } catch (e) {
+    return false;
+  }
+}
+
 // Shared with feature UI modules loaded after this file (src/popup/<feature>.js,
 // e.g. link-check.js) so they render sections/badges the same way the main
 // SEO tab does, and can post status/reach the active tab without duplicating
@@ -106,6 +125,16 @@ initDataToggle();
 chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   const tab = tabs[0];
   currentTab = tab;
+
+  if (tab && tab.url && isGoogleSerpUrl(tab.url)) {
+    document.getElementById('content').innerHTML = `
+      <div class="empty sbw-serp-notice">
+        <div class="empty-title">SEARCH RESULTS PAGE</div>
+        <div class="empty-sub">This is a search results page — the SEO Bandwagon bar is shown under each result.</div>
+      </div>`;
+    return;
+  }
+
   // Recorded before the analyze message even goes out, so it predates any
   // capture this popup instance is about to post — see loadDomainHistory's
   // excludeSince, which uses it to keep a just-posted capture from being

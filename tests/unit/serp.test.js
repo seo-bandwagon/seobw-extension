@@ -1,0 +1,264 @@
+// Unit tests for the pure SERP-overlay logic (src/lib/serp.js).
+//
+// Covers organic-vs-ad extraction, PAA extraction, the uule test vector
+// from the brief, and the search-URL builder. No chrome/fetch here — the
+// content script (src/overlay/serp-overlay.js) owns the DOM wiring and
+// worker bridge.
+
+import { describe, it, expect } from 'vitest';
+import { JSDOM } from 'jsdom';
+
+// Dual-export pattern (see src/lib/sync-state.js) — attaches to
+// `globalThis.SBWSerp` rather than an ESM default export.
+await import('../../src/lib/serp.js');
+const SBWSerp = globalThis.SBWSerp;
+
+function parseFragment(html) {
+  const dom = new JSDOM(`<!doctype html><body>${html}</body>`);
+  return dom.window.document;
+}
+
+describe('SBWSerp namespace', () => {
+  it('attaches to globalThis.SBWSerp', () => {
+    expect(SBWSerp).toBeTruthy();
+    ['bareDomain', 'parseResults', 'parsePaa', 'resultsToCsv', 'paaToText', 'uule', 'buildSearchUrl']
+      .forEach(fn => expect(typeof SBWSerp[fn]).toBe('function'));
+    expect(Array.isArray(SBWSerp.PRESET_LOCATIONS)).toBe(true);
+  });
+});
+
+/* ---------- bareDomain ---------- */
+
+describe('bareDomain', () => {
+  it('lowercases and strips a leading www.', () => {
+    expect(SBWSerp.bareDomain('https://WWW.Example.com/page')).toBe('example.com');
+  });
+
+  it('returns the host as-is when there is no www. prefix', () => {
+    expect(SBWSerp.bareDomain('https://blog.example.com/post')).toBe('blog.example.com');
+  });
+
+  it('returns null for non-http(s) schemes', () => {
+    expect(SBWSerp.bareDomain('mailto:a@example.com')).toBeNull();
+    expect(SBWSerp.bareDomain('javascript:void(0)')).toBeNull();
+  });
+
+  it('returns null for garbage/relative input', () => {
+    expect(SBWSerp.bareDomain('/relative/path')).toBeNull();
+    expect(SBWSerp.bareDomain('')).toBeNull();
+    expect(SBWSerp.bareDomain(null)).toBeNull();
+  });
+
+  it('returns null for google.com internal links', () => {
+    expect(SBWSerp.bareDomain('https://www.google.com/search?q=x')).toBeNull();
+    expect(SBWSerp.bareDomain('https://accounts.google.com/signin')).toBeNull();
+  });
+
+  it('returns null for internal links on other Google TLDs the overlay also runs on', () => {
+    expect(SBWSerp.bareDomain('https://www.google.co.uk/preferences')).toBeNull();
+    expect(SBWSerp.bareDomain('https://support.google.de/websearch')).toBeNull();
+  });
+
+  it('does not false-positive on an unrelated domain containing "google"', () => {
+    expect(SBWSerp.bareDomain('https://mygoogle.com/page')).toBe('mygoogle.com');
+  });
+});
+
+/* ---------- parseResults / parsePaa ---------- */
+
+const FIXTURE_SERP = `
+  <div id="search">
+    <div id="tads">
+      <div data-text-ad="1">
+        <div>
+          <a href="https://ad-sponsor.example/landing"><h3>Sponsored Widget Deals</h3></a>
+          <div>Buy widgets now, ad copy here.</div>
+        </div>
+      </div>
+    </div>
+    <div class="g">
+      <div>
+        <a href="https://www.first-result.example/page-one">
+          <h3>First Organic Result</h3>
+        </a>
+        <div>This is the snippet text for the first organic result.</div>
+      </div>
+    </div>
+    <div class="g">
+      <div>
+        <a href="https://second-result.example/page-two">
+          <h3>Second Organic Result</h3>
+        </a>
+        <div>Snippet for the second result goes here.</div>
+      </div>
+    </div>
+    <div id="bottomads">
+      <div data-text-ad="1">
+        <div>
+          <a href="https://bottom-ad.example/landing"><h3>Bottom Ad Result</h3></a>
+        </div>
+      </div>
+    </div>
+    <div data-q="How do widgets work?">How do widgets work?</div>
+    <div jsname="xyz" role="button">What is the best widget?</div>
+  </div>
+`;
+
+describe('parseResults', () => {
+  it('extracts organic results, excluding ad blocks', () => {
+    const doc = parseFragment(FIXTURE_SERP);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.length).toBe(2);
+    expect(rows.map(r => r.domain)).toEqual(['first-result.example', 'second-result.example']);
+    expect(rows[0].title).toBe('First Organic Result');
+    expect(rows[0].position).toBe(1);
+    expect(rows[1].position).toBe(2);
+  });
+
+  it('never includes a result whose anchor is inside [data-text-ad]/#tads/#bottomads', () => {
+    const doc = parseFragment(FIXTURE_SERP);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.some(r => r.domain === 'ad-sponsor.example')).toBe(false);
+    expect(rows.some(r => r.domain === 'bottom-ad.example')).toBe(false);
+  });
+
+  it('dedupes by URL', () => {
+    const doc = parseFragment(`
+      <div class="g"><div><a href="https://dup.example/x"><h3>One</h3></a></div></div>
+      <div class="g"><div><a href="https://dup.example/x"><h3>One again</h3></a></div></div>
+    `);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.length).toBe(1);
+  });
+
+  it('extracts a snippet when the block has extra text', () => {
+    const doc = parseFragment(FIXTURE_SERP);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows[0].snippet).toMatch(/snippet text for the first/i);
+  });
+
+  it('returns [] for a root with no h3s', () => {
+    const doc = parseFragment('<div>nothing here</div>');
+    expect(SBWSerp.parseResults(doc)).toEqual([]);
+  });
+});
+
+describe('parsePaa', () => {
+  it('extracts People-also-ask questions from [data-q] and [jsname][role="button"]', () => {
+    const doc = parseFragment(FIXTURE_SERP);
+    const questions = SBWSerp.parsePaa(doc);
+    expect(questions).toEqual([
+      'How do widgets work?',
+      'What is the best widget?'
+    ]);
+  });
+
+  it('dedupes identical question text', () => {
+    const doc = parseFragment(`
+      <div data-q="Same question?">Same question?</div>
+      <div data-q="Same question?">Same question?</div>
+    `);
+    expect(SBWSerp.parsePaa(doc)).toEqual(['Same question?']);
+  });
+
+  it('returns [] when there are no PAA blocks', () => {
+    const doc = parseFragment('<div>no paa here</div>');
+    expect(SBWSerp.parsePaa(doc)).toEqual([]);
+  });
+});
+
+/* ---------- resultsToCsv / paaToText ---------- */
+
+describe('resultsToCsv', () => {
+  it('writes position/url/domain/title columns with a header row', () => {
+    const csv = SBWSerp.resultsToCsv([
+      { position: 1, url: 'https://example.com/a', domain: 'example.com', title: 'A Title' }
+    ]);
+    expect(csv).toContain('Position,URL,Domain,Title');
+    expect(csv).toContain('1,https://example.com/a,example.com,A Title');
+  });
+
+  it('guards against formula injection in a hostile title', () => {
+    const csv = SBWSerp.resultsToCsv([
+      { position: 1, url: 'https://example.com/a', domain: 'example.com', title: '=HYPERLINK("x")' }
+    ]);
+    expect(csv).toContain('"\'=HYPERLINK(""x"")"');
+  });
+});
+
+describe('paaToText', () => {
+  it('joins questions with newlines, trimming and dropping empties', () => {
+    expect(SBWSerp.paaToText([' Q1? ', '', 'Q2?'])).toBe('Q1?\nQ2?');
+  });
+
+  it('returns "" for no questions', () => {
+    expect(SBWSerp.paaToText([])).toBe('');
+    expect(SBWSerp.paaToText(undefined)).toBe('');
+  });
+});
+
+/* ---------- uule ---------- */
+
+describe('uule', () => {
+  it('matches the brief\'s test vector', () => {
+    expect(SBWSerp.uule('New York,New York,United States'))
+      .toBe('w+CAIQICIfTmV3IFlvcmssTmV3IFlvcmssVW5pdGVkIFN0YXRlcw');
+  });
+
+  it('has no base64 padding characters', () => {
+    expect(SBWSerp.uule('Seattle,Washington,United States')).not.toMatch(/=/);
+  });
+});
+
+/* ---------- buildSearchUrl ---------- */
+
+describe('buildSearchUrl', () => {
+  it('omits empty params and defaults to www.google.com', () => {
+    const url = SBWSerp.buildSearchUrl({ q: 'plumbers near me' });
+    expect(url).toBe('https://www.google.com/search?q=plumbers+near+me');
+  });
+
+  it('includes gl/hl/uule/num when provided', () => {
+    const url = SBWSerp.buildSearchUrl({ q: 'x', gl: 'us', hl: 'en', uule: 'ABC', num: 20 });
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get('gl')).toBe('us');
+    expect(parsed.searchParams.get('hl')).toBe('en');
+    expect(parsed.searchParams.get('uule')).toBe('ABC');
+    expect(parsed.searchParams.get('num')).toBe('20');
+  });
+
+  it('adds pws=0 only when personalization-off is requested', () => {
+    const off = new URL(SBWSerp.buildSearchUrl({ q: 'x', pws: true }));
+    expect(off.searchParams.get('pws')).toBe('0');
+    const untouched = new URL(SBWSerp.buildSearchUrl({ q: 'x' }));
+    expect(untouched.searchParams.has('pws')).toBe(false);
+  });
+
+  it('supports a non-default domain (other Google TLDs)', () => {
+    const url = SBWSerp.buildSearchUrl({ q: 'x', domain: 'www.google.co.uk' });
+    expect(url.startsWith('https://www.google.co.uk/search')).toBe(true);
+  });
+});
+
+/* ---------- PRESET_LOCATIONS ---------- */
+
+describe('PRESET_LOCATIONS', () => {
+  it('has all 54 metros with a label and canonical name', () => {
+    expect(SBWSerp.PRESET_LOCATIONS.length).toBe(54);
+    SBWSerp.PRESET_LOCATIONS.forEach((loc) => {
+      expect(typeof loc.label).toBe('string');
+      expect(typeof loc.canonical).toBe('string');
+      expect(loc.canonical.endsWith(',United States')).toBe(true);
+    });
+  });
+
+  it('expands the 2-letter state code to a full name in the canonical form', () => {
+    const seattle = SBWSerp.PRESET_LOCATIONS.find(l => l.label === 'Seattle, WA');
+    expect(seattle.canonical).toBe('Seattle,Washington,United States');
+  });
+
+  it('canonicalizes the Washington DMV metro label to a real place name', () => {
+    const dc = SBWSerp.PRESET_LOCATIONS.find(l => l.label === 'Washington DMV, DC');
+    expect(dc.canonical).toBe('Washington,District of Columbia,United States');
+  });
+});
