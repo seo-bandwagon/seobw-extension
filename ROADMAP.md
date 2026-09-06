@@ -98,8 +98,11 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   page controls. `src/lib/sync-state.js`, `src/history/`.
 - **Options page** — connect/verify/disconnect a key, dashboard links, Advanced
   local-dev endpoint. `src/options/`.
-- **GSC helper** — "Search in Incognito" button injected into Search Console
-  performance rows. `src/content/gsc-serp.js`.
+- **GSC row actions (1.5.1)** — two icons on every Search Console Performance row:
+  open in Google Search, and in a private window. `src/lib/gsc-inject.js` +
+  `src/content/gsc-serp.js`. Replaces the 1.4/1.5 "Search in Incognito" injector,
+  which only fired when GSC's own hover icons were already in the DOM and so
+  never appeared on a freshly loaded report.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real

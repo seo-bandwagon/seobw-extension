@@ -51,6 +51,19 @@ The Advanced API URL field (Options page) is an allowlist, not "any URL": `seoba
 
 There is no `identity` permission and no OAuth — connecting an account is just an API key.
 
+## Search Console row actions
+
+On any Search Console **Performance** report (Queries or Pages), every data row
+gets two small icons after the query/URL: **Open in Google Search** (new tab)
+and **Open in Google Search (private window)**. The icons are dim until you
+hover the row. Nothing is sent anywhere — the extension only opens
+`https://www.google.com/search?q=<row text>`.
+
+Private windows need the browser's permission: turn on **Allow in Private**
+(Brave) or **Allow in Incognito** (Chrome) for SEO Bandwagon on the
+extensions page. Until then the private icon opens a normal window and shows a
+one-time hint saying so.
+
 ## Privacy
 
 Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, domain history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
