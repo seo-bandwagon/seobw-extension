@@ -264,6 +264,10 @@
     const entries = (globalThis.SBWCredits && globalThis.SBWCredits.entries) || [];
     const licenses = entries.filter(e => e.section === 'license');
     const types = entries.filter(e => e.section === 'type');
+    // Task 7, item F: the "SEO Bandwagon tools" context-menu/popup links —
+    // one more entries() section, not a UI rewrite (see credits.js's
+    // module comment).
+    const tools = entries.filter(e => e.section === 'tool');
     return `
       <div class="credits-head">
         <span class="credits-title">About &amp; credits</span>
@@ -281,6 +285,11 @@
             : `<li><span class="credits-type">${esc(e.title)}</span></li>`).join('')}
         </ul>
         <p class="credits-copy">"Eligible for" checks the same required properties Google's Rich Results Test and Search Console use — named here by name, no logos.</p>
+        ${tools.length ? `
+        <p class="credits-copy">Tools linked from the SEO Bandwagon menu and popup:</p>
+        <ul class="credits-list">
+          ${tools.map(e => `<li><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a> — ${esc(e.note || '')}</li>`).join('')}
+        </ul>` : ''}
       </div>
     `;
   }

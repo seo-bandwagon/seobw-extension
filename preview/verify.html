@@ -213,7 +213,30 @@ const CASES = [
     ],
     text: ['first-result.example', 'second-result.example'] },
   { q: 'serp.html',
-    need: ['.sbw-serp-tools', '.sbw-serp-tools select'] }
+    need: ['.sbw-serp-tools', '.sbw-serp-tools select'] },
+
+  // Task 7 (1.6.0 parity), item C: the "SEO Bandwagon tools" popup TOOLS
+  // row (src/popup/tools.js, src/lib/tool-links.js) — 7 page-scoped kinds
+  // (the selection-based quoted-search tool is context-menu-only, see
+  // tools.js's module comment), rendered as plain links under the header.
+  // This harness's engine only checks selector existence, not counts (see
+  // the hreflang-set case's comment for the same limitation) — the 7
+  // distinct labels in `text` are the closest thing to a literal
+  // "`.tools a` × 7" assertion it can do.
+  { q: 'popup.html?state=tools-row',
+    need: ['.tools a'],
+    text: ['Search Console', 'Wayback Machine', 'PageSpeed Insights', 'Rich Results Test', 'site: search', 'sitemap.xml', 'robots.txt'] },
+
+  // Task 7 (1.6.0 parity), item E: the one-time review-prompt strip
+  // (src/popup/review.js, src/lib/review-prompt.js). stub.js pre-seeds
+  // sbwReview at analyses:5/prompted:false; popup.js's bootstrap then
+  // records this popup's own analysis (a real SBWReview.nextState() call,
+  // not a faked render), crossing to 6 — shouldPrompt() is true either way,
+  // but this exercises the real increment path rather than relying on the
+  // fixture alone.
+  { q: 'popup.html?state=review-strip',
+    need: ['.review-strip', '#reviewLeaveBtn', '#reviewNoBtn'],
+    text: ['Chrome Web Store'] }
 ];
 
 const out = document.getElementById('out');

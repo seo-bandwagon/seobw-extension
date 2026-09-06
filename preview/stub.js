@@ -198,6 +198,17 @@ if (PREVIEW_STATE.startsWith('lb-')) {
   store.spMode = 'links';
 }
 
+// Task 7, item G: `review-strip` pre-seeds sbwReview at the threshold —
+// src/popup/review.js's recordAnalysis() call in popup.js's bootstrap then
+// increments it to 6 before checking SBWReview.shouldPrompt(), same as a
+// real 5th-then-6th analysis would. Must be in place before popup.js's own
+// top-level chrome.tabs.query(...) callback runs (see popup.html's
+// installSbwStubs() comment above) — this file's own top-level code runs
+// at parse time, before that callback fires, so no extra wiring is needed.
+if (PREVIEW_STATE === 'review-strip') {
+  store.sbwReview = { analyses: 5, prompted: false, installedAt: Date.now() };
+}
+
 // `key-invalid` simulates a stored key that a prior /v1/me call already
 // rejected — options.js's showStoredKeyStatus() and citations-tab.js's
 // checkSignedIn() both short-circuit on sbwKeyStatus === 'invalid' without

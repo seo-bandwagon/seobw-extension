@@ -132,6 +132,11 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
         <div class="empty-title">SEARCH RESULTS PAGE</div>
         <div class="empty-sub">This is a search results page — the SEO Bandwagon bar is shown under each result.</div>
       </div>`;
+    // Task 7, item E: the review strip's visibility is a pure function of
+    // storage (analyses/prompted), never of what this popup open did or
+    // didn't analyze — a SERP-page open still shows it if a prior analysis
+    // already crossed the threshold.
+    globalThis.SBWReviewUI?.renderFromStorage();
     return;
   }
 
@@ -152,6 +157,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       pageData = cached.data;
       renderResults(cached.data);
       loadDomainHistory(tab, cached.data, analysisStartedAt);
+      // A cached-hit popup open is still a real analysis from the user's
+      // point of view (they got a result), so it counts toward the
+      // review-prompt threshold same as a fresh one below.
+      globalThis.SBWReviewUI?.recordAnalysis();
       return;
     }
 
@@ -169,6 +178,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     // ordering-independent guard against the same race.
     loadDomainHistory(tab, response, analysisStartedAt);
     autoSaveCapture(stripSchemaPropertiesForStorage(response));
+    globalThis.SBWReviewUI?.recordAnalysis();
 
     chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
 
@@ -188,6 +198,9 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
         <div class="empty-title">CAN'T READ THIS PAGE</div>
         <div class="empty-sub">Chrome blocks analysis on internal pages. Try refreshing, then click again.</div>
       </div>`;
+    // Never gated on this run's outcome (ruling, Task 7 item E) — an error
+    // page still shows the strip if a prior analysis already qualified.
+    globalThis.SBWReviewUI?.renderFromStorage();
   }
 });
 
@@ -350,22 +363,39 @@ function renderResults(data) {
           <span class="data-value">${esc(String(text).slice(0, 70))}</span>
         </div>`).join('')
     ).join('') +
-    `<div class="highlight-buttons"><button class="highlight-btn" data-type="headings">Highlight headings</button></div>`);
+    `<div class="highlight-buttons">
+      <button class="highlight-btn" data-type="headings">Highlight headings</button>
+      <button type="button" class="section-action-btn" id="hdExportBtn">Export CSV</button>
+      <button type="button" class="section-action-btn" id="hdCopyBtn">Copy outline</button>
+    </div>`);
 
   /* --- Links & images --- */
   const missingAlt = data.images.missingAlt.count;
+  const nfList = (data.links.nofollowAnchors || []).slice(0, 50);
   html += section('links', 'Links & Images',
     missingAlt ? badge(`${missingAlt} NO ALT`, 'b-err') : badge(`${data.links.internal.count + data.links.external.count} LINKS`, ''),
     `${dataRow('Internal', esc(data.links.internal.count))}
     ${dataRow('External', esc(data.links.external.count))}
     ${dataRow('Nofollow', esc(data.links.nofollow))}
+    ${dataRow('UGC', esc(data.links.ugc || 0))}
+    ${dataRow('Sponsored', esc(data.links.sponsored || 0))}
     ${dataRow('Images', esc(data.images.total))}
     ${dataRow('Missing alt', esc(missingAlt), missingAlt === 0 ? 'good' : 'bad')}
+    ${nfList.length ? `<details class="nf-details">
+      <summary class="nf-summary">Nofollow / UGC / sponsored links (${nfList.length})</summary>
+      <div class="nf-list">${nfList.map(l => `<div class="nf-row">
+        <span class="nf-row-rel">${esc(l.rel || '')}</span>
+        <span class="nf-row-anchor" title="${esc(l.text || '')}">${esc((l.text || '').slice(0, 40)) || '(no text)'}</span>
+        <span class="nf-row-url" title="${esc(l.url)}">${esc(l.url && l.url.length > 50 ? l.url.slice(0, 50) + '…' : (l.url || ''))}</span>
+      </div>`).join('')}</div>
+    </details>` : ''}
     <div class="highlight-buttons">
       <button class="highlight-btn" data-type="links-internal">Internal</button>
       <button class="highlight-btn" data-type="links-external">External</button>
       <button class="highlight-btn" data-type="nofollow">Nofollow</button>
       <button class="highlight-btn" data-type="images-missing-alt">Missing alt</button>
+      <button type="button" class="section-action-btn" id="imgExportBtn">Export images CSV</button>
+      <button type="button" class="section-action-btn" id="lnkExportBtn">Export links CSV</button>
     </div>`);
 
   /* --- Content --- */
@@ -424,6 +454,10 @@ function renderResults(data) {
   globalThis.SBWRenderCheckUI?.mount(document.getElementById('content'), data);
   globalThis.SBWSchemaUI?.mount(document.getElementById('content'), data);
   globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
+  // TOOLS row (Task 7, item C) — inserts itself as #content's first child,
+  // above the score hero, so it has to mount last (every mount() above
+  // targets a spot further down and would otherwise land above it).
+  globalThis.SBWToolsUI?.mount(document.getElementById('content'), data);
 }
 
 function wireSeoTab() {
@@ -453,6 +487,12 @@ function wireSeoTab() {
 
   document.getElementById('copyBtn').addEventListener('click', () => copyToClipboard(pageData));
   document.getElementById('exportBtn').addEventListener('click', () => exportAsJson(pageData));
+
+  // Task 7, item A/B: headings outline + images/links CSV exports.
+  document.getElementById('hdExportBtn')?.addEventListener('click', (e) => { e.stopPropagation(); exportHeadingsCsv(pageData); });
+  document.getElementById('hdCopyBtn')?.addEventListener('click', (e) => { e.stopPropagation(); copyHeadingsOutline(pageData); });
+  document.getElementById('imgExportBtn')?.addEventListener('click', (e) => { e.stopPropagation(); exportImagesCsv(pageData); });
+  document.getElementById('lnkExportBtn')?.addEventListener('click', (e) => { e.stopPropagation(); exportLinksCsv(pageData); });
 
   document.getElementById('addOutletBtn')?.addEventListener('click', addCurrentTabAsOutlet);
   initAddOutletButton();
@@ -670,4 +710,80 @@ function exportAsJson(data) {
   a.click();
   URL.revokeObjectURL(url);
   setSeoStatus('Exported', 'success');
+}
+
+/* ---------- headings outline / images / links CSV exports (Task 7) ---------- */
+
+// data.headings.outline (lib/dom-extraction.js, Task 7 item A) is document
+// order + ARIA-heading-aware; a cached analysis captured before this
+// shipped won't have it. Fall back to flattening the classic h1-h6 arrays
+// in level order — not true document order, but still useful, and never
+// throws on older data.
+function headingsOutlineRows(data) {
+  const outline = data && data.headings && Array.isArray(data.headings.outline) ? data.headings.outline : null;
+  if (outline) return outline;
+  const fallback = [];
+  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach((key, i) => {
+    ((data && data.headings && data.headings[key]) || []).forEach(text => {
+      fallback.push({ level: i + 1, text: String(text), order: fallback.length + 1 });
+    });
+  });
+  return fallback;
+}
+
+const HEADINGS_CSV_COLUMNS = [
+  { key: 'order', label: 'Order' },
+  { key: 'level', label: 'Level' },
+  { key: 'text', label: 'Text' }
+];
+
+function downloadCsv(prefix, rows, columns, pageUrl) {
+  const csv = SBWCsv.toCsv(rows, columns);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = SBWCsv.csvFilename(prefix, pageUrl || 'https://page.example/');
+  a.click();
+  // See link-check.js's onExportClick for why the revoke is deferred a tick.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setSeoStatus('Exported', 'success');
+}
+
+function exportHeadingsCsv(data) {
+  downloadCsv('headings', headingsOutlineRows(data), HEADINGS_CSV_COLUMNS, data && data.url);
+}
+
+function copyHeadingsOutline(data) {
+  const rows = headingsOutlineRows(data);
+  const text = rows.map(r => '  '.repeat(Math.max(0, r.level - 1)) + r.text).join('\n');
+  navigator.clipboard.writeText(text)
+    .then(() => setSeoStatus('Outline copied', 'success'))
+    .catch(() => setSeoStatus('Copy failed', 'error'));
+}
+
+const IMAGES_CSV_COLUMNS = [
+  { key: 'src', label: 'Src' },
+  { key: 'alt', label: 'Alt' },
+  { key: 'hasAlt', label: 'Has Alt' },
+  { key: 'lazy', label: 'Lazy' },
+  { key: 'width', label: 'Width' },
+  { key: 'height', label: 'Height' }
+];
+
+function exportImagesCsv(data) {
+  const rows = (data && data.images && Array.isArray(data.images.list)) ? data.images.list : [];
+  downloadCsv('images', rows, IMAGES_CSV_COLUMNS, data && data.url);
+}
+
+const LINKS_CSV_COLUMNS = [
+  { key: 'url', label: 'URL' },
+  { key: 'anchor', label: 'Anchor' },
+  { key: 'rel', label: 'Rel' },
+  { key: 'type', label: 'Type' }
+];
+
+function exportLinksCsv(data) {
+  const rows = (data && data.links && Array.isArray(data.links.list)) ? data.links.list : [];
+  downloadCsv('links', rows, LINKS_CSV_COLUMNS, data && data.url);
 }

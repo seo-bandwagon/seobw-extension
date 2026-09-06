@@ -539,9 +539,13 @@ body {
 .serp-url { font-family: var(--font-mono); font-size: 9.5px; color: var(--success); margin-bottom: 4px; }
 .serp-desc { font-family: var(--font-body); font-size: 11px; color: var(--paper-70); line-height: 1.45; }
 
-/* Highlight buttons */
+/* Highlight buttons — .section-action-btn (Task 7) shares this look for a
+   non-toggling row action (Export CSV, Copy outline) placed alongside
+   highlight toggles; it's a distinct class so wireSeoTab()'s
+   `#content .highlight-btn` click handler (which treats every match as a
+   highlight-type toggle) never attaches to it. */
 .highlight-buttons { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px 12px; }
-.highlight-btn {
+.highlight-btn, .section-action-btn {
   padding: 5px 10px;
   background: var(--surface-2);
   border: 1px solid var(--edge);
@@ -553,8 +557,99 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.highlight-btn:hover { border-color: var(--pink); color: var(--white); }
+.highlight-btn:hover, .section-action-btn:hover { border-color: var(--pink); color: var(--white); }
 .highlight-btn.active { background: var(--pink); color: var(--white); border-color: var(--pink); }
+
+/* Nofollow / UGC / sponsored expandable list (Task 7, item D) — a native
+   <details> inside the Links & Images section, no extra JS needed for
+   open/close. */
+.nf-details { border-top: 1px solid var(--hairline-soft); }
+.nf-summary {
+  padding: 7px 14px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--paper-50);
+  cursor: pointer;
+}
+.nf-list { max-height: 180px; overflow-y: auto; }
+.nf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-top: 1px solid var(--hairline-soft);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+.nf-row-rel { flex: none; color: var(--warning); text-transform: uppercase; }
+.nf-row-anchor {
+  flex: none;
+  max-width: 90px;
+  color: var(--paper-70);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nf-row-url {
+  flex: 1;
+  min-width: 0;
+  color: var(--paper-95);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* TOOLS row (Task 7, item C) — small links row under the popup header,
+   above the score hero; mounted as #content's first child. */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.tools a {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--paper-50);
+  text-decoration: none;
+}
+.tools a:hover { color: var(--pink); }
+
+/* Review-prompt strip (Task 7, item E) — one-time, un-incentivized;
+   #reviewStrip (see popup.html) sits outside #content so it survives the
+   error/SERP-notice branches that never call renderResults(). */
+.review-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--pink-08);
+  border-bottom: 1px solid var(--pink-30);
+}
+.review-strip-copy {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--paper-95);
+  line-height: 1.4;
+}
+.review-strip-actions { display: flex; gap: 6px; flex: none; }
+.review-strip-btn {
+  padding: 5px 9px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.review-strip-leave { background: var(--pink); border: 1px solid var(--pink); color: var(--white); }
+.review-strip-leave:hover { background: var(--pink-hover); }
+.review-strip-dismiss { background: transparent; border: 1px solid var(--edge); color: var(--paper-50); }
+.review-strip-dismiss:hover { border-color: var(--paper-50); color: var(--paper-70); }
 
 /* Actions row */
 .actions { display: flex; gap: 7px; padding: 12px 14px; }

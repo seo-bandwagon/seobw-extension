@@ -158,6 +158,52 @@ policy above.
   ran on Google's own results pages, are deleted outright, not disabled;
   the popup now shows a one-line notice on a Google results page instead
   of running the normal page analyzer there.
+- **Context-menu SEO tools** (`src/lib/tool-links.js`, `src/background/
+  service-worker.js`, new "SEO Bandwagon tools" submenu) — Open in Google
+  Search Console (URL inspection), Open in Wayback Machine, Open in
+  PageSpeed Insights, Test with Rich Results Test, `site:` search for this
+  domain, Search Google for the selected text in quotes (selection only,
+  capped at 200 characters), and Open sitemap.xml / robots.txt. Every URL
+  is built from `new URL(pageUrl)` — never a string-split of the origin —
+  with every user-controlled part percent-encoded; a non-http(s) page makes
+  the click do nothing. The same seven page-scoped items (everything but
+  the selection search) also render as a small TOOLS row under the popup
+  header (`src/popup/tools.js`). Nothing is fetched by the extension for
+  any of these — each just opens a new tab. Google's own tools here are
+  named nominatively, no logos, and get their own "About & credits" rows
+  alongside PageSpeed Insights and the Wayback Machine
+  (`src/lib/credits.js`).
+- **Headings outline export + ARIA heading support** — no H7 (H1-H6 is the
+  HTML spec; Detailed's "H7" is a quirk, not implemented). Instead, the
+  existing Headings section gets "Export CSV" (level, text, document order)
+  and "Copy outline" (the same outline as indented plain text to your
+  clipboard) buttons; `lib/dom-extraction.js`'s heading extraction now also
+  builds a combined, document-order outline that includes
+  `[role="heading"][aria-level]` elements the plain H1-H6 arrays ignore
+  (defaulting a missing/invalid `aria-level` to 2, per WAI-ARIA, and
+  clamping an out-of-range one into 1-6).
+- **Images and Links CSV export** — the existing Links & Images section
+  gets its own "Export images CSV" (src, alt, has-alt, lazy-loaded,
+  width/height where set) and "Export links CSV" (URL, anchor text, rel,
+  internal/external) buttons, backed by new `list` fields on
+  `extractImages()`/`extractLinks()` (`lib/dom-extraction.js`) — the JSON
+  export in the footer is untouched.
+- **Nofollow/UGC/sponsored surfacing** — `extractLinks()` now counts `ugc`
+  and `sponsored` rel values separately from plain `nofollow` (previously
+  only `nofollow` was counted, and the existing Highlight button already
+  treats all three as one family), and captures the first 50 matching
+  anchors (`{ url, text, rel }`). The Links & Images section shows
+  "Nofollow N · UGC N · Sponsored N" plus an expandable list next to the
+  existing "Nofollow" highlight button.
+- **One-time review prompt** (`src/lib/review-prompt.js`, `src/popup/
+  review.js`, new `.review-strip`) — after the 5th analysis (cached-hit or
+  fresh, either counts), a one-line strip offers "Leave a review" (opens
+  the Chrome Web Store listing's reviews tab) or "No thanks"; both persist
+  `prompted: true` to `chrome.storage.local` before doing anything else, so
+  it never shows twice. Deliberately never gated on this analysis's score,
+  grade, or whether the page could even be read — the strip's visibility
+  is a pure function of stored state (`analyses`/`prompted`), checked even
+  from the "can't read this page" and Google-SERP-notice branches.
 
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google

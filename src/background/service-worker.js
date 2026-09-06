@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -25,7 +25,91 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Count words & characters',
     contexts: ['selection']
   });
+
+  // --- "SEO Bandwagon tools" submenu (Task 7, item C) ---
+  //
+  // Every child opens a new tab via chrome.tabs.create — none of this needs
+  // the optional <all_urls> permission (nothing here fetches a third-party
+  // URL from the extension itself; the new tab does its own normal
+  // navigation, like clicking a link). URLs are built by
+  // SBWToolLinks.toolUrl() (src/lib/tool-links.js), which parses pageUrl
+  // via `new URL()` and returns null for a non-http(s) page or an empty
+  // selection — onClicked below does nothing when that happens, so a
+  // context-menu click on an internal chrome:// page, for instance, is a
+  // silent no-op rather than opening something broken.
+  //
+  // The parent carries both 'page' and 'selection' contexts so it (and,
+  // via inherited context, the page-scoped children) still shows up when
+  // the click originated on selected text — Chrome's 'selection' context
+  // does not also imply 'page'.
+  chrome.contextMenus.create({
+    id: 'sbw-tools',
+    title: 'SEO Bandwagon tools',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-gsc',
+    parentId: 'sbw-tools',
+    title: 'Open in Google Search Console (URL inspection)',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-wayback',
+    parentId: 'sbw-tools',
+    title: 'Open in Wayback Machine',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-pagespeed',
+    parentId: 'sbw-tools',
+    title: 'Open in PageSpeed Insights',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-rich-results',
+    parentId: 'sbw-tools',
+    title: 'Test with Rich Results Test',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-site-search',
+    parentId: 'sbw-tools',
+    title: 'site: search for this domain',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-selection-search',
+    parentId: 'sbw-tools',
+    title: 'Search Google for the selected text in quotes',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-sitemap',
+    parentId: 'sbw-tools',
+    title: 'Open sitemap.xml',
+    contexts: ['page', 'selection']
+  });
+  chrome.contextMenus.create({
+    id: 'sbw-tools-robots',
+    parentId: 'sbw-tools',
+    title: 'Open robots.txt',
+    contexts: ['page', 'selection']
+  });
 });
+
+// Maps a "SEO Bandwagon tools" submenu id to the SBWToolLinks kind it
+// builds. Kept as a flat lookup (rather than a switch) so onClicked's
+// handling is a single branch regardless of which child fired.
+const SBW_TOOLS_MENU_KIND = {
+  'sbw-tools-gsc': 'gsc',
+  'sbw-tools-wayback': 'wayback',
+  'sbw-tools-pagespeed': 'pagespeed',
+  'sbw-tools-rich-results': 'rich-results',
+  'sbw-tools-site-search': 'site-search',
+  'sbw-tools-selection-search': 'quoted-search',
+  'sbw-tools-sitemap': 'sitemap',
+  'sbw-tools-robots': 'robots'
+};
 
 // --- Capture sync: alarm-driven retry drainer (Task 2) ---
 const SYNC_ALARM_NAME = 'sbw-sync';
@@ -90,6 +174,19 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     } catch (e) {
       console.error('Count selection failed:', e);
     }
+  } else if (SBW_TOOLS_MENU_KIND[info.menuItemId]) {
+    const kind = SBW_TOOLS_MENU_KIND[info.menuItemId];
+    // info.pageUrl is the page the context menu was opened on (the main
+    // frame's URL even for a click inside an iframe); tab?.url is the
+    // fallback for the rare case a click handler runs without it.
+    const pageUrl = info.pageUrl || tab?.url;
+    const url = SBWToolLinks.toolUrl(kind, { pageUrl, selection: info.selectionText });
+    if (url) {
+      chrome.tabs.create({ url });
+    }
+    // A null url (non-http(s) page, or an empty/whitespace-only selection
+    // for the quoted-search item) means the click does nothing — no tab
+    // opens, no error surfaced, per the brief.
   }
 });
 

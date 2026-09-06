@@ -56,3 +56,24 @@ describe('type rows', () => {
       .forEach(name => expect(titles).toMatch(new RegExp(name)));
   });
 });
+
+// Task 7, item F: the tool links opened by the context menu / popup TOOLS
+// row (src/lib/tool-links.js) get their own credit rows.
+describe('tool rows (Task 7, item F)', () => {
+  it('credits Google Search Console, PageSpeed Insights, Rich Results Test, and Wayback Machine', () => {
+    const rows = SBWCredits.entries.filter(x => x.section === 'tool');
+    const titles = rows.map(r => r.title);
+    expect(titles).toEqual(expect.arrayContaining([
+      'Google Search Console', 'PageSpeed Insights', 'Rich Results Test', 'Wayback Machine'
+    ]));
+  });
+
+  it('every tool row has a real https URL and the "not affiliated" note', () => {
+    const rows = SBWCredits.entries.filter(x => x.section === 'tool');
+    expect(rows.length).toBeGreaterThan(0);
+    rows.forEach(row => {
+      expect(row.url).toMatch(/^https:\/\//);
+      expect(row.note).toMatch(/not affiliated/i);
+    });
+  });
+});

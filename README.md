@@ -40,7 +40,7 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 |---|---|
 | `activeTab` | Read the current tab's URL/title when you click the icon or a keyboard shortcut |
 | `storage` | Save captures locally, cache API responses, and store your API key/settings |
-| `contextMenus` | The right-click "Analyze this page" / "Analyze linked page" / "Count words & characters" entries |
+| `contextMenus` | The right-click "Analyze this page" / "Analyze linked page" / "Count words & characters" entries, plus the "SEO Bandwagon tools" submenu (see "Tools" below) |
 | `scripting` | Inject the page-analysis script into the active tab on demand |
 | `sidePanel` | The Link Building and Citations side panel |
 | `tabs` | Read the active tab's URL to open dashboard links in new tabs, **and** — via `chrome.tabs.onUpdated` in the background service worker — read every tab's URL as it finishes loading to match it against a bundled list of citation directories and paint the "DIR" toolbar badge. That match is local hostname comparison only; the URL is never sent anywhere for it |
@@ -135,6 +135,54 @@ search with location parameters so you can see what searchers in that area
 are shown**. It does not simulate Googlebot or any other crawler, and the
 extension never describes it that way.
 
+## Tools
+
+Right-click any page for a "SEO Bandwagon tools" submenu — every item opens
+a new tab, nothing is fetched from the extension itself:
+
+- **Open in Google Search Console (URL inspection)** — the page's origin as
+  the resource and the exact URL as the inspection target.
+- **Open in Wayback Machine** — that URL's archive.org calendar view.
+- **Open in PageSpeed Insights**
+- **Test with Rich Results Test**
+- **site: search for this domain** — a `site:` search scoped to the page's
+  hostname only (never the path or query string).
+- **Search Google for the selected text in quotes** (shown only when text is
+  selected) — the selection, capped at 200 characters, wrapped in quotes.
+- **Open sitemap.xml** / **Open robots.txt** — origin-rooted, regardless of
+  the current page's own path.
+
+The same seven page-scoped items (everything except the selection search,
+which needs actual selected text the popup doesn't have) also appear as a
+small TOOLS row under the popup header. Every URL is built by
+`src/lib/tool-links.js` from `new URL(pageUrl)` — never a string-split of
+the origin — with every user-controlled part percent-encoded; a page that
+isn't `http(s)://` (an internal `chrome://` page, for instance) makes every
+tool return nothing rather than open something broken. Google's own tools
+here (Search Console, PageSpeed Insights, Rich Results Test) are named
+nominatively, never with a logo — see "Credits" below.
+
+### Exports
+
+Besides the JSON export in the footer, individual sections export their own
+CSV (`src/lib/csv.js`, RFC 4180, UTF-8 BOM, formula-injection guarded):
+Link Check, Indexability, Hreflang, Rendering, and Structured Data (all
+1.6.0-earlier), plus, as of this feature: **Headings** (level, text,
+document order — a "Copy outline" button next to it copies the same outline
+as indented plain text to your clipboard), **Images** (src, alt, has-alt,
+lazy-loaded, width/height where set), and **Links** (URL, anchor text, rel,
+internal/external). None of these leave your device until you choose to
+save or paste the file yourself.
+
+### Review prompt
+
+After your 5th analysis, a one-line strip appears once, asking for a
+Chrome Web Store review — un-incentivized, and never tied to your score or
+whether the page could be analyzed at all. **Leave a review** opens the
+listing's reviews tab in a new tab; **No thanks** dismisses it. Either way
+it's marked as shown and never appears again (`chrome.storage.local`, key
+`sbwReview` — nothing about this is sent anywhere).
+
 ## Privacy
 
 Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, domain history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
@@ -174,6 +222,8 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **Structured data validation reads only the current page's own HTML — no permission, no fetch, at all** (Structured Data section, 1.6.0+) — `src/lib/structured-data.js` extracts every JSON-LD `<script>` block (including `@graph`, recursively — a `@graph` member that's itself an array or that carries its own nested `@graph` is flattened too), every WHATWG microdata `[itemscope]` tree (including properties referenced via `itemref` elsewhere in the document), and every basic RDFa Lite `[typeof]` tree already on the page, and checks each item against a required/recommended property table per type (Article, Product, LocalBusiness and every subtype we recognize — Plumber, Electrician, Restaurant, and around 100 others — Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, JobPosting). A type schema.org actually defines but that isn't on this list yet (e.g. `Service`) gets a "no required-property list for this type" note rather than a false "Unknown type" — that flag is reserved for a genuinely unrecognized `@type`. "Eligible for" only lists a Google rich-result feature when that item's required properties are all present, **and only for rich results Google currently shows** — it never promises "will get," since eligibility is necessary, not sufficient, for a rich result to actually appear. FAQPage and HowTo are validated as markup the same as any other type, but Google retired both rich results (FAQ in 2026-05/06, How-to earlier), so a complete item there renders "Valid markup; Google no longer shows a rich result for this type" instead of appearing in Eligible for. See "Credits" below for where those required/recommended lists come from.
 
+**The "SEO Bandwagon tools" menu and TOOLS row open a new tab — nothing is fetched by the extension** (1.6.0+): each item builds a URL from the current page's own address (and, for the quoted-search item, up to 200 characters of your selected text) and opens it with `chrome.tabs.create`, the same as clicking a link. No network request happens inside the extension for any of these.
+
 Nothing is sent without a key configured, regardless of the toggle.
 
 ## Credits
@@ -184,6 +234,8 @@ The Structured Data section's required/recommended property lists derive from:
 - **[Google Search Central](https://developers.google.com/search/docs/appearance/structured-data)** structured-data documentation — CC BY 4.0
 
 Every type category the section validates against (Article, Product, LocalBusiness, Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, JobPosting) links back to the specific Google Search Central feature page or schema.org type page its list was derived from — see the "About & credits" link in the popup footer for the full, always-current list (`src/lib/credits.js`, read straight off `src/lib/structured-data.js`'s own table so the two can't drift apart). FAQPage and HowTo link to their schema.org type pages rather than a Google Search Central feature page, since Google no longer documents either as a rich result (both are validated-but-retired — see above). Google tools (Rich Results Test, Search Console) are named by name where relevant, never with logos.
+
+The same "About & credits" panel also lists the third-party tools the "SEO Bandwagon tools" menu and popup TOOLS row link out to — Google Search Console, PageSpeed Insights, Rich Results Test, and the Internet Archive's Wayback Machine — each named for identification only; none of them are affiliated with or endorse SEO Bandwagon.
 
 ## Local-first + sync/retry behaviour
 
@@ -218,15 +270,18 @@ src/
                            # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js
                            # (user-agent presets + DNR rule shape), structured-data.js (JSON-LD/microdata/
                            # RDFa extraction + required/recommended validation, no fetch), credits.js
-                           # (attribution data for the popup's About & credits panel)
+                           # (attribution data for the popup's About & credits panel), tool-links.js
+                           # (context-menu/TOOLS-row URL builder), review-prompt.js (one-time
+                           # review-prompt state machine)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
-  overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
+  overlay/                # SERP overlay content script (see "SERP overlay" above)
   popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
                            # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
                            # + hreflang.js (Hreflang section — tag table, return-tag check)
                            # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
                            # + structured-data.js (Structured Data section — item/problem list, "Eligible
                            # for", CSV export, and the footer's About & credits panel)
+                           # + tools.js (TOOLS row under the header) + review.js (the review-prompt strip)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/

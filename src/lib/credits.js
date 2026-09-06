@@ -9,7 +9,7 @@
 // name inline (and so Task 7's additional credits lines are one more
 // entry here, not a UI rewrite).
 //
-// `entries` mixes two `section`s:
+// `entries` mixes three `section`s:
 //   - 'license'  — the two licenses themselves (schema.org, Google Search
 //     Central), each with its own `note` (the license name/version).
 //   - 'type'     — one row per structured-data type category
@@ -18,6 +18,11 @@
 //     type page) that category's required/recommended list and `sourceUrl`
 //     were derived from — read straight off SBWSchema.SOURCE_URLS so this
 //     list can never drift from the one the validator actually uses.
+//   - 'tool'     — the third-party tools the "SEO Bandwagon tools" context
+//     menu and popup TOOLS row (Task 7, src/lib/tool-links.js) link out
+//     to. Named nominatively, no logos (ledger ruling); each carries the
+//     same disclaimer text so nobody reads a linked-to tool as an
+//     endorsement or a partnership.
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWCredits` when loaded as a classic <script> (after
@@ -63,6 +68,18 @@
     { type: 'JobPosting', title: 'JobPosting' }
   ];
 
+  // Task 7, item F — the tool links opened by the context menu / popup
+  // TOOLS row (src/lib/tool-links.js). Not affiliated with, endorsed by,
+  // or partnered with SEO Bandwagon; linked purely for identification.
+  const TOOL_ROWS = [
+    { title: 'Google Search Console', url: 'https://search.google.com/search-console' },
+    { title: 'PageSpeed Insights', url: 'https://pagespeed.web.dev/' },
+    { title: 'Rich Results Test', url: 'https://search.google.com/test/rich-results' },
+    { title: 'Wayback Machine', url: 'https://web.archive.org/' }
+  ];
+
+  const TOOL_NOTE = 'named for identification; not affiliated';
+
   function buildEntries() {
     const urls = schemaSourceUrls();
     const licenses = [
@@ -84,7 +101,13 @@
       title: row.title,
       url: urls[row.type] || ''
     }));
-    return licenses.concat(types);
+    const tools = TOOL_ROWS.map(row => ({
+      section: 'tool',
+      title: row.title,
+      url: row.url,
+      note: TOOL_NOTE
+    }));
+    return licenses.concat(types).concat(tools);
   }
 
   return {
