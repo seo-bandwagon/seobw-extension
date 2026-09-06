@@ -213,14 +213,27 @@
 
   /* ---------- raw vs rendered ---------- */
 
+  // Fix round 1, IMPORTANT 5: the raw fetch always goes out from the
+  // worker with the browser's own normal User-Agent — a fetch() issued
+  // from a service worker can't rewrite its own outgoing header — so a
+  // "View as" preset being active on this tab does NOT change what the
+  // Compare button actually fetches. That's easy to misread as "the
+  // compare is using the spoofed UA", so it's surfaced explicitly whenever
+  // a preset is active, not left to the worker-side comment alone.
+  function renderUaNote() {
+    if (!uaPresetId || uaPresetId === 'default') return '';
+    return `<p class="rc-ua-note">The raw fetch always uses your browser's normal User-Agent; the "View as" preset applies only to this tab.</p>`;
+  }
+
   function renderDiffBlock() {
+    const uaNote = renderUaNote();
     if (diffState === 'idle') {
       return `<div class="rc-actions">
         <button type="button" class="rc-compare-btn" id="rcCompareBtn">Compare raw HTML with rendered DOM</button>
-      </div>`;
+      </div>${uaNote}`;
     }
     if (diffState === 'loading') {
-      return `<div class="lc-loading">Fetching raw HTML…</div>`;
+      return `<div class="lc-loading">Fetching raw HTML…</div>${uaNote}`;
     }
     if (diffState === 'error') {
       const msg = diffError === 'no_permission' ? 'Page access was revoked — allow it again above.'
@@ -230,7 +243,7 @@
       return `<div class="rc-actions">
         <button type="button" class="rc-compare-btn" id="rcCompareBtn">Compare raw HTML with rendered DOM</button>
       </div>
-      <div class="rc-error">${esc(msg)}</div>`;
+      <div class="rc-error">${esc(msg)}</div>${uaNote}`;
     }
     // diffState === 'done'
     return `
@@ -240,6 +253,7 @@
         <button type="button" class="rc-compare-btn" id="rcCompareBtn">Re-compare</button>
         <button type="button" class="rc-export-btn" id="rcExportBtn">Export CSV</button>
       </div>
+      ${uaNote}
     `;
   }
 
@@ -248,18 +262,33 @@
     hydrated: 'Hydrated — same content'
   };
 
+  // Fix round 1, IMPORTANT 3: a truncated raw fetch (worker's 1 MB cap)
+  // never reports as 'js-rendered' (see SBWHtmlDiff.diffSummaries's
+  // 'partial' verdict) — its own possibly-missing tail can look exactly
+  // like a JS-only field or a word-count jump. The truncation itself is
+  // always shown, on the verdict line, whatever the verdict turned out to
+  // be, since it caps how far ANY of these rows can be trusted.
   function renderVerdict() {
     const v = diffResult.verdict;
     let label;
-    if (v === 'js-rendered') {
+    if (v === 'partial') {
+      const n = diffResult.rows.filter(r => r.status === 'js-only').length;
+      label = n
+        ? `Possibly JavaScript-rendered — ${n} field${n === 1 ? '' : 's'} exist only in the rendered DOM, but the raw HTML was cut off first`
+        : 'Comparison partial — raw HTML was cut off before the page ended';
+    } else if (v === 'js-rendered') {
       const n = diffResult.rows.filter(r => r.status === 'js-only').length;
       label = `JavaScript-rendered — ${n} field${n === 1 ? '' : 's'} exist only after JS`;
     } else {
       label = VERDICT_LABEL[v] || v;
     }
-    const cls = v === 'js-rendered' ? 'b-warn' : 'b-ok';
+    const cls = (v === 'js-rendered' || v === 'partial') ? 'b-warn' : 'b-ok';
+    const truncNote = diffResult.truncated
+      ? '<div class="rc-truncated-note">Raw HTML truncated at 1 MB — comparison is partial.</div>'
+      : '';
     return `<div class="rc-verdict">
       <span class="badge-mono ${cls}">${esc(label)}</span>
+      ${truncNote}
     </div>`;
   }
 
@@ -342,12 +371,18 @@
     if (!res || res.error) {
       diffState = 'error';
       diffError = (res && res.error) || 'failed';
-      if (diffError === 'no_permission') state = 'no-permission';
+      if (diffError === 'no_permission') {
+        state = 'no-permission';
+        // Same as init()'s own no-permission path: pick up a grant that
+        // lands some other way (chrome://extensions in another tab) while
+        // this card is still showing, instead of requiring another click.
+        watchForGrant(my);
+      }
       render();
       return;
     }
 
-    const rawSummary = SBWHtmlDiff.summarizeHtml(res.html, res.finalUrl || url);
+    const rawSummary = SBWHtmlDiff.summarizeHtml(res.html, res.finalUrl || url, { truncated: !!res.truncated });
     const domSummary = SBWHtmlDiff.summarizeDom(pageData);
     diffResult = SBWHtmlDiff.diffSummaries(rawSummary, domSummary);
     diffState = 'done';

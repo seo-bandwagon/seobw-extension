@@ -565,6 +565,11 @@ chrome.permissions.onRemoved.addListener((perms) => {
   if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
     allUrlsGranted = false;
     clearAllRedirectBuffers();
+    // clearAllUaRules (Task 4, defined near the UA-switcher block below —
+    // hoisted, so its physical position doesn't matter here) — a revoked
+    // grant means every active "View as" rule stops actually being able to
+    // rewrite anything, so it must not go on claiming UA OVERRIDE ACTIVE.
+    clearAllUaRules();
   }
 });
 
@@ -675,9 +680,21 @@ const HREFLANG_GLOBAL = 4;
 // res.text() (whole body) only if this environment's Response has no
 // streaming body reader (not expected in a real Chrome service worker, kept
 // for robustness).
+//
+// Returns { text, truncated } — `truncated` is true exactly when the read
+// stopped because `received` hit `maxBytes`, not because the body actually
+// ended (`done`). Both current callers (fetchHreflangAlternate below, and
+// the fetchRawHtml handler further down) surface this so a comparison built
+// on a cut-off response can say so instead of silently treating a partial
+// document as the whole page.
 async function readCappedBody(res, maxBytes) {
   if (!res.body || typeof res.body.getReader !== 'function') {
-    try { return await res.text(); } catch (e) { return ''; }
+    try {
+      const text = await res.text();
+      return { text, truncated: text.length >= maxBytes };
+    } catch (e) {
+      return { text: '', truncated: false };
+    }
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -697,7 +714,7 @@ async function readCappedBody(res, maxBytes) {
   } finally {
     try { reader.cancel(); } catch (e) { /* already drained/closed */ }
   }
-  return text;
+  return { text, truncated: received >= maxBytes };
 }
 
 // One GET, capped/timed exactly like probeLink() above but reading (a
@@ -727,7 +744,12 @@ async function fetchHreflangAlternate(url) {
   let html = '';
   let bodyTruncated = false;
   try {
-    html = await readCappedBody(res, HREFLANG_MAX_BYTES);
+    const capped = await readCappedBody(res, HREFLANG_MAX_BYTES);
+    html = capped.text;
+    // A body cut off by the 256 KB cap is just as much "possibly
+    // incomplete" as one cut off by a read error below — both feed the
+    // same bodyTruncated flag on the result.
+    if (capped.truncated) bodyTruncated = true;
   } catch (e) {
     bodyTruncated = true;
   }
@@ -850,16 +872,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // doesn't matter — reused as-is rather than duplicating a second
       // streamed-body reader with the same 1 MB-vs-256 KB-shaped logic.
       let html = '';
+      let truncated = false;
       try {
-        html = await readCappedBody(res, RAW_HTML_MAX_BYTES);
+        const capped = await readCappedBody(res, RAW_HTML_MAX_BYTES);
+        html = capped.text;
+        truncated = capped.truncated;
       } catch (e) {
         // A partial body (the abort firing mid-read, after headers already
         // arrived) is still useful to diff against — fall through with
-        // whatever was read rather than discarding it.
+        // whatever was read rather than discarding it. Not marked
+        // `truncated` here: that flag means specifically "the 1 MB cap cut
+        // this off", not "something else went wrong reading it" — the popup
+        // (src/popup/render-check.js) still has the partial html to work
+        // with either way.
       }
       clearTimeout(timer);
 
-      sendResponse({ status: res.status, finalUrl: res.url || url, html });
+      // `truncated` lets SBWHtmlDiff.summarizeHtml/diffSummaries (via the
+      // popup) avoid claiming 'js-rendered' off a comparison built on a
+      // response that got cut off before the real end of the document.
+      sendResponse({ status: res.status, finalUrl: res.url || url, html, truncated });
     })();
     return true;
   }
@@ -921,6 +953,28 @@ async function clearUserAgentForTab(tabId) {
   chrome.storage.session.remove(uaStorageKey(tabId));
 }
 
+// permissions.onRemoved (wired further up the file, in the same top-level
+// listener the redirect tracer's clearAllRedirectBuffers() uses — a regular
+// function declaration hoists, so the call site coming first in the file
+// than this definition is fine): a revoked <all_urls>
+// grant means every active UA-override rule can no longer actually rewrite
+// anything (declarativeNetRequestWithHostAccess's modifyHeaders only takes
+// effect on hosts the extension currently has host access to), so it must
+// not go on claiming "UA OVERRIDE ACTIVE" in the popup badge — every tab's
+// rule and its chrome.storage.session mirror are cleared at once, not just
+// the current tab's.
+function clearAllUaRules() {
+  const ruleIds = Array.from(uaPresetForTab.keys()).map(id => SBWUaSwitch.ruleIdForTab(id));
+  uaPresetForTab.clear();
+  if (ruleIds.length) {
+    chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ruleIds }).catch(() => {});
+  }
+  chrome.storage.session.get(null, (items) => {
+    const keys = Object.keys(items || {}).filter(k => k.startsWith('ua:'));
+    if (keys.length) chrome.storage.session.remove(keys);
+  });
+}
+
 // A tab closing while a UA override is active must not leave an orphaned
 // session rule keyed to a tabId Chrome could someday reuse.
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -931,7 +985,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'setUserAgent') {
     (async () => {
       const tabId = request.tabId;
-      if (tabId === undefined || tabId === null) {
+      // Number.isInteger + non-negative — see SBWUaSwitch.isValidTabId's
+      // comment: a DNR rule id / condition.tabIds entry must be a real
+      // Chrome tab id, and the old `undefined`/`null`-only check let
+      // through anything else (a string, a float, -1) that would only fail
+      // much later inside declarativeNetRequest.updateSessionRules.
+      if (!SBWUaSwitch.isValidTabId(tabId)) {
         sendResponse({ error: 'invalid_tab' });
         return;
       }
@@ -955,7 +1014,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return;
       }
 
-      chrome.tabs.reload(tabId);
+      // The tab can have closed in the moment between the click and this
+      // reload call (a slow DNR round-trip, a fast user) — chrome.tabs.reload
+      // rejects for a tabId that no longer exists, and that must not surface
+      // as an unhandled promise rejection in the worker.
+      chrome.tabs.reload(tabId).catch(() => {});
       sendResponse({ ok: true, presetId: appliedPresetId });
     })();
     return true;

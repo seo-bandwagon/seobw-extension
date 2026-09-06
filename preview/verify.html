@@ -99,7 +99,13 @@ const CASES = [
   // section's own "UA override active" badge chip renders without a click.
   { q: 'popup.html?state=render-diff',
     need: ['.seo-hero', '.rc-row', '.rc-verdict', '#rcExportBtn'],
-    click: '#rcCompareBtn' },
+    click: '#rcCompareBtn',
+    // Fix round 1, MINOR 13: a selector-only check still passes if the
+    // verdict regresses back to "Static HTML" (rc-verdict would still
+    // exist) — this fixture's missing <h1> and huge word-count growth over
+    // RAW_HTML_FIXTURE's near-empty body must keep landing on the
+    // JS-rendered verdict text itself, not just its container.
+    text: ['JavaScript-rendered'] },
   { q: 'popup.html?state=render-ua',
     need: ['.seo-hero', '.rc-badge-slot .badge-mono'],
     text: ['UA OVERRIDE ACTIVE'] },

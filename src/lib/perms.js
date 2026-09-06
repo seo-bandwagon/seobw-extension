@@ -29,8 +29,16 @@
   // permission gets used — a plain fetch (link checker, hreflang, redirect
   // probe) AND opening a URL in a background tab (Indexability's
   // "trace-a-URL"), which the original wording ("fetch pages... from your
-  // browser") didn't describe. Later features reuse this string verbatim.
-  const ALL_URLS_REASON = 'To check links, hreflang alternates and redirects, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page.';
+  // browser") didn't describe.
+  //
+  // Amended a SECOND AND FINAL time in Task 4's fix round (ruling I-4,
+  // superseding ruling I-8's "later features reuse this string verbatim"
+  // for this one change) to also cover the raw-HTML re-fetch (Rendering
+  // section's "Compare raw HTML with rendered DOM") and the "View as"
+  // User-Agent switcher, which rewrites a header on the current tab's own
+  // requests using this same grant. Frozen after this — later features
+  // reuse this string verbatim.
+  const ALL_URLS_REASON = 'To check links, hreflang alternates and redirects, and to compare a page\'s raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page.';
 
   function hasAllUrls() {
     return chrome.permissions.contains({ origins: ['<all_urls>'] });

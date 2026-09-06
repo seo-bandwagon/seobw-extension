@@ -69,11 +69,23 @@
   // this tab's frame, its sub-frames, and everything a page typically loads.
   // Keeping this exhaustive (rather than main_frame-only) matters for
   // cloaking checks specifically: a site that cloaks based on UA can key off
-  // ANY request from the tab, not just the top-level navigation.
-  const RESOURCE_TYPES = ['main_frame', 'sub_frame', 'xmlhttprequest', 'script', 'stylesheet', 'image', 'font', 'other'];
+  // ANY request from the tab, not just the top-level navigation. `ping`,
+  // `websocket`, and `object` are deliberately left out: a UA-cloaking check
+  // cares about rendered document/asset requests, and none of those three
+  // resource types carry content a "raw vs rendered" or "view as" check
+  // would ever need to see rewritten.
+  const RESOURCE_TYPES = ['main_frame', 'sub_frame', 'xmlhttprequest', 'script', 'stylesheet', 'image', 'font', 'media', 'other'];
 
   function presetById(id) {
     return PRESETS.find(p => p.id === id) || null;
+  }
+
+  // A DNR rule id / condition.tabIds entry must be a real Chrome tab id —
+  // a non-negative integer. Lives here (rather than only inline in the
+  // worker's setUserAgent handler) so the validation itself is unit-
+  // testable without any chrome.* stubbing.
+  function isValidTabId(tabId) {
+    return Number.isInteger(tabId) && tabId >= 0;
   }
 
   // Deterministic per-tab DNR session rule id. DNR rule ids must be positive
@@ -110,6 +122,7 @@
   return {
     PRESETS,
     presetById,
+    isValidTabId,
     ruleIdForTab,
     ruleFor
   };

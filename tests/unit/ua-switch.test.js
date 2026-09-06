@@ -103,4 +103,27 @@ describe('ruleFor', () => {
     expect(rule.action.requestHeaders[0].value).toBe(preset.ua);
     expect(rule.condition.tabIds).toEqual([9]);
   });
+
+  it('matches media requests too (MINOR 12)', () => {
+    const rule = SBWUaSwitch.ruleFor(5, 'Mozilla/5.0 (compatible; Testbot/1.0)');
+    expect(rule.condition.resourceTypes).toContain('media');
+  });
+});
+
+// Fix round 1, MINOR 7: tabId validation moved here so it's unit-testable
+// independent of the worker's chrome.* plumbing.
+describe('isValidTabId', () => {
+  it('accepts non-negative integers', () => {
+    expect(SBWUaSwitch.isValidTabId(0)).toBe(true);
+    expect(SBWUaSwitch.isValidTabId(42)).toBe(true);
+  });
+
+  it('rejects negative numbers, non-integers, and non-numbers', () => {
+    expect(SBWUaSwitch.isValidTabId(-1)).toBe(false);
+    expect(SBWUaSwitch.isValidTabId(1.5)).toBe(false);
+    expect(SBWUaSwitch.isValidTabId('5')).toBe(false);
+    expect(SBWUaSwitch.isValidTabId(null)).toBe(false);
+    expect(SBWUaSwitch.isValidTabId(undefined)).toBe(false);
+    expect(SBWUaSwitch.isValidTabId(NaN)).toBe(false);
+  });
 });

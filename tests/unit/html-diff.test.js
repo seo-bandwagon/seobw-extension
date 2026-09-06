@@ -218,3 +218,187 @@ describe('diffSummaries', () => {
     expect(verdict).toBe('static'); // both sides are all-empty -> every field trivially "same"
   });
 });
+
+// --- Fix round 1 (review findings on 9d8dfa1) ---
+
+describe('summarizeHtml — main-content word count (CRITICAL 1)', () => {
+  const BASE_URL = 'https://northsidedental.com/austin/family-dentistry';
+
+  it('scopes the word count to <main> when present, excluding header/nav/footer chrome', () => {
+    const html = `<html><body>
+      <header><nav>Home About Contact</nav></header>
+      <main><p>Real page content goes here with several words.</p></main>
+      <footer>Copyright 2024 Some Company All Rights Reserved</footer>
+    </body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    // "Real page content goes here with several words." = 8 words
+    expect(s.wordCountApprox).toBe(8);
+  });
+
+  it('excludes header/nav/footer/aside text when there is no <main> or <article>', () => {
+    const html = `<html><body>
+      <header><nav>Home About Contact</nav></header>
+      <aside>Related links over here</aside>
+      <p>Real body content goes here with several words.</p>
+      <footer>Copyright 2024 Some Company All Rights Reserved</footer>
+    </body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    // "Real body content goes here with several words." = 8 words
+    expect(s.wordCountApprox).toBe(8);
+  });
+
+  it('prefers <article> over the header/nav/footer-stripped body when there is no <main>', () => {
+    const html = `<html><body>
+      <header>Site Header Text Here</header>
+      <article>Article body text with six words.</article>
+    </body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    // "Article body text with six words." = 6 words
+    expect(s.wordCountApprox).toBe(6);
+  });
+});
+
+describe('summarizeHtml — unquoted attribute values (IMPORTANT 2a)', () => {
+  const BASE_URL = 'https://example.com/page';
+
+  it('extracts an unquoted meta[name=robots]', () => {
+    const html = `<html><head><meta name=robots content="index,follow"></head><body></body></html>`;
+    expect(SBWHtmlDiff.summarizeHtml(html, BASE_URL).robots).toBe('index,follow');
+  });
+
+  it('extracts an unquoted meta[name=description]', () => {
+    const html = `<html><head><meta name=description content="Gentle family dentistry."></head><body></body></html>`;
+    expect(SBWHtmlDiff.summarizeHtml(html, BASE_URL).metaDescription).toBe('Gentle family dentistry.');
+  });
+
+  it('extracts an unquoted link[rel=canonical] with an unquoted href', () => {
+    const html = `<html><head><link rel=canonical href=https://example.com/page></head><body></body></html>`;
+    expect(SBWHtmlDiff.summarizeHtml(html, BASE_URL).canonical).toBe('https://example.com/page');
+  });
+});
+
+describe('summarizeHtml — entity decoding (IMPORTANT 2b)', () => {
+  const BASE_URL = 'https://example.com/page';
+
+  it('decodes &amp; in a meta description to a literal &', () => {
+    const html = `<html><head><meta name="description" content="Cheap &amp; fast"></head><body></body></html>`;
+    expect(SBWHtmlDiff.summarizeHtml(html, BASE_URL).metaDescription).toBe('Cheap & fast');
+  });
+
+  it('decodes named and decimal entities in the title to real dash characters', () => {
+    const html = `<html><head><title>Smith &amp; Sons &mdash; Plumbers &#8211; Fast</title></head><body></body></html>`;
+    expect(SBWHtmlDiff.summarizeHtml(html, BASE_URL).title).toBe('Smith & Sons — Plumbers – Fast');
+  });
+
+  it('decodes &amp; LAST so a double-escaped entity is not over-decoded', () => {
+    const html = `<html><head><title>&amp;lt;</title></head><body></body></html>`;
+    expect(SBWHtmlDiff.summarizeHtml(html, BASE_URL).title).toBe('&lt;');
+  });
+});
+
+describe('summarizeHtml — canonical resolution (IMPORTANT 2c)', () => {
+  it('resolves a relative canonical against baseUrl', () => {
+    const html = `<html><head><link rel="canonical" href="/services/plumbing"></head><body></body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, 'https://example.com/current-page');
+    expect(s.canonical).toBe('https://example.com/services/plumbing');
+  });
+
+  it('resolves a protocol-relative canonical against baseUrl', () => {
+    const html = `<html><head><link rel="canonical" href="//cdn.example.com/x"></head><body></body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, 'https://example.com/current-page');
+    expect(s.canonical).toBe('https://cdn.example.com/x');
+  });
+
+  it('resolves a relative canonical against a <base href> instead of baseUrl when one is present', () => {
+    const html = `<html><head><base href="https://other.example.com/sub/"><link rel="canonical" href="plumbing"></head><body></body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, 'https://example.com/current-page');
+    expect(s.canonical).toBe('https://other.example.com/sub/plumbing');
+  });
+
+  it('returns null rather than throwing when the canonical cannot be resolved', () => {
+    const html = `<html><head><link rel="canonical" href="/x"></head><body></body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, 'not-a-valid-base');
+    expect(s.canonical).toBeNull();
+  });
+});
+
+describe('summarizeHtml — truncation (IMPORTANT 3)', () => {
+  const BASE_URL = 'https://example.com/page';
+
+  it('excludes a trailing unterminated <script> block from the word count', () => {
+    const html = `<html><body><main><p>Real content here now.</p></main>` +
+      `<script>var x = "this never closes and has many many words in it`;
+    const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    // "Real content here now." = 4 words — the dangling script text must not count
+    expect(s.wordCountApprox).toBe(4);
+  });
+
+  it('records the truncated flag on the summary when passed', () => {
+    const html = `<html><body><main>content</main></body></html>`;
+    const s1 = SBWHtmlDiff.summarizeHtml(html, BASE_URL, { truncated: true });
+    expect(s1.truncated).toBe(true);
+    const s2 = SBWHtmlDiff.summarizeHtml(html, BASE_URL, { truncated: false });
+    expect(s2.truncated).toBe(false);
+    const s3 = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    expect(s3.truncated).toBe(false);
+  });
+});
+
+describe('diffSummaries — truncation never flips the verdict to js-rendered (IMPORTANT 3)', () => {
+  function baseSummary(overrides) {
+    return Object.assign({
+      title: 'T', metaDescription: 'D', canonical: 'https://example.com/',
+      robots: 'index, follow',
+      headings: { h1: 1, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 },
+      h1Texts: ['T'], linkCount: 1, imgCount: 0, jsonLdBlocks: 0,
+      wordCountApprox: 100, hreflangCount: 0
+    }, overrides);
+  }
+
+  it('a truncated raw summary that would trip js-rendered reports partial instead', () => {
+    const raw = baseSummary({ truncated: true, headings: { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 }, h1Texts: [] });
+    const dom = baseSummary();
+    const { verdict } = SBWHtmlDiff.diffSummaries(raw, dom);
+    expect(verdict).not.toBe('js-rendered');
+    expect(verdict).toBe('partial');
+  });
+
+  it('carries the truncated flag through to the diff result', () => {
+    const raw = baseSummary({ truncated: true });
+    const dom = baseSummary();
+    const { truncated } = SBWHtmlDiff.diffSummaries(raw, dom);
+    expect(truncated).toBe(true);
+  });
+
+  it('an untruncated raw summary still reports js-rendered normally', () => {
+    const raw = baseSummary({ headings: { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 }, h1Texts: [] });
+    const dom = baseSummary();
+    const { verdict } = SBWHtmlDiff.diffSummaries(raw, dom);
+    expect(verdict).toBe('js-rendered');
+  });
+});
+
+describe('summarizeHtml — symmetric link/JSON-LD counts (IMPORTANT 4)', () => {
+  const BASE_URL = 'https://example.com/page';
+
+  it('counts only http(s)-resolvable <a> tags, skipping mailto/tel/javascript/bare anchors', () => {
+    const html = `<html><body>
+      <a href="/real-page">real</a>
+      <a href="mailto:hi@example.com">mail</a>
+      <a href="tel:+15555550123">call</a>
+      <a href="javascript:void(0)">js</a>
+      <a name="anchor-only">bare</a>
+    </body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    expect(s.linkCount).toBe(1);
+  });
+
+  it('counts only JSON-LD blocks whose body actually JSON.parses', () => {
+    const html = `<html><head>
+      <script type="application/ld+json">{"@type":"Dentist"}</script>
+      <script type="application/ld+json">{ this is not valid json }</script>
+      </head><body></body></html>`;
+    const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
+    expect(s.jsonLdBlocks).toBe(1);
+  });
+});

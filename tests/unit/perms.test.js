@@ -18,11 +18,15 @@ describe('SBWPerms namespace', () => {
     expect(typeof SBWPerms.onAllUrlsGranted).toBe('function');
   });
 
-  it('exposes a plain-language ALL_URLS_REASON covering both fetch and trace-in-a-tab', () => {
+  it('exposes a plain-language ALL_URLS_REASON covering fetch, trace-in-a-tab, and the UA switcher', () => {
     expect(typeof SBWPerms.ALL_URLS_REASON).toBe('string');
     expect(SBWPerms.ALL_URLS_REASON).toMatch(/look at pages on other sites/i);
     expect(SBWPerms.ALL_URLS_REASON).toMatch(/without cookies/i);
     expect(SBWPerms.ALL_URLS_REASON).toMatch(/opens that url in a background tab/i);
+    // Amended a second and final time in Task 4's fix round (ruling I-4) to
+    // cover the raw-HTML re-fetch and the "View as" User-Agent override.
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/compare a page's raw html with what your browser rendered/i);
+    expect(SBWPerms.ALL_URLS_REASON).toMatch(/view as.*user-agent header on requests from the current tab only/i);
     expect(SBWPerms.ALL_URLS_REASON).toMatch(/nothing it sees on those sites is sent to SEO Bandwagon/i);
     expect(SBWPerms.ALL_URLS_REASON).toMatch(/revoke this at any time from the extensions page/i);
   });
