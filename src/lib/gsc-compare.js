@@ -201,7 +201,16 @@
     const headerCells = getHeaderCells(table);
     if (!headerCells.length) return null;
 
-    const items = headerCells.map((cell, idx) => ({ idx, text: (cell.textContent || '').trim() }));
+    // Live GSC (2026-09-06): headers are two-line (metric name and period in
+    // nested divs, so textContent runs them together), deselected metrics
+    // keep their columns in the DOM as display:none, and the header row can
+    // carry a leading cell the body rows lack. Read header text with the
+    // spacing walker, skip hidden cells outright (a hidden pair is a
+    // phantom metric), and calibrate header→body indices against the
+    // numbers actually present in the body rows (below).
+    const items = headerCells
+      .map((cell, idx) => ({ idx, text: spacedText(cell), hidden: isHiddenCell(cell) }))
+      .filter((it) => !it.hidden);
 
     let labelIdx = null;
     const metrics = [];
@@ -216,7 +225,8 @@
       }
       const kind = metricKind(item.text);
       if (!kind) {
-        if (labelIdx === null) labelIdx = item.idx;
+        // An empty header (sort/checkbox column) is never the label column.
+        if (labelIdx === null && item.text) labelIdx = item.idx;
         return;
       }
       if (pending[kind] === undefined) {
@@ -266,18 +276,100 @@
     });
 
     if (metrics.length === 0) return null;
-    return { labelIdx: labelIdx === null ? 0 : labelIdx, metrics };
+    const hdr = { labelIdx: labelIdx === null ? 0 : labelIdx, metrics };
+    return calibrateToBody(hdr, bodyRows);
   }
+
+  // A cell GSC has hidden (deselected metric) must not become a metric.
+  function isHiddenCell(cell) {
+    if (!cell) return true;
+    if (cell.hidden) return true;
+    if (cell.style && cell.style.display === 'none') return true;
+    if (typeof getComputedStyle === 'function' && cell.ownerDocument && cell.ownerDocument.defaultView) {
+      try { return cell.ownerDocument.defaultView.getComputedStyle(cell).display === 'none'; } catch (e) { /* jsdom edge */ }
+    }
+    return false;
+  }
+
+  // Header indices and body indices are not guaranteed to line up (the live
+  // header row has an extra leading cell). Try small offsets and keep the
+  // one under which the most (row, metric) cells parse as numbers and the
+  // label cell does not. Header indices are kept alongside (hdr*) so the
+  // header "% change" cell is inserted against the header row's own layout.
+  function calibrateToBody(hdr, bodyRows) {
+    const OFFSETS = [0, -1, 1, -2, 2];
+    let best = null;
+    OFFSETS.forEach((off) => {
+      let score = 0;
+      bodyRows.forEach((tr) => {
+        const cells = getRowCells(tr);
+        const labelCell = cells[hdr.labelIdx + off];
+        if (labelCell && parseMetric(labelCell.textContent || '') === null && (labelCell.textContent || '').trim()) score += 1;
+        hdr.metrics.forEach((m) => {
+          const c = cells[m.curIdx + off];
+          const p = cells[m.prevIdx + off];
+          const cv = c ? parseMetric(c.textContent || '') : null;
+          const pv = p ? parseMetric(p.textContent || '') : null;
+          if (cv !== null) score += 1;
+          if (pv !== null) score += 1;
+          // Decisive signal: inside a run of numeric columns "is a number"
+          // cannot tell a one-column shift apart, but GSC's Difference
+          // column equals current − previous only under the right alignment.
+          if (m.diffIdx !== null && cv !== null && pv !== null) {
+            const d = cells[m.diffIdx + off];
+            const dv = d ? parseMetric(d.textContent || '') : null;
+            if (dv !== null && Math.abs((cv - pv) - dv) < 0.06) score += 3;
+          }
+        });
+      });
+      if (best === null || score > best.score) best = { off, score };
+    });
+    const off = best ? best.off : 0;
+    return {
+      labelIdx: hdr.labelIdx + off,
+      metrics: hdr.metrics.map((m) => ({
+        kind: m.kind,
+        curIdx: m.curIdx + off,
+        prevIdx: m.prevIdx + off,
+        diffIdx: m.diffIdx === null ? null : m.diffIdx + off,
+        hdrCurIdx: m.curIdx,
+        hdrPrevIdx: m.prevIdx,
+        hdrDiffIdx: m.diffIdx,
+      })),
+    };
+  }
+
+  // Google's per-row hover actions ("Copy URL to clipboard", "Open in new
+  // tab", "Inspect URL", "Copy query…") sit as plain text inside the label
+  // cell after the value; textContent concatenated them into the label.
+  const ACTION_LABEL = /^(copy\b|open\b|inspect\b|filter\b|view\b)/i;
 
   function extractLabel(cell) {
     if (!cell) return '';
-    const titled = cell.querySelector && cell.querySelector('[title]');
-    if (titled) {
-      // fix-1 item 9 (MINOR): collapse whitespace here too -- a [title]
-      // with an embedded newline or run of spaces was leaking straight
-      // into the label (and from there into the TSV export) uncollapsed.
-      const t = (titled.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
-      if (t) return t;
+    if (cell.querySelectorAll) {
+      for (const el of cell.querySelectorAll('[title]')) {
+        if (el.closest && el.closest('[role="button"], button, [' + MARK + ']')) continue;
+        // fix-1 item 9 (MINOR): collapse whitespace here too -- a [title]
+        // with an embedded newline or run of spaces was leaking straight
+        // into the label (and from there into the TSV export) uncollapsed.
+        const t = (el.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+        if (t && !ACTION_LABEL.test(t)) return t;
+      }
+    }
+    // The value is always the FIRST text node in document order.
+    if (typeof document !== 'undefined' && document.createTreeWalker) {
+      const walker = document.createTreeWalker(cell, 4 /* SHOW_TEXT */, {
+        acceptNode: (n) => {
+          const parent = n.parentElement;
+          return parent && parent.closest && parent.closest('[role="button"], button, [' + MARK + ']') ? 2 : 1;
+        },
+      });
+      let node;
+      while ((node = walker.nextNode())) {
+        const t = (node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t) return t;
+      }
+      return '';
     }
     return (cell.textContent || '').replace(/\s+/g, ' ').trim();
   }
@@ -663,12 +755,20 @@
     const headerRow = getHeaderRow(table);
     const bodyRows = getBodyRows(table);
     const anchored = cols.metrics
-      .map((m) => ({ m, anchor: m.diffIdx !== null ? m.diffIdx : m.prevIdx }))
+      .map((m) => ({
+        m,
+        anchor: m.diffIdx !== null ? m.diffIdx : m.prevIdx,
+        // Header row indices can differ from body indices (calibrateToBody);
+        // fall back to the body anchor for cols produced without hdr* fields.
+        hdrAnchor: m.hdrDiffIdx !== undefined && m.hdrDiffIdx !== null ? m.hdrDiffIdx
+          : m.hdrPrevIdx !== undefined ? m.hdrPrevIdx
+          : (m.diffIdx !== null ? m.diffIdx : m.prevIdx),
+      }))
       .sort((a, b) => b.anchor - a.anchor); // right-to-left so earlier indices stay valid
 
-    anchored.forEach(({ m, anchor }) => {
+    anchored.forEach(({ m, anchor, hdrAnchor }) => {
       if (headerRow) {
-        const anchorCell = getRowCells(headerRow)[anchor];
+        const anchorCell = getRowCells(headerRow)[hdrAnchor];
         const th = document.createElement('th');
         th.textContent = '% change';
         th.setAttribute(MARK, 'pct-header');

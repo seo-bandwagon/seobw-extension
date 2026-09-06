@@ -224,6 +224,18 @@ match on Google's own results pages.
   grade, or whether the page could even be read — the strip's visibility
   is a pure function of stored state (`analyses`/`prompted`), checked even
   from the "can't read this page" and Google-SERP-notice branches.
+- **Search Console compare-mode math against the live table** (folded in from the unshipped 1.5.3). The column
+  pairing had been built from a two-column fixture; the real report has three
+  columns per metric (Last, Previous, Difference), two-line headers, an extra
+  leading header cell the body rows lack, and deselected metrics kept in the
+  DOM as `display:none`. Result: impressions 10 → 11 rendered as "+9 (+900%)"
+  (Previous paired with Difference), every "new" query read "-100%", and a
+  phantom Clicks metric appeared. Detection now reads headers with the
+  spacing walker, skips hidden columns, and calibrates header→body indices
+  against the rows themselves (the Difference column must equal current −
+  previous). The sorted copy's label is the value alone, without Google's
+  "Copy URL to clipboard / Open in new tab / Inspect URL" hover labels.
+
 
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google

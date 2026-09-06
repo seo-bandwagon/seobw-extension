@@ -206,7 +206,7 @@ describe('detectCompareColumns', () => {
     const cols = C.detectCompareColumns(table);
     expect(cols).not.toBeNull();
     expect(cols.labelIdx).toBe(0);
-    expect(cols.metrics).toEqual([{ kind: 'clicks', curIdx: 1, prevIdx: 2, diffIdx: 3 }]);
+    expect(cols.metrics).toMatchObject([{ kind: 'clicks', curIdx: 1, prevIdx: 2, diffIdx: 3 }]);
   });
 
   it('detects metric pairs with no Difference column at all', () => {
@@ -225,7 +225,7 @@ describe('detectCompareColumns', () => {
     const cols = C.detectCompareColumns(table);
     expect(cols).not.toBeNull();
     expect(cols.labelIdx).toBe(0);
-    expect(cols.metrics).toEqual([
+    expect(cols.metrics).toMatchObject([
       { kind: 'clicks', curIdx: 1, prevIdx: 2, diffIdx: null },
       { kind: 'impressions', curIdx: 3, prevIdx: 4, diffIdx: null },
     ]);
@@ -245,7 +245,7 @@ describe('detectCompareColumns', () => {
     const cols = C.detectCompareColumns(table);
     expect(cols).not.toBeNull();
     expect(cols.labelIdx).toBe(0);
-    expect(cols.metrics).toEqual([{ kind: 'clicks', curIdx: 1, prevIdx: 1, diffIdx: null }]);
+    expect(cols.metrics).toMatchObject([{ kind: 'clicks', curIdx: 1, prevIdx: 1, diffIdx: null }]);
   });
 
   it('returns null for an ordinary, non-compare table', () => {
@@ -277,7 +277,7 @@ describe('detectCompareColumns', () => {
       </table>`);
     const cols = C.detectCompareColumns(table);
     expect(cols).not.toBeNull();
-    expect(cols.metrics).toEqual([{ kind: 'clicks', curIdx: 2, prevIdx: 1, diffIdx: null }]);
+    expect(cols.metrics).toMatchObject([{ kind: 'clicks', curIdx: 2, prevIdx: 1, diffIdx: null }]);
   });
 
   // fix-1 item 6 (IMPORTANT): the single-header/two-numbers fallback must not

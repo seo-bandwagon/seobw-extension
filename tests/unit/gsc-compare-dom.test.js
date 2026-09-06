@@ -454,3 +454,103 @@ describe('SBWGscCompare.apply — re-review regressions', () => {
     expect(table.hidden).toBe(false);
   });
 });
+
+// Live Search Console layout, reconstructed from the 2026-09-06 report
+// (screenshots: Queries tab, "Compare" with Last 7 days vs Previous 7 days):
+//  - the header row has ONE MORE leading cell than the body rows (a sort /
+//    checkbox <th> with no text), so header index = body index + 1;
+//  - three columns per metric: "<Metric> Last 7 days", "<Metric> Previous 7
+//    days", "<Metric> Difference", each header two-line (nested divs);
+//  - the Clicks metric is deselected: its header AND body cells exist but
+//    are display:none;
+//  - the label cell carries Google's own hover-action labels as plain text
+//    after the value.
+// Observed bug: impressions 11 vs 10 rendered as "▲ +9 (+900%)" (paired
+// Previous with Difference), a phantom "Clicks" column, and the sorted copy
+// labelled rows "https://… Copy URL to clipboard Open in new tab Inspect URL".
+function buildLiveReport() {
+  const h = (metric, period, hidden) =>
+    `<th${hidden ? ' style="display:none"' : ''}><div><div>${metric}</div><div>${period}</div></div></th>`;
+  const label = (text) =>
+    `<td><span>${text}</span><span class="tip">Copy URL to clipboard</span><span class="tip">Open in new tab</span><span class="tip">Inspect URL</span></td>`;
+  const cells = (arr, hiddenFrom, hiddenTo) =>
+    arr.map((v, i) => `<td${i >= hiddenFrom && i < hiddenTo ? ' style="display:none"' : ''}>${v}</td>`).join('');
+  document.body.innerHTML = `
+    <table>
+      <thead><tr>
+        <th></th>
+        <th><div>Top queries</div></th>
+        ${h('Clicks', 'Last 7 days', true)}${h('Clicks', 'Previous 7 days', true)}${h('Clicks', 'Difference', true)}
+        ${h('Impressions', 'Last 7 days')}${h('Impressions', 'Previous 7 days')}${h('Impressions', 'Difference')}
+        ${h('CTR', 'Last 7 days')}${h('CTR', 'Previous 7 days')}${h('CTR', 'Difference')}
+        ${h('Position', 'Last 7 days')}${h('Position', 'Previous 7 days')}${h('Position', 'Difference')}
+      </tr></thead>
+      <tbody>
+        <tr>${label('seo bandwagon')}${cells(['0','0','0', '11','10','1', '45.5%','50%','-4.5%', '1','1','0'], 0, 3)}</tr>
+        <tr>${label('rank tracker google')}${cells(['0','0','0', '446','0','446', '0%','0%','0%', '51','0','51'], 0, 3)}</tr>
+      </tbody>
+    </table>`;
+  return document.body;
+}
+
+describe('SBWGscCompare — live Search Console layout (2026-09-06 report)', () => {
+  beforeEach(() => { document.body.innerHTML = ''; });
+
+  it('pairs Last with Previous even though the header row has an extra leading cell', () => {
+    const root = buildLiveReport();
+    const cols = C.detectCompareColumns(root.querySelector('table'));
+    const impr = cols.metrics.find((m) => m.kind === 'impressions');
+    const row = C.computeRow(root.querySelector('tbody tr'), cols);
+    expect(impr).toBeTruthy();
+    expect(row.metrics.impressions.cur).toBe(11);
+    expect(row.metrics.impressions.prev).toBe(10);
+    expect(row.metrics.ctr.cur).toBe(45.5);
+    expect(row.metrics.ctr.prev).toBe(50);
+    expect(row.metrics.position.cur).toBe(1);
+  });
+
+  it('ignores the hidden (deselected) Clicks columns — no phantom metric', () => {
+    const root = buildLiveReport();
+    const cols = C.detectCompareColumns(root.querySelector('table'));
+    expect(cols.metrics.map((m) => m.kind).sort()).toEqual(['ctr', 'impressions', 'position']);
+  });
+
+  it('renders the impressions change as +1 (+10%), not +9 (+900%)', () => {
+    const root = buildLiveReport();
+    C.apply(root);
+    const cell = root.querySelector('tbody tr [data-seo-bw-metric="impressions"]');
+    expect(cell.textContent).toBe('▲ +1 (+10%)');
+    expect(cell.classList.contains('good')).toBe(true);
+    // Second row: 446 vs 0 previous — a rise, never "-100%".
+    const cell2 = root.querySelectorAll('tbody tr')[1].querySelector('[data-seo-bw-metric="impressions"]');
+    expect(cell2.textContent).not.toContain('-100%');
+    expect(cell2.classList.contains('bad')).toBe(false);
+  });
+
+  it('puts each "% change" header directly after that metric\'s Difference header', () => {
+    const root = buildLiveReport();
+    C.apply(root);
+    const ths = [...root.querySelectorAll('thead th')].filter((th) => th.style.display !== 'none');
+    // Header cells are nested divs; join text nodes with a space the way the
+    // extension's own header reader does (textContent would run them together).
+    const spaced = (el) => {
+      const w = document.createTreeWalker(el, 4);
+      const parts = [];
+      let n;
+      while ((n = w.nextNode())) { const t = n.textContent.trim(); if (t) parts.push(t); }
+      return parts.join(' ');
+    };
+    const texts = ths.map(spaced);
+    const i = texts.indexOf('Impressions Difference');
+    expect(i).toBeGreaterThan(0);
+    expect(texts[i + 1]).toBe('% change');
+    expect(texts[i + 2]).toBe('CTR Last 7 days');
+  });
+
+  it('row labels are the value alone, without Google\'s hover-action labels', () => {
+    const root = buildLiveReport();
+    const cols = C.detectCompareColumns(root.querySelector('table'));
+    const row = C.computeRow(root.querySelector('tbody tr'), cols);
+    expect(row.label).toBe('seo bandwagon');
+  });
+});
