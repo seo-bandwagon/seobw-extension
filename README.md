@@ -46,9 +46,10 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
 | `webRequest` | Observe the current tab's own redirects, status codes and response headers (Indexability section) — only after you've granted `<all_urls>` below. Fires on nothing without that permission, and never reads response bodies |
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
+| `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
-| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability or Hreflang section (never at install, never automatically) — it lets the extension look at pages on other domains from your browser: fetching them (without cookies) to check whether links resolve or whether an hreflang alternate links back, and lets `webRequest`/`webNavigation` above actually see anything, plus opening a URL in a background tab like a normal visit when you use "Trace another URL." Revoke it any time from the extensions page |
+| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically) — it lets the extension look at pages on other domains from your browser: fetching them (without cookies) to check whether links resolve, whether an hreflang alternate links back, or what a page's raw (unrendered) HTML looked like, and lets `webRequest`/`webNavigation` above actually see anything and the User-Agent switcher actually rewrite a header, plus opening a URL in a background tab like a normal visit when you use "Trace another URL." Revoke it any time from the extensions page |
 
 The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
@@ -126,6 +127,10 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **The hreflang return-tag check fetches the alternate pages you listed** (Hreflang section, 1.6.0+) — from your browser, credentials omitted (`credentials: 'omit'`), no caching, a 10-second timeout and at most 256 KB read per page, capped at 50 alternates. This only runs after you click "Check return tags" — everything above it (the tag table, code validity, duplicate/x-default/self-reference checks) reads only the current page's own HTML and needs no permission at all. Results stay on your device; nothing about them is sent to SEO Bandwagon unless you export the CSV yourself.
 
+**The raw-HTML vs rendered-DOM comparison fetches the current tab's own URL a second time, unrendered** (Rendering section, 1.6.0+) — from your browser, credentials omitted (`credentials: 'omit'`), no caching, a 10-second timeout, and at most 1 MB of body read. This only runs after you click "Compare raw HTML with rendered DOM," and only after you've granted the optional `<all_urls>` permission. The comparison — and the CSV export of it — never leaves your device.
+
+**The "View as" user-agent switcher rewrites a header, nothing more** (Rendering section, 1.6.0+) — choosing a preset other than Default sets a session-only `declarativeNetRequest` rule that rewrites the User-Agent header on requests from the current tab, then reloads that tab; switching back to Default (or closing the tab) removes it immediately. Nothing about which preset you chose, or what the page looked like under it, is sent anywhere. This is for testing how a page's server-side rendering or cloaking behaves under a different user-agent — not for bypassing a paywall, a login gate, or any other access control.
+
 Nothing is sent without a key configured, regardless of the toggle.
 
 ## Local-first + sync/retry behaviour
@@ -148,7 +153,8 @@ manifest.json           # Extension config (Manifest V3)
 lib/                     # Shared pure modules (content-analysis, dom-extraction) injected before analyzer.js
 src/
   background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler,
-                         # redirect tracer (webRequest/webNavigation, gated on <all_urls>)
+                         # redirect tracer (webRequest/webNavigation, gated on <all_urls>), raw-HTML fetch
+                         # and per-tab UA-switch DNR session rules (declarativeNetRequestWithHostAccess)
   content/                # Page analyzer + GSC Search Console helper
   history/                # Capture history page (search, export, sync, retry)
   lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
@@ -157,12 +163,15 @@ src/
                            # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker)
                            # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
                            # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
-                           # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity)
+                           # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
+                           # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js
+                           # (user-agent presets + DNR rule shape)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
   overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
   popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
                            # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
                            # + hreflang.js (Hreflang section — tag table, return-tag check)
+                           # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/

@@ -88,6 +88,22 @@ const CASES = [
     need: ['.seo-hero', '.hf-return.bad'],
     click: '#hfCheckBtn' },
 
+  // Task 4: HTML vs rendered-DOM diff + user-agent switcher
+  // (src/popup/render-check.js, src/lib/html-diff.js, src/lib/ua-switch.js).
+  // `render-diff` clicks "Compare raw HTML with rendered DOM" — stub.js's
+  // RAW_HTML_FIXTURE has no <h1> and a different canonical than
+  // SEO_FIXTURE's rendered DOM, so a real SBWHtmlDiff.diffSummaries() call
+  // renders the row table and a non-"Static HTML" verdict, not a faked one.
+  // `render-ua` pre-seeds `getUserAgent` as already active (a real <select>
+  // change event isn't something this click-only harness can drive) so the
+  // section's own "UA override active" badge chip renders without a click.
+  { q: 'popup.html?state=render-diff',
+    need: ['.seo-hero', '.rc-row', '.rc-verdict', '#rcExportBtn'],
+    click: '#rcCompareBtn' },
+  { q: 'popup.html?state=render-ua',
+    need: ['.seo-hero', '.rc-badge-slot .badge-mono'],
+    text: ['UA OVERRIDE ACTIVE'] },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's

@@ -918,6 +918,97 @@ body {
 }
 
 /* ============================================================
+   RENDERING (src/popup/render-check.js)
+   — .lc-perm-card / .lc-perm-copy / .lc-allow-btn / .lc-loading are the
+   Link Check permission-card styles, reused as-is for this panel's own
+   no-permission state.
+   ============================================================ */
+
+.rc-section-label {
+  padding: 10px 14px 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+}
+
+.rc-actions { display: flex; gap: 7px; padding: 10px 14px 12px; }
+.rc-actions button {
+  flex: 1;
+  padding: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-heading);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.rc-actions button:hover { border-color: var(--pink); color: var(--white); }
+.rc-actions button:disabled { color: var(--paper-40); border-color: var(--edge); cursor: default; }
+
+.rc-verdict { display: flex; align-items: center; gap: 8px; padding: 4px 14px 10px; }
+
+.rc-error {
+  padding: 0 14px 10px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--error);
+}
+
+.rc-table { border-top: 1px solid var(--hairline-soft); }
+.rc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.rc-field {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+  flex: none;
+  width: 78px;
+}
+.rc-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--paper-95);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rc-ua-row { padding: 4px 14px 6px; }
+.rc-ua-select {
+  width: 100%;
+  padding: 8px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  color: var(--paper-95);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.rc-ua-select:disabled { color: var(--paper-40); }
+.rc-ua-help {
+  padding: 0 14px 12px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--paper-50);
+  margin: 0;
+}
+
+/* ============================================================
    CITATIONS TAB
    ============================================================ */
 

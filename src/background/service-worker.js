@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -792,6 +792,183 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
 
       sendResponse({ fetched });
+    })();
+    return true;
+  }
+});
+
+// --- Raw-HTML fetch: HTML vs rendered DOM diff (Task 4) ---
+//
+// User-initiated only — the popup's "Compare raw HTML with rendered DOM"
+// button. Gated on the same optional <all_urls> permission as every other
+// third-party fetch in this file. This handler only fetches and returns the
+// raw bytes/status; SBWHtmlDiff.summarizeHtml/summarizeDom/diffSummaries
+// (src/lib/html-diff.js) run in the popup, which already holds the
+// rendered-DOM analysis (pageData) this handler never sees.
+//
+// `userAgent` is accepted on the message but not used to set a header here
+// — a fetch() issued from a service worker cannot override its own
+// User-Agent (Chrome treats it as a forbidden header on outgoing fetches,
+// same as XHR). When a UA-switch DNR session rule (below) is active for the
+// tab this fetch is standing in for, Chrome rewrites the User-Agent header
+// on every request FROM THAT TAB at the network layer, before this fetch
+// (issued from the extension's own worker context, not the tab) would ever
+// be affected by it anyway — so there is deliberately no code path here
+// that reads `userAgent` and sets a header from it. The field only documents
+// that intent for a future reader wondering where it went.
+const RAW_HTML_TIMEOUT_MS = 10000;
+const RAW_HTML_MAX_BYTES = 1024 * 1024;
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'fetchRawHtml') {
+    (async () => {
+      const allowed = await SBWPerms.hasAllUrls();
+      if (!allowed) {
+        sendResponse({ error: 'no_permission' });
+        return;
+      }
+
+      const url = request.url;
+      if (!/^https?:\/\//i.test(url || '')) {
+        sendResponse({ error: 'invalid_url' });
+        return;
+      }
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), RAW_HTML_TIMEOUT_MS);
+      let res;
+      try {
+        res = await fetch(url, { credentials: 'omit', cache: 'no-store', redirect: 'follow', signal: controller.signal });
+      } catch (e) {
+        clearTimeout(timer);
+        sendResponse({ error: e && e.name === 'AbortError' ? 'timeout' : 'network' });
+        return;
+      }
+
+      // readCappedBody is defined below (Task 3's hreflang block) but is a
+      // hoisted function declaration, so its physical position in the file
+      // doesn't matter — reused as-is rather than duplicating a second
+      // streamed-body reader with the same 1 MB-vs-256 KB-shaped logic.
+      let html = '';
+      try {
+        html = await readCappedBody(res, RAW_HTML_MAX_BYTES);
+      } catch (e) {
+        // A partial body (the abort firing mid-read, after headers already
+        // arrived) is still useful to diff against — fall through with
+        // whatever was read rather than discarding it.
+      }
+      clearTimeout(timer);
+
+      sendResponse({ status: res.status, finalUrl: res.url || url, html });
+    })();
+    return true;
+  }
+});
+
+// --- User-agent switcher: DNR session rules (Task 4) ---
+//
+// "View as" in the Rendering section. User-initiated only (changing the
+// popup's select) — this never arms itself and never persists past the
+// browser session: chrome.declarativeNetRequest SESSION rules are already
+// scoped to the current browser session, and the tab-close listener below
+// removes a tab's rule (and its chrome.storage.session mirror) the moment
+// that tab closes, rather than waiting for the session to end on its own.
+// Rewriting the User-Agent header needs the optional <all_urls> permission
+// the same way every other fetch/observe feature in this file does — a
+// declarativeNetRequestWithHostAccess modifyHeaders rule only actually
+// takes effect on hosts the extension currently has host access to.
+const uaPresetForTab = new Map(); // tabId -> presetId, mirrored to chrome.storage.session so a worker restart can recover it
+
+function uaStorageKey(tabId) {
+  return `ua:${tabId}`;
+}
+
+async function setUserAgentForTab(tabId, presetId) {
+  const preset = SBWUaSwitch.presetById(presetId);
+  const ruleId = SBWUaSwitch.ruleIdForTab(tabId);
+  const addRules = [];
+  if (preset && preset.ua) {
+    addRules.push(SBWUaSwitch.ruleFor(tabId, preset.ua));
+  }
+
+  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId], addRules });
+
+  if (preset && preset.ua) {
+    uaPresetForTab.set(tabId, preset.id);
+    await chrome.storage.session.set({ [uaStorageKey(tabId)]: preset.id });
+    return preset.id;
+  }
+  uaPresetForTab.delete(tabId);
+  await chrome.storage.session.remove(uaStorageKey(tabId));
+  return 'default';
+}
+
+async function getUserAgentForTab(tabId) {
+  if (uaPresetForTab.has(tabId)) return uaPresetForTab.get(tabId);
+  const key = uaStorageKey(tabId);
+  const stored = await chrome.storage.session.get(key);
+  const presetId = stored && stored[key];
+  if (presetId) uaPresetForTab.set(tabId, presetId);
+  return presetId || 'default';
+}
+
+async function clearUserAgentForTab(tabId) {
+  const ruleId = SBWUaSwitch.ruleIdForTab(tabId);
+  try {
+    await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
+  } catch (e) { /* rule already gone, or DNR unavailable in this context */ }
+  uaPresetForTab.delete(tabId);
+  chrome.storage.session.remove(uaStorageKey(tabId));
+}
+
+// A tab closing while a UA override is active must not leave an orphaned
+// session rule keyed to a tabId Chrome could someday reuse.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearUserAgentForTab(tabId);
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'setUserAgent') {
+    (async () => {
+      const tabId = request.tabId;
+      if (tabId === undefined || tabId === null) {
+        sendResponse({ error: 'invalid_tab' });
+        return;
+      }
+
+      // Switching back to Default never needs the permission check — it
+      // only ever removes a rule, it can't rewrite a header without host
+      // access it may no longer have (e.g. revoked mid-session).
+      if (request.presetId !== 'default') {
+        const allowed = await SBWPerms.hasAllUrls();
+        if (!allowed) {
+          sendResponse({ error: 'no_permission' });
+          return;
+        }
+      }
+
+      let appliedPresetId;
+      try {
+        appliedPresetId = await setUserAgentForTab(tabId, request.presetId);
+      } catch (e) {
+        sendResponse({ error: 'dnr_failed' });
+        return;
+      }
+
+      chrome.tabs.reload(tabId);
+      sendResponse({ ok: true, presetId: appliedPresetId });
+    })();
+    return true;
+  }
+
+  if (request.action === 'getUserAgent') {
+    (async () => {
+      const tabId = request.tabId;
+      if (tabId === undefined || tabId === null) {
+        sendResponse({ presetId: 'default' });
+        return;
+      }
+      sendResponse({ presetId: await getUserAgentForTab(tabId) });
     })();
     return true;
   }

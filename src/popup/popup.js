@@ -383,11 +383,14 @@ function renderResults(data) {
   // (see src/popup/indexability.js). Hreflang mounts next and inserts
   // itself right after Indexability (see src/popup/hreflang.js) — or, with
   // no hreflang tags on the page, adds nothing but a muted line inside Page
-  // Meta instead. Link Check — which just appends to the end of #content —
-  // always ends up last regardless of call order; mounting these first
-  // anyway keeps that intent readable here.
+  // Meta instead. Rendering mounts next and inserts itself right after
+  // Hreflang, falling back the same way (see src/popup/render-check.js).
+  // Link Check — which just appends to the end of #content — always ends up
+  // last regardless of call order; mounting these first anyway keeps that
+  // intent readable here.
   globalThis.SBWIndexabilityUI?.mount(document.getElementById('content'), data);
   globalThis.SBWHreflangUI?.mount(document.getElementById('content'), data);
+  globalThis.SBWRenderCheckUI?.mount(document.getElementById('content'), data);
   globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
 }
 

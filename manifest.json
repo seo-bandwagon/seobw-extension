@@ -13,7 +13,8 @@
     "tabs",
     "alarms",
     "webRequest",
-    "webNavigation"
+    "webNavigation",
+    "declarativeNetRequestWithHostAccess"
   ],
   "options_page": "src/options/options.html",
   "host_permissions": [

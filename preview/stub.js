@@ -310,6 +310,24 @@ function chainFixture(rawEvents) {
 // return tag — this is the one `hreflang-checked` asserts as `.hf-return.bad`),
 // and `fr` 404s (unreachable). SEO_FIXTURE.url is the "en-US" self-reference
 // each alternate's own set would need to point back to for a real `yes`.
+// Rendering panel (Task 4, src/popup/render-check.js, src/lib/html-diff.js):
+// fixture for `fetchRawHtml`. Deliberately has NO <h1> at all (the DOM
+// analysis below has one — SEO_FIXTURE.headings.h1) and a DIFFERENT
+// canonical than SEO_FIXTURE.meta.canonical, so a real
+// SBWHtmlDiff.diffSummaries() call over this fixture renders a genuine
+// `.rc-row` table with a js-only h1 row, a changed canonical row, and a
+// `js-rendered` verdict — none of that is faked by the stub itself.
+const RAW_HTML_FIXTURE = `<!DOCTYPE html>
+<html><head>
+<title>Family Dentistry in North Austin | Northside Dental Co.</title>
+<meta name="description" content="Gentle family dentistry in North Austin. Same-week appointments.">
+<link rel="canonical" href="https://northsidedental.com/old-canonical">
+<meta name="robots" content="index, follow">
+</head>
+<body>
+<div id="root"><p>Loading…</p></div>
+</body></html>`;
+
 const HREFLANG_FETCHED = [
   {
     url: 'https://northsidedental.com/en/austin-dentist', status: 200,
@@ -494,6 +512,14 @@ window.chrome = {
     onCommitted: { addListener() {}, removeListener() {} },
     onCompleted: { addListener() {}, removeListener() {} }
   },
+  // Task 4: the UA switcher's DNR session rules. Nothing in this offline
+  // harness ever inspects a real rule — render-check.js only reads the
+  // setUserAgent/getUserAgent message replies above — so this only needs to
+  // exist and resolve, matching the real chrome.declarativeNetRequest API
+  // shape closely enough that nothing throws if it's ever called directly.
+  declarativeNetRequest: {
+    updateSessionRules: () => Promise.resolve()
+  },
   // src/lib/perms.js's SBWPerms.hasAllUrls()/requestAllUrls() — granted in
   // every state except `link-check-noperm`, which exists to show the
   // permission card (`.lc-perm-card`).
@@ -545,6 +571,19 @@ function handleMessage(msg) {
     // reciprocal, es missing the return tag, fr 404).
     case 'checkHreflangAlternates':
       return { fetched: HREFLANG_FETCHED };
+    // Rendering panel (Task 4, src/popup/render-check.js) — `fetchRawHtml`
+    // always replies with RAW_HTML_FIXTURE above, regardless of which URL
+    // was asked for; `setUserAgent` echoes back whatever presetId it was
+    // sent (mirroring the real worker's reply shape) and `getUserAgent`
+    // is pre-seeded active for the `render-ua` state only, since this
+    // click-only harness has no way to drive a real <select> change event
+    // the way `render-diff` drives its button click.
+    case 'fetchRawHtml':
+      return { status: 200, finalUrl: msg.url, html: RAW_HTML_FIXTURE };
+    case 'setUserAgent':
+      return { ok: true, presetId: msg.presetId || 'default' };
+    case 'getUserAgent':
+      return { presetId: PREVIEW_STATE === 'render-ua' ? 'googlebot-desktop' : 'default' };
     default: return {};
   }
 }
@@ -694,7 +733,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked'];
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();

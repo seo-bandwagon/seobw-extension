@@ -77,6 +77,25 @@ policy above.
   host / 4 global concurrency, 10 s timeout, at most 256 KB of body read per
   page) and reports whether each one's own hreflang set links back to this
   page (yes / no / unreachable), exporting to CSV.
+- **HTML vs rendered DOM diff + user-agent switcher** (`src/popup/
+  render-check.js`, new "RENDERING" section directly after Hreflang;
+  `src/lib/html-diff.js`, `src/lib/ua-switch.js`) — "Compare raw HTML with
+  rendered DOM" fetches the current tab's own URL a second time from the
+  background worker (unrendered; same optional `<all_urls>` gate, 10 s
+  timeout, 1 MB body cap) and diffs it field-by-field against the page's
+  already-computed analysis (title, meta description, canonical, robots,
+  H1–H6 counts, link/image/JSON-LD counts, approximate word count, hreflang
+  count), rendering a static/hydrated/JavaScript-rendered verdict and
+  exporting the row table to CSV. "View as" adds a preset selector
+  (Googlebot Desktop, Googlebot Smartphone, Bingbot, iPhone Safari, or
+  Default) that rewrites the User-Agent header for exactly the current tab
+  via a `declarativeNetRequest` session rule and reloads it — for testing
+  server-side rendering and cloaking, never for bypassing a paywall or
+  "seeing Google as a bot." The rule is removed the moment you switch back
+  to Default or close the tab; a badge chip on the section header shows
+  when an override is still active. New manifest permission:
+  `declarativeNetRequestWithHostAccess` (works with the same optional
+  `<all_urls>` grant; no static rulesets ship with the extension).
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension
