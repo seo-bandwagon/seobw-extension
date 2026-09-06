@@ -345,7 +345,7 @@ async function checkShellDrift(realUrl, previewUrl, label) {
 // footer text against it — catches a broken `stampVersion()` or a missing
 // `#versionTag` element in the popup fixture.
 async function checkReleaseVersion() {
-  const manifest = await (await fetch('../manifest.json')).json();
+  const manifest = await (await fetch('../extension/manifest.json')).json();
   const expected = 'v' + manifest.version;
 
   const f = document.createElement('iframe');
@@ -368,8 +368,8 @@ async function checkReleaseVersion() {
 }
 
 (async () => {
-  await checkShellDrift('../src/popup/popup.html', 'popup.html', 'popup');
-  await checkShellDrift('../src/sidepanel/sidepanel.html', 'sidepanel.html', 'sidepanel');
+  await checkShellDrift('../extension/src/popup/popup.html', 'popup.html', 'popup');
+  await checkShellDrift('../extension/src/sidepanel/sidepanel.html', 'sidepanel.html', 'sidepanel');
   await checkReleaseVersion();
   for (const c of CASES) await run(c);
   lines.push('', failures ? `${failures} FAILING` : 'ALL PASS');

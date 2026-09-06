@@ -29,7 +29,7 @@ Search "SEO Bandwagon" in the Chrome Web Store, or use the one-click "Connect Ch
 1. Clone this repo
 2. Open Chrome → `chrome://extensions/`
 3. Enable "Developer mode" (top right)
-4. Click "Load unpacked" → select this folder
+4. Click "Load unpacked" → select the `extension/` folder (the only folder that ships; everything else in this repo is tests, preview pages, docs and scripts)
 5. Pin the extension to your toolbar
 
 **Testing the one-click "Connect Chrome extension" flow on an unpacked build**: the dashboard's connect button targets the published extension's fixed id (`dphmaddiedhkejfhabkfdenfphjljioj`), but Chrome assigns an unpacked load a random id unless `manifest.json` declares a `"key"`. To test the real one-click flow locally, paste the public key from the Chrome Web Store developer dashboard (your item → Package → View public key) into `manifest.json`'s `"key"` field on your own machine — don't invent one, and don't commit it. Otherwise, skip the one-click flow in dev and use manual key paste in Options instead; it exercises the same `SBW.verifyKey()` path.
@@ -282,38 +282,40 @@ Every analyzed page saves to `chrome.storage.local` immediately — no network r
 ## Files
 
 ```
-manifest.json           # Extension config (Manifest V3)
-lib/                     # Shared pure modules (content-analysis, dom-extraction) injected before analyzer.js
-src/
-  background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler,
-                         # redirect tracer (webRequest/webNavigation, gated on <all_urls>), raw-HTML fetch
-                         # and per-tab UA-switch DNR session rules (declarativeNetRequestWithHostAccess)
-  content/                # Page analyzer + GSC Search Console helper
-  history/                # Capture history page (search, export, sync, retry)
-  lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
-                           # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
-                           # gsc-inject.js + gsc-compare.js (Search Console helpers)
-                           # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
-                           # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
-                           # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
-                           # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js
-                           # (user-agent presets + DNR rule shape), structured-data.js (JSON-LD/microdata/
-                           # RDFa extraction + required/recommended validation, no fetch), credits.js
-                           # (attribution data for the popup's About & credits panel), tool-links.js
-                           # (context-menu/TOOLS-row URL builder), review-prompt.js (one-time
-                           # review-prompt state machine)
-  options/                # Settings page (API key, Advanced endpoint, dashboard links)
-  overlay/                # SERP overlay content script (see "SERP overlay" above)
-  popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
-                           # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
-                           # + hreflang.js (Hreflang section — tag table, return-tag check)
-                           # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
-                           # + structured-data.js (Structured Data section — item/problem list, "Eligible
-                           # for", CSV export, and the footer's About & credits panel)
-                           # + tools.js (TOOLS row under the header) + review.js (the review-prompt strip)
-  sidepanel/              # Side panel: Citations mode + Link Building mode
-  styles/                 # popup.css (shared across popup/side panel/history/options)
-  icons/
+extension/               # the only folder that ships (load unpacked from here; `npm run zip` zips it)
+  manifest.json           # Extension config (Manifest V3)
+  lib/                     # Shared pure modules (content-analysis, dom-extraction) injected before analyzer.js
+  src/
+    background/            # Service worker: context menus, badge, capture-sync alarm, external connect handler,
+                           # redirect tracer (webRequest/webNavigation, gated on <all_urls>), raw-HTML fetch
+                           # and per-tab UA-switch DNR session rules (declarativeNetRequestWithHostAccess)
+    content/                # Page analyzer + GSC Search Console helper
+    history/                # Capture history page (search, export, sync, retry)
+    lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
+                             # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
+                             # gsc-inject.js + gsc-compare.js (Search Console helpers)
+                             # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
+                             # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
+                             # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
+                             # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js
+                             # (user-agent presets + DNR rule shape), structured-data.js (JSON-LD/microdata/
+                             # RDFa extraction + required/recommended validation, no fetch), credits.js
+                             # (attribution data for the popup's About & credits panel), tool-links.js
+                             # (context-menu/TOOLS-row URL builder), review-prompt.js (one-time
+                             # review-prompt state machine)
+    options/                # Settings page (API key, Advanced endpoint, dashboard links)
+    overlay/                # SERP overlay content script (see "SERP overlay" above)
+    popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
+                             # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
+                             # + hreflang.js (Hreflang section — tag table, return-tag check)
+                             # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
+                             # + structured-data.js (Structured Data section — item/problem list, "Eligible
+                             # for", CSV export, and the footer's About & credits panel)
+                             # + tools.js (TOOLS row under the header) + review.js (the review-prompt strip)
+    sidepanel/              # Side panel: Citations mode + Link Building mode
+    styles/                 # popup.css (shared across popup/side panel/history/options)
+    icons/
+tests/ preview/ docs/ scripts/   # not shipped
 ```
 
 ## Development

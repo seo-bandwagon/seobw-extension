@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-await import('../../src/lib/link-building-ui.js');
+await import('../../extension/src/lib/link-building-ui.js');
 const LB = globalThis.SBWLinkBuildingUI;
 
 describe('SBWLinkBuildingUI — dual export', () => {

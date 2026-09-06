@@ -24,8 +24,12 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ZIP = path.resolve(ROOT, process.argv[2] || 'seo-bw-extension.zip');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The shippable extension lives in extension/; the zip is built from inside
+// that folder, so entries are relative to it. The zip file itself lands at
+// the repo root.
+const ROOT = path.join(REPO, 'extension');
+const ZIP = path.resolve(REPO, process.argv[2] || 'seo-bw-extension.zip');
 
 const HTML_ENTRY_POINTS = [
   'src/popup/popup.html',
@@ -45,7 +49,7 @@ function isLocal(ref) {
 
 // Resolve a reference found inside `fromFile` to a path relative to ROOT,
 // matching how the zip (built with `zip -r ... manifest.json lib/ src/ ...`
-// from the repo root) stores entries.
+// from inside extension/) stores entries.
 function resolveRef(fromFile, ref) {
   const abs = path.resolve(path.dirname(fromFile), ref);
   return path.relative(ROOT, abs);

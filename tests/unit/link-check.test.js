@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWLinkCheck` rather than an ESM default export.
-await import('../../src/lib/link-check.js');
+await import('../../extension/src/lib/link-check.js');
 const SBWLinkCheck = globalThis.SBWLinkCheck;
 
 describe('SBWLinkCheck namespace', () => {

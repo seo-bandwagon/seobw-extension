@@ -9,8 +9,8 @@ import { describe, it, expect } from 'vitest';
 // SBWSchema must be loaded first — src/lib/credits.js reads
 // globalThis.SBWSchema.SOURCE_URLS at load time (see popup.html's script
 // order: structured-data.js then credits.js).
-await import('../../src/lib/structured-data.js');
-await import('../../src/lib/credits.js');
+await import('../../extension/src/lib/structured-data.js');
+await import('../../extension/src/lib/credits.js');
 const SBWCredits = globalThis.SBWCredits;
 const SBWSchema = globalThis.SBWSchema;
 

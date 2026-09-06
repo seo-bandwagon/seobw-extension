@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="../src/styles/popup.css">
+  <link rel="stylesheet" href="../extension/src/styles/popup.css">
   <script src="stub.js"></script>
 </head>
 <body class="page-popup">
@@ -41,12 +41,12 @@
 
   <div class="credits" id="creditsPanel" hidden></div>
 
-  <script src="../src/lib/sync-state.js"></script>
-  <script src="../src/lib/api.js"></script>
-  <script src="../src/lib/citations-ui.js"></script>
-  <script src="../src/lib/options-logic.js"></script>
-  <script src="../src/lib/link-building-ui.js"></script>
-  <script src="../src/lib/domain-history.js"></script>
+  <script src="../extension/src/lib/sync-state.js"></script>
+  <script src="../extension/src/lib/api.js"></script>
+  <script src="../extension/src/lib/citations-ui.js"></script>
+  <script src="../extension/src/lib/options-logic.js"></script>
+  <script src="../extension/src/lib/link-building-ui.js"></script>
+  <script src="../extension/src/lib/domain-history.js"></script>
   <script>
     // popup.js's top-level chrome.tabs.query(...) callback runs synchronously
     // at parse time (like sidepanel.js's initSidePanel(), see sidepanel.html)
@@ -55,29 +55,29 @@
     // stubs, so install them here instead.
     installSbwStubs();
   </script>
-  <script src="../src/lib/nap-compare.js"></script>
-  <script src="../src/lib/directory-matcher.js"></script>
-  <script src="../src/popup/popup.js"></script>
-  <script src="../src/popup/citations-tab.js"></script>
-  <script src="../src/lib/perms.js"></script>
-  <script src="../src/lib/csv.js"></script>
-  <script src="../src/lib/export-rows.js"></script>
-  <script src="../src/lib/link-check.js"></script>
-  <script src="../src/popup/link-check.js"></script>
-  <script src="../src/lib/redirect-chain.js"></script>
-  <script src="../src/popup/indexability.js"></script>
-  <script src="../src/lib/hreflang.js"></script>
-  <script src="../src/popup/hreflang.js"></script>
-  <script src="../src/lib/html-diff.js"></script>
-  <script src="../src/lib/ua-switch.js"></script>
-  <script src="../src/popup/render-check.js"></script>
-  <script src="../src/lib/structured-data.js"></script>
-  <script src="../src/lib/capture-strip.js"></script>
-  <script src="../src/lib/credits.js"></script>
-  <script src="../src/popup/structured-data.js"></script>
-  <script src="../src/lib/tool-links.js"></script>
-  <script src="../src/popup/tools.js"></script>
-  <script src="../src/lib/review-prompt.js"></script>
-  <script src="../src/popup/review.js"></script>
+  <script src="../extension/src/lib/nap-compare.js"></script>
+  <script src="../extension/src/lib/directory-matcher.js"></script>
+  <script src="../extension/src/popup/popup.js"></script>
+  <script src="../extension/src/popup/citations-tab.js"></script>
+  <script src="../extension/src/lib/perms.js"></script>
+  <script src="../extension/src/lib/csv.js"></script>
+  <script src="../extension/src/lib/export-rows.js"></script>
+  <script src="../extension/src/lib/link-check.js"></script>
+  <script src="../extension/src/popup/link-check.js"></script>
+  <script src="../extension/src/lib/redirect-chain.js"></script>
+  <script src="../extension/src/popup/indexability.js"></script>
+  <script src="../extension/src/lib/hreflang.js"></script>
+  <script src="../extension/src/popup/hreflang.js"></script>
+  <script src="../extension/src/lib/html-diff.js"></script>
+  <script src="../extension/src/lib/ua-switch.js"></script>
+  <script src="../extension/src/popup/render-check.js"></script>
+  <script src="../extension/src/lib/structured-data.js"></script>
+  <script src="../extension/src/lib/capture-strip.js"></script>
+  <script src="../extension/src/lib/credits.js"></script>
+  <script src="../extension/src/popup/structured-data.js"></script>
+  <script src="../extension/src/lib/tool-links.js"></script>
+  <script src="../extension/src/popup/tools.js"></script>
+  <script src="../extension/src/lib/review-prompt.js"></script>
+  <script src="../extension/src/popup/review.js"></script>
 </body>
 </html>

@@ -160,7 +160,7 @@ const SHOT = makeShot();
 const MANIFEST = (() => {
   try {
     const r = new XMLHttpRequest();
-    r.open('GET', '../manifest.json', false);
+    r.open('GET', '../extension/manifest.json', false);
     r.send();
     return JSON.parse(r.responseText);
   } catch (e) {

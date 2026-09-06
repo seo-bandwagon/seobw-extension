@@ -2,7 +2,7 @@
 // Covers: scoring, readability math, word/phrase extraction, n-grams.
 
 import { describe, it, expect } from 'vitest';
-import analysis from '../../lib/content-analysis.js';
+import analysis from '../../extension/lib/content-analysis.js';
 
 const {
   calculateSEOScore,

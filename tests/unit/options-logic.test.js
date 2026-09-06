@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-await import('../../src/lib/options-logic.js');
+await import('../../extension/src/lib/options-logic.js');
 const SBWOptions = globalThis.SBWOptions;
 
 describe('SBWOptions — dual export', () => {

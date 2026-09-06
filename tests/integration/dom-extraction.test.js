@@ -15,8 +15,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
-import extraction from '../../lib/dom-extraction.js';
-import analysis from '../../lib/content-analysis.js';
+import extraction from '../../extension/lib/dom-extraction.js';
+import analysis from '../../extension/lib/content-analysis.js';
 
 const { extractMeta, extractHeadings, extractLinks, extractImages, extractTechnical, getMainContent } = extraction;
 const { calculateSEOScore, cleanText, getWords, calculateReadability } = analysis;

@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWUaSwitch` rather than an ESM default export.
-await import('../../src/lib/ua-switch.js');
+await import('../../extension/src/lib/ua-switch.js');
 const SBWUaSwitch = globalThis.SBWUaSwitch;
 
 describe('SBWUaSwitch namespace', () => {

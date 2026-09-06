@@ -1,7 +1,7 @@
 // Unit tests for Search Console compare-mode math (src/lib/gsc-compare.js).
 import { describe, it, expect, beforeEach } from 'vitest';
 
-await import('../../src/lib/gsc-compare.js');
+await import('../../extension/src/lib/gsc-compare.js');
 const C = globalThis.SBWGscCompare;
 
 describe('parseMetric', () => {

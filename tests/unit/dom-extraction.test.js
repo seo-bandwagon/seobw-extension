@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { JSDOM } from 'jsdom';
-import extraction from '../../lib/dom-extraction.js';
+import extraction from '../../extension/lib/dom-extraction.js';
 
 const { extractHeadings, extractLinks, extractImages, relTokens, isNofollowFamily } = extraction;
 

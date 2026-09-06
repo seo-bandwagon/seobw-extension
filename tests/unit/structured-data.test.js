@@ -12,7 +12,7 @@ import { JSDOM } from 'jsdom';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWSchema` rather than an ESM default export.
-await import('../../src/lib/structured-data.js');
+await import('../../extension/src/lib/structured-data.js');
 const SBWSchema = globalThis.SBWSchema;
 
 function parseFragment(html) {

@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 // Dual-export pattern (see src/lib/api.js, src/lib/sync-state.js) — the module
 // attaches itself to `globalThis.SBWDomainHistory` rather than relying on an
 // ESM default export, so tests read it off globalThis after importing.
-await import('../../src/lib/domain-history.js');
+await import('../../extension/src/lib/domain-history.js');
 const SBWDomainHistory = globalThis.SBWDomainHistory;
 
 const NOW = 1_700_000_000_000;

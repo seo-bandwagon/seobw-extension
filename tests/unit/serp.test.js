@@ -10,13 +10,13 @@ import { JSDOM } from 'jsdom';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWSerp` rather than an ESM default export.
-await import('../../src/lib/serp.js');
+await import('../../extension/src/lib/serp.js');
 const SBWSerp = globalThis.SBWSerp;
 
 // Fix round 1, item 13: pins SBWSerp's formula-injection guard against
 // SBWCsv's (src/lib/csv.js) — both must treat the same hostile/plain
 // prefixes identically.
-await import('../../src/lib/csv.js');
+await import('../../extension/src/lib/csv.js');
 const SBWCsv = globalThis.SBWCsv;
 
 function parseFragment(html) {
