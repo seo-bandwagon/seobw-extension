@@ -1071,6 +1071,13 @@ body {
 .sd-copy-btn:hover { border-color: var(--pink); color: var(--white); }
 
 .sd-chips-required, .sd-chips-recommended { padding: 8px 0 0; }
+.sd-retired-note {
+  padding: 6px 0 0;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--paper-50);
+}
 .sd-problems {
   margin: 8px 0 0;
   padding: 0 0 0 16px;

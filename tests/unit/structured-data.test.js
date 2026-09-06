@@ -260,7 +260,7 @@ describe('validateItem', () => {
       type: 'Article', source: 'json-ld',
       properties: { headline: 'H', image: 'https://x.com/i.jpg', author: 'A', datePublished: 'January 1st 2026' }
     });
-    expect(v.problems).toContain('datePublished not ISO 8601');
+    expect(v.problems).toContain('datePublished not an ISO 8601 date');
   });
 
   it('accepts a full ISO 8601 datetime for datePublished', () => {
@@ -268,7 +268,7 @@ describe('validateItem', () => {
       type: 'Article', source: 'json-ld',
       properties: { headline: 'H', image: 'https://x.com/i.jpg', author: 'A', datePublished: '2026-01-01T09:00:00Z' }
     });
-    expect(v.problems).not.toContain('datePublished not ISO 8601');
+    expect(v.problems).not.toContain('datePublished not an ISO 8601 date');
   });
 
   it('flags an image that is not a URL or ImageObject', () => {
@@ -367,12 +367,28 @@ describe('validateAll', () => {
     expect(result.eligible).not.toContain('Product');
   });
 
-  it('maps FAQPage/VideoObject/BreadcrumbList to the FAQ/Video/Breadcrumb feature names', () => {
+  // Fix round 1, CRITICAL 2b: FAQ and How-to rich results are discontinued
+  // (verified live 2026-09-06) — a complete FAQPage/HowTo item is still
+  // validated as markup (no problems, required set satisfied) but no
+  // longer appears in `eligible`. VideoObject/BreadcrumbList are unaffected.
+  it('maps VideoObject/BreadcrumbList to the Video/Breadcrumb feature names, but never lists FAQ (retired rich result)', () => {
     const faq = { type: 'FAQPage', source: 'json-ld', properties: { mainEntity: [{ name: 'Q', acceptedAnswer: { text: 'A' } }] } };
     const video = { type: 'VideoObject', source: 'json-ld', properties: { name: 'V', description: 'D', thumbnailUrl: 'https://x.com/t.jpg', uploadDate: '2026-01-01' } };
     const crumb = { type: 'BreadcrumbList', source: 'json-ld', properties: { itemListElement: [{ position: 1 }] } };
     const result = SBWSchema.validateAll([faq, video, crumb]);
-    expect(result.eligible.sort()).toEqual(['Breadcrumb', 'FAQ', 'Video'].sort());
+    expect(result.eligible.sort()).toEqual(['Breadcrumb', 'Video'].sort());
+    expect(result.eligible).not.toContain('FAQ');
+    const faqItem = result.items.find(i => i.type === 'FAQPage');
+    expect(faqItem.required.missing).toEqual([]);
+  });
+
+  // Fix round 1, CRITICAL 2b: a complete HowTo item is likewise never
+  // eligible (How-to rich results are also discontinued).
+  it('never lists HowTo in eligible even when its required set is complete', () => {
+    const howTo = { type: 'HowTo', source: 'json-ld', properties: { name: 'Fix a leak', step: ['Turn off water', 'Replace washer'] } };
+    const result = SBWSchema.validateAll([howTo]);
+    expect(result.eligible).toEqual([]);
+    expect(result.items[0].required.missing).toEqual([]);
   });
 
   it('returns empty counts/eligible for an empty item list', () => {
@@ -406,5 +422,236 @@ describe('type tables', () => {
       expect(typeof SBWSchema.SOURCE_URLS[type]).toBe('string');
       expect(SBWSchema.SOURCE_URLS[type].length).toBeGreaterThan(0);
     });
+  });
+
+  // Fix round 1, CRITICAL 2d: every SOURCE_URLS value must be one of the
+  // reviewer's live-verified (2026-09-06) URLs — a new URL has to be added
+  // to this allow-list deliberately, not slip in as a typo or a stale page.
+  it('every SOURCE_URLS value is in the verified allow-list', () => {
+    const GOOGLE_BASE = 'https://developers.google.com/search/docs/appearance/structured-data/';
+    const ALLOWED = new Set([
+      GOOGLE_BASE + 'article',
+      GOOGLE_BASE + 'product',
+      GOOGLE_BASE + 'local-business',
+      GOOGLE_BASE + 'breadcrumb',
+      GOOGLE_BASE + 'recipe',
+      GOOGLE_BASE + 'event',
+      GOOGLE_BASE + 'video',
+      GOOGLE_BASE + 'review-snippet',
+      GOOGLE_BASE + 'job-posting',
+      GOOGLE_BASE + 'organization',
+      'https://schema.org/Person',
+      'https://schema.org/WebPage',
+      'https://schema.org/WebSite',
+      'https://schema.org/FAQPage',
+      'https://schema.org/HowTo',
+      'https://schema.org/docs/terms.html'
+    ]);
+    Object.values(SBWSchema.SOURCE_URLS).forEach(url => {
+      expect(ALLOWED.has(url)).toBe(true);
+    });
+  });
+
+  it('Organization resolves to the Google Search Central organization page (the old /logo page redirects there)', () => {
+    expect(SBWSchema.SOURCE_URLS.Organization).toBe('https://developers.google.com/search/docs/appearance/structured-data/organization');
+  });
+
+  it('WebSite resolves to schema.org and drops potentialAction (sitelinks search box discontinued)', () => {
+    expect(SBWSchema.SOURCE_URLS.WebSite).toBe('https://schema.org/WebSite');
+    expect(SBWSchema.RECOMMENDED.WebSite).not.toContain('potentialAction');
+  });
+
+  it('FAQPage/HowTo keep a schema.org sourceUrl (retired rich result, still valid markup)', () => {
+    expect(SBWSchema.SOURCE_URLS.FAQPage).toBe('https://schema.org/FAQPage');
+    expect(SBWSchema.SOURCE_URLS.HowTo).toBe('https://schema.org/HowTo');
+  });
+});
+
+/* ---------- Fix round 1 (task-5-fix-1-brief.md) ---------- */
+
+describe('CRITICAL 1: schema.org type oracle vs "no required-property spec"', () => {
+  it('a LocalBusiness subtype outside the old hardcoded list (Plumber) gets no problems, the LocalBusiness required set, and is eligible', () => {
+    const v = SBWSchema.validateItem({
+      type: 'Plumber', source: 'json-ld',
+      properties: { name: 'Ace Plumbing', address: '1 Main St', telephone: '555-1000' }
+    });
+    expect(v.problems).toEqual([]);
+    expect(v.required.missing).toEqual([]);
+    expect(SBWSchema.REQUIRED.Plumber).toEqual(SBWSchema.REQUIRED.LocalBusiness);
+
+    const result = SBWSchema.validateAll([{ type: 'Plumber', source: 'json-ld', properties: { name: 'Ace Plumbing', address: '1 Main St', telephone: '555-1000' } }]);
+    expect(result.eligible).toContain('LocalBusiness');
+  });
+
+  it('a real schema.org type with no required-property list (Service) gets a note, no problems, and does not count as an error', () => {
+    const v = SBWSchema.validateItem({ type: 'Service', source: 'json-ld', properties: { name: 'Consulting' } });
+    expect(v.problems).toEqual([]);
+    expect(v.note).toBeTruthy();
+
+    const result = SBWSchema.validateAll([{ type: 'Service', source: 'json-ld', properties: { name: 'Consulting' } }]);
+    expect(result.counts.withErrors).toBe(0);
+  });
+
+  it('flags a genuinely unknown type', () => {
+    const v = SBWSchema.validateItem({ type: 'Foo', source: 'json-ld', properties: {} });
+    expect(v.problems).toContain('Unknown type: Foo');
+  });
+
+  it('resolves a "schema:" prefix and a full schema.org URL to the bare type name', () => {
+    const v1 = SBWSchema.validateItem({ type: 'schema:Person', source: 'json-ld', properties: { name: 'A' } });
+    const v2 = SBWSchema.validateItem({ type: 'https://schema.org/Person', source: 'json-ld', properties: { name: 'A' } });
+    expect(v1.type).toBe('Person');
+    expect(v1.problems).not.toContain('Unknown type: schema:Person');
+    expect(v2.type).toBe('Person');
+    expect(v2.problems).not.toContain('Unknown type: https://schema.org/Person');
+  });
+});
+
+describe('IMPORTANT 3: extractJsonLd recurses through nested/array @graph', () => {
+  it('a @graph member that is itself an array is flattened (Person found)', () => {
+    const items = SBWSchema.extractJsonLd([
+      JSON.stringify({ '@graph': [[{ '@type': 'Person', name: 'Array Nested' }]] })
+    ]);
+    expect(items.some(i => i.type === 'Person' && i.properties.name === 'Array Nested')).toBe(true);
+    expect(items.some(i => i.type === undefined)).toBe(false);
+  });
+
+  it('a @graph member that itself carries @graph is flattened (Person found)', () => {
+    const items = SBWSchema.extractJsonLd([
+      JSON.stringify({ '@graph': [{ '@graph': [{ '@type': 'Person', name: 'Graph Nested' }] }] })
+    ]);
+    expect(items.some(i => i.type === 'Person' && i.properties.name === 'Graph Nested')).toBe(true);
+    expect(items.some(i => i.type === undefined)).toBe(false);
+  });
+});
+
+describe('IMPORTANT 4: checkOffers — all offers, AggregateOffer, priceSpecification', () => {
+  it('a valid AggregateOffer (lowPrice + priceCurrency) is not flagged', () => {
+    const v = SBWSchema.validateItem({
+      type: 'Product', source: 'json-ld',
+      properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { '@type': 'AggregateOffer', lowPrice: '9.99', highPrice: '19.99', priceCurrency: 'USD' } }
+    });
+    expect(v.problems.filter(p => /offers/.test(p))).toEqual([]);
+  });
+
+  it('an AggregateOffer missing lowPrice is flagged for lowPrice, not price', () => {
+    const v = SBWSchema.validateItem({
+      type: 'Product', source: 'json-ld',
+      properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD' } }
+    });
+    expect(v.problems).toContain('offers[0] missing lowPrice');
+    expect(v.problems).not.toContain('offers[0] missing price');
+  });
+
+  it('a plain Offer with priceSpecification (no price) counts as priced', () => {
+    const v = SBWSchema.validateItem({
+      type: 'Product', source: 'json-ld',
+      properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { priceSpecification: { price: '9.99', priceCurrency: 'USD' }, priceCurrency: 'USD' } }
+    });
+    expect(v.problems.filter(p => /missing price\b/.test(p))).toEqual([]);
+  });
+
+  it('iterates every offer in an array, emitting exactly one indexed message for the offending one', () => {
+    const v = SBWSchema.validateItem({
+      type: 'Product', source: 'json-ld',
+      properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: [{ price: '9.99', priceCurrency: 'USD' }, { priceCurrency: 'USD' }] }
+    });
+    expect(v.problems).toEqual(['offers[1] missing price']);
+  });
+});
+
+describe('IMPORTANT 5: stripForStorage', () => {
+  it('removes properties from every item but leaves counts/eligible untouched', () => {
+    const result = SBWSchema.validateAll([
+      { type: 'Article', source: 'json-ld', properties: { headline: 'H', image: 'https://x.com/i.jpg', datePublished: '2026-01-01', author: 'A' } },
+      { source: 'json-ld', error: 'bad', snippet: '{ bad' }
+    ]);
+    const stripped = SBWSchema.stripForStorage(result);
+    stripped.items.forEach(item => {
+      expect(item).not.toHaveProperty('properties');
+    });
+    expect(stripped.counts).toEqual(result.counts);
+    expect(stripped.eligible).toEqual(result.eligible);
+    // original is untouched (popup keeps the in-memory copy for Copy JSON-LD)
+    expect(result.items[0].properties).toBeTruthy();
+  });
+});
+
+describe('IMPORTANT 6: microdata itemref', () => {
+  it('resolves a property referenced by itemref elsewhere in the document', () => {
+    const doc = parseFragment(`
+      <div itemscope itemtype="https://schema.org/Product" itemref="sku-el">
+        <span itemprop="name">Widget</span>
+      </div>
+      <span id="sku-el" itemprop="sku">ABC123</span>
+    `);
+    const items = SBWSchema.extractMicrodata(doc);
+    expect(items.length).toBe(1);
+    expect(items[0].properties.sku).toBe('ABC123');
+  });
+
+  it('does not loop forever on a cyclic itemref', () => {
+    const doc = parseFragment(`
+      <div id="a" itemscope itemtype="https://schema.org/Product" itemref="b">
+        <span itemprop="name">Widget</span>
+      </div>
+      <div id="b" itemprop="offers" itemscope itemtype="https://schema.org/Offer" itemref="a">
+        <span itemprop="price">9.99</span>
+      </div>
+    `);
+    expect(() => SBWSchema.extractMicrodata(doc)).not.toThrow();
+  });
+});
+
+describe('IMPORTANT 7: microdata URL values resolve against the document', () => {
+  it('resolves a relative href to an absolute URL', () => {
+    const dom = new JSDOM(
+      '<!doctype html><body><div itemscope itemtype="https://schema.org/Person"><a itemprop="url" href="/relative">Profile</a></div></body>',
+      { url: 'https://example.com/page' }
+    );
+    const items = SBWSchema.extractMicrodata(dom.window.document);
+    expect(items[0].properties.url).toBe('https://example.com/relative');
+  });
+});
+
+describe('MINOR 10: ISO_8601_RE accepts year/year-month, sanity-checks full dates', () => {
+  it('accepts a bare year and a year-month', () => {
+    const v1 = SBWSchema.validateItem({ type: 'Article', source: 'json-ld', properties: { headline: 'H', image: 'https://x.com/i.jpg', author: 'A', datePublished: '2026' } });
+    const v2 = SBWSchema.validateItem({ type: 'Article', source: 'json-ld', properties: { headline: 'H', image: 'https://x.com/i.jpg', author: 'A', datePublished: '2026-06' } });
+    expect(v1.problems).not.toContain('datePublished not an ISO 8601 date');
+    expect(v2.problems).not.toContain('datePublished not an ISO 8601 date');
+  });
+
+  it('rejects a calendar-invalid full date (Feb 30) even though it matches the ISO shape', () => {
+    const v = SBWSchema.validateItem({ type: 'Article', source: 'json-ld', properties: { headline: 'H', image: 'https://x.com/i.jpg', author: 'A', datePublished: '2026-02-30' } });
+    expect(v.problems).toContain('datePublished not an ISO 8601 date');
+  });
+});
+
+describe('MINOR 11: extractJsonLd strips a wrapping HTML comment or CDATA section', () => {
+  it('strips a wrapping HTML comment before parsing', () => {
+    const items = SBWSchema.extractJsonLd(['<!-- ' + JSON.stringify({ '@type': 'Article', headline: 'Commented' }) + ' -->']);
+    expect(items.length).toBe(1);
+    expect(items[0].error).toBeFalsy();
+    expect(items[0].properties.headline).toBe('Commented');
+  });
+
+  it('strips a wrapping CDATA section before parsing', () => {
+    const items = SBWSchema.extractJsonLd(['//<![CDATA[\n' + JSON.stringify({ '@type': 'Article', headline: 'CDATA' }) + '\n//]]>']);
+    expect(items.length).toBe(1);
+    expect(items[0].error).toBeFalsy();
+    expect(items[0].properties.headline).toBe('CDATA');
+  });
+});
+
+describe('MINOR 13: AggregateRating.required drops itemReviewed only when nested', () => {
+  it('requires itemReviewed for a top-level AggregateRating item', () => {
+    const v = SBWSchema.validateItem({ type: 'AggregateRating', source: 'json-ld', properties: { ratingValue: '4.5' } });
+    expect(v.required.missing).toContain('itemReviewed');
+  });
+
+  it('does not require itemReviewed when validated as a nested value', () => {
+    const v = SBWSchema.validateItem({ type: 'AggregateRating', source: 'json-ld', properties: { ratingValue: '4.5' } }, { nested: true });
+    expect(v.required.missing).not.toContain('itemReviewed');
   });
 });

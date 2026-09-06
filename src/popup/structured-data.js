@@ -40,8 +40,22 @@
     return globalThis.SBWPopup || {};
   }
 
+  // Fix round 1, MINOR 9: the identity fallback (x => String(x)) rendered
+  // any of & < > " ' straight into the DOM verbatim whenever SBWPopup
+  // hadn't loaded — a real escape function, not just a type coercion, so
+  // this section is never the one place that skips the "every string
+  // reaching the DOM passes through esc" rule.
+  function escFallback(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function esc(s) {
-    return (popup().esc || (x => String(x)))(s);
+    return (popup().esc || escFallback)(s);
   }
 
   function truncateMiddle(s, max) {
@@ -87,8 +101,17 @@
 
   /* ---------- render ---------- */
 
+  const EMPTY_SCHEMA_DATA = { items: [], counts: { byType: {}, bySource: {}, withErrors: 0 }, eligible: [] };
+
+  // Fix round 1, MINOR 8: only trust data.schemaValidation when it actually
+  // has the { items, counts } shape validateAll() produces — a malformed or
+  // partial cached-analysis object should render as "no structured data"
+  // rather than throw part-way through renderBody() (e.g. `.filter` on a
+  // non-array `items`).
   function schemaData() {
-    return (pageData && pageData.schemaValidation) || { items: [], counts: { byType: {}, bySource: {}, withErrors: 0 }, eligible: [] };
+    const sd = pageData && pageData.schemaValidation;
+    if (sd && Array.isArray(sd.items) && sd.counts && typeof sd.counts === 'object') return sd;
+    return EMPTY_SCHEMA_DATA;
   }
 
   function render() {
@@ -157,6 +180,8 @@
       ${missingRequired.length ? `<div class="sd-chips sd-chips-required">${missingRequired.map(f => `<span class="sd-chip sd-chip-bad">${esc(f)}</span>`).join('')}</div>` : ''}
       ${missingRecommended.length ? `<div class="sd-chips sd-chips-recommended">${missingRecommended.map(f => `<span class="sd-chip sd-chip-muted">${esc(f)}</span>`).join('')}</div>` : ''}
       ${problems.length ? `<ul class="sd-problems">${problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+      ${item.retiredRichResult ? `<div class="sd-retired-note">Valid markup; Google no longer shows a rich result for this type</div>` : ''}
+      ${item.note ? `<div class="sd-retired-note">${esc(item.note)}</div>` : ''}
     </div>`;
   }
 

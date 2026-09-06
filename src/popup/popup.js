@@ -139,7 +139,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     // pure-logic filter in SBWDomainHistory.summarize() is the second,
     // ordering-independent guard against the same race.
     loadDomainHistory(tab, response, analysisStartedAt);
-    autoSaveCapture(response);
+    autoSaveCapture(stripSchemaPropertiesForStorage(response));
 
     chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data: response });
 
@@ -497,6 +497,22 @@ function setSeoStatus(msg, type) {
   el.textContent = msg;
   el.className = 'status' + (type ? ' ' + type : '');
   if (msg) setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 2200);
+}
+
+// Fix round 1, IMPORTANT 5: a synced capture uploads structured-data type
+// names and property NAMES (for the missing-required/recommended chips and
+// the "Eligible for" rollup) but never property VALUES — those can carry
+// anything a page author put in JSON-LD/microdata/RDFa (reviewer PII,
+// pricing, internal SKUs). Only the copy handed to autoSaveCapture/
+// autoSaveLocal is stripped; `pageData` (module-level, set from the same
+// `response` right before this call) keeps its `properties` intact so
+// structured-data.js's "Copy JSON-LD" button still has the real data to
+// copy.
+function stripSchemaPropertiesForStorage(data) {
+  if (!data || !data.schemaValidation) return data;
+  const stripFn = globalThis.SBWSchema && globalThis.SBWSchema.stripForStorage;
+  const strippedSchema = stripFn ? stripFn(data.schemaValidation) : data.schemaValidation;
+  return Object.assign({}, data, { schemaValidation: strippedSchema });
 }
 
 async function autoSaveCapture(data) {

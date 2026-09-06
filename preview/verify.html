@@ -124,8 +124,12 @@ const CASES = [
   // (`.credits:not([hidden])`, not just that the — always-present-but-
   // hidden — container exists) with real per-type rows inside it.
   { q: 'popup.html?state=schema-mixed',
-    need: ['.seo-hero', '.sd-item', '.sd-eligible'],
-    text: ['Article', 'Product', 'LocalBusiness', 'Person', 'Eligible for'] },
+    need: ['.seo-hero', '.sd-item', '.sd-eligible', '.sd-errors'],
+    // Fix round 1, MINOR 12: withErrors is 2 (the Product missing `offers`
+    // plus the one JSON-LD parse error) — computed via SBWSchema.validateAll
+    // over stub.js's fixture, not guessed; a badge regression that starts
+    // reporting the wrong count fails this the same way a missing item would.
+    text: ['Article', 'Product', 'LocalBusiness', 'Person', 'Eligible for', '2 ITEMS WITH ERRORS'] },
   { q: 'popup.html?state=credits',
     need: ['.seo-hero', '.credits:not([hidden])', '.credits-type'],
     click: '#creditsLink',

@@ -99,24 +99,38 @@ policy above.
 - **Structured data validation** (`src/popup/structured-data.js`, new
   "STRUCTURED DATA" section directly after Rendering; `src/lib/
   structured-data.js`) — the content script now extracts every JSON-LD
-  `<script>` block (flattening `@graph` and top-level arrays, capturing a
-  parse error as its own item rather than dropping the whole block), every
-  WHATWG microdata `[itemscope]` tree (nested itemscopes become nested
-  items; `content`/`href`/`src`/`datetime` attribute value rules), and
-  every basic RDFa Lite `[typeof]` tree, then validates each item's
-  properties against a required/recommended table for Article (incl.
-  NewsArticle/BlogPosting), Product, LocalBusiness (and its common
-  subtypes), Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe,
-  Event, VideoObject, Review/AggregateRating, WebSite, WebPage, and
-  JobPosting — plus specific shape checks (an unknown `@type`, `offers`
-  missing `price`/`priceCurrency`, a non-ISO-8601 `datePublished`, an
-  `image` that isn't a URL or ImageObject, a BreadcrumbList item without
-  `position`, a FAQPage `mainEntity` without `acceptedAnswer`). "Eligible
-  for" lists a Google rich-result feature only when that item's required
-  properties are all present — never "will get." No fetch, no permission:
-  everything here reads only the current page's own already-loaded DOM.
-  Items export to CSV; each item's underlying data copies as JSON. The
-  popup footer's new "About & credits" link opens a small in-popup panel
+  `<script>` block (flattening `@graph` and top-level arrays recursively — a
+  `@graph` member that's itself an array or that nests its own `@graph` is
+  flattened too — capturing a parse error as its own item rather than
+  dropping the whole block, and stripping a wrapping HTML comment or CDATA
+  section first), every WHATWG microdata `[itemscope]` tree (nested
+  itemscopes become nested items; properties referenced via `itemref`
+  elsewhere in the document are resolved in too; `content`/`href`/`src`/
+  `datetime` attribute value rules, with `href`/`src` resolved to an
+  absolute URL the same way the browser resolves them), and every basic
+  RDFa Lite `[typeof]` tree, then validates each item's properties against a
+  required/recommended table for Article (incl. NewsArticle/BlogPosting),
+  Product, LocalBusiness (and around 100 subtypes it recognizes — Plumber,
+  Electrician, Restaurant, Dentist, and the rest of schema.org's own
+  LocalBusiness tree), Organization, Person, BreadcrumbList, FAQPage, HowTo,
+  Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, and
+  JobPosting — plus specific shape checks (a genuinely unrecognized `@type`
+  — as opposed to a real schema.org type we just don't have a
+  required-property list for yet, which gets a note instead — every offer
+  in an `offers` array missing `price`/`priceCurrency` (or `lowPrice` for an
+  `AggregateOffer`), a non-ISO-8601 `datePublished`, an `image` that isn't a
+  URL or ImageObject, a BreadcrumbList item without `position`, a FAQPage
+  `mainEntity` without `acceptedAnswer`). "Eligible for" lists a Google
+  rich-result feature only when that item's required properties are all
+  present, **and only for rich results Google currently shows** — never
+  "will get." FAQPage and HowTo are validated as markup like any other type,
+  but Google retired both rich results, so a complete item there shows
+  "Valid markup; Google no longer shows a rich result for this type" instead
+  of appearing in Eligible for. No fetch, no permission: everything here
+  reads only the current page's own already-loaded DOM. Items export to
+  CSV; each item's underlying data copies as JSON — but only type names and
+  property NAMES are ever saved to a synced capture, never property VALUES.
+  The popup footer's new "About & credits" link opens a small in-popup panel
   (`src/lib/credits.js`) crediting schema.org (CC BY-SA 3.0) and Google
   Search Central's structured-data documentation (CC BY 4.0) for the
   required/recommended tables, with a source link per type category;

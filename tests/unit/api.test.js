@@ -396,6 +396,19 @@ describe('autoSaveLocal — storage shape + return value', () => {
     expect(key).toBe(existingKey);
     expect(Object.keys(store)).toEqual([existingKey]); // no new entry written
   });
+
+  // Fix round 1, IMPORTANT 5: a quota-exceeded (or any other) storage write
+  // failure must be caught and logged, never thrown — autoSaveCapture's
+  // caller (popup.js) has no catch of its own around this call.
+  it('does not throw when chrome.storage.local.set rejects (e.g. quota exceeded)', async () => {
+    globalThis.chrome = mockChrome({ localStore: {} });
+    globalThis.chrome.storage.local.set = vi.fn(() => Promise.reject(new Error('QUOTA_BYTES quota exceeded')));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(SBW.autoSaveLocal({ url: 'https://example.com/a' })).resolves.toMatch(/^capture_\d+$/);
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('SBW.syncCapture', () => {

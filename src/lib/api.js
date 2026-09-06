@@ -461,32 +461,46 @@
   // which records a real sync outcome instead of firing and forgetting.
   // ============================================
 
+  // Fix round 1, IMPORTANT 5: the whole body is wrapped in try/catch — a
+  // storage.local write can fail (most commonly QUOTA_BYTES exceeded once
+  // 500 captures' worth of full-page analyses, now schema `properties`-
+  // stripped by the caller but still substantial, pile up) and the caller
+  // (popup.js's autoSaveCapture, called fire-and-forget with no catch of
+  // its own) must never see that as an unhandled rejection. Logged, not
+  // thrown; the freshly-minted key is still returned so a caller that goes
+  // on to call syncCapture(key) doesn't also need a null check — that sync
+  // will just no-op against a key storage never actually wrote.
   async function autoSaveLocal(data) {
     const key = `capture_${Date.now()}`;
 
-    const items = await chrome.storage.local.get(null);
-    const recentCapture = Object.entries(items)
-      .filter(([k]) => k.startsWith('capture_'))
-      .find(([k, v]) => v.url === data.url && (Date.now() - parseInt(k.split('_')[1])) < 60000);
+    try {
+      const items = await chrome.storage.local.get(null);
+      const recentCapture = Object.entries(items)
+        .filter(([k]) => k.startsWith('capture_'))
+        .find(([k, v]) => v.url === data.url && (Date.now() - parseInt(k.split('_')[1])) < 60000);
 
-    if (!recentCapture) {
-      const record = Object.assign({}, data, { sync: SBWSync.initialSync() });
-      await chrome.storage.local.set({ [key]: record });
+      if (!recentCapture) {
+        const record = Object.assign({}, data, { sync: SBWSync.initialSync() });
+        await chrome.storage.local.set({ [key]: record });
+      }
+
+      // Cleanup: keep only last 500 captures
+      const captureKeys = Object.keys(items)
+        .filter(k => k.startsWith('capture_'))
+        .sort()
+        .reverse();
+
+      if (captureKeys.length > 500) {
+        chrome.storage.local.remove(captureKeys.slice(500));
+      }
+
+      // Return the storage key holding this capture — the just-created one,
+      // or the existing recent duplicate's, so callers can still sync it.
+      return recentCapture ? recentCapture[0] : key;
+    } catch (e) {
+      console.error('autoSaveLocal failed:', e);
+      return key;
     }
-
-    // Cleanup: keep only last 500 captures
-    const captureKeys = Object.keys(items)
-      .filter(k => k.startsWith('capture_'))
-      .sort()
-      .reverse();
-
-    if (captureKeys.length > 500) {
-      chrome.storage.local.remove(captureKeys.slice(500));
-    }
-
-    // Return the storage key holding this capture — the just-created one,
-    // or the existing recent duplicate's, so callers can still sync it.
-    return recentCapture ? recentCapture[0] : key;
   }
 
   return {
