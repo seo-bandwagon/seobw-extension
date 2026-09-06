@@ -223,12 +223,72 @@ if (PREVIEW_STATE === 'capture-legacy') {
 
 const sessionStore = {};
 
+// Link checker (Task 1, src/popup/link-check.js): ~12 mixed results — a
+// handful of ok/internal links, a couple of redirects, a 404/500/403, and
+// one timeout + one network failure — fed to both the `collectLinks`
+// content-script reply and the `link-check` port's progress/done stream so
+// the two line up like a real page would.
+const LINK_CHECK_FIXTURE = [
+  { url: 'https://northsidedental.com/', text: 'Home', rel: null, internal: true, status: 200 },
+  { url: 'https://northsidedental.com/services', text: 'Services', rel: null, internal: true, status: 200 },
+  { url: 'https://northsidedental.com/team', text: 'Meet the Team', rel: null, internal: true, status: 301, finalUrl: 'https://northsidedental.com/about-us' },
+  { url: 'https://northsidedental.com/spring-promo', text: 'Spring Promo', rel: null, internal: true, status: 404 },
+  { url: 'https://northsidedental.com/insurance', text: 'Insurance', rel: null, internal: true, status: 200 },
+  { url: 'https://northsidedental.com/api/internal-tool', text: 'Internal tool', rel: 'nofollow', internal: true, status: 500 },
+  { url: 'https://healthgrades.com/dentist/northside', text: 'Healthgrades listing', rel: null, internal: false, status: 200 },
+  { url: 'https://yelp.com/biz/northside-dental', text: 'Yelp reviews', rel: null, internal: false, status: 301, finalUrl: 'https://yelp.com/biz/northside-dental-austin-2' },
+  { url: 'https://oldpartner-site.example/referral', text: 'Referral partner', rel: null, internal: false, status: 0, error: 'timeout' },
+  { url: 'https://defunct-directory.example/listing', text: 'Old directory', rel: null, internal: false, status: 0, error: 'network' },
+  { url: 'https://northsidedental.com/blog/flossing-tips', text: 'Flossing Tips', rel: null, internal: true, status: 200 },
+  { url: 'https://facebook.com/northsidedental', text: 'Facebook', rel: 'nofollow', internal: false, status: 403 }
+];
+
 window.chrome = {
   runtime: {
     lastError: null,
     sendMessage(msg, cb) {
       const reply = handleMessage(msg);
       setTimeout(() => cb && cb(reply), 90);   // visible async, exercises loading states
+    },
+    // Link checker port (src/background/service-worker.js's onConnect
+    // handler). Only 'link-check' ports do anything; postMessage({type:
+    // 'start'}) replays LINK_CHECK_FIXTURE as one 'progress' event per
+    // link, then a 'done' with the full results array — mirroring the
+    // real worker's protocol exactly so link-check.js needs no preview-only
+    // branches.
+    connect(opts) {
+      const messageListeners = [];
+      const disconnectListeners = [];
+      let disconnected = false;
+      const port = {
+        name: opts && opts.name,
+        postMessage(msg) {
+          if (disconnected || !msg || msg.type !== 'start' || port.name !== 'link-check') return;
+          const total = LINK_CHECK_FIXTURE.length;
+          const results = [];
+          let i = 0;
+          const tick = () => {
+            if (disconnected) return;
+            if (i >= total) {
+              messageListeners.forEach(fn => fn({ type: 'done', results }));
+              return;
+            }
+            const result = Object.assign({ finalUrl: null, ms: 90 + i * 15 }, LINK_CHECK_FIXTURE[i]);
+            results.push(result);
+            i += 1;
+            messageListeners.forEach(fn => fn({ type: 'progress', done: i, total, result }));
+            setTimeout(tick, 35);
+          };
+          setTimeout(tick, 35);
+        },
+        onMessage: { addListener(fn) { messageListeners.push(fn); } },
+        onDisconnect: { addListener(fn) { disconnectListeners.push(fn); } },
+        disconnect() {
+          disconnected = true;
+          disconnectListeners.forEach(fn => fn());
+        }
+      };
+      return port;
     },
     getURL: p => p,
     getManifest: () => MANIFEST,
@@ -293,7 +353,20 @@ window.chrome = {
       if (cb) { cb(tabs); return; }
       return Promise.resolve(tabs);
     },
-    sendMessage(id, msg, cb) { const r = handleMessage(msg); if (cb) cb(r); return Promise.resolve(r); },
+    // A real chrome.tabs.sendMessage round-trips through the browser's
+    // extension messaging IPC, so it never resolves in the same tick as the
+    // call — it's a macrotask, not a microtask. Resolving this one via
+    // Promise.resolve() used to let popup.js's synchronous-looking analyze
+    // bootstrap (chrome.tabs.query -> ...sendMessage -> renderResults ->
+    // SBWLinkCheckUI.mount()) finish draining its microtask chain — and so
+    // call mount() — before the HTML parser had even reached the <script>
+    // tags below popup.js's, so link-check.js hadn't attached
+    // globalThis.SBWLinkCheckUI yet. A minimal setTimeout defers this past
+    // that parse, matching real timing instead of masking the race.
+    sendMessage(id, msg, cb) {
+      const r = handleMessage(msg);
+      return new Promise(resolve => setTimeout(() => { if (cb) cb(r); resolve(r); }, 0));
+    },
     create(o) { console.log('[preview] would open', o.url); },
     captureVisibleTab(_, __, cb) { cb(SHOT); }
   },
@@ -302,7 +375,21 @@ window.chrome = {
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
   contextMenus: { create() {}, onClicked: { addListener() {} } },
   commands: { onCommand: { addListener() {} } },
-  windows: { create() {} }
+  windows: { create() {} },
+  // src/lib/perms.js's SBWPerms.hasAllUrls()/requestAllUrls() — granted in
+  // every state except `link-check-noperm`, which exists to show the
+  // permission card (`.lc-perm-card`).
+  permissions: {
+    contains(query, cb) {
+      const granted = PREVIEW_STATE !== 'link-check-noperm';
+      if (cb) { cb(granted); return; }
+      return Promise.resolve(granted);
+    },
+    request(query, cb) {
+      if (cb) { cb(true); return; }
+      return Promise.resolve(true);
+    }
+  }
 };
 
 function handleMessage(msg) {
@@ -315,6 +402,13 @@ function handleMessage(msg) {
     case 'getCachedAnalysis': return { hit: true, data: SEO_FIXTURE };
     case 'storeAnalysis': return { ok: true };
     case 'openSidePanel': return { ok: true };
+    // src/content/analyzer.js's collectLinks() reply, consumed by
+    // src/popup/link-check.js's idle state ("Check N links").
+    case 'collectLinks':
+      return {
+        links: LINK_CHECK_FIXTURE.map(({ url, text, rel, internal }) => ({ url, text, rel, internal })),
+        total: LINK_CHECK_FIXTURE.length
+      };
     case 'analyze': return SEO_FIXTURE;
     default: return {};
   }
@@ -427,9 +521,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const go = async () => {
     const citTab = document.querySelector('.switcher button[data-tab="citations"]');
     // `domain-history` exercises the SEO Analysis tab (the strip renders
-    // under its score ring), same as `seo` — everything else lands on
+    // under its score ring), same as `seo` — and the two link-check states
+    // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const needsCitations = PREVIEW_STATE !== 'seo' && PREVIEW_STATE !== 'domain-history';
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results'];
+    const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();
 

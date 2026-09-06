@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -74,7 +74,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
     try {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/content/analyzer.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/content/analyzer.js'] });
       } catch (e) { /* already injected */ }
 
       const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });
@@ -282,6 +282,128 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     SBW.sbwFetch(request.path, request.init).then(sendResponse);
     return true;
   }
+});
+
+// --- Broken-link checker: long-lived port, one per popup session (Task 1) ---
+//
+// The popup opens a `link-check` port and posts { type: 'start', links }.
+// This never runs on its own — no auto-run on install or on analyze — and
+// never requests the <all_urls> permission itself (SBWPerms.requestAllUrls()
+// only ever runs from the popup's own click handler, a user gesture). If the
+// permission isn't already granted when 'start' arrives, this replies with
+// an error and does nothing else.
+const LINK_CHECK_TIMEOUT_MS = 10000;
+const LINK_CHECK_PER_HOST = 2;
+const LINK_CHECK_GLOBAL = 6;
+
+// One HEAD probe (retried once as GET on a 405/501 or a thrown non-abort
+// error). `controller` is owned by the caller so a port disconnect can abort
+// it from outside. Never sends cookies, never caches, always drains/cancels
+// the body — nothing here reads response content. Result shape matches what
+// src/lib/link-check.js's classify()/resultRows() expect: status 0 on any
+// failure, with `error` set to 'timeout' (the AbortController fired) or
+// 'network' (anything else — DNS, refused connection, opaque CORS, etc).
+async function probeLink(url, controller) {
+  const start = Date.now();
+  const timer = setTimeout(() => controller.abort(), LINK_CHECK_TIMEOUT_MS);
+  const baseInit = { redirect: 'follow', credentials: 'omit', cache: 'no-store', signal: controller.signal };
+
+  async function attempt(method) {
+    const res = await fetch(url, Object.assign({ method }, baseInit));
+    if (res.body) { try { res.body.cancel(); } catch (e) { /* already drained */ } }
+    return res;
+  }
+
+  try {
+    let res;
+    try {
+      res = await attempt('HEAD');
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      res = await attempt('GET'); // thrown non-abort error on HEAD -> retry once with GET
+    }
+    if (res.status === 405 || res.status === 501) {
+      res = await attempt('GET');
+    }
+    clearTimeout(timer);
+    return { url, status: res.status, finalUrl: res.url, redirected: res.redirected, ms: Date.now() - start };
+  } catch (err) {
+    clearTimeout(timer);
+    const timedOut = err && err.name === 'AbortError';
+    return { url, status: 0, finalUrl: null, redirected: false, ms: Date.now() - start, error: timedOut ? 'timeout' : 'network' };
+  }
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'link-check') return;
+
+  let cancelled = false;
+  let queue = [];
+  let total = 0;
+  let doneCount = 0;
+  const results = [];
+  const inflightByHost = {};
+  const inflightControllers = new Set();
+
+  port.onDisconnect.addListener(() => {
+    cancelled = true;
+    inflightControllers.forEach(c => { try { c.abort(); } catch (e) { /* already settled */ } });
+    inflightControllers.clear();
+  });
+
+  function pump() {
+    if (cancelled) return;
+    let next;
+    while ((next = SBWLinkCheck.pickNext(queue, inflightByHost, { perHost: LINK_CHECK_PER_HOST, global: LINK_CHECK_GLOBAL }))) {
+      queue.splice(queue.indexOf(next), 1);
+      runOne(next);
+    }
+    if (!cancelled && doneCount >= total) {
+      port.postMessage({ type: 'done', results });
+    }
+  }
+
+  async function runOne(item) {
+    const host = SBWLinkCheck.hostKey(item.url);
+    inflightByHost[host] = (inflightByHost[host] || 0) + 1;
+
+    const controller = new AbortController();
+    inflightControllers.add(controller);
+
+    const probe = await probeLink(item.url, controller);
+
+    inflightControllers.delete(controller);
+    inflightByHost[host] -= 1;
+    if (inflightByHost[host] <= 0) delete inflightByHost[host];
+
+    if (cancelled) return;
+
+    const result = Object.assign({}, item, probe);
+    results.push(result);
+    doneCount += 1;
+    port.postMessage({ type: 'progress', done: doneCount, total, result });
+
+    pump();
+  }
+
+  port.onMessage.addListener(async (msg) => {
+    if (!msg || msg.type !== 'start') return;
+
+    const allowed = await SBWPerms.hasAllUrls();
+    if (cancelled) return;
+    if (!allowed) {
+      port.postMessage({ type: 'error', code: 'no_permission' });
+      return;
+    }
+
+    const planned = SBWLinkCheck.planChecks(msg.links || []);
+    queue = planned.queue.slice();
+    total = queue.length;
+    doneCount = 0;
+    results.length = 0;
+
+    pump();
+  });
 });
 
 // --- External connect handler (Chrome extension "connect" flow from the

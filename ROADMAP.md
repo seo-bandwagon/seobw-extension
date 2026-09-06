@@ -27,6 +27,28 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 ---
 
+## Changelog — v1.6.0 (in progress)
+
+Extension competitor-parity work (Phase 3 of the SDD plan). Manifest version
+bump lands with the last task in this phase, not here — see the versioning
+policy above.
+
+- **Broken-link checker** (`src/popup/link-check.js`, new "LINK CHECK" section
+  in the SEO Analysis tab) — collects every `a[href]` on the page
+  (`collectLinks` in `src/content/analyzer.js`, capped at 300, deduped by
+  normalized URL) and probes each one from the background service worker
+  (`HEAD`, retried once as `GET` on a 405/501 or a network error; 10 s
+  timeout; per-host concurrency 2, global concurrency 6 — see
+  `src/lib/link-check.js`). Results group into ok/redirect/4xx/5xx/timeout/
+  network chips, can be highlighted on the page (`highlight` action, type
+  `broken`), and export to CSV (`src/lib/csv.js`, RFC 4180, UTF-8 BOM).
+  The check never runs on its own — it starts only from a real click on
+  "Check N links".
+- **Optional `<all_urls>` permission** (`src/lib/perms.js`) — requested only
+  when you click "Allow access to check other sites" in the Link Check
+  section, never at install and never automatically. Revocable any time from
+  `chrome://extensions`. The same optional/on-first-use pattern is planned
+  for the upcoming hreflang and redirect checks.
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension

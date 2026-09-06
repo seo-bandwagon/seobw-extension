@@ -56,6 +56,13 @@ function section(id, title, badgeHtml, body, open) {
   </div>`;
 }
 
+// Shared with feature UI modules loaded after this file (src/popup/<feature>.js,
+// e.g. link-check.js) so they render sections/badges the same way the main
+// SEO tab does, and can post status/reach the active tab without duplicating
+// this file's module-scoped state. setSeoStatus is a function declaration
+// (hoisted), so this works even though it's defined further down the file.
+globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => currentTab };
+
 /* ---------- tab switching ---------- */
 
 document.querySelectorAll('.switcher button').forEach(btn => {
@@ -120,7 +127,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     }
 
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/content/analyzer.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/content/analyzer.js'] });
     } catch (e) { /* already injected */ }
 
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
@@ -372,6 +379,7 @@ function renderResults(data) {
 
   content.innerHTML = html;
   wireSeoTab();
+  globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
 }
 
 function wireSeoTab() {

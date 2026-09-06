@@ -46,6 +46,7 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
+| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check section (never at install, never automatically) — it lets the extension fetch pages on other domains from your browser to check whether links resolve. Same optional/on-first-use pattern will cover hreflang and redirect checks as they ship. Revoke it any time from `chrome://extensions` |
 
 The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
@@ -117,6 +118,8 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **The SERP overlay is not active in 1.5.0** — `src/overlay/serp-overlay.js` exists but isn't registered as a content script (see ROADMAP's v1.6 candidates), so it sends nothing today. When it ships, the plan is a bare-domain batch lookup (`SBW.quickBatch`) with no other page data attached — this note will be updated to match whatever actually ships.
 
+**Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per URL. This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
+
 Nothing is sent without a key configured, regardless of the toggle.
 
 ## Local-first + sync/retry behaviour
@@ -144,9 +147,10 @@ src/
   lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
                            # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
                            # gsc-inject.js + gsc-compare.js (Search Console helpers)
+                           # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
   overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
-  popup/                  # Popup UI: SEO Analysis tab + Citations tab
+  popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/

@@ -596,6 +596,145 @@ body {
 }
 
 /* ============================================================
+   LINK CHECK (src/popup/link-check.js)
+   ============================================================ */
+
+.lc-loading, .lc-error {
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--paper-50);
+}
+
+.lc-perm-card { padding: 12px 14px 14px; }
+.lc-perm-copy {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--paper-70);
+  margin: 0 0 10px;
+}
+
+.lc-allow-btn, .lc-check-btn, .lc-cancel-btn {
+  display: block;
+  width: 100%;
+  padding: 9px;
+  background: var(--pink);
+  border: 1px solid var(--pink);
+  color: var(--white);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-heading);
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.lc-allow-btn:hover, .lc-check-btn:hover, .lc-cancel-btn:hover { background: var(--pink-hover); }
+.lc-check-btn:disabled {
+  background: var(--surface-2);
+  border-color: var(--edge);
+  color: var(--paper-40);
+  cursor: default;
+}
+.lc-cancel-btn {
+  background: var(--surface-2);
+  border-color: var(--edge);
+  color: var(--paper-70);
+  margin: 8px 14px 12px;
+  width: calc(100% - 28px);
+}
+.lc-cancel-btn:hover { border-color: var(--pink); color: var(--white); background: var(--surface-2); }
+.lc-check-btn { margin: 12px 14px 14px; width: calc(100% - 28px); }
+.lc-allow-btn { width: 100%; margin: 0; }
+
+.lc-progress {
+  padding: 12px 14px 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--paper-70);
+  text-align: center;
+}
+
+.lc-chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px; }
+.lc-chip {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--paper-70);
+  border: 1px solid var(--edge);
+}
+.lc-chip-count { color: var(--pink); margin-left: 4px; }
+.lc-chip-client, .lc-chip-server, .lc-chip-timeout, .lc-chip-network {
+  border-color: rgba(229, 72, 77, 0.4);
+  color: var(--error);
+}
+.lc-chip-redirect { border-color: rgba(245, 165, 36, 0.4); color: var(--warning); }
+.lc-chip-ok { border-color: rgba(22, 199, 132, 0.4); color: var(--success); }
+
+.lc-groups { border-top: 1px solid var(--hairline-soft); }
+.lc-group-head {
+  padding: 7px 14px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+  cursor: pointer;
+  background: rgba(245, 245, 245, 0.02);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lc-group-rows { display: none; max-height: 220px; overflow-y: auto; }
+.lc-group.open .lc-group-rows { display: block; }
+.lc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lc-row-status { flex: none; }
+.lc-row-url {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--paper-95);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-row-anchor {
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  color: var(--paper-50);
+  flex: none;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lc-actions { display: flex; gap: 7px; padding: 12px 14px; }
+.lc-actions button {
+  flex: 1;
+  padding: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-heading);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.lc-actions button:hover { border-color: var(--pink); color: var(--white); }
+.lc-actions button:disabled { color: var(--paper-40); border-color: var(--edge); cursor: default; }
+.lc-actions button:disabled:hover { border-color: var(--edge); color: var(--paper-40); }
+
+/* ============================================================
    CITATIONS TAB
    ============================================================ */
 

@@ -42,6 +42,18 @@ const CASES = [
   { q: 'popup.html?state=domain-history',
     need: ['.seo-hero', '.domain-history-row', '.domain-history-line'] },
 
+  // Task 1: broken-link checker (src/popup/link-check.js, src/lib/perms.js,
+  // src/lib/link-check.js, src/lib/csv.js). `link-check-noperm` never
+  // clicks anything — SBWPerms.hasAllUrls() is stubbed false for this state
+  // so the permission card renders straight away. `link-check-results`
+  // clicks the idle "Check N links" button, which opens the `link-check`
+  // port stub.js replays a 12-item mixed fixture over.
+  { q: 'popup.html?state=link-check-noperm',
+    need: ['.seo-hero', '.lc-perm-card', '#lcAllowBtn'] },
+  { q: 'popup.html?state=link-check-results',
+    need: ['.seo-hero', '.lc-chip', '.lc-row', '.lc-group', '#lcHighlightBtn', '#lcExportBtn'],
+    click: '#lcCheckBtn' },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's

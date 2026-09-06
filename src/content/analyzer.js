@@ -39,11 +39,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyze') {
     analyzePage().then(results => sendResponse(results));
   } else if (request.action === 'highlight') {
-    highlightElement(request.type);
+    highlightElement(request.type, request);
     sendResponse({ success: true });
   } else if (request.action === 'countSelection') {
     const selection = window.getSelection().toString();
     sendResponse(countText(selection));
+  } else if (request.action === 'collectLinks') {
+    sendResponse(collectLinks());
   }
   return true;
 });
@@ -211,9 +213,36 @@ function detectTechStack() {
   return tech;
 }
 
+// ============ LINK COLLECTION (broken-link checker, Task 1) ============
+
+// Gathers every a[href] on the page for the popup's link checker to plan a
+// check against. self.SBWLinkCheck (lib/link-check.js, injected before this
+// file — see popup.js/service-worker.js's executeScript file lists) owns
+// normalizeUrl/hostKey so "absolute http(s) only, strip fragment, keep
+// query" and "www.-insensitive host" stay defined in exactly one place.
+// Returns { links, total }: `links` is capped at 300 (deduped by normalized
+// URL, first anchor text/rel wins); `total` is the uncapped deduped count so
+// the popup can show "first 300 of M".
+function collectLinks() {
+  const currentHost = SBWLinkCheck.hostKey(window.location.href);
+  const seen = new Map();
+
+  document.querySelectorAll('a[href]').forEach(el => {
+    const norm = SBWLinkCheck.normalizeUrl(el.getAttribute('href') ? el.href : null);
+    if (!norm || seen.has(norm)) return;
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const rel = el.getAttribute('rel');
+    const internal = SBWLinkCheck.hostKey(norm) === currentHost;
+    seen.set(norm, { url: norm, text, rel, internal });
+  });
+
+  const all = Array.from(seen.values());
+  return { links: all.slice(0, 300), total: all.length };
+}
+
 // ============ ELEMENT HIGHLIGHTING ============
 
-function highlightElement(type) {
+function highlightElement(type, request) {
   // Add styles if not present
   if (!document.getElementById('seo-toolkit-styles')) {
     const style = document.createElement('style');
@@ -226,6 +255,7 @@ function highlightElement(type) {
       .seo-toolkit-highlight-nofollow { outline-color: #f39c12 !important; background: rgba(243, 156, 18, 0.1) !important; }
       .seo-toolkit-highlight-image-missing-alt { outline-color: #e74c3c !important; background: rgba(231, 76, 60, 0.2) !important; }
       .seo-toolkit-highlight-image-has-alt { outline-color: #27ae60 !important; }
+      .seo-toolkit-highlight-broken { outline-color: #e5484d !important; background: rgba(229, 72, 77, 0.15) !important; }
       #seo-toolkit-counter {
         position: absolute;
         background: #333;
@@ -244,10 +274,10 @@ function highlightElement(type) {
   
   // Remove existing highlights
   document.querySelectorAll('.seo-toolkit-highlight').forEach(el => {
-    el.classList.remove('seo-toolkit-highlight', 'seo-toolkit-highlight-heading', 
+    el.classList.remove('seo-toolkit-highlight', 'seo-toolkit-highlight-heading',
       'seo-toolkit-highlight-link-internal', 'seo-toolkit-highlight-link-external',
       'seo-toolkit-highlight-nofollow', 'seo-toolkit-highlight-image-missing-alt',
-      'seo-toolkit-highlight-image-has-alt');
+      'seo-toolkit-highlight-image-has-alt', 'seo-toolkit-highlight-broken');
   });
   
   if (type === 'clear') return;
@@ -303,6 +333,19 @@ function highlightElement(type) {
         }
       });
       break;
+    case 'broken': {
+      // request.urls are normalized (fragment-stripped) URLs from the link
+      // checker's results — compare against each anchor's own normalized
+      // href so a mid-page #anchor difference doesn't hide a real match.
+      const urls = new Set((request && request.urls) || []);
+      document.querySelectorAll('a[href]').forEach(el => {
+        const norm = typeof SBWLinkCheck !== 'undefined' ? SBWLinkCheck.normalizeUrl(el.href) : el.href.split('#')[0];
+        if (norm && urls.has(norm)) {
+          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-broken');
+        }
+      });
+      break;
+    }
   }
 }
 
