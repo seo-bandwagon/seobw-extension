@@ -13,7 +13,7 @@ const SBWLinkCheck = globalThis.SBWLinkCheck;
 describe('SBWLinkCheck namespace', () => {
   it('attaches to globalThis.SBWLinkCheck', () => {
     expect(SBWLinkCheck).toBeTruthy();
-    ['normalizeUrl', 'planChecks', 'hostKey', 'pickNext', 'classify', 'groupResults', 'resultRows']
+    ['normalizeUrl', 'planChecks', 'hostKey', 'pickNext', 'classify', 'groupResults', 'resultRows', 'isComplete']
       .forEach(fn => expect(typeof SBWLinkCheck[fn]).toBe('function'));
   });
 });
@@ -130,6 +130,20 @@ describe('planChecks', () => {
     expect(queue).toHaveLength(300);
     expect(truncated).toBe(true);
   });
+
+  // task-1-fix-1-brief item 7: `max: 0` is an explicit "check nothing", not
+  // "unset" — `(options && options.max) || DEFAULT` used to treat 0 as
+  // falsy and silently fall back to 300.
+  it('honours an explicit max: 0 as zero capacity, not "unset"', () => {
+    const links = [
+      { url: 'https://example.com/a', text: 'a', rel: null, internal: true },
+      { url: 'https://example.com/b', text: 'b', rel: null, internal: true }
+    ];
+    const { queue, total, truncated } = SBWLinkCheck.planChecks(links, { max: 0 });
+    expect(queue).toEqual([]);
+    expect(total).toBe(2);
+    expect(truncated).toBe(true);
+  });
 });
 
 describe('pickNext', () => {
@@ -174,6 +188,41 @@ describe('pickNext', () => {
     const queue = [{ url: 'https://a.example/1' }];
     expect(SBWLinkCheck.pickNext(queue, { 'a.example': 2 })).toBeNull();
     expect(SBWLinkCheck.pickNext(queue, { 'a.example': 1 })).toBe(queue[0]);
+  });
+
+  // task-1-fix-1-brief item 7: an explicit 0 must mean zero capacity, not
+  // "unset, use the default" — `(options && options.x) || DEFAULT` used to
+  // treat { perHost: 0 } / { global: 0 } as falsy and fall back to 2/6.
+  it('honours an explicit perHost: 0 as zero capacity', () => {
+    const queue = [{ url: 'https://a.example/1' }];
+    expect(SBWLinkCheck.pickNext(queue, {}, { perHost: 0, global: 6 })).toBeNull();
+  });
+
+  it('honours an explicit global: 0 as zero capacity', () => {
+    const queue = [{ url: 'https://a.example/1' }];
+    expect(SBWLinkCheck.pickNext(queue, {}, { perHost: 2, global: 0 })).toBeNull();
+  });
+});
+
+describe('isComplete', () => {
+  it('is false while doneCount is behind total', () => {
+    expect(SBWLinkCheck.isComplete(3, 5, 0)).toBe(false);
+  });
+
+  it('is false once doneCount reaches total if something is still inflight', () => {
+    expect(SBWLinkCheck.isComplete(5, 5, 1)).toBe(false);
+  });
+
+  it('is true once doneCount reaches total and nothing is inflight', () => {
+    expect(SBWLinkCheck.isComplete(5, 5, 0)).toBe(true);
+  });
+
+  it('is true for an empty run (0 total, 0 inflight)', () => {
+    expect(SBWLinkCheck.isComplete(0, 0, 0)).toBe(true);
+  });
+
+  it('treats a missing/undefined inflight as zero', () => {
+    expect(SBWLinkCheck.isComplete(5, 5)).toBe(true);
   });
 });
 

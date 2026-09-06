@@ -20,6 +20,15 @@
   let tab = null;
   let port = null;
 
+  // Incremented on every mount() — the async chains started by a given
+  // mount (init/loadLinks) capture their own `my` and bail out if `gen` has
+  // moved on by the time they wake up from an await, instead of writing
+  // module-level state (planned/progress/results) that a newer mount has
+  // already reset. `sectionEl` alone can't detect this: mount() always
+  // reassigns it to the freshly-created section, so `if (!sectionEl) return`
+  // was never actually false for a stale caller.
+  let gen = 0;
+
   // 'checking-permission' | 'no-permission' | 'loading-links' | 'idle' |
   // 'running' | 'done' | 'error'
   let state = 'checking-permission';
@@ -68,6 +77,7 @@
     tab = getCurrentTab ? getCurrentTab() : null;
     if (port) { try { port.disconnect(); } catch (e) { /* already gone */ } }
     port = null;
+    const my = ++gen;
     state = 'checking-permission';
     planned = null;
     progress = { done: 0, total: 0 };
@@ -82,31 +92,57 @@
     sectionEl.querySelector('.section-content').addEventListener('click', e => e.stopPropagation());
 
     render();
-    init();
+    init(my);
   }
 
-  async function init() {
+  async function init(my) {
     const has = await SBWPerms.hasAllUrls();
-    if (!sectionEl) return; // popup re-rendered (new analysis) while this awaited
+    if (my !== gen) return; // a newer mount() superseded this one while we awaited
     if (!has) {
       state = 'no-permission';
       render();
       return;
     }
-    await loadLinks();
+    await loadLinks(my);
   }
 
-  async function loadLinks() {
+  // Reads the page's links via the content script. A cached-analysis popup
+  // load (task-1-fix-1-brief item 1) skips popup.js's own executeScript
+  // call entirely, so the content script may simply not be there yet — the
+  // first collectLinks send then fails with "receiving end does not exist".
+  // On that failure (and only that one), inject the same file list
+  // popup.js's own analyze path uses and retry collectLinks exactly once
+  // before giving up.
+  async function loadLinks(my) {
     state = 'loading-links';
     render();
+    let res;
+    let failed = false;
     try {
-      const res = await sendToTab({ action: 'collectLinks' });
-      if (!sectionEl) return;
+      try {
+        res = await sendToTab({ action: 'collectLinks' });
+      } catch (e) {
+        if (my !== gen) return;
+        if (tab && tab.id) {
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/content/analyzer.js']
+            });
+          } catch (e2) { /* already injected, or injection itself failed — retry regardless */ }
+        }
+        if (my !== gen) return;
+        res = await sendToTab({ action: 'collectLinks' });
+      }
+    } catch (e) {
+      failed = true;
+    }
+    if (my !== gen) return;
+    if (failed || (res && res.error)) {
+      state = 'error';
+    } else {
       planned = (res && Array.isArray(res.links)) ? res : { links: [], total: 0 };
       state = 'idle';
-    } catch (e) {
-      if (!sectionEl) return;
-      state = 'error';
     }
     render();
   }
@@ -220,13 +256,14 @@
   // permission, not the gesture, which is fine: only the request() call
   // itself needs the gesture.
   async function onAllowClick() {
+    const my = gen;
     const granted = await SBWPerms.requestAllUrls();
-    if (!sectionEl) return;
+    if (my !== gen) return;
     if (!granted) {
       popup().setSeoStatus?.('Permission request was not granted', 'error');
       return;
     }
-    await loadLinks();
+    await loadLinks(my);
   }
 
   function onCheckClick() {
@@ -257,6 +294,7 @@
     } else if (msg.type === 'done') {
       results = msg.results || [];
       state = 'done';
+      if (port) { try { port.disconnect(); } catch (e) { /* already gone */ } }
       port = null;
       render();
     } else if (msg.type === 'error') {
@@ -277,8 +315,13 @@
     if (!tab || !tab.id) return;
     const { groups } = SBWLinkCheck.groupResults(results);
     const brokenUrls = BROKEN_CLASSES.reduce((acc, cls) => acc.concat(groups[cls].map(r => r.url)), []);
-    chrome.tabs.sendMessage(tab.id, { action: 'highlight', type: 'broken', urls: brokenUrls });
-    popup().setSeoStatus?.(`Highlighted ${brokenUrls.length} broken link${brokenUrls.length === 1 ? '' : 's'}`, 'success');
+    sendToTab({ action: 'highlight', type: 'broken', urls: brokenUrls })
+      .then(() => {
+        popup().setSeoStatus?.(`Highlighted ${brokenUrls.length} broken link${brokenUrls.length === 1 ? '' : 's'}`, 'success');
+      })
+      .catch(() => {
+        popup().setSeoStatus?.('Highlight failed', 'error');
+      });
   }
 
   const CSV_COLUMNS = [
@@ -302,7 +345,11 @@
     a.href = url;
     a.download = SBWCsv.csvFilename('links', (tab && tab.url) || 'https://page.example/');
     a.click();
-    URL.revokeObjectURL(url);
+    // Some browsers (notably Firefox) read the blob URL asynchronously to
+    // start the download; revoking it in the same tick as click() can race
+    // that read and produce an empty/failed download. Deferring the revoke
+    // is the standard workaround for that race.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     popup().setSeoStatus?.('Exported', 'success');
   }
 

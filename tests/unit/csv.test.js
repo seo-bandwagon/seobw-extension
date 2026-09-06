@@ -88,6 +88,51 @@ describe('toCsv', () => {
   });
 });
 
+// Formula-injection guard (task-1-fix-1-brief item 2): a string cell
+// starting with =, +, -, @, TAB or CR is how Excel/Sheets/LibreOffice
+// recognize a formula. An anchor-text or URL column pulled from a web page
+// can contain any of these; prefixing a leading single quote forces text
+// interpretation instead of execution.
+describe('toCsv — formula injection guard', () => {
+  const cols = [{ key: 'anchor', label: 'Anchor Text' }, { key: 'status', label: 'Status' }];
+
+  it('prefixes a cell starting with = with a single quote', () => {
+    const csv = SBWCsv.toCsv([{ anchor: '=HYPERLINK("https://evil.example","click")', status: 200 }], cols);
+    expect(csv).toContain('"\'=HYPERLINK(""https://evil.example"",""click"")",200');
+  });
+
+  it('prefixes a cell starting with +', () => {
+    const csv = SBWCsv.toCsv([{ anchor: '+1', status: 200 }], cols);
+    expect(csv).toContain("'+1,200");
+  });
+
+  it('prefixes a cell starting with -', () => {
+    const csv = SBWCsv.toCsv([{ anchor: '-x', status: 200 }], cols);
+    expect(csv).toContain("'-x,200");
+  });
+
+  it('prefixes a cell starting with @', () => {
+    const csv = SBWCsv.toCsv([{ anchor: '@cmd', status: 200 }], cols);
+    expect(csv).toContain("'@cmd,200");
+  });
+
+  it('prefixes a cell starting with a leading TAB', () => {
+    const csv = SBWCsv.toCsv([{ anchor: '\tsneaky', status: 200 }], cols);
+    expect(csv).toContain("'\tsneaky,200");
+  });
+
+  it('leaves a numeric status cell untouched even if it were negative', () => {
+    const csv = SBWCsv.toCsv([{ anchor: 'Home', status: -1 }], cols);
+    expect(csv).toContain('Home,-1');
+    expect(csv).not.toContain("'-1");
+  });
+
+  it('does not prefix a plain cell that merely contains one of the trigger characters mid-string', () => {
+    const csv = SBWCsv.toCsv([{ anchor: 'a-b+c=d', status: 200 }], cols);
+    expect(csv).toContain('a-b+c=d,200');
+  });
+});
+
 describe('csvFilename', () => {
   it('builds prefix-hostname-date.csv', () => {
     const d = new Date('2026-09-05T12:00:00Z');
@@ -98,5 +143,17 @@ describe('csvFilename', () => {
   it('defaults the date to now when omitted', () => {
     const name = SBWCsv.csvFilename('links', 'https://example.com/');
     expect(name).toMatch(/^links-example\.com-\d{4}-\d{2}-\d{2}\.csv$/);
+  });
+
+  it('falls back to "page" for a file:// URL (empty hostname)', () => {
+    const d = new Date('2026-09-05T12:00:00Z');
+    const name = SBWCsv.csvFilename('links', 'file:///Users/dana/report.html', d);
+    expect(name).toBe('links-page-2026-09-05.csv');
+  });
+
+  it('falls back to "page" when the URL fails to parse', () => {
+    const d = new Date('2026-09-05T12:00:00Z');
+    const name = SBWCsv.csvFilename('links', 'not a url at all', d);
+    expect(name).toBe('links-page-2026-09-05.csv');
   });
 });

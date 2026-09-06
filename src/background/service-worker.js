@@ -338,6 +338,7 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'link-check') return;
 
   let cancelled = false;
+  let started = false;
   let queue = [];
   let total = 0;
   let doneCount = 0;
@@ -358,7 +359,8 @@ chrome.runtime.onConnect.addListener((port) => {
       queue.splice(queue.indexOf(next), 1);
       runOne(next);
     }
-    if (!cancelled && doneCount >= total) {
+    const inflightTotal = Object.values(inflightByHost).reduce((a, b) => a + b, 0);
+    if (!cancelled && SBWLinkCheck.isComplete(doneCount, total, inflightTotal)) {
       port.postMessage({ type: 'done', results });
     }
   }
@@ -388,6 +390,16 @@ chrome.runtime.onConnect.addListener((port) => {
 
   port.onMessage.addListener(async (msg) => {
     if (!msg || msg.type !== 'start') return;
+
+    // The popup only ever opens one port per check and posts one 'start' on
+    // it, but a second 'start' on an already-running port (e.g. a stray
+    // double-click before the button re-renders) must not restart the queue
+    // out from under in-flight probes — reject it instead.
+    if (started) {
+      port.postMessage({ type: 'error', code: 'already_started' });
+      return;
+    }
+    started = true;
 
     const allowed = await SBWPerms.hasAllUrls();
     if (cancelled) return;

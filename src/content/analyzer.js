@@ -224,6 +224,15 @@ function detectTechStack() {
 // URL, first anchor text/rel wins); `total` is the uncapped deduped count so
 // the popup can show "first 300 of M".
 function collectLinks() {
+  // Defensive: this file can in principle run without lib/link-check.js
+  // ahead of it (an injection-order slip, or a re-inject retry that only
+  // pushed this file). Without the guard, referencing SBWLinkCheck below
+  // throws before sendResponse() runs, and the message channel never
+  // closes — the popup's sendToTab() would hang until Chrome's own timeout
+  // instead of surfacing a clean error.
+  if (typeof SBWLinkCheck === 'undefined') {
+    return { links: [], total: 0, error: 'lib_missing' };
+  }
   const currentHost = SBWLinkCheck.hostKey(window.location.href);
   const seen = new Map();
 

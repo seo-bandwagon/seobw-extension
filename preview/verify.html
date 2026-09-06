@@ -54,6 +54,14 @@ const CASES = [
     need: ['.seo-hero', '.lc-chip', '.lc-row', '.lc-group', '#lcHighlightBtn', '#lcExportBtn'],
     click: '#lcCheckBtn' },
 
+  // task-1-fix-1-brief item 1: the first collectLinks send fails (as if the
+  // cached-analysis path never injected the content script — see
+  // stub.js's `collectLinksAttempts`); link-check.js must catch that,
+  // re-inject via executeScript, retry once, and land on the normal idle
+  // "Check N links" button rather than the error state.
+  { q: 'popup.html?state=link-check-reinject',
+    need: ['.seo-hero', '#lcCheckBtn'] },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's

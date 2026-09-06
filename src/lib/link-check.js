@@ -54,7 +54,9 @@
   // keeping the first anchor text/rel seen for each. Returns a queue capped
   // at `max`, the deduped total (pre-cap), and whether it was truncated.
   function planChecks(links, options) {
-    const max = (options && options.max) || DEFAULT_MAX;
+    // Nullish, not falsy — { max: 0 } is a deliberate "check nothing" call
+    // (dry-run/UI-disabled paths) and must not silently fall back to 300.
+    const max = options?.max ?? DEFAULT_MAX;
     const seen = new Map();
     for (const link of links || []) {
       const norm = normalizeUrl(link && link.url);
@@ -74,8 +76,10 @@
   // Returns null when nothing can be started right now. Never mutates
   // `queue` or `inflightByHost` — the worker removes/updates on dispatch.
   function pickNext(queue, inflightByHost, options) {
-    const perHost = (options && options.perHost) || DEFAULT_PER_HOST;
-    const global = (options && options.global) || DEFAULT_GLOBAL;
+    // Nullish, not falsy — an explicit 0 (e.g. testing a fully-saturated
+    // scheduler) must behave as zero capacity, not "unset, use default".
+    const perHost = options?.perHost ?? DEFAULT_PER_HOST;
+    const global = options?.global ?? DEFAULT_GLOBAL;
     const byHost = inflightByHost || {};
     const totalInflight = Object.values(byHost).reduce((a, b) => a + b, 0);
     if (totalInflight >= global) return null;
@@ -133,6 +137,15 @@
     }));
   }
 
+  // True once every planned URL has produced a result AND nothing is still
+  // in flight. The worker's pump() uses this — rather than a bare
+  // `doneCount >= total` — as the single source of truth for when to post
+  // `{ type: 'done' }`, so a scheduler change can't accidentally fire it
+  // while a probe is still outstanding.
+  function isComplete(doneCount, total, inflight) {
+    return (inflight || 0) <= 0 && doneCount >= total;
+  }
+
   return {
     normalizeUrl,
     hostKey,
@@ -140,6 +153,7 @@
     pickNext,
     classify,
     groupResults,
-    resultRows
+    resultRows,
+    isComplete
   };
 });

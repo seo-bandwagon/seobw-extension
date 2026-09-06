@@ -223,6 +223,16 @@ if (PREVIEW_STATE === 'capture-legacy') {
 
 const sessionStore = {};
 
+// `link-check-reinject` (task-1-fix-1-brief item 1): simulates a cached
+// popup.js analysis load, where the content script was never (re-)injected.
+// The FIRST collectLinks send below fails like a real
+// "Could not establish connection. Receiving end does not exist." — the
+// popup's link-check.js is expected to catch that, call
+// chrome.scripting.executeScript (stubbed as a no-op success below) to
+// re-inject, and retry collectLinks once, which this counter then lets
+// succeed.
+let collectLinksAttempts = 0;
+
 // Link checker (Task 1, src/popup/link-check.js): ~12 mixed results — a
 // handful of ok/internal links, a couple of redirects, a 404/500/403, and
 // one timeout + one network failure — fed to both the `collectLinks`
@@ -364,6 +374,18 @@ window.chrome = {
     // globalThis.SBWLinkCheckUI yet. A minimal setTimeout defers this past
     // that parse, matching real timing instead of masking the race.
     sendMessage(id, msg, cb) {
+      // See `collectLinksAttempts` above — only the `link-check-reinject`
+      // state's very first collectLinks call fails; everything else
+      // (including this same state's retry) behaves normally.
+      if (PREVIEW_STATE === 'link-check-reinject' && msg && msg.action === 'collectLinks' && collectLinksAttempts === 0) {
+        collectLinksAttempts += 1;
+        return new Promise(resolve => setTimeout(() => {
+          window.chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
+          if (cb) cb(undefined);
+          window.chrome.runtime.lastError = null; // real Chrome clears it right after the callback returns
+          resolve(undefined);
+        }, 0));
+      }
       const r = handleMessage(msg);
       return new Promise(resolve => setTimeout(() => { if (cb) cb(r); resolve(r); }, 0));
     },
@@ -524,7 +546,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results'];
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();
