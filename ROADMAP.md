@@ -158,6 +158,7 @@ policy above.
   ran on Google's own results pages, are deleted outright, not disabled;
   the popup now shows a one-line notice on a Google results page instead
   of running the normal page analyzer there.
+
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension

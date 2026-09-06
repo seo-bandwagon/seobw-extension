@@ -169,16 +169,48 @@ const CASES = [
   // Task 6: SERP overlay (src/overlay/serp-overlay.js, src/lib/serp.js).
   // preview/serp.html is not a popup/sidepanel/options/history state — it's
   // the content script itself, loaded as a plain <script> against a static
-  // fixture SERP (two organic results, one top ad block, one bottom ad
-  // block, two PAA questions) via preview/stub.js's `sbwFetch` case for
-  // POST /domain/quick-batch. `serp-bars` asserts a bar lands under each of
-  // the two organic results and never inside either ad container (additive-
-  // only ruling); `serp-tools` asserts the toolbar's location-simulator
+  // fixture SERP (two organic results — the first carrying a sitelinks
+  // cluster —, one top ad block, an AI-Overview citation, a shopping unit,
+  // one bottom ad block, two PAA questions, and three non-question chrome
+  // buttons) via preview/stub.js's `sbwFetch` case for POST
+  // /domain/quick-batch. `serp-bars` asserts a bar lands under each of the
+  // two organic results and never inside either ad container (additive-only
+  // ruling); `serp-tools` asserts the toolbar's location-simulator
   // `<select>` renders. Both load the same static page — nothing here is
   // gated behind a click.
+  //
+  // Fix round 1, item 14: the original `no` selectors here
+  // (`#tads .sbw-serp-bar` etc.) are descendant selectors, which can never
+  // fail — bars are always inserted as a NEXT SIBLING of the block they're
+  // for (insertAdjacentElement('afterend', ...)), never as a descendant of
+  // an ad container, so the assertion was vacuous. The sibling-combinator
+  // forms below (`#tads + .sbw-serp-bar`, etc.) actually exercise the
+  // additive-only placement rule.
+  //
+  // The exact-count assertion ("bar count equals the organic count, 2") is
+  // also done with selectors, since this harness's engine only checks
+  // selector existence/absence, not counts, and (unlike a flatter fixture)
+  // each bar here lands one level down, as a sibling of the result's own
+  // inner block inside its `.g` — not as a sibling of another result's bar
+  // — so a single cross-page sibling-chain selector can't observe the
+  // total either way. Instead: the two `text` entries below confirm both
+  // (and only those two) organic domains got a bar, and the `no` list
+  // enumerates every non-organic surface on the fixture (both ad blocks,
+  // the AI-Overview citation, the shopping unit, and the sitelinks
+  // cluster's own sub-rows) to confirm none of them ever got one — between
+  // the two, nothing on this fixture could produce a 3rd bar.
   { q: 'serp.html',
     need: ['.sbw-serp-bar'],
-    no: ['#tads .sbw-serp-bar', '#bottomads .sbw-serp-bar'],
+    no: [
+      '#tads .sbw-serp-bar', '#bottomads .sbw-serp-bar',
+      '[data-text-ad] + .sbw-serp-bar',
+      '#tads + .sbw-serp-bar', '#bottomads + .sbw-serp-bar',
+      '.commercial-unit-desktop-top + .sbw-serp-bar',
+      '[data-attrid*="Overview" i] + .sbw-serp-bar',
+      '[data-pla] + .sbw-serp-bar',
+      '.sitelinks-wrapper + .sbw-serp-bar',
+      '.sitelink + .sbw-serp-bar'
+    ],
     text: ['first-result.example', 'second-result.example'] },
   { q: 'serp.html',
     need: ['.sbw-serp-tools', '.sbw-serp-tools select'] }

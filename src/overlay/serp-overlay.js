@@ -37,19 +37,35 @@
   const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes, per the ledger
   const MAX_BATCH = 20; // quick-batch's own per-request cap
   const DEBOUNCE_MS = 500;
+  const PENDING_TEXT = '—'; // em dash — "not looked up yet"
 
   const processedBlocks = new WeakSet();
   let toolbarEl = null;
   let mutationTimer = null;
+
+  // Fix round 1, items 4/5/6: the stats pipeline is a single queue rather
+  // than a one-shot per-scan fetch.
+  //   - `pendingRows` holds every row not yet resolved (looked up in cache
+  //     or answered by a quick-batch request). A scan appends to it
+  //     unconditionally — it is never dropped just because a request
+  //     happens to be in flight (item 4).
+  //   - `statsRequestInFlight` gates re-entrancy: only one drainQueue() pass
+  //     runs at a time; its `finally` re-checks the queue so rows queued
+  //     mid-flight, or left over from a >20-domain chunk (item 6), get
+  //     picked up by the next pass automatically.
+  //   - The per-domain cache (item 5) means a domain already resolved this
+  //     page-load is never re-requested, even for a brand-new row.
+  let pendingRows = [];
   let statsRequestInFlight = false;
 
   function resultsContainer() {
     return document.querySelector('#search') || document.querySelector('#rcnt') || document.body;
   }
 
-  // Read only to build the location-simulator URL and as a *local* session-
-  // storage cache key — never placed in a request body or message payload.
-  // See the module comment: quick-batch only ever receives bare domains.
+  // Read only to build the location-simulator URL — never placed in a
+  // request body or message payload. See the module comment: quick-batch
+  // only ever receives bare domains. (Fix round 1, item 5: the stats cache
+  // itself is keyed by domain now, not by this query string at all.)
   function currentQuery() {
     try {
       return new URLSearchParams(window.location.search).get('q') || '';
@@ -58,31 +74,41 @@
     }
   }
 
-  function cacheKey(q) {
-    return 'sbwSerpStats::' + window.location.hostname + '::' + q;
+  function statCacheKey(domain) {
+    return 'sbwSerpStat::' + domain;
   }
 
-  function getCachedStats(q) {
+  // Resolves the cached `quick` value (which may legitimately be `null` —
+  // "server has no data for this domain") when a fresh cache entry exists,
+  // or `undefined` when nothing usable is cached (missing or stale) and a
+  // lookup is needed.
+  function getCachedStat(domain) {
     return new Promise((resolve) => {
-      const key = cacheKey(q);
+      const key = statCacheKey(domain);
       try {
         chrome.storage.session.get(key, (result) => {
           const entry = result && result[key];
           if (entry && typeof entry.at === 'number' && (Date.now() - entry.at) < CACHE_TTL_MS) {
-            resolve(entry.data);
+            resolve(entry.stat);
           } else {
-            resolve(null);
+            resolve(undefined);
           }
         });
       } catch (e) {
-        resolve(null);
+        resolve(undefined);
       }
     });
   }
 
-  function setCachedStats(q, data) {
+  // Writes every domain in `domainStatMap` (value may be `null`) as its own
+  // `sbwSerpStat::<domain>` entry in one storage.session.set call.
+  function setCachedStats(domainStatMap) {
+    const obj = {};
+    Object.keys(domainStatMap).forEach((domain) => {
+      obj[statCacheKey(domain)] = { at: Date.now(), stat: domainStatMap[domain] };
+    });
     try {
-      chrome.storage.session.set({ [cacheKey(q)]: { at: Date.now(), data } });
+      chrome.storage.session.set(obj);
     } catch (e) { /* storage unavailable — stats just won't be cached this run */ }
   }
 
@@ -112,16 +138,16 @@
 
     const statEl = document.createElement('span');
     statEl.className = 'sbw-serp-stat';
-    statEl.textContent = 'Score —';
+    statEl.textContent = PENDING_TEXT;
     bar.appendChild(statEl);
 
     const analyzeLink = document.createElement('a');
     analyzeLink.className = 'sbw-serp-analyze';
-    // The popup does the rest on open — no server call from here. Appending
-    // the marker rather than replacing an existing hash so a result URL
-    // that already carries one (rare, but seen on some anchor links) isn't
-    // clobbered.
-    analyzeLink.href = row.url + (row.url.indexOf('#') === -1 ? '#sbw-analyze' : '');
+    // Fix round 1, item 16 (controller ruling): a plain link to the result,
+    // with no marker hash appended — README already describes this as
+    // "opens the result in a new tab", and nothing in the popup consumes
+    // such a marker.
+    analyzeLink.href = row.url;
     analyzeLink.target = '_blank';
     analyzeLink.rel = 'noopener noreferrer';
     analyzeLink.textContent = 'Analyze';
@@ -130,22 +156,49 @@
     return { bar, statEl };
   }
 
+  // Fix round 1, item 10: three distinct stat states, each with its own
+  // text (never the old "Score —" placeholder once anything has actually
+  // resolved):
+  //   - `quick === null`               -> "No data" (server has nothing)
+  //   - `quick` resolved, avgScore null -> "No score yet · N captures"
+  //   - `quick` resolved, avgScore set  -> "Score N [· M captures]"
+  //   - not yet resolved / awaiting a later chunk -> PENDING_TEXT ("—")
+  // Passing `undefined` (rather than calling this at all) is how a row
+  // stays at its initial pending state — see drainQueue().
   function renderStat(statEl, quick) {
-    if (!quick) {
+    statEl.removeAttribute('title');
+    if (quick === null) {
       statEl.textContent = 'No data';
       return;
     }
-    const parts = [];
-    parts.push(typeof quick.avgScore === 'number' ? `Score ${quick.avgScore}` : 'Score —');
-    if (typeof quick.sampleSize === 'number' && quick.sampleSize > 0) {
-      parts.push(`${quick.sampleSize} capture${quick.sampleSize === 1 ? '' : 's'}`);
+    if (quick && typeof quick === 'object') {
+      if (typeof quick.avgScore === 'number') {
+        const parts = [`Score ${quick.avgScore}`];
+        if (typeof quick.sampleSize === 'number' && quick.sampleSize > 0) {
+          parts.push(`${quick.sampleSize} capture${quick.sampleSize === 1 ? '' : 's'}`);
+        }
+        statEl.textContent = parts.join(' · ');
+        return;
+      }
+      const captures = typeof quick.sampleSize === 'number' ? quick.sampleSize : 0;
+      statEl.textContent = `No score yet · ${captures} capture${captures === 1 ? '' : 's'}`;
+      return;
     }
-    statEl.textContent = parts.join(' · ');
+    statEl.textContent = PENDING_TEXT;
+  }
+
+  // Worker bridge failed, or the reply otherwise couldn't be used — distinct
+  // from "No data" (which means the server answered and has nothing) and
+  // from the pending placeholder (which means no request has resolved yet).
+  function renderUnavailable(statEl) {
+    statEl.textContent = 'Unavailable';
+    statEl.title = 'Could not reach SEO Bandwagon';
   }
 
   // no_key/unauthorized — the common case for a signed-out user (production
   // returns 401 with no key stored). Renders cleanly, once, no retry.
   function renderNoAccount(statEl) {
+    statEl.removeAttribute('title');
     statEl.textContent = '';
     const link = document.createElement('a');
     link.className = 'sbw-serp-connect';
@@ -157,6 +210,18 @@
   }
 
   // ---------- scan + process ----------
+
+  // Fix round 1, item 11: an Images/Videos/News tab (or a zero-result page)
+  // has no #rso/#search organic container carrying any h3 at all — the
+  // toolbar (and its export buttons, which would just offer 0 rows/0
+  // questions) has nothing to do there.
+  function hasOrganicContainerH3() {
+    const rso = document.querySelector('#rso');
+    if (rso && rso.querySelector('h3')) return true;
+    const search = document.querySelector('#search');
+    if (search && search.querySelector('h3')) return true;
+    return false;
+  }
 
   function processResults() {
     const rows = globalThis.SBWSerp.parseResults(document);
@@ -172,62 +237,109 @@
       newRows.push(row);
     });
 
-    renderToolbar();
-    updateToolbarCounts(rows.length);
+    if (rows.length || hasOrganicContainerH3()) {
+      renderToolbar();
+      updateToolbarCounts(rows.length);
+    }
 
     if (newRows.length) {
-      fetchStatsFor(newRows);
+      enqueueRows(newRows);
     }
   }
 
-  async function fetchStatsFor(rows) {
-    // A single page load only ever needs one batch in flight — the debounced
-    // MutationObserver won't fire another scan until this one settles, and
-    // any result appearing after this batch started rides the next scan.
-    if (statsRequestInFlight) return;
+  // Fix round 1, items 4/5/6: queue-based stats pipeline.
+  //
+  // A scan always enqueues its new rows, never drops them — a request
+  // already in flight just means drainQueue() no-ops immediately and its
+  // own `finally` re-invokes drainQueue() once it settles, picking up
+  // whatever arrived in the meantime (item 4). Rows are resolved from the
+  // per-domain cache first (item 5); whatever's left is split into
+  // successive batches of at most MAX_BATCH unique domains — never
+  // truncated, just deferred to the next pass (item 6), during which the
+  // deferred rows' bars stay at PENDING_TEXT rather than flipping to
+  // "No data".
 
-    const domains = [];
-    const seen = new Set();
-    rows.forEach((row) => {
-      if (!seen.has(row.domain)) {
-        seen.add(row.domain);
-        domains.push(row.domain);
-      }
-    });
-    const batch = domains.slice(0, MAX_BATCH);
-    if (!batch.length) return;
+  function enqueueRows(rows) {
+    pendingRows.push(...rows);
+    drainQueue();
+  }
 
+  async function drainQueue() {
+    if (statsRequestInFlight) return; // this pass's `finally` will re-drain
+    if (!pendingRows.length) return;
+
+    // Claimed synchronously, before any await, so a rescan that fires while
+    // this function is still resolving the cache (i.e. before the network
+    // request even starts) can't start a second concurrent pass.
     statsRequestInFlight = true;
-    const q = currentQuery();
     try {
-      let payload = await getCachedStats(q);
-      if (!payload) {
-        const reply = await requestQuickBatch(batch);
-        if (!reply || reply.ok === false) {
-          const code = reply && reply.code;
-          if (code === 'no_key' || code === 'unauthorized') {
-            rows.forEach((row) => { if (row._statEl) renderNoAccount(row._statEl); });
-          } else {
-            rows.forEach((row) => { if (row._statEl) row._statEl.textContent = 'No data'; });
-          }
-          return; // no retry, per the brief
+      const rowsThisPass = pendingRows.splice(0, pendingRows.length);
+
+      const stillNeeded = [];
+      for (const row of rowsThisPass) {
+        const cached = await getCachedStat(row.domain);
+        if (cached !== undefined) {
+          if (row._statEl) renderStat(row._statEl, cached);
+        } else {
+          stillNeeded.push(row);
         }
-        payload = reply.data || { results: {}, invalid: [] };
-        setCachedStats(q, payload);
       }
+      if (!stillNeeded.length) return;
+
+      const domains = [];
+      const seen = new Set();
+      stillNeeded.forEach((row) => {
+        if (!seen.has(row.domain)) {
+          seen.add(row.domain);
+          domains.push(row.domain);
+        }
+      });
+      const chunk = domains.slice(0, MAX_BATCH);
+      const chunkSet = new Set(chunk);
+      const rowsInChunk = stillNeeded.filter((row) => chunkSet.has(row.domain));
+      const rowsForLater = stillNeeded.filter((row) => !chunkSet.has(row.domain));
+      // Deferred rows go back on the queue for the next pass (this pass's
+      // `finally`, below) — they stay at PENDING_TEXT until then.
+      if (rowsForLater.length) pendingRows.push(...rowsForLater);
+
+      const reply = await requestQuickBatch(chunk);
+      if (!reply || reply.ok === false) {
+        const code = reply && reply.code;
+        if (code === 'no_key' || code === 'unauthorized') {
+          rowsInChunk.forEach((row) => { if (row._statEl) renderNoAccount(row._statEl); });
+        } else {
+          rowsInChunk.forEach((row) => { if (row._statEl) renderUnavailable(row._statEl); });
+        }
+        return; // no retry this pass, per the brief
+      }
+
+      const payload = reply.data || { results: {}, invalid: [] };
       const results = payload.results || {};
-      rows.forEach((row) => {
-        if (row._statEl) renderStat(row._statEl, results[row.domain] || null);
+      const toCache = {};
+      chunk.forEach((domain) => {
+        toCache[domain] = Object.prototype.hasOwnProperty.call(results, domain) ? results[domain] : null;
+      });
+      setCachedStats(toCache);
+      rowsInChunk.forEach((row) => {
+        const has = Object.prototype.hasOwnProperty.call(results, row.domain);
+        renderStat(row._statEl, has ? results[row.domain] : null);
       });
     } finally {
       statsRequestInFlight = false;
+      if (pendingRows.length) drainQueue();
     }
   }
 
   // ---------- toolbar ----------
 
+  // Fix round 1, item 8: runs every cell through the exact same
+  // formula-injection guard as resultsToCsv's CSV path (SBWSerp.guardCell)
+  // before stripping the tab/newline characters that would otherwise break
+  // TSV's own column/row delimiters — guarding first matters, since a
+  // guard-triggering leading tab or CR would otherwise be collapsed away by
+  // the whitespace cleanup before ever being seen.
   function rowsToTsv(rows) {
-    const clean = (v) => String(v === null || v === undefined ? '' : v).replace(/[\t\r\n]+/g, ' ').trim();
+    const clean = (v) => globalThis.SBWSerp.guardCell(v).replace(/[\t\r\n]+/g, ' ').trim();
     const lines = [['Position', 'URL', 'Domain', 'Title'].join('\t')];
     rows.forEach((row) => {
       lines.push([row.position, row.url, row.domain, row.title].map(clean).join('\t'));
@@ -235,19 +347,47 @@
     return lines.join('\n');
   }
 
-  function flashLabel(btn, text, restoreTo) {
-    btn.textContent = text;
-    setTimeout(() => { btn.textContent = restoreTo; }, 1200);
+  // Fix round 1, item 9: flashing a Copy button used to overwrite its
+  // entire textContent, which permanently destroyed the
+  // `[data-role="copy-count"]`/`[data-role="paa-count"]` child span the
+  // first time it was clicked — updateToolbarCounts() would then silently
+  // stop finding it, and the count would never update again. Flashing now
+  // hides the real label (a `[data-role="label-holder"]` wrapper around the
+  // button's original children, built lazily) behind a separate
+  // `[data-role="flash"]` span instead of replacing anything, so the count
+  // span always survives and keeps receiving updates even while hidden.
+  function flashLabel(btn, text) {
+    let holder = btn.querySelector('[data-role="label-holder"]');
+    if (!holder) {
+      holder = document.createElement('span');
+      holder.setAttribute('data-role', 'label-holder');
+      while (btn.firstChild) holder.appendChild(btn.firstChild);
+      btn.appendChild(holder);
+    }
+    let flashEl = btn.querySelector('[data-role="flash"]');
+    if (!flashEl) {
+      flashEl = document.createElement('span');
+      flashEl.setAttribute('data-role', 'flash');
+      btn.appendChild(flashEl);
+    }
+    if (btn._sbwFlashTimer) clearTimeout(btn._sbwFlashTimer);
+    holder.style.display = 'none';
+    flashEl.style.display = '';
+    flashEl.textContent = text;
+    btn._sbwFlashTimer = setTimeout(() => {
+      flashEl.style.display = 'none';
+      holder.style.display = '';
+    }, 1200);
   }
 
-  function copyText(text, btn, restoreTo) {
+  function copyText(text, btn) {
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
-      flashLabel(btn, 'Copy unsupported', restoreTo);
+      flashLabel(btn, 'Copy unsupported');
       return;
     }
     navigator.clipboard.writeText(text)
-      .then(() => flashLabel(btn, 'Copied', restoreTo))
-      .catch(() => flashLabel(btn, 'Copy failed', restoreTo));
+      .then(() => flashLabel(btn, 'Copied'))
+      .catch(() => flashLabel(btn, 'Copy failed'));
   }
 
   function downloadCsv(csvText) {
@@ -400,7 +540,7 @@
     copyBtn.appendChild(document.createTextNode(')'));
     copyBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
-      copyText(rowsToTsv(rows), copyBtn, copyBtn.textContent);
+      copyText(rowsToTsv(rows), copyBtn);
     });
     toolbarEl.appendChild(copyBtn);
 
@@ -425,7 +565,7 @@
     paaBtn.appendChild(document.createTextNode(')'));
     paaBtn.addEventListener('click', () => {
       const questions = globalThis.SBWSerp.parsePaa(document);
-      copyText(globalThis.SBWSerp.paaToText(questions), paaBtn, paaBtn.textContent);
+      copyText(globalThis.SBWSerp.paaToText(questions), paaBtn);
     });
     toolbarEl.appendChild(paaBtn);
 

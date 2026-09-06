@@ -115,20 +115,24 @@ or restyled.
   location simulator.
 
 **What's sent:** only the bare domain names of the results currently shown
-(deduped, capped at 20 per batch) go to `POST /api/domain/quick-batch` —
-never the search query, never a title or snippet. The response is cached in
-`chrome.storage.session` for 10 minutes so revisiting the same results
-doesn't repeat the lookup. If no account is connected (or the key is
-rejected), each bar shows "Connect your account" once and doesn't retry.
-Extracted results and PAA questions never leave the browser at all — Copy/
-Export only ever touch your clipboard or a local file download.
+(deduped, looked up in successive batches of up to 20 per request — never
+truncated, just spread across further requests when there are more than
+20) go to `POST /api/domain/quick-batch` — never the search query, never a
+title or snippet. Each domain's response is cached in `chrome.storage.session`
+for 10 minutes, keyed by domain, so a domain already looked up isn't
+re-requested even when it reappears in a later batch of results. If no
+account is connected (or the key is rejected), each bar shows "Connect your
+account" once and doesn't retry; a bar shows "Unavailable" if the lookup
+itself failed to reach the worker. Extracted results and PAA questions never
+leave the browser at all — Copy/Export only ever touch your clipboard or a
+local file download.
 
 **Location simulator:** builds a Google search URL with location parameters
 (`uule`, `gl`, `hl`, optionally `pws=0` to turn off personalization) from a
 54-metro preset list or a typed canonical location name, and opens it in a
 new tab — or two, for the "Compare in two tabs" button. This **opens a
 search with location parameters so you can see what searchers in that area
-are shown**; it does not simulate Googlebot or any other crawler, and the
+are shown**. It does not simulate Googlebot or any other crawler, and the
 extension never describes it that way.
 
 ## Privacy

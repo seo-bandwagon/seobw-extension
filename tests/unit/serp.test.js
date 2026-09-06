@@ -13,6 +13,12 @@ import { JSDOM } from 'jsdom';
 await import('../../src/lib/serp.js');
 const SBWSerp = globalThis.SBWSerp;
 
+// Fix round 1, item 13: pins SBWSerp's formula-injection guard against
+// SBWCsv's (src/lib/csv.js) — both must treat the same hostile/plain
+// prefixes identically.
+await import('../../src/lib/csv.js');
+const SBWCsv = globalThis.SBWCsv;
+
 function parseFragment(html) {
   const dom = new JSDOM(`<!doctype html><body>${html}</body>`);
   return dom.window.document;
@@ -124,8 +130,8 @@ describe('parseResults', () => {
 
   it('dedupes by URL', () => {
     const doc = parseFragment(`
-      <div class="g"><div><a href="https://dup.example/x"><h3>One</h3></a></div></div>
-      <div class="g"><div><a href="https://dup.example/x"><h3>One again</h3></a></div></div>
+      <div class="g"><div><a href="https://dup.example/x"><h3>One</h3></a><cite>dup.example</cite></div></div>
+      <div class="g"><div><a href="https://dup.example/x"><h3>One again</h3></a><cite>dup.example</cite></div></div>
     `);
     const rows = SBWSerp.parseResults(doc);
     expect(rows.length).toBe(1);
@@ -164,6 +170,149 @@ describe('parsePaa', () => {
   it('returns [] when there are no PAA blocks', () => {
     const doc = parseFragment('<div>no paa here</div>');
     expect(SBWSerp.parsePaa(doc)).toEqual([]);
+  });
+});
+
+/* ---------- fix round 1, item 1: organic-only scoping ---------- */
+
+describe('parseResults — organic-only scoping (fix round 1, item 1)', () => {
+  // Reviewer's fixture: AI Overview with 2 citations, a video carousel with
+  // 2 items, a Top stories block with 2 items, a shopping unit, and ONE
+  // real organic result. Every non-organic h3 must be rejected.
+  const NON_ORGANIC_FIXTURE = `
+    <div id="search">
+      <div data-attrid="AI Overview">
+        <div><a href="https://ai-cite-one.example/a"><h3>AI Citation One</h3></a></div>
+        <div><a href="https://ai-cite-two.example/b"><h3>AI Citation Two</h3></a></div>
+      </div>
+      <g-scrolling-carousel aria-label="Videos">
+        <div><a href="https://video-one.example/a"><h3>Video One</h3></a></div>
+        <div><a href="https://video-two.example/a"><h3>Video Two</h3></a></div>
+      </g-scrolling-carousel>
+      <div aria-label="Top stories">
+        <div><a href="https://story-one.example/a"><h3>Top Story One</h3></a></div>
+        <div><a href="https://story-two.example/a"><h3>Top Story Two</h3></a></div>
+      </div>
+      <div data-pla="1">
+        <div><a href="https://shopping-item.example/a"><h3>Shopping Item</h3></a></div>
+      </div>
+      <div class="g">
+        <div>
+          <a href="https://the-only-organic.example/page"><h3>The Only Organic Result</h3></a>
+          <div>This snippet has more than forty characters so it clears the qualifying-content gate.</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  it('rejects AI Overview citations, video/Top-stories carousels and a shopping unit, keeping only the one real result', () => {
+    const doc = parseFragment(NON_ORGANIC_FIXTURE);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.length).toBe(1);
+    expect(rows[0].position).toBe(1);
+    expect(rows[0].domain).toBe('the-only-organic.example');
+  });
+
+  it('requires a cite or a >=40-char snippet — a bare title-only block is rejected', () => {
+    const doc = parseFragment(`
+      <div class="g"><div><a href="https://bare-title.example/a"><h3>Bare Title Only</h3></a></div></div>
+    `);
+    expect(SBWSerp.parseResults(doc)).toEqual([]);
+  });
+
+  it('falls back to scanning the whole root when neither #rso nor #search exists', () => {
+    const doc = parseFragment(`
+      <div class="g"><div><a href="https://no-wrapper.example/a"><h3>No Wrapper</h3></a><cite>no-wrapper.example</cite></div></div>
+    `);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.length).toBe(1);
+    expect(rows[0].domain).toBe('no-wrapper.example');
+  });
+});
+
+/* ---------- fix round 1, item 2: sitelinks containment dedupe ---------- */
+
+describe('parseResults — sitelinks containment dedupe (fix round 1, item 2)', () => {
+  it('counts a result with nested sitelink h3s once, not once per sitelink', () => {
+    const doc = parseFragment(`
+      <div class="g">
+        <div class="yuRUbf">
+          <a href="https://sitelinks-parent.example/main"><h3>Main sitelinks Result</h3></a>
+        </div>
+        <div class="cite-line"><cite>sitelinks-parent.example</cite></div>
+        <div class="sitelinks-wrapper">
+          <div class="sitelink"><a href="https://sitelinks-parent.example/sub-a"><h3>Sub A</h3></a></div>
+          <div class="sitelink"><a href="https://sitelinks-parent.example/sub-b"><h3>Sub B</h3></a></div>
+        </div>
+      </div>
+    `);
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.length).toBe(1);
+    expect(rows[0].domain).toBe('sitelinks-parent.example');
+  });
+});
+
+/* ---------- fix round 1, item 3: expanded ad exclusion ---------- */
+
+describe('parseResults — expanded ad/sponsored exclusion (fix round 1, item 3)', () => {
+  it('excludes a [data-pla] shopping unit', () => {
+    const doc = parseFragment(`
+      <div data-pla="1">
+        <div>
+          <a href="https://shopping-only.example/a"><h3>Shopping Only</h3></a>
+          <div>Enough snippet text here to pass forty characters easily, if it mattered at all.</div>
+        </div>
+      </div>
+    `);
+    expect(SBWSerp.parseResults(doc)).toEqual([]);
+  });
+
+  it('excludes a block whose own leading text reads "Sponsored", even without a recognized ad container', () => {
+    // The "Sponsored" label sits inside the SAME block findBlock resolves
+    // (a sibling of the anchor, not an outer wrapper) — the title
+    // deliberately does NOT itself start with "Sponsored", so a pass here
+    // can only be the leading-text label check, not a title coincidence.
+    const doc = parseFragment(`
+      <div class="g">
+        <div>
+          <span>Sponsored</span>
+          <a href="https://sponsored-lookalike.example/a"><h3>Widget Retailer HQ</h3></a>
+          <div>This snippet also has enough characters to pass the qualifying content gate for testing.</div>
+        </div>
+      </div>
+    `);
+    expect(SBWSerp.parseResults(doc)).toEqual([]);
+  });
+
+  it('excludes a block whose leading text reads "Ad ·"', () => {
+    const doc = parseFragment(`
+      <div class="g">
+        <div>
+          <span>Ad&nbsp;&middot;</span>
+          <a href="https://ad-dot-lookalike.example/a"><h3>Widget Retailer HQ</h3></a>
+          <div>This snippet also has enough characters to pass the qualifying content gate for testing.</div>
+        </div>
+      </div>
+    `);
+    expect(SBWSerp.parseResults(doc)).toEqual([]);
+  });
+});
+
+/* ---------- fix round 1, item 7: PAA chrome-button filter ---------- */
+
+describe('parsePaa — chrome-button filter (fix round 1, item 7)', () => {
+  it('excludes short/non-question [jsname][role="button"] chrome buttons like Tools/All filters/Feedback', () => {
+    const doc = parseFragment(`
+      <div data-q="Real question one?">Real question one?</div>
+      <button jsname="a1" role="button">Tools</button>
+      <button jsname="a2" role="button">All filters</button>
+      <button jsname="a3" role="button">Feedback</button>
+      <div jsname="a4" role="button">Is this actually a question that qualifies?</div>
+    `);
+    expect(SBWSerp.parsePaa(doc)).toEqual([
+      'Real question one?',
+      'Is this actually a question that qualifies?'
+    ]);
   });
 });
 
@@ -238,6 +387,19 @@ describe('buildSearchUrl', () => {
     const url = SBWSerp.buildSearchUrl({ q: 'x', domain: 'www.google.co.uk' });
     expect(url.startsWith('https://www.google.co.uk/search')).toBe(true);
   });
+
+  // Fix round 1, item 12
+  it('clamps num to the 1-100 range', () => {
+    const tooHigh = new URL(SBWSerp.buildSearchUrl({ q: 'x', num: 500 }));
+    expect(tooHigh.searchParams.get('num')).toBe('100');
+    const tooLow = new URL(SBWSerp.buildSearchUrl({ q: 'x', num: -5 }));
+    expect(tooLow.searchParams.get('num')).toBe('1');
+  });
+
+  it('treats pws: 0 (the number zero) as "personalization off" too, not as falsy/omit', () => {
+    const url = new URL(SBWSerp.buildSearchUrl({ q: 'x', pws: 0 }));
+    expect(url.searchParams.get('pws')).toBe('0');
+  });
 });
 
 /* ---------- PRESET_LOCATIONS ---------- */
@@ -260,5 +422,28 @@ describe('PRESET_LOCATIONS', () => {
   it('canonicalizes the Washington DMV metro label to a real place name', () => {
     const dc = SBWSerp.PRESET_LOCATIONS.find(l => l.label === 'Washington DMV, DC');
     expect(dc.canonical).toBe('Washington,District of Columbia,United States');
+  });
+});
+
+/* ---------- fix round 1, item 13: guard parity with SBWCsv ---------- */
+
+describe('formula-injection guard — parity with SBWCsv (fix round 1, item 13)', () => {
+  it('guards a hostile/plain value identically to SBWCsv\'s own cell guard', () => {
+    ['=x', '+x', '-x', '@x', '\tx', '\rx', 'plain'].forEach((value) => {
+      // Isolate SBWSerp's guarded Title cell (the last of its 4 fixed
+      // columns) by using empty, non-quoting values for the rest.
+      const serpCsv = SBWSerp.resultsToCsv([
+        { position: '', url: '', domain: '', title: value }
+      ]);
+      const serpLine = serpCsv.split('\r\n')[1];
+      const serpCell = serpLine.slice(',,,'.length);
+
+      // SBWCsv.toCsv with a single column isolates its own guarded cell the
+      // same way — one data line, nothing else in it.
+      const genericCsv = SBWCsv.toCsv([{ v: value }], [{ key: 'v', label: 'V' }]);
+      const genericCell = genericCsv.split('\r\n')[1];
+
+      expect(serpCell).toBe(genericCell);
+    });
   });
 });
