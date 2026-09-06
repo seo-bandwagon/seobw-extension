@@ -131,7 +131,18 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **The "View as" user-agent switcher rewrites a header, nothing more** (Rendering section, 1.6.0+) — choosing a preset other than Default sets a session-only `declarativeNetRequest` rule that rewrites the User-Agent header on requests from the current tab, then reloads that tab; switching back to Default (or closing the tab) removes it immediately. Nothing about which preset you chose, or what the page looked like under it, is sent anywhere. This is for testing how a page's server-side rendering or cloaking behaves under a different user-agent — not for bypassing a paywall, a login gate, or any other access control.
 
+**Structured data validation reads only the current page's own HTML — no permission, no fetch, at all** (Structured Data section, 1.6.0+) — `src/lib/structured-data.js` extracts every JSON-LD `<script>` block (including `@graph`), every WHATWG microdata `[itemscope]` tree, and every basic RDFa Lite `[typeof]` tree already on the page, and checks each item against a required/recommended property table per type (Article, Product, LocalBusiness and its common subtypes, Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, JobPosting). "Eligible for" only lists a Google rich-result feature when that item's required properties are all present — it never promises "will get," since eligibility is necessary, not sufficient, for a rich result to actually appear. See "Credits" below for where those required/recommended lists come from.
+
 Nothing is sent without a key configured, regardless of the toggle.
+
+## Credits
+
+The Structured Data section's required/recommended property lists derive from:
+
+- **[schema.org](https://schema.org)** type and property definitions — [CC BY-SA 3.0](https://schema.org/docs/terms.html)
+- **[Google Search Central](https://developers.google.com/search/docs/appearance/structured-data)** structured-data documentation — CC BY 4.0
+
+Every type category the section validates against (Article, Product, LocalBusiness, Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review/AggregateRating, WebSite, WebPage, JobPosting) links back to the specific Google Search Central feature page or schema.org type page its list was derived from — see the "About & credits" link in the popup footer for the full, always-current list (`src/lib/credits.js`, read straight off `src/lib/structured-data.js`'s own table so the two can't drift apart). Google tools (Rich Results Test, Search Console) are named by name where relevant, never with logos.
 
 ## Local-first + sync/retry behaviour
 
@@ -165,13 +176,17 @@ src/
                            # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
                            # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
                            # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js
-                           # (user-agent presets + DNR rule shape)
+                           # (user-agent presets + DNR rule shape), structured-data.js (JSON-LD/microdata/
+                           # RDFa extraction + required/recommended validation, no fetch), credits.js
+                           # (attribution data for the popup's About & credits panel)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
   overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
   popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
                            # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
                            # + hreflang.js (Hreflang section — tag table, return-tag check)
                            # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
+                           # + structured-data.js (Structured Data section — item/problem list, "Eligible
+                           # for", CSV export, and the footer's About & credits panel)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/

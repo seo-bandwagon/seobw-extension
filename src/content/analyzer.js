@@ -627,46 +627,46 @@ function analyzeHreflang() {
   return { count: raw.length, entries, issues: validated.issues };
 }
 
+// Task 5: full JSON-LD + microdata + RDFa extraction and required/
+// recommended-property validation lives in self.SBWSchema
+// (src/lib/structured-data.js, injected before this file — see
+// popup.js/service-worker.js/link-check.js's executeScript file lists,
+// same pattern as SBWHreflang above). This gathers the raw material off
+// the DOM (JSON-LD script text, plus the document itself for the
+// microdata/RDFa walks) and hands it to SBWSchema.validateAll() — the key
+// name `schemaValidation` is unchanged from the old light version, but the
+// value is now that function's { items, counts, eligible } result rather
+// than a plain array.
 function analyzeSchemaValidation() {
-  const results = [];
-  const requiredFields = {
-    'Article': ['headline', 'author', 'datePublished', 'image'],
-    'Product': ['name', 'image', 'offers'],
-    'LocalBusiness': ['name', 'address', 'telephone'],
-    'Organization': ['name', 'url', 'logo'],
-    'Person': ['name'],
-    'BreadcrumbList': ['itemListElement'],
-    'FAQPage': ['mainEntity'],
-    'HowTo': ['name', 'step'],
-    'Recipe': ['name', 'recipeIngredient', 'recipeInstructions'],
-    'Event': ['name', 'startDate', 'location'],
-    'VideoObject': ['name', 'description', 'thumbnailUrl', 'uploadDate'],
-    'Review': ['itemReviewed', 'reviewRating', 'author'],
-    'WebSite': ['name', 'url'],
-    'WebPage': ['name'],
-  };
+  const scriptTexts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+    .map(s => s.textContent);
 
-  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-  scripts.forEach(script => {
-    try {
-      const data = JSON.parse(script.textContent);
-      const items = data['@graph'] || (Array.isArray(data) ? data : [data]);
-      items.forEach(item => {
-        const type = Array.isArray(item['@type']) ? item['@type'][0] : item['@type'];
-        if (!type) return;
-        const required = requiredFields[type] || [];
-        const missing = required.filter(f => !item[f] && !item[f.toLowerCase()]);
-        results.push({
-          type,
-          valid: missing.length === 0,
-          missingFields: missing,
-          fieldCount: Object.keys(item).filter(k => !k.startsWith('@')).length,
+  // Defensive fallback (see collectLinks()/analyzeHreflang() above for the
+  // same guard pattern): if lib/structured-data.js somehow isn't injected
+  // ahead of this file, fall back to a minimal JSON-LD-only, no-validation
+  // shape rather than throwing — still keyed the same way so callers don't
+  // need to special-case it.
+  if (typeof SBWSchema === 'undefined') {
+    const items = [];
+    scriptTexts.forEach(text => {
+      try {
+        const data = JSON.parse(text);
+        const nodes = data && data['@graph'] || (Array.isArray(data) ? data : [data]);
+        nodes.forEach(node => {
+          const type = Array.isArray(node['@type']) ? node['@type'][0] : node['@type'];
+          if (type) items.push({ type, source: 'json-ld', required: { missing: [], present: [] }, recommended: { missing: [] }, problems: [] });
         });
-      });
-    } catch (e) {}
-  });
+      } catch (e) { /* skip unparsable block */ }
+    });
+    return { items, counts: { byType: {}, bySource: {}, withErrors: 0 }, eligible: [] };
+  }
 
-  return results;
+  const raw = [].concat(
+    SBWSchema.extractJsonLd(scriptTexts),
+    SBWSchema.extractMicrodata(document),
+    SBWSchema.extractRdfa(document)
+  );
+  return SBWSchema.validateAll(raw);
 }
 
 function analyzeLazyImages() {

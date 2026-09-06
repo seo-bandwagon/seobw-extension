@@ -70,6 +70,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative; /* containing block for .credits' inset:0 overlay */
 }
 
 /* --- Chrome bar: wordmark left, segmented switcher right --- */
@@ -1007,6 +1008,182 @@ body {
   color: var(--paper-50);
   margin: 0;
 }
+
+/* ============================================================
+   STRUCTURED DATA (src/popup/structured-data.js)
+   — no permission card here (extraction/validation is pure DOM/JSON-LD
+   parsing, no third-party fetch); .sd-chip reuses .lc-chip/.hf-chip's shape.
+   ============================================================ */
+
+.sd-empty {
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--paper-50);
+}
+
+.sd-chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px; }
+.sd-chip {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--paper-70);
+  border: 1px solid var(--edge);
+}
+.sd-chip-count { color: var(--pink); margin-left: 4px; }
+.sd-chip-bad { border-color: rgba(229, 72, 77, 0.4); color: var(--error); }
+.sd-chip-muted { color: var(--paper-50); }
+
+.sd-eligible {
+  padding: 0 14px 10px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--success);
+}
+.sd-eligible-none { color: var(--paper-50); }
+
+.sd-items { border-top: 1px solid var(--hairline-soft); }
+.sd-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.sd-item-head { display: flex; align-items: center; gap: 8px; }
+.sd-source-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+}
+.sd-copy-btn {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  cursor: pointer;
+}
+.sd-copy-btn:hover { border-color: var(--pink); color: var(--white); }
+
+.sd-chips-required, .sd-chips-recommended { padding: 8px 0 0; }
+.sd-problems {
+  margin: 8px 0 0;
+  padding: 0 0 0 16px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--warning);
+}
+
+.sd-errors { border-top: 1px solid var(--hairline-soft); padding: 10px 14px; }
+.sd-errors-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+  margin-bottom: 6px;
+}
+.sd-error-row { padding: 4px 0; }
+.sd-error-msg { color: var(--error); font-family: var(--font-body); font-size: 10.5px; margin-right: 6px; }
+.sd-error-snippet {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--paper-50);
+  word-break: break-all;
+}
+
+.sd-actions { display: flex; gap: 7px; padding: 10px 14px 12px; }
+.sd-actions button {
+  flex: 1;
+  padding: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-heading);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sd-actions button:hover { border-color: var(--pink); color: var(--white); }
+
+/* ============================================================
+   CREDITS PANEL (footer "About & credits" link, src/popup/
+   structured-data.js) — a small in-popup panel, not the unused full-screen
+   .modal further down; it overlays the current tab content only.
+   ============================================================ */
+
+.credits-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--paper-50);
+  cursor: pointer;
+  text-decoration: none;
+}
+.credits-link:hover { color: var(--pink); }
+
+.credits {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--surface-1);
+  overflow-y: auto;
+}
+.credits[hidden] { display: none; }
+.credits-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline);
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+}
+.credits-title {
+  font-family: var(--font-heading);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  color: var(--paper-95);
+}
+.credits-close {
+  background: none;
+  border: none;
+  color: var(--paper-50);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.credits-close:hover { color: var(--pink); }
+.credits-body { padding: 4px 14px 16px; }
+.credits-copy {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--paper-70);
+  margin: 10px 0 6px;
+}
+.credits-list, .credits-types {
+  margin: 0 0 6px;
+  padding: 0 0 0 16px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--paper-70);
+}
+.credits-list a, .credits-types a { color: var(--pink); text-decoration: none; }
+.credits-list a:hover, .credits-types a:hover { text-decoration: underline; }
+.credits-type { color: var(--paper-95); }
 
 /* ============================================================
    CITATIONS TAB

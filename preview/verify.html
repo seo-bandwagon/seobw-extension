@@ -110,6 +110,27 @@ const CASES = [
     need: ['.seo-hero', '.rc-badge-slot .badge-mono'],
     text: ['UA OVERRIDE ACTIVE'] },
 
+  // Task 5: structured-data validation (src/popup/structured-data.js,
+  // src/lib/structured-data.js, src/lib/credits.js). `schema-mixed` renders
+  // SEO_FIXTURE.schemaValidation — a real SBWSchema.validateAll() call over
+  // four items (JSON-LD Article complete, JSON-LD Product missing offers,
+  // Microdata LocalBusiness, RDFa Person) plus one JSON-LD parse error (see
+  // stub.js's SCHEMA_RAW_ITEMS/SCHEMA_PARSE_ERROR) — no click needed, since
+  // (unlike every other 1.6.0 section) nothing here is gated on a
+  // permission or a fetch. The four distinct type names in `text` are this
+  // harness's usual stand-in for a literal "`.sd-item` ×4" count assertion
+  // (see hreflang-set's identical reasoning). `credits` clicks the popup
+  // footer's "About & credits" link and asserts the panel actually opened
+  // (`.credits:not([hidden])`, not just that the — always-present-but-
+  // hidden — container exists) with real per-type rows inside it.
+  { q: 'popup.html?state=schema-mixed',
+    need: ['.seo-hero', '.sd-item', '.sd-eligible'],
+    text: ['Article', 'Product', 'LocalBusiness', 'Person', 'Eligible for'] },
+  { q: 'popup.html?state=credits',
+    need: ['.seo-hero', '.credits:not([hidden])', '.credits-type'],
+    click: '#creditsLink',
+    text: ['schema.org', 'Google Search Central', 'CC BY-SA 3.0', 'CC BY 4.0'] },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's

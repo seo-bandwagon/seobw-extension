@@ -722,6 +722,53 @@ Object.defineProperty(SEO_FIXTURE, 'hreflang', {
   }
 });
 
+// Task 5 (`schema-mixed`/`credits` states): four real extracted items — one
+// per source SBWSchema supports plus one that's deliberately incomplete —
+// and a fifth parse-error entry, run through the REAL SBWSchema.validateAll()
+// the same way SEO_FIXTURE.hreflang above runs the real SBWHreflang.validateSet()
+// (avoids a hand-typed shadow of validateAll's output silently drifting from
+// the library). Lazy getter for the same reason as hreflang: SBWSchema isn't
+// loaded yet when this file's own top-level statements run.
+const SCHEMA_RAW_ITEMS = [
+  // JSON-LD Article — complete: satisfies every required field, so this is
+  // the one that shows up in "Eligible for".
+  {
+    type: 'Article', source: 'json-ld',
+    properties: {
+      headline: 'Family Dentistry in North Austin',
+      image: 'https://northsidedental.com/og.jpg',
+      datePublished: '2026-06-01',
+      author: { '@type': 'Person', name: 'Dr. Dana Mercer' }
+    }
+  },
+  // JSON-LD Product — missing `offers` (required) entirely, so it renders
+  // a required-missing chip and stays out of "Eligible for".
+  {
+    type: 'Product', source: 'json-ld',
+    properties: { name: 'Teeth Whitening Kit', image: 'https://northsidedental.com/kit.jpg' }
+  },
+  // Microdata LocalBusiness — as SBWSchema.extractMicrodata() would hand it
+  // back (a plain {type, source, properties} item, not run through a real
+  // DOM walk here — the walk itself is covered by tests/unit/structured-data.test.js).
+  {
+    type: 'LocalBusiness', source: 'microdata',
+    properties: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Austin, TX 78757', telephone: '(512) 555-0134' }
+  },
+  // RDFa Person.
+  { type: 'Person', source: 'rdfa', properties: { name: 'Dr. Dana Mercer' } }
+];
+const SCHEMA_PARSE_ERROR = {
+  source: 'json-ld',
+  error: 'Unexpected end of JSON input',
+  snippet: '{ "@context": "https://schema.org", "@type": "Article", "headline": "Untitled'
+};
+Object.defineProperty(SEO_FIXTURE, 'schemaValidation', {
+  enumerable: true,
+  get() {
+    return SBWSchema.validateAll(SCHEMA_RAW_ITEMS.concat([SCHEMA_PARSE_ERROR]));
+  }
+});
+
 /* ---------- drive the requested state after the real code boots ---------- */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -733,7 +780,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua'];
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua', 'schema-mixed', 'credits'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();

@@ -127,7 +127,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     }
 
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/content/analyzer.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/content/analyzer.js'] });
     } catch (e) { /* already injected */ }
 
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
@@ -385,12 +385,15 @@ function renderResults(data) {
   // no hreflang tags on the page, adds nothing but a muted line inside Page
   // Meta instead. Rendering mounts next and inserts itself right after
   // Hreflang, falling back the same way (see src/popup/render-check.js).
+  // Structured Data mounts next and inserts itself right after Rendering,
+  // falling back through the same chain (see src/popup/structured-data.js).
   // Link Check — which just appends to the end of #content — always ends up
   // last regardless of call order; mounting these first anyway keeps that
   // intent readable here.
   globalThis.SBWIndexabilityUI?.mount(document.getElementById('content'), data);
   globalThis.SBWHreflangUI?.mount(document.getElementById('content'), data);
   globalThis.SBWRenderCheckUI?.mount(document.getElementById('content'), data);
+  globalThis.SBWSchemaUI?.mount(document.getElementById('content'), data);
   globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
 }
 

@@ -96,6 +96,31 @@ policy above.
   when an override is still active. New manifest permission:
   `declarativeNetRequestWithHostAccess` (works with the same optional
   `<all_urls>` grant; no static rulesets ship with the extension).
+- **Structured data validation** (`src/popup/structured-data.js`, new
+  "STRUCTURED DATA" section directly after Rendering; `src/lib/
+  structured-data.js`) — the content script now extracts every JSON-LD
+  `<script>` block (flattening `@graph` and top-level arrays, capturing a
+  parse error as its own item rather than dropping the whole block), every
+  WHATWG microdata `[itemscope]` tree (nested itemscopes become nested
+  items; `content`/`href`/`src`/`datetime` attribute value rules), and
+  every basic RDFa Lite `[typeof]` tree, then validates each item's
+  properties against a required/recommended table for Article (incl.
+  NewsArticle/BlogPosting), Product, LocalBusiness (and its common
+  subtypes), Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe,
+  Event, VideoObject, Review/AggregateRating, WebSite, WebPage, and
+  JobPosting — plus specific shape checks (an unknown `@type`, `offers`
+  missing `price`/`priceCurrency`, a non-ISO-8601 `datePublished`, an
+  `image` that isn't a URL or ImageObject, a BreadcrumbList item without
+  `position`, a FAQPage `mainEntity` without `acceptedAnswer`). "Eligible
+  for" lists a Google rich-result feature only when that item's required
+  properties are all present — never "will get." No fetch, no permission:
+  everything here reads only the current page's own already-loaded DOM.
+  Items export to CSV; each item's underlying data copies as JSON. The
+  popup footer's new "About & credits" link opens a small in-popup panel
+  (`src/lib/credits.js`) crediting schema.org (CC BY-SA 3.0) and Google
+  Search Central's structured-data documentation (CC BY 4.0) for the
+  required/recommended tables, with a source link per type category;
+  Google tools are named nominatively, no logos.
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension
