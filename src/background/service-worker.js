@@ -169,19 +169,35 @@ chrome.runtime.onInstalled.addListener(() => {
 // Listen for messages
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
-  // GSC overlay: open the row's query/URL as a Google Search in a new incognito window
-  if (request.action === 'openIncognitoSearch') {
+  // GSC row actions: open the row's query/URL as a Google Search.
+  if (request.action === 'openSearch') {
     const query = (request.query || '').trim();
     if (query) {
-      const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
-      chrome.windows.create({ url: searchUrl, incognito: true }, () => {
-        if (chrome.runtime.lastError) {
-          // Incognito may be disabled by policy/profile — fall back to a normal window
-          chrome.windows.create({ url: searchUrl });
-        }
-      });
+      chrome.tabs.create({ url: 'https://www.google.com/search?q=' + encodeURIComponent(query) });
     }
     sendResponse({ ok: !!query });
+    return true;
+  }
+
+  // …and in a new incognito/private window. If the browser refuses (the
+  // extension is not allowed in Incognito/Private), fall back to a normal
+  // window and say so — the content script shows the user how to enable it.
+  if (request.action === 'openIncognitoSearch') {
+    const query = (request.query || '').trim();
+    if (!query) {
+      sendResponse({ ok: false });
+      return true;
+    }
+    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    chrome.windows.create({ url: searchUrl, incognito: true }, () => {
+      if (chrome.runtime.lastError) {
+        chrome.windows.create({ url: searchUrl }, () => {
+          sendResponse({ ok: true, incognito: false });
+        });
+      } else {
+        sendResponse({ ok: true, incognito: true });
+      }
+    });
     return true;
   }
 
