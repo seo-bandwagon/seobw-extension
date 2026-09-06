@@ -336,9 +336,41 @@ async function checkShellDrift(realUrl, previewUrl, label) {
   out.textContent = lines.join('\n');
 }
 
+// Task 8 (release step): the popup footer stamps its version from
+// `chrome.runtime.getManifest()` (src/popup/popup.js's stampVersion()) —
+// preview/stub.js's MANIFEST constant reads the real manifest.json via a
+// synchronous XHR so the preview can never silently drift from the shipped
+// version. This re-checks that from the outside: parse manifest.json the
+// same way a reviewer would, load the popup fixture, and diff its rendered
+// footer text against it — catches a bump to one file without the other
+// (or a build that ships a stale manifest.json next to fresh code).
+async function checkReleaseVersion() {
+  const manifest = await (await fetch('../manifest.json')).json();
+  const expected = 'v' + manifest.version;
+
+  const f = document.createElement('iframe');
+  f.style.cssText = 'width:500px;height:600px;position:absolute;left:-9999px';
+  f.src = 'popup.html?state=main-known';
+  const done = new Promise((resolve) => { f.onload = resolve; });
+  document.body.appendChild(f);
+  await done;
+  await waitFor(() => (f.contentDocument.getElementById('versionTag') || {}).textContent);
+  const actual = ((f.contentDocument.getElementById('versionTag') || {}).textContent || '').trim();
+  f.remove();
+
+  if (actual === expected) {
+    lines.push(`  OK   release: manifest.json version (${expected}) matches the popup footer`);
+  } else {
+    failures++;
+    lines.push(` FAIL  release: manifest.json version is "${expected}", popup footer shows "${actual}"`);
+  }
+  out.textContent = lines.join('\n');
+}
+
 (async () => {
   await checkShellDrift('../src/popup/popup.html', 'popup.html', 'popup');
   await checkShellDrift('../src/sidepanel/sidepanel.html', 'sidepanel.html', 'sidepanel');
+  await checkReleaseVersion();
   for (const c of CASES) await run(c);
   lines.push('', failures ? `${failures} FAILING` : 'ALL PASS');
   out.textContent = lines.join('\n');

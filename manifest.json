@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.5.2",
-  "version_name": "1.5.2 — Search Console row actions + compare math",
-  "description": "Instant SEO analysis with A–F grades, plus local-SEO citation checks and link-building review, synced to your SEO Bandwagon account.",
+  "version": "1.6.0",
+  "version_name": "1.6.0 — competitor parity: link check, indexability, hreflang, rendering, structured data, SERP overlay, tools",
+  "description": "SEO analysis, link check, indexability, hreflang, rendering, structured data, citations and link-building, synced to your account.",
   "permissions": [
     "activeTab",
     "storage",

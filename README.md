@@ -1,13 +1,22 @@
 # SEO Bandwagon Chrome Extension
 
+**Version 1.6.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
 ## What it does
 
 - **SEO Analysis** — score ring (0–100, A–F grade) with four sub-scores (Meta, Content, Links, Tech), page meta with a SERP preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), heading structure, link and image audit with on-page highlighting, content stats and n-grams, tech stack detection, and a domain-history strip showing this domain's and URL's past captures.
+- **Link Check** — probes every link on the page (status groups, on-page highlighting, CSV export); needs the optional "check other sites" permission.
+- **Indexability** — the page's redirect chain, response headers, and X-Robots-Tag, combined with its meta robots/canonical, into an indexable/not-indexable verdict; also traces any URL you type.
+- **Hreflang** — validates every declared `hreflang` tag (BCP 47 form, duplicates, self-reference, x-default) and, on request, fetches each alternate to confirm it links back.
+- **Rendering** — compares the page's raw (unrendered) HTML against what your browser actually rendered, and a "View as" switcher for testing server-side rendering and cloaking under a different user-agent.
+- **Structured Data** — extracts JSON-LD, Microdata, and RDFa, validates required/recommended properties per type, and shows which Google rich results an item is eligible for.
 - **Citations** — detects 40 curated local-SEO directories on the current page, extracts the page's NAP (JSON-LD → microdata → heuristic) and scores it against your business record, captures a proof screenshot, and files the citation to your account in one click.
 - **Link Building** — side panel view of your outlets (qualified prospects), pitches (draft/approved), and results (placements, funnel, spend), plus "Add current tab as outlet."
 - **SERP overlay** — on Google's own results pages, a stats bar under each organic result, one-click results/PAA export, and a location simulator for seeing what searchers in another metro are shown.
+- **Search Console helpers** — row-level "open in Google Search" actions and compare-mode math (percent change, sort/filter, copy as TSV) on Search Console's own Performance report.
+- **Tools** — a right-click "SEO Bandwagon tools" submenu (and matching popup row) for Google Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine, `site:` search, and sitemap.xml/robots.txt shortcuts.
 
 ## Installation
 
@@ -49,9 +58,9 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
 | `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
-| `content_scripts` matches: `https://www.google.com/search*` and the same path on nine other Google TLDs (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.in`) | Runs the SERP overlay (bars under organic results, the results/PAA export toolbar, the location simulator) on Google's own results pages. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use, and doesn't touch the optional `<all_urls>` permission below at all: every stats lookup routes through the background worker's existing `seobandwagon.com` access, never a fetch from the page itself |
+| `content_scripts` matches: `https://www.google.com/search*` and the same path on nine other Google TLDs (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.in`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, sends only bare domain names to `seobandwagon.com` (never your search query) to look up their stats, and copies results/PAA questions to your clipboard or a CSV only when you click. It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use, and doesn't touch the optional `<all_urls>` permission below at all: every stats lookup routes through the background worker's existing `seobandwagon.com` access, never a fetch from the page itself |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
-| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically) — it lets the extension look at pages on other domains from your browser: fetching them (without cookies) to check whether links resolve, whether an hreflang alternate links back, or what a page's raw (unrendered) HTML looked like, and lets `webRequest`/`webNavigation` above actually see anything and the User-Agent switcher actually rewrite a header, plus opening a URL in a background tab like a normal visit when you use "Trace another URL." Revoke it any time from the extensions page |
+| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically). The consent text shown at request time, verbatim (`ALL_URLS_REASON` in `src/lib/perms.js`): *"To check links, hreflang alternates and redirects, and to compare a page's raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page."* |
 
 The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
@@ -346,7 +355,10 @@ Before every Chrome Web Store submission, also walk through [MANUAL_SMOKE_TEST.m
 ## Releasing
 
 ```bash
-npm run zip   # manifest.json lib/ src/ README.md ROADMAP.md → seo-bw-extension.zip
+npm run zip        # manifest.json lib/ src/ README.md ROADMAP.md → seo-bw-extension.zip
+npm run check:zip  # same, plus: fails if any file manifest.json/popup.html/options.html/
+                    # history.html/sidepanel.html reference is missing from the zip; deletes
+                    # the zip itself afterward (scripts/check-zip-manifest.mjs)
 ```
 
 Bump `version` and `version_name` in `manifest.json` first (see `ROADMAP.md`'s versioning policy). Unzip and inspect the listing before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/`, `src/`, `README.md`, `ROADMAP.md` and nothing else (no `preview/`, `tests/`, `node_modules/`, or internal docs).

@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.5.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.6.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -27,11 +27,20 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 ---
 
-## Changelog — v1.6.0 (in progress)
+## Changelog — v1.6.0 (2026-09-06)
 
-Extension competitor-parity work (Phase 3 of the SDD plan). Manifest version
-bump lands with the last task in this phase, not here — see the versioning
-policy above.
+Extension competitor-parity work (Phase 3 of the SDD plan). Adds a broken-link
+checker, an indexability panel (redirect chain, headers, X-Robots-Tag),
+hreflang validation with return-tag checks, a raw-HTML-vs-rendered-DOM
+comparison with a per-tab user-agent switcher, structured-data validation
+(JSON-LD/Microdata/RDFa) with rich-result eligibility, a re-enabled and
+rewritten SERP overlay (stats bar, results/PAA export, location simulator), a
+right-click "SEO Bandwagon tools" menu, CSV export for headings/images/links,
+nofollow/UGC/sponsored link surfacing, and a one-time review prompt. New
+manifest permissions: `webRequest`, `webNavigation`,
+`declarativeNetRequestWithHostAccess`, and the optional `<all_urls>` host
+permission (requested on first use, never at install); a new content-script
+match on Google's own results pages.
 
 - **Broken-link checker** (`src/popup/link-check.js`, new "LINK CHECK" section
   in the SEO Analysis tab) — collects every `a[href]` on the page
@@ -291,12 +300,25 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.5.0 (Sep 2026)
+## Where we are — v1.6.0 (Sep 2026)
 
 - **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
-  preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings, links & images with
-  on-page highlighting, content stats + n-grams, tech stack detection, technical
-  panel, domain-history strip. `src/content/analyzer.js` (~25 data categories).
+  preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings (with outline export),
+  links & images with on-page highlighting and CSV export, nofollow/UGC/sponsored
+  surfacing, content stats + n-grams, tech stack detection, technical panel,
+  domain-history strip. `src/content/analyzer.js` (~25 data categories).
+- **Link Check** — probes every link on the page, groups results by status,
+  highlights broken ones, exports CSV. `src/popup/link-check.js`, `src/lib/link-check.js`.
+- **Indexability** — redirect chain, response headers, X-Robots-Tag and a
+  computed verdict for the current tab or any traced URL. `src/popup/indexability.js`,
+  `src/lib/redirect-chain.js`.
+- **Hreflang** — tag validity, duplicates, x-default/self-reference, and
+  fetched return-tag reciprocity. `src/popup/hreflang.js`, `src/lib/hreflang.js`.
+- **Rendering** — raw-HTML-vs-rendered-DOM diff and a "View as" user-agent
+  switcher. `src/popup/render-check.js`, `src/lib/html-diff.js`, `src/lib/ua-switch.js`.
+- **Structured Data** — JSON-LD/Microdata/RDFa extraction, required/recommended
+  property validation, rich-result eligibility, and an About & credits panel.
+  `src/popup/structured-data.js`, `src/lib/structured-data.js`, `src/lib/credits.js`.
 - **Citations tab** — directory takeover header (40 curated directories
   auto-detected), client-side NAP extraction (JSON-LD → microdata → heuristic)
   and weighted match scoring, proof screenshot capture (local download only),
@@ -304,15 +326,20 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`.
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
   Link Building mode (outlets / pitches / results), CSV export. `src/sidepanel/`.
+- **SERP overlay** — stats bar under each organic result on Google's own
+  results pages, results/PAA export, location simulator. `src/overlay/serp-overlay.js`,
+  `src/lib/serp.js`.
+- **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
+  (Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine,
+  `site:` search, sitemap.xml/robots.txt). `src/lib/tool-links.js`.
 - **Capture sync** — local-first storage with account sync, retry, and History
   page controls. `src/lib/sync-state.js`, `src/history/`.
 - **Options page** — connect/verify/disconnect a key, dashboard links, Advanced
   local-dev endpoint. `src/options/`.
-- **GSC row actions (1.5.1)** — two icons on every Search Console Performance row:
-  open in Google Search, and in a private window. `src/lib/gsc-inject.js` +
-  `src/content/gsc-serp.js`. Replaces the 1.4/1.5 "Search in Incognito" injector,
-  which only fired when GSC's own hover icons were already in the DOM and so
-  never appeared on a freshly loaded report.
+- **GSC row actions (1.5.1) + compare mode (1.5.2)** — two icons on every Search
+  Console Performance row (open in Google Search, and in a private window), plus
+  percent-change math, sort/filter and copy-as-TSV when a report compares two
+  date ranges. `src/lib/gsc-inject.js`, `src/lib/gsc-compare.js`, `src/content/gsc-serp.js`.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real
@@ -356,29 +383,19 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 
 ## v1.6 — feature candidates (competitor-informed, by value ÷ effort)
 
-1. **Wire up the SERP overlay** — `src/overlay/serp-overlay.js` is *already
-   written* (injects our captures-API domain stats into Google results) but was
-   never added to `manifest.json` content scripts. Parity: SEOquake, Ahrefs
-   Toolbar. Effort: small (manifest entry + brand-token restyle of
-   `serp-overlay.css`).
-2. **Broken link checker** — HEAD-request the links the analyzer already collects,
-   badge the failures, reuse on-page highlighting. Parity: SEO Minion, Ahrefs
-   Toolbar. Effort: medium (rate limiting, CORS fallback to `no-cors` opaque
-   checks).
-3. **Redirect tracer + HTTP headers** — follow a URL's redirect chain with status
-   codes and headers; pairs naturally with citation URL auditing (directory
-   listings redirect constantly). Parity: Ahrefs Toolbar (Detailed and SEOquake
-   lack it). Effort: medium (`fetch` with manual redirect handling in the service
-   worker).
-4. **Hreflang reciprocal validation** — `analyzer.js` already checks presence,
-   x-default, and self-reference; add cross-page reciprocity checking. Parity:
-   SEO Minion. Effort: medium.
-5. **SERP data export** — CSV of organic results from the overlay; the side panel
-   already has CSV export utilities to reuse. Parity: SEOquake, SEO Minion.
-   Effort: small once #1 lands.
-6. **SERP location simulator** — re-run the query with `&gl=`/`&uule=` params from
-   a country/city picker; high value for local SEO users checking rankings in
-   their service area. Parity: SEO Minion, Ahrefs Toolbar. Effort: small.
+All six shipped in v1.6.0 — see the "Changelog — v1.6.0" and "Where we are —
+v1.6.0" sections above for what actually landed:
+
+1. **Wire up the SERP overlay** — shipped as "SERP overlay, re-enabled and
+   rewritten."
+2. **Broken link checker** — shipped as "Broken-link checker."
+3. **Redirect tracer + HTTP headers** — shipped as "Indexability panel."
+4. **Hreflang reciprocal validation** — shipped as "Hreflang validation with
+   return tags."
+5. **SERP data export** — shipped as part of "SERP overlay, re-enabled and
+   rewritten" (Copy results / Export CSV / Copy PAA).
+6. **SERP location simulator** — shipped as part of "SERP overlay, re-enabled
+   and rewritten" (the location simulator).
 
 ## v1.6+ — needs backend or heavier lift
 
