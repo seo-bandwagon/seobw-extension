@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -75,7 +75,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
     try {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/content/analyzer.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/content/analyzer.js'] });
       } catch (e) { /* already injected */ }
 
       const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });
@@ -646,6 +646,121 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
 
       sendResponse({ chain: SBWRedirects.chainSummary(events), events });
+    })();
+    return true;
+  }
+});
+
+// --- Hreflang return-tag check (Task 3) ---
+//
+// User-initiated only — the popup's "Check return tags (N)" button, never
+// automatic. Gated on the same optional <all_urls> permission as the link
+// checker and redirect tracer (SBWPerms.hasAllUrls()); this never requests
+// it itself. Fetches each candidate alternate URL (deduped, capped at 50),
+// reading at most 256 KB of the body via a streamed reader so a huge page
+// can't be dragged in whole, then hands the raw HTML + Link header off to
+// SBWHreflang for parsing — this file owns only the network I/O.
+const HREFLANG_TIMEOUT_MS = 10000;
+const HREFLANG_MAX_BYTES = 256 * 1024;
+const HREFLANG_MAX_URLS = 50;
+const HREFLANG_PER_HOST = 2;
+const HREFLANG_GLOBAL = 4;
+
+// Reads at most `maxBytes` of `res`'s body via its ReadableStream reader,
+// then cancels the stream — the rest of a large response is never pulled
+// over the wire into memory. Falls back to res.text() (whole body) only if
+// this environment's Response has no streaming body reader (not expected in
+// a real Chrome service worker, kept for robustness).
+async function readCappedBody(res, maxBytes) {
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    try { return await res.text(); } catch (e) { return ''; }
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+  try {
+    while (received < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    try { reader.cancel(); } catch (e) { /* already drained/closed */ }
+  }
+  return text;
+}
+
+// One GET, capped/timed exactly like probeLink() above but reading (a
+// bounded amount of) the body, since this check needs the alternate's own
+// declared hreflang set, not just a status code.
+async function fetchHreflangAlternate(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HREFLANG_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store', signal: controller.signal });
+    const html = await readCappedBody(res, HREFLANG_MAX_BYTES);
+    clearTimeout(timer);
+    const entries = SBWHreflang.extractHreflangFromHtml(html, res.url || url);
+    const linkHeaderValue = (typeof res.headers.get === 'function') ? res.headers.get('link') : null;
+    const linkHeaderEntries = (SBWRedirects.parseLinkHeader(linkHeaderValue) || [])
+      .filter(e => (e.rel || '').toLowerCase().split(/\s+/).includes('alternate') && e.hreflang);
+    return { url, status: res.status, entries, linkHeaderEntries };
+  } catch (e) {
+    clearTimeout(timer);
+    return { url, status: 0, entries: [], linkHeaderEntries: [] };
+  }
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'checkHreflangAlternates') {
+    (async () => {
+      const allowed = await SBWPerms.hasAllUrls();
+      if (!allowed) {
+        sendResponse({ error: 'no_permission' });
+        return;
+      }
+
+      const urls = Array.from(new Set((request.urls || []).filter(Boolean))).slice(0, HREFLANG_MAX_URLS);
+      if (!urls.length) {
+        sendResponse({ fetched: [] });
+        return;
+      }
+
+      const queue = urls.map(u => ({ url: u }));
+      const inflightByHost = {};
+      const fetched = [];
+      let doneCount = 0;
+
+      await new Promise((resolve) => {
+        function pump() {
+          let next;
+          while ((next = SBWLinkCheck.pickNext(queue, inflightByHost, { perHost: HREFLANG_PER_HOST, global: HREFLANG_GLOBAL }))) {
+            queue.splice(queue.indexOf(next), 1);
+            runOne(next);
+          }
+          const inflightTotal = Object.values(inflightByHost).reduce((a, b) => a + b, 0);
+          if (SBWLinkCheck.isComplete(doneCount, urls.length, inflightTotal)) resolve();
+        }
+
+        async function runOne(item) {
+          const host = SBWLinkCheck.hostKey(item.url);
+          inflightByHost[host] = (inflightByHost[host] || 0) + 1;
+
+          const result = await fetchHreflangAlternate(item.url);
+
+          inflightByHost[host] -= 1;
+          if (inflightByHost[host] <= 0) delete inflightByHost[host];
+          fetched.push(result);
+          doneCount += 1;
+          pump();
+        }
+
+        pump();
+      });
+
+      sendResponse({ fetched });
     })();
     return true;
   }

@@ -585,29 +585,46 @@ function analyzeAboveFold() {
   };
 }
 
+// Task 3: full tag-grammar + reciprocity validation lives in
+// self.SBWHreflang (src/lib/hreflang.js, injected before this file — see
+// popup.js/service-worker.js/link-check.js's executeScript file lists,
+// same pattern as SBWLinkCheck above). This only gathers the raw
+// {lang,href} pairs off the DOM and hands them to SBWHreflang.validateSet()
+// for code validity, duplicates, shared-URL, relative/protocol warnings,
+// x-default and self-reference — then merges the original `href` back onto
+// each validated entry (validateSet's own output only carries the resolved
+// `url`, not the raw href the page actually wrote).
 function analyzeHreflang() {
   const tags = document.querySelectorAll('link[rel="alternate"][hreflang]');
-  const entries = [];
+  const raw = [];
   tags.forEach(tag => {
-    entries.push({
+    raw.push({
       lang: tag.getAttribute('hreflang'),
       href: tag.getAttribute('href'),
     });
   });
 
-  const issues = [];
-  if (entries.length > 0) {
-    const hasXDefault = entries.some(e => e.lang === 'x-default');
-    if (!hasXDefault) issues.push('Missing x-default hreflang');
+  // Defensive fallback (see collectLinks() above for the same guard
+  // pattern): if lib/hreflang.js somehow isn't injected ahead of this file,
+  // fall back to the original light checks rather than throwing.
+  if (typeof SBWHreflang === 'undefined') {
+    const issues = [];
+    if (raw.length > 0) {
+      const hasXDefault = raw.some(e => e.lang === 'x-default');
+      if (!hasXDefault) issues.push('Missing x-default hreflang');
 
-    const currentUrl = window.location.href;
-    const hasSelfRef = entries.some(e => {
-      try { return new URL(e.href, window.location.origin).href === currentUrl; } catch { return false; }
-    });
-    if (!hasSelfRef) issues.push('Missing self-referencing hreflang');
+      const currentUrl = window.location.href;
+      const hasSelfRef = raw.some(e => {
+        try { return new URL(e.href, window.location.origin).href === currentUrl; } catch { return false; }
+      });
+      if (!hasSelfRef) issues.push('Missing self-referencing hreflang');
+    }
+    return { count: raw.length, entries: raw, issues };
   }
 
-  return { count: entries.length, entries, issues };
+  const validated = SBWHreflang.validateSet(raw, window.location.href);
+  const entries = validated.entries.map((v, i) => Object.assign({ href: raw[i] && raw[i].href }, v));
+  return { count: raw.length, entries, issues: validated.issues };
 }
 
 function analyzeSchemaValidation() {

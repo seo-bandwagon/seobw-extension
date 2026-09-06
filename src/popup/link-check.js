@@ -127,7 +127,7 @@
           try {
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
-              files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/content/analyzer.js']
+              files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/content/analyzer.js']
             });
           } catch (e2) { /* already injected, or injection itself failed — retry regardless */ }
         }

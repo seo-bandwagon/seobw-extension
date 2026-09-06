@@ -48,7 +48,7 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
-| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check or Indexability section (never at install, never automatically) — it lets the extension look at pages on other domains from your browser: fetching them (without cookies) to check whether links resolve, and lets `webRequest`/`webNavigation` above actually see anything, plus opening a URL in a background tab like a normal visit when you use "Trace another URL." Same optional/on-first-use pattern covers hreflang checks as they ship. Revoke it any time from the extensions page |
+| `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability or Hreflang section (never at install, never automatically) — it lets the extension look at pages on other domains from your browser: fetching them (without cookies) to check whether links resolve or whether an hreflang alternate links back, and lets `webRequest`/`webNavigation` above actually see anything, plus opening a URL in a background tab like a normal visit when you use "Trace another URL." Revoke it any time from the extensions page |
 
 The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
 
@@ -124,6 +124,8 @@ None of this is trimmed or summarized before sending — it's the same analysis 
 
 **Indexability observes the current tab's own network requests** (Indexability section, 1.6.0+) — the current tab's main-frame redirects, status codes, and a fixed list of response headers (X-Robots-Tag, Cache-Control, Content-Type, Link, and whether HSTS/CSP are present), and only after you've granted the same optional `<all_urls>` permission; it's kept in `chrome.storage.session` and cleared when the tab closes or the browser restarts, and is never sent anywhere. "Trace another URL" opens a background tab to the URL you type, reads the same kind of data from it, and closes it — again nothing leaves your device unless you export the CSV yourself.
 
+**The hreflang return-tag check fetches the alternate pages you listed** (Hreflang section, 1.6.0+) — from your browser, credentials omitted (`credentials: 'omit'`), no caching, a 10-second timeout and at most 256 KB read per page, capped at 50 alternates. This only runs after you click "Check return tags" — everything above it (the tag table, code validity, duplicate/x-default/self-reference checks) reads only the current page's own HTML and needs no permission at all. Results stay on your device; nothing about them is sent to SEO Bandwagon unless you export the CSV yourself.
+
 Nothing is sent without a key configured, regardless of the toggle.
 
 ## Local-first + sync/retry behaviour
@@ -154,11 +156,13 @@ src/
                            # gsc-inject.js + gsc-compare.js (Search Console helpers)
                            # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker)
                            # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
-                           # redirect-chain.js (redirect/header/indexability logic, worker + popup share it)
+                           # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
+                           # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity)
   options/                # Settings page (API key, Advanced endpoint, dashboard links)
   overlay/                # SERP overlay (written, not yet wired into manifest — see ROADMAP)
   popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
                            # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
+                           # + hreflang.js (Hreflang section — tag table, return-tag check)
   sidepanel/              # Side panel: Citations mode + Link Building mode
   styles/                 # popup.css (shared across popup/side panel/history/options)
   icons/

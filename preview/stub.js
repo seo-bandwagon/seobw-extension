@@ -303,6 +303,33 @@ function chainFixture(rawEvents) {
   return { chain: SBWRedirects.chainSummary(events), events };
 }
 
+// Hreflang panel (Task 3, src/popup/hreflang.js, src/lib/hreflang.js) — one
+// fixture for `checkHreflangAlternates`, matching task-3-brief item E: three
+// alternates off SEO_FIXTURE.hreflang below — `en` links back to the page
+// (reciprocal), `es` comes back 200 but never mentions the page (missing
+// return tag — this is the one `hreflang-checked` asserts as `.hf-return.bad`),
+// and `fr` 404s (unreachable). SEO_FIXTURE.url is the "en-US" self-reference
+// each alternate's own set would need to point back to for a real `yes`.
+const HREFLANG_FETCHED = [
+  {
+    url: 'https://northsidedental.com/en/austin-dentist', status: 200,
+    entries: [
+      { lang: 'en', href: 'https://northsidedental.com/en/austin-dentist' },
+      { lang: 'en-US', href: 'https://northsidedental.com/austin/family-dentistry' }
+    ],
+    linkHeaderEntries: []
+  },
+  {
+    url: 'https://northsidedental.com/es/dentista-austin', status: 200,
+    entries: [{ lang: 'es', href: 'https://northsidedental.com/es/dentista-austin' }],
+    linkHeaderEntries: []
+  },
+  {
+    url: 'https://northsidedental.com/fr/dentiste-austin', status: 404,
+    entries: [], linkHeaderEntries: []
+  }
+];
+
 window.chrome = {
   runtime: {
     lastError: null,
@@ -512,6 +539,12 @@ function handleMessage(msg) {
     case 'traceUrl':
       if (!/^https?:\/\//i.test(msg.url || '')) return { error: 'invalid_url' };
       return chainFixture(TRACE_EVENTS);
+    // Hreflang return-tag check (Task 3, src/popup/hreflang.js) — the real
+    // worker replies once with every fetched alternate; HREFLANG_FETCHED
+    // above mirrors SEO_FIXTURE.hreflang's three entries exactly (en
+    // reciprocal, es missing the return tag, fr 404).
+    case 'checkHreflangAlternates':
+      return { fetched: HREFLANG_FETCHED };
     default: return {};
   }
 }
@@ -604,6 +637,18 @@ const SEO_FIXTURE = {
   },
   links: { internal: { count: 34 }, external: { count: 8 }, nofollow: 3 },
   images: { total: 14, missingAlt: { count: 3 } },
+  // Task 3: matches HREFLANG_FETCHED above — three alternates, none of them
+  // an x-default or self-reference, so hf.issues carries both of those
+  // set-level findings for the chips row to render something real.
+  hreflang: {
+    count: 3,
+    issues: ['Missing x-default hreflang', 'Missing self-referencing hreflang'],
+    entries: [
+      { lang: 'en', href: 'https://northsidedental.com/en/austin-dentist', url: 'https://northsidedental.com/en/austin-dentist', valid: true, issues: [] },
+      { lang: 'es', href: 'https://northsidedental.com/es/dentista-austin', url: 'https://northsidedental.com/es/dentista-austin', valid: true, issues: [] },
+      { lang: 'fr', href: 'https://northsidedental.com/fr/dentiste-austin', url: 'https://northsidedental.com/fr/dentiste-austin', valid: true, issues: [] }
+    ]
+  },
   technical: { domElements: 1240, scripts: 12, stylesheets: 4, urlDepth: 2, loadTimeMs: 1840 },
   webVitals: { lcp: 2180, inp: 640, cls: 0.04, fcp: 1210, ttfb: 420 },
   textToHtml: { ratio: 18, textSize: 5310, htmlSize: 29500, status: 'good' },
@@ -626,7 +671,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty'];
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();

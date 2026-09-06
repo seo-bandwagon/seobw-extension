@@ -74,6 +74,20 @@ const CASES = [
   { q: 'popup.html?state=indexability-empty',
     need: ['.seo-hero', '.ix-empty', '#ixReloadBtn'] },
 
+  // Task 3: hreflang validation (src/popup/hreflang.js, src/lib/hreflang.js).
+  // `hreflang-set` renders the tag table (3 rows, one per SEO_FIXTURE.hreflang
+  // entry) before any return-tag check has run — the three distinct alternate
+  // URLs in the `text` list are the closest thing to a row-count assertion
+  // this harness's selector-existence engine can do. `hreflang-checked`
+  // clicks "Check return tags" and asserts the `es` alternate — which comes
+  // back 200 but never links back to the page — lands as `.hf-return.bad`.
+  { q: 'popup.html?state=hreflang-set',
+    need: ['.seo-hero', '.hf-row', '#hfCheckBtn'],
+    text: ['austin-dentist', 'dentista-austin', 'dentiste-austin'] },
+  { q: 'popup.html?state=hreflang-checked',
+    need: ['.seo-hero', '.hf-return.bad'],
+    click: '#hfCheckBtn' },
+
   // Task 7: options.js verify-key states (src/lib/options-logic.js). Both
   // land on the same `#keyStatus.error` — one from an empty field, the other
   // from a cached rejected key — see src/lib/options-logic.js's

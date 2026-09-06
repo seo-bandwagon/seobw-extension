@@ -45,10 +45,9 @@ policy above.
   The check never runs on its own — it starts only from a real click on
   "Check N links".
 - **Optional `<all_urls>` permission** (`src/lib/perms.js`) — requested only
-  when you click "Allow access to check other sites" in the Link Check or
-  Indexability section, never at install and never automatically. Revocable
-  any time from the extensions page. The same optional/on-first-use pattern
-  covers hreflang checks as they ship.
+  when you click "Allow access to check other sites" in the Link Check,
+  Indexability or Hreflang section, never at install and never automatically.
+  Revocable any time from the extensions page.
 - **Indexability panel** (`src/popup/indexability.js`, new "INDEXABILITY"
   section in the SEO Analysis tab, directly after "Page Meta") — the
   background service worker observes the current tab's main-frame redirect
@@ -63,6 +62,21 @@ policy above.
   different URL from a background tab, and exports the captured hops to CSV.
   Nothing captured is sent anywhere; it lives in `chrome.storage.session` and
   clears when the tab closes.
+- **Hreflang validation with return tags** (`src/popup/hreflang.js`, new
+  "HREFLANG" section directly after Indexability; `src/lib/hreflang.js`) —
+  the content script's `analyzeHreflang()` now runs every declared
+  `<link rel="alternate" hreflang>` tag through BCP 47 canonical-form
+  validation (a wrong-case tag like `EN-us` is told apart from a
+  structurally invalid one), and flags duplicate language tags, the same
+  URL declared under multiple tags, relative hrefs, a protocol that differs
+  from the page, and the existing missing-x-default/missing-self-reference
+  checks. A page with no hreflang tags gets a one-line note in Page Meta
+  instead of an empty section. "Check return tags (N)" — gated on the same
+  optional `<all_urls>` permission, requested only on click — fetches each
+  declared alternate from the background worker (capped at 50 URLs, 2 per
+  host / 4 global concurrency, 10 s timeout, at most 256 KB of body read per
+  page) and reports whether each one's own hreflang set links back to this
+  page (yes / no / unreachable), exporting to CSV.
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension
