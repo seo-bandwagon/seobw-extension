@@ -171,7 +171,6 @@ src/
   lib/                    # api.js (SBW client), sync-state.js, domain-history.js, citations-ui.js,
                            # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
                            # gsc-inject.js + gsc-compare.js (Search Console helpers)
-                           # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker)
                            # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
                            # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
                            # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
