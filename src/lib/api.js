@@ -491,7 +491,7 @@
         .reverse();
 
       if (captureKeys.length > 500) {
-        chrome.storage.local.remove(captureKeys.slice(500));
+        await chrome.storage.local.remove(captureKeys.slice(500));
       }
 
       // Return the storage key holding this capture — the just-created one,

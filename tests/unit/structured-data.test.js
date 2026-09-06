@@ -655,3 +655,21 @@ describe('MINOR 13: AggregateRating.required drops itemReviewed only when nested
     expect(v.required.missing).not.toContain('itemReviewed');
   });
 });
+
+describe('re-review 2026-09-06: LocalBusiness subtypes missing vs the live vocabulary', () => {
+  const S = globalThis.SBWSchema;
+  it.each(['Notary', 'PhysiciansOffice', 'StadiumOrArena', 'VacationRental', 'AutomatedTeller', 'Bakery', 'BarOrPub', 'IndividualPhysician', 'HousePainter'])(
+    '%s gets the LocalBusiness required set and no "Unknown type"', (type) => {
+      const props = { name: 'X', address: 'A', telephone: 'T' };
+      const r = S.validateItem({ type, source: 'json-ld', properties: props });
+      expect(r.problems).toEqual([]);
+      expect(r.required.missing).toEqual([]);
+      expect(S.validateAll([{ type, source: 'json-ld', properties: props }]).eligible).toContain('LocalBusiness');
+    },
+  );
+  it('names that are not schema.org classes are unknown', () => {
+    for (const t of ['Painter', 'Podcast', 'Sheet', 'BookAction']) {
+      expect(S.validateItem({ type: t, source: 'json-ld', properties: {} }).problems).toContain('Unknown type: ' + t);
+    }
+  });
+});

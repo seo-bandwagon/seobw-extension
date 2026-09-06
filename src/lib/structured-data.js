@@ -327,11 +327,13 @@
   // adding a subtype here is the only edit needed to recognize it in both
   // places.
   const LOCAL_BUSINESS_SUBTYPES = [
+    // re-review 2026-09-06: the 8 subtypes missing vs the live vocabulary
+    'Notary', 'PhysiciansOffice', 'StadiumOrArena', 'VacationRental', 'AutomatedTeller', 'Bakery', 'BarOrPub', 'IndividualPhysician',
     // explicitly named in the brief
     'Restaurant', 'Store', 'MedicalBusiness', 'Attorney', 'Dentist', 'AutoRepair',
     'HomeAndConstructionBusiness', 'ProfessionalService', 'FoodEstablishment', 'Hotel',
     'Plumber', 'Electrician', 'HVACBusiness', 'RoofingContractor', 'Locksmith', 'MovingCompany',
-    'Painter', 'HousePainter', 'GeneralContractor', 'Physician', 'LegalService', 'RealEstateAgent',
+     'HousePainter', 'GeneralContractor', 'Physician', 'LegalService', 'RealEstateAgent',
     'HealthAndBeautyBusiness', 'FinancialService', 'LodgingBusiness', 'EntertainmentBusiness',
     'SportsActivityLocation', 'TravelAgency', 'ChildCare', 'DryCleaningOrLaundry', 'EmergencyService',
     'EmploymentAgency', 'InternetCafe', 'Library', 'RadioStation', 'RecyclingCenter', 'SelfStorage',
@@ -355,8 +357,7 @@
     'PlasticSurgery', 'Podiatric', 'PoliceStation', 'PostOffice', 'PrimaryCare', 'Psychiatric',
     'PublicHealth', 'PublicSwimmingPool', 'PetStore', 'Resort', 'ShoeStore', 'SkiResort',
     'SportingGoodsStore', 'SportsClub', 'TattooParlor', 'TennisComplex', 'TireShop', 'ToyStore',
-    'Urologic', 'VeterinaryCare', 'Winery', 'WholesaleStore', 'WomensClothingStore'
-  ];
+    'Urologic', 'VeterinaryCare', 'Winery', 'WholesaleStore', ];
 
   const TYPE_SPECS = {
     Article: {
@@ -505,17 +506,17 @@
     'EmployerReview', 'UserReview', 'Course', 'HowTo', 'Dataset', 'DataCatalog', 'Diet', 'DigitalDocument',
     'NoteDigitalDocument', 'PresentationDigitalDocument', 'SpreadsheetDigitalDocument',
     'TextDigitalDocument', 'Episode', 'Season', 'Series', 'TVSeries', 'RadioSeries', 'VideoGameSeries',
-    'BookSeries', 'Periodical', 'ComicSeries', 'Newspaper', 'Podcast', 'PodcastEpisode', 'PodcastSeries',
+    'BookSeries', 'Periodical', 'ComicSeries', 'Newspaper',  'PodcastEpisode', 'PodcastSeries',
     'Game', 'VideoGame', 'Guide', 'HowToStep', 'HowToSection', 'HowToDirection', 'HowToTip', 'HowToSupply',
     'HowToTool', 'ImageObject', 'Barcode', 'MediaObject', 'AudioObject', 'VideoObject', 'DataFeed',
     'CompleteDataFeed', 'Map', 'Menu', 'MenuSection', 'MenuItem', 'Message', 'EmailMessage', 'PublicationIssue',
-    'ComicIssue', 'PublicationVolume', 'Comment', 'Answer', 'Question', 'Correction', 'WebPageElement',
+    'ComicIssue', 'PublicationVolume', 'Comment', 'Answer', 'Question',  'WebPageElement',
     'SiteNavigationElement', 'Table', 'WPAdBlock', 'WPFooter', 'WPHeader', 'WPSideBar', 'WebApplication',
-    'SoftwareApplication', 'MobileApplication', 'VideoGameClip', 'Highlight', 'ShortStory', 'Poster',
+    'SoftwareApplication', 'MobileApplication', 'VideoGameClip',  'ShortStory', 'Poster',
     'Statement', 'Certification', 'ArchiveComponent', 'DefinedTerm', 'DefinedTermSet', 'CategoryCodeSet',
     'CategoryCode', 'Chapter', 'ClaimReview', 'Code', 'Conversation', 'Clip', 'MovieClip', 'RadioClip',
     'TVClip', 'CreativeWorkSeason', 'CreativeWorkSeries', 'ExercisePlan', 'Legislation', 'LegislationObject',
-    'MathSolver', 'Painting', 'Play', 'Sheet', 'ShortStory', 'SpecialAnnouncement', 'Manuscript',
+    'MathSolver', 'Painting', 'Play',  'ShortStory', 'SpecialAnnouncement', 'Manuscript',
 
     // ---- Organization subtree ----
     'Organization', 'Airline', 'Consortium', 'Corporation', 'EducationalOrganization', 'CollegeOrUniversity',
@@ -540,11 +541,11 @@
     'LegislativeBuilding', 'Museum', 'MusicVenue', 'Park', 'ParkingFacility', 'PerformingArtsTheater',
     'PlaceOfWorship', 'BuddhistTemple', 'Church', 'CatholicChurch', 'HinduTemple', 'Mosque', 'Synagogue',
     'Playground', 'PoliceStation', 'PublicToilet', 'RVPark', 'StadiumOrArena', 'SubwayStation',
-    'TaxiStand', 'TrainStation', 'TransitStation', 'Zoo', 'Residence', 'LandmarksOrHistoricalBuildings',
+    'TaxiStand', 'TrainStation',  'Zoo', 'Residence', 'LandmarksOrHistoricalBuildings',
     'GeoCoordinates', 'GeoShape', 'GeoCircle', 'Landform', 'BodyOfWater', 'Canal', 'LakeBodyOfWater',
     'OceanBodyOfWater', 'Pond', 'Reservoir', 'RiverBodyOfWater', 'SeaBodyOfWater', 'Waterfall', 'Continent',
-    'Mountain', 'MountainRange', 'Volcano', 'TouristAttraction', 'TouristDestination', 'TouristTrip',
-    'ResidentialComplex',
+    'Mountain',  'Volcano', 'TouristAttraction', 'TouristDestination', 'TouristTrip',
+    
 
     // ---- Product / commerce ----
     'Product', 'ProductModel', 'ProductGroup', 'ProductCollection', 'SomeProducts', 'Vehicle', 'Car',
@@ -557,7 +558,7 @@
     'QuantitativeValueDistribution', 'OpeningHoursSpecification', 'PropertyValue', 'PropertyValueSpecification',
     'StructuredValue', 'Duration', 'Schedule', 'ProgramMembership', 'MerchantReturnPolicy',
     'MerchantReturnPolicySeasonalOverride', 'ShippingDeliveryTime', 'ShippingRateSettings',
-    'ShippingConditions', 'ShippingService', 'DeliveryTimeSettings', 'WarrantyPromise', 'WarrantyScope',
+    'ShippingConditions', 'ShippingService',  'WarrantyPromise', 'WarrantyScope',
     'TypeAndQuantityNode', 'UnitPriceSpecification', 'PriceSpecification', 'CompoundPriceSpecification',
     'ItemList', 'ListItem', 'BreadcrumbList', 'HowToItem', 'Audience', 'BusinessAudience', 'EducationalAudience',
     'MedicalAudience', 'PeopleAudience', 'Researcher', 'Occupation', 'OccupationalExperienceRequirements',
@@ -588,7 +589,7 @@
     'FollowAction', 'JoinAction', 'LeaveAction', 'MarryAction', 'RegisterAction', 'SubscribeAction',
     'UnRegisterAction', 'MoveAction', 'ArriveAction', 'DepartAction', 'TravelAction', 'OrganizeAction',
     'AllocateAction', 'AcceptAction', 'AssignAction', 'AuthorizeAction', 'RejectAction', 'ApplyAction',
-    'BookAction', 'PlanAction', 'CancelAction', 'ReserveAction', 'ScheduleAction', 'PlayAction',
+     'PlanAction', 'CancelAction', 'ReserveAction', 'ScheduleAction', 'PlayAction',
     'ExerciseAction', 'PerformAction', 'SearchAction', 'BuyAction', 'DonateAction', 'OrderAction',
     'PayAction', 'PreOrderAction', 'QuoteAction', 'RentAction', 'SellAction', 'TipAction', 'TradeAction',
     'TransferAction', 'BorrowAction', 'DownloadAction', 'GiveAction', 'LendAction', 'MoneyTransfer',

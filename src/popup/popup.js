@@ -511,8 +511,14 @@ function setSeoStatus(msg, type) {
 function stripSchemaPropertiesForStorage(data) {
   if (!data || !data.schemaValidation) return data;
   const stripFn = globalThis.SBWSchema && globalThis.SBWSchema.stripForStorage;
-  const strippedSchema = stripFn ? stripFn(data.schemaValidation) : data.schemaValidation;
-  return Object.assign({}, data, { schemaValidation: strippedSchema });
+  // Fail closed: without the stripper, drop the block rather than persist
+  // page property values (privacy control — never silently pass through).
+  if (!stripFn) {
+    const copy = Object.assign({}, data);
+    delete copy.schemaValidation;
+    return copy;
+  }
+  return Object.assign({}, data, { schemaValidation: stripFn(data.schemaValidation) });
 }
 
 async function autoSaveCapture(data) {
