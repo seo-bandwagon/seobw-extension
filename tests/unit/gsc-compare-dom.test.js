@@ -378,8 +378,10 @@ describe('SBWGscCompare.apply — clearInjected survives sort-broken sibling ord
 
     expect(root.querySelectorAll('.seo-bw-cmp-tools').length).toBe(1);
     expect(root.querySelectorAll('.seo-bw-cmp-summary').length).toBe(1);
-    expect(root.querySelector('[data-seo-bw-compare="sorted"]')).toBeNull();
-    expect(table.hidden).toBe(false);
+    // F5: an active sort is persisted with the tool state and re-shown after
+    // the rebuild — exactly ONE sorted copy, and the GSC table stays hidden.
+    expect(root.querySelectorAll('[data-seo-bw-compare="sorted"]').length).toBe(1);
+    expect(table.hidden).toBe(true);
   });
 });
 
