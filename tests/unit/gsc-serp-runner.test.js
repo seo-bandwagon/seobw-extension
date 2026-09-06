@@ -44,6 +44,35 @@ function macrotask() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+describe('gsc-serp runner — Queries-only icons, compare math everywhere', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('on the Pages tab (breakdown=page) injects no row icons but still applies the compare math', async () => {
+    buildReport();
+    document.querySelector('th').textContent = 'Top pages';
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=page');
+    const applySpy = vi.spyOn(window.SBWGscCompare, 'apply');
+    await loadRunner();
+    await frame(); await macrotask();
+    expect(document.querySelectorAll('.' + window.SBWGscInject.ICON_GROUP).length).toBe(0);
+    expect(applySpy).toHaveBeenCalled();
+    applySpy.mockRestore();
+  });
+
+  it('on the Queries tab (breakdown=query) injects row icons and applies the compare math', async () => {
+    buildReport();
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+    const applySpy = vi.spyOn(window.SBWGscCompare, 'apply');
+    await loadRunner();
+    await frame(); await macrotask();
+    expect(document.querySelectorAll('.' + window.SBWGscInject.ICON_GROUP).length).toBe(2);
+    expect(applySpy).toHaveBeenCalled();
+    applySpy.mockRestore();
+  });
+});
+
 describe('gsc-serp runner — mutation-observer self-mutation guard', () => {
   beforeEach(() => {
     document.body.innerHTML = '';

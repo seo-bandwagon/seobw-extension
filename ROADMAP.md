@@ -38,6 +38,16 @@ Semantic-ish, three digits, driven by what the user would notice:
   Inspect URL"): the value is now the first text node in the cell, and
   titles that read like an action label are skipped.
 
+- **Search Console compare-mode math.** Scoped to 1.5.1 but pushed to its branch twenty minutes after that PR was squash-merged, so it never reached `main`; lands here. When a Performance report compares two
+  date ranges, adds percent change to the metric summary cards and a "%
+  change" table column (direction-aware colour; a lower Average position
+  counts as good), CTR expressed in percentage points, a metric-picker +
+  sort/filter/copy-as-TSV toolbar above the table, and a visible-row totals
+  line below it. `src/lib/gsc-compare.js`, loaded after `gsc-inject.js` in
+  `manifest.json`. Pure math + detection are unit-tested against fixture
+  tables (no live GSC DOM available); everything computes client-side and
+  nothing is sent anywhere.
+
 ## Changelog — v1.5.0 (2026-09-03)
 
 Repoints the extension from CitationForge's own backend to the SEO Bandwagon
@@ -114,15 +124,6 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   `src/content/gsc-serp.js`. Replaces the 1.4/1.5 "Search in Incognito" injector,
   which only fired when GSC's own hover icons were already in the DOM and so
   never appeared on a freshly loaded report.
-- **GSC compare-mode math (1.5.1)** — when a Performance report compares two
-  date ranges, adds percent change to the metric summary cards and a "%
-  change" table column (direction-aware colour; a lower Average position
-  counts as good), CTR expressed in percentage points, a metric-picker +
-  sort/filter/copy-as-TSV toolbar above the table, and a visible-row totals
-  line below it. `src/lib/gsc-compare.js`, loaded after `gsc-inject.js` in
-  `manifest.json`. Pure math + detection are unit-tested against fixture
-  tables (no live GSC DOM available); everything computes client-side and
-  nothing is sent anywhere.
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real

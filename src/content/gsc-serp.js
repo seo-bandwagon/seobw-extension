@@ -60,12 +60,12 @@
     // Queries tab only: on Pages/Countries/Devices/Dates/Search appearance
     // the first cell is not a search query, so strip anything we injected
     // before the SPA swapped the table in place.
-    if (!inject.isQueriesView(location, document)) {
-      inject.removeAll(document);
-      return;
-    }
+    // The compare-mode math applies on every dimension tab — the metric
+    // cards and the % change column mean the same thing for pages, countries
+    // and devices — so only the row icons are gated.
     ensureStyles();
-    inject.injectAll(document, handlers);
+    if (inject.isQueriesView(location, document)) inject.injectAll(document, handlers);
+    else inject.removeAll(document);
     if (compare) compare.apply(document);
   }
 
