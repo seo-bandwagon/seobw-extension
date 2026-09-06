@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-await import('../../src/lib/serp.js');
+await import('../../extension/src/lib/serp.js');
 
 let sentMessages;
 let sessionStore;
@@ -85,7 +85,7 @@ function freshDom(domains) {
 }
 
 async function loadOverlay() {
-  await import(/* @vite-ignore */ '../../src/overlay/serp-overlay.js?t=' + Math.random());
+  await import(/* @vite-ignore */ '../../extension/src/overlay/serp-overlay.js?t=' + Math.random());
 }
 
 function bars() {

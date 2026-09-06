@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWToolLinks` rather than an ESM default export.
-await import('../../src/lib/tool-links.js');
+await import('../../extension/src/lib/tool-links.js');
 const SBWToolLinks = globalThis.SBWToolLinks;
 
 describe('SBWToolLinks namespace', () => {

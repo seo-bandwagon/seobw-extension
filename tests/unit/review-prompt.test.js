@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWReview` rather than an ESM default export.
-await import('../../src/lib/review-prompt.js');
+await import('../../extension/src/lib/review-prompt.js');
 const SBWReview = globalThis.SBWReview;
 
 describe('SBWReview namespace', () => {

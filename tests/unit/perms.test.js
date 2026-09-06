@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — the module attaches
 // itself to `globalThis.SBWPerms` rather than an ESM default export.
-await import('../../src/lib/perms.js');
+await import('../../extension/src/lib/perms.js');
 const SBWPerms = globalThis.SBWPerms;
 
 describe('SBWPerms namespace', () => {

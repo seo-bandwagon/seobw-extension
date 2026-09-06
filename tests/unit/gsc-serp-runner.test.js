@@ -6,8 +6,8 @@
 // it reacts to are the genuine ones those libraries produce.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-await import('../../src/lib/gsc-inject.js');
-await import('../../src/lib/gsc-compare.js');
+await import('../../extension/src/lib/gsc-inject.js');
+await import('../../extension/src/lib/gsc-compare.js');
 
 function buildReport() {
   document.body.innerHTML = `
@@ -34,7 +34,7 @@ async function loadRunner() {
   delete window.__seoBwGscSerpLoaded;
   // Cache-busting query param forces Vite to re-evaluate the module (and so
   // re-run its side-effecting IIFE) instead of returning the cached export.
-  await import(/* @vite-ignore */ '../../src/content/gsc-serp.js?t=' + Math.random());
+  await import(/* @vite-ignore */ '../../extension/src/content/gsc-serp.js?t=' + Math.random());
 }
 
 function frame() {

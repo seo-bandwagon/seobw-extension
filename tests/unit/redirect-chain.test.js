@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWRedirects` rather than an ESM default export.
-await import('../../src/lib/redirect-chain.js');
+await import('../../extension/src/lib/redirect-chain.js');
 const SBWRedirects = globalThis.SBWRedirects;
 
 describe('SBWRedirects namespace', () => {

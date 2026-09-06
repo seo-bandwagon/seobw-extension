@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="../src/styles/popup.css">
+  <link rel="stylesheet" href="../extension/src/styles/popup.css">
   <script src="stub.js"></script>
 </head>
 <body class="page-sidepanel">
@@ -31,9 +31,9 @@
     <button class="sp-foot-link" id="spExport">Export CSV</button>
   </footer>
 
-  <script src="../src/lib/api.js"></script>
-  <script src="../src/lib/citations-ui.js"></script>
-  <script src="../src/lib/link-building-ui.js"></script>
+  <script src="../extension/src/lib/api.js"></script>
+  <script src="../extension/src/lib/citations-ui.js"></script>
+  <script src="../extension/src/lib/link-building-ui.js"></script>
   <script>
     // sidepanel.js calls initSidePanel() at parse time (unlike the popup's
     // citations-tab.js, which only initializes on a later click) — the
@@ -41,9 +41,9 @@
     // it can't wait for DOMContentLoaded like the rest of stub.js's setup.
     installSbwStubs();
   </script>
-  <script src="../src/lib/nap-compare.js"></script>
-  <script src="../src/lib/directory-matcher.js"></script>
-  <script src="../src/sidepanel/sidepanel.js"></script>
+  <script src="../extension/src/lib/nap-compare.js"></script>
+  <script src="../extension/src/lib/directory-matcher.js"></script>
+  <script src="../extension/src/sidepanel/sidepanel.js"></script>
   <script>
     // Drive the requested side-panel section
     const SP_TARGET = new URLSearchParams(location.search).get('section');

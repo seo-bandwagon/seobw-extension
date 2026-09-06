@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWHreflang` rather than an ESM default export.
-await import('../../src/lib/hreflang.js');
+await import('../../extension/src/lib/hreflang.js');
 const SBWHreflang = globalThis.SBWHreflang;
 
 describe('SBWHreflang namespace', () => {

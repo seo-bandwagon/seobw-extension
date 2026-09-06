@@ -8,11 +8,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // sync-state.js must load before api.js, same as service-worker.js's
 // importScripts order and history.html/popup.html's <script> order — api.js
 // reads SBWSync off the global scope.
-await import('../../src/lib/sync-state.js');
+await import('../../extension/src/lib/sync-state.js');
 // The module attaches itself to `globalThis.SBW` (classic-script / dual-export
 // pattern — see lib/content-analysis.js) rather than relying on the ESM
 // default export, so tests read it off globalThis after importing.
-await import('../../src/lib/api.js');
+await import('../../extension/src/lib/api.js');
 const SBW = globalThis.SBW;
 
 function mockResponse(status, body, headers = {}) {

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-await import('../../src/lib/citations-ui.js');
+await import('../../extension/src/lib/citations-ui.js');
 const SBWCitations = globalThis.SBWCitations;
 
 describe('SBWCitations — dual export', () => {

@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWCsv` rather than an ESM default export.
-await import('../../src/lib/csv.js');
+await import('../../extension/src/lib/csv.js');
 const SBWCsv = globalThis.SBWCsv;
 
 describe('SBWCsv namespace', () => {

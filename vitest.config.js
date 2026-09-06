@@ -9,7 +9,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      include: ['lib/**/*.js'],
+      include: ['extension/lib/**/*.js', 'extension/src/**/*.js'],
       reporter: ['text', 'html']
     }
   }

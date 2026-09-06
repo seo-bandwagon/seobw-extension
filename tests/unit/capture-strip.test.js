@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWCaptureStrip` rather than an ESM default export.
-await import('../../src/lib/capture-strip.js');
+await import('../../extension/src/lib/capture-strip.js');
 const SBWCaptureStrip = globalThis.SBWCaptureStrip;
 
 function fixture() {

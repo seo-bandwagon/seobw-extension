@@ -5,7 +5,7 @@
 // filters, TSV or summary line.
 import { describe, it, expect, beforeEach } from 'vitest';
 
-await import('../../src/lib/gsc-compare.js');
+await import('../../extension/src/lib/gsc-compare.js');
 const C = globalThis.SBWGscCompare;
 
 function buildReport() {

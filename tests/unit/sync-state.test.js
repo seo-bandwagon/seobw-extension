@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 // Dual-export pattern (see src/lib/api.js, lib/content-analysis.js) — the
 // module attaches itself to `globalThis.SBWSync` rather than relying on an
 // ESM default export, so tests read it off globalThis after importing.
-await import('../../src/lib/sync-state.js');
+await import('../../extension/src/lib/sync-state.js');
 const SBWSync = globalThis.SBWSync;
 
 const NOW = 1_700_000_000_000;

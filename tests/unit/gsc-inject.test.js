@@ -1,7 +1,7 @@
 // Unit tests for the Search Console row-action injector (src/lib/gsc-inject.js).
 import { describe, it, expect, beforeEach } from 'vitest';
 
-await import('../../src/lib/gsc-inject.js');
+await import('../../extension/src/lib/gsc-inject.js');
 const G = globalThis.SBWGscInject;
 
 function table(html) {

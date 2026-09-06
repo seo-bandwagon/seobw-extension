@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 
 // Dual-export pattern (see src/lib/sync-state.js) — attaches to
 // `globalThis.SBWExportRows` rather than an ESM default export.
-await import('../../src/lib/export-rows.js');
+await import('../../extension/src/lib/export-rows.js');
 const SBWExportRows = globalThis.SBWExportRows;
 
 describe('SBWExportRows namespace', () => {

@@ -11,8 +11,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 // imported first so summarizeHtml's optional hreflangCount path (which reads
 // globalThis.SBWHreflang) has something to find, matching the worker's own
 // importScripts order.
-await import('../../src/lib/hreflang.js');
-await import('../../src/lib/html-diff.js');
+await import('../../extension/src/lib/hreflang.js');
+await import('../../extension/src/lib/html-diff.js');
 const SBWHtmlDiff = globalThis.SBWHtmlDiff;
 
 describe('SBWHtmlDiff namespace', () => {
