@@ -404,6 +404,7 @@
     if (!res || res.error) {
       if (res && res.error === 'no_permission') {
         state = 'no-permission';
+        watchForGrant(my);
         popup().setSeoStatus?.('Page access was revoked — allow it again to switch user-agent', 'error');
       } else {
         popup().setSeoStatus?.('Could not switch user-agent', 'error');
