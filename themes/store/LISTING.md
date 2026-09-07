@@ -52,7 +52,7 @@ data, and a results overlay on Google's own search pages. No account required
 for any of it.
 
 The theme collects nothing. It has no code, no permissions and no network
-access — it is a colour map and two images.
+access — it is a colour map and a handful of images.
 ```
 
 ---
@@ -71,7 +71,7 @@ SEO Bandwagon — Neon Day
 Bandwagon pink on off-white, with a daylight city skyline behind every new tab.
 ```
 
-**Category:** Themes → Light & White
+**Category:** Themes → Minimalist (the dashboard has no light counterpart to Dark & Black; pick the closest it offers)
 
 **Detailed description**
 
@@ -100,7 +100,7 @@ data, and a results overlay on Google's own search pages. No account required
 for any of it.
 
 The theme collects nothing. It has no code, no permissions and no network
-access — it is a colour map and two images.
+access — it is a colour map and a handful of images.
 ```
 
 ---

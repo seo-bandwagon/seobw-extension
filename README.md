@@ -46,8 +46,8 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 ## Appearance and the Chrome themes
 
 The popup, side panel and options page render in **Night** (midnight navy) or
-**Day** (off-white) from one token block in `src/styles/popup.css`; `<html
-data-theme>` is the only switch, set by `src/lib/theme-mode.js`. **Auto** (the
+**Day** (off-white) from one token block in `extension/src/styles/popup.css`; `<html
+data-theme>` is the only switch, set by `extension/src/lib/theme-mode.js`. **Auto** (the
 default) follows your system setting; picking Night or Day in the side panel's
 header or on the options page stores one key (`bwThemeMode`) that all three
 surfaces read, so a choice made anywhere applies everywhere. Auto is the absence
