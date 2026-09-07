@@ -16,4 +16,5 @@ playwright-report/
 _*/
 
 # Packaged builds
-seo-bw-extension.zip
+# store packages are build output (npm run zip / zip:themes), never committed
+*.zip

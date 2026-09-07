@@ -237,6 +237,17 @@ match on Google's own results pages.
   "Copy URL to clipboard / Open in new tab / Inspect URL" hover labels.
 
 
+- **Appearance: Night / Day / Auto + two Chrome themes** (`src/lib/theme-mode.js`,
+  `src/styles/popup.css` token blocks, `themes/`). The extension's own pages
+  follow a stored choice, else the OS setting, via `<html data-theme>`; the
+  control sits in the side panel header and on the options page. Two Web Store
+  theme items (Neon Night, Neon Day — `themes/bandwagon-neon-*`, listing text in
+  `themes/store/LISTING.md`) match them. Scoped deliberately: no new-tab
+  override and no `management` permission (the design's fuller 1.7.0 plan);
+  the extension cannot tell which theme is installed, so the theme links on
+  the options page are the only cross-promotion, and they stay hidden until
+  the item ids exist. Brand fonts bundled locally (OFL). No permission changes.
+
 ## Changelog — v1.5.2 (2026-09-06)
 - **Search Console row actions: Queries tab only.** The "Open in Google
   Search" / private-window icons now render only on the Queries dimension

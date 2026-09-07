@@ -171,6 +171,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('src/history/history.html') });
   });
   wireLink('linkCaptures', () => openDashboardPath('/captures'));
+  // Appearance (Night / Day / Auto) + links to the matching Chrome themes.
+  // The links stay hidden until THEME_IDS in src/lib/theme-mode.js holds the
+  // real Web Store item ids (placeholders make listingUrl() return null).
+  if (globalThis.SBWTheme) {
+    SBWTheme.bindControl(document.getElementById('optAppearance'));
+    const night = SBWTheme.listingUrl('dark'), day = SBWTheme.listingUrl('light');
+    if (night && day) {
+      document.getElementById('linkThemeNight').href = night;
+      document.getElementById('linkThemeDay').href = day;
+      document.getElementById('themeLinks').hidden = false;
+    }
+  }
   wireLink('linkCitations', () => openDashboardPath('/dashboard/citations'));
   wireLink('linkLinkBuilding', () => openDashboardPath('/dashboard/link-building'));
 });

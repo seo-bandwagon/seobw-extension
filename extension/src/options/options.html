@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <title>SEO Bandwagon Settings</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/theme-mode.js"></script>
   <link rel="stylesheet" href="../styles/popup.css">
 </head>
 <body class="page-options">
@@ -34,6 +36,20 @@
         <li><a href="#" id="linkCaptures">Captures</a></li>
         <li><a href="#" id="linkCitations">Citations</a></li>
         <li><a href="#" id="linkLinkBuilding">Link building</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Appearance</div>
+      <p class="hint">Night or Day for the extension's popup, side panel and this page. Auto follows your system setting. The choice applies everywhere at once.</p>
+      <div class="sp-appearance opt-appearance" id="optAppearance" role="group" aria-label="Appearance">
+        <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+        <button type="button" data-mode="dark" aria-pressed="false">Night</button>
+        <button type="button" data-mode="light" aria-pressed="false">Day</button>
+      </div>
+      <ul class="links" id="themeLinks" hidden>
+        <li><a href="#" id="linkThemeNight" target="_blank" rel="noopener">Chrome theme: SEO Bandwagon — Neon Night</a></li>
+        <li><a href="#" id="linkThemeDay" target="_blank" rel="noopener">Chrome theme: SEO Bandwagon — Neon Day</a></li>
       </ul>
     </div>
 

@@ -89,6 +89,12 @@ window) to each query row, and — when comparing two date ranges — percent-
 change badges on the metric cards and inside each row's Difference cell, all
 computed from the numbers already on the page.
 
+APPEARANCE
+Night or Day for the extension's own pages, or Auto to follow your system
+setting — one choice, applied to the popup, side panel and options page.
+Matching Chrome themes (SEO Bandwagon Neon Night / Neon Day) are separate
+Web Store items.
+
 TOOLS MENU
 A right-click menu and a matching row in the popup for opening the current
 page in Google Search Console (URL inspection), PageSpeed Insights, Rich

@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/theme-mode.js"></script>
   <link rel="stylesheet" href="../styles/popup.css">
 </head>
 <body class="page-sidepanel">
@@ -10,6 +12,11 @@
     <div class="sp-word">SEO BANDWAGON</div>
     <span class="version-tag" id="spVersion"></span>
     <span class="sp-user" id="spUser"></span>
+    <div class="sp-appearance" id="spAppearance" role="group" aria-label="Appearance" title="Night / Day for the extension's own pages. Auto follows your system setting.">
+      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-mode="dark" aria-pressed="false">Night</button>
+      <button type="button" data-mode="light" aria-pressed="false">Day</button>
+    </div>
   </header>
 
   <nav class="sp-mode" id="spModeNav">

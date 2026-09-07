@@ -43,6 +43,29 @@ Citations, Link Building, domain history, and capture sync all need an API key.
 
 A key carries scopes (what it's allowed to do) set when it was created; Options shows the connected account, key name, and scopes once verified.
 
+## Appearance and the Chrome themes
+
+The popup, side panel and options page render in **Night** (midnight navy) or
+**Day** (off-white) from one token block in `src/styles/popup.css`; `<html
+data-theme>` is the only switch, set by `src/lib/theme-mode.js`. **Auto** (the
+default) follows your system setting; picking Night or Day in the side panel's
+header or on the options page stores one key (`bwThemeMode`) that all three
+surfaces read, so a choice made anywhere applies everywhere. Auto is the absence
+of a stored choice — it removes the key rather than writing "auto". The last
+mode is mirrored into the page's own `localStorage` so the first paint is right
+before storage answers.
+
+Two matching **Chrome themes** — SEO Bandwagon Neon Night and Neon Day — ship as
+separate Web Store items from `themes/` (a theme is images and colours only and
+cannot follow the OS setting, so light and dark are two listings; see
+`themes/README.md`). The extension does not detect which theme is installed —
+that would need the `management` permission, which it does not ask for — so the
+Appearance control is how you match them. Links to the two listings appear on
+the options page once their Web Store item ids are filled into `THEME_IDS`.
+
+The brand faces (Bebas Neue, Space Grotesk, Space Mono; SIL Open Font License)
+are bundled in `src/styles/fonts/` because MV3 blocks remote `font-src`.
+
 ## Permissions, and why
 
 | Permission | Why |

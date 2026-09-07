@@ -1,0 +1,5 @@
+Bebas Neue (Ryoichi Tsunekawa, Dharma Type), Space Grotesk (Florian Karsten) and
+Space Mono (Colophon Foundry) are licensed under the SIL Open Font License,
+Version 1.1 — https://openfontlicense.org — which permits bundling and
+redistribution with software. The files here are the latin subsets served by
+Google Fonts, unmodified.
