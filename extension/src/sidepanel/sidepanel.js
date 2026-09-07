@@ -132,6 +132,7 @@ async function initSidePanel() {
     return;
   }
 
+  if (globalThis.SBWTheme) SBWTheme.bindControl(document.getElementById('spAppearance'));
   document.getElementById('spUser').textContent = auth.user ? spInitials(auth.user.name || auth.user.email) : '';
   document.getElementById('spUser').title = auth.user?.email || '';
 

@@ -242,6 +242,20 @@ const CASES = [
   // (4, about to become 5 via this popup's own real recordAnalysis() call
   // — still not >= 5) and already-prompted (9, prompted:true — never
   // re-prompts regardless of how high analyses has climbed).
+  // Appearance: the stored choice paints <html data-theme> on every surface and the
+  // tri-state control reflects the STORED choice (Auto = nothing stored).
+  { q: 'popup.html?state=main-known&theme=light',
+    need: ['html[data-theme="light"]', '.seo-hero'] },
+  // Headless Chromium reports a LIGHT OS preference, so Auto paints Day there:
+  // assert the control state under Auto, and the painted theme only when seeded.
+  { q: 'sidepanel.html?state=lb-outlets&section=outlets',
+    need: ['#spAppearance button[data-mode="auto"][aria-pressed="true"]'],
+    no: ['#spAppearance button[data-mode="light"][aria-pressed="true"]', '#spAppearance button[data-mode="dark"][aria-pressed="true"]'] },
+  { q: 'sidepanel.html?state=lb-outlets&section=outlets&theme=dark',
+    need: ['html[data-theme="dark"]', '#spAppearance button[data-mode="dark"][aria-pressed="true"]'] },
+  { q: 'options.html?theme=light',
+    need: ['html[data-theme="light"]', '#optAppearance button[data-mode="light"][aria-pressed="true"]'],
+    no: ['#themeLinks:not([hidden])'] },
   { q: 'popup.html?state=review-strip-none',
     need: ['.seo-hero'],
     no: ['.review-strip'] },

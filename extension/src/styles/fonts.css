@@ -1,0 +1,7 @@
+/* Brand faces bundled locally — MV3's default CSP blocks remote font-src, so the
+   Google Fonts import cannot be used inside extension pages. Latin subsets from
+   Google Fonts; all three families are SIL Open Font License 1.1 (see fonts/OFL.txt). */
+@font-face { font-family: 'Bebas Neue'; src: url('fonts/bebas-neue-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Space Grotesk'; src: url('fonts/space-grotesk-400-700.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Space Mono'; src: url('fonts/space-mono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Space Mono'; src: url('fonts/space-mono-700.woff2') format('woff2'); font-weight: 700; font-display: swap; }

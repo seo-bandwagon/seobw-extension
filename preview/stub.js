@@ -205,6 +205,14 @@ if (PREVIEW_STATE.startsWith('lb-')) {
 // top-level chrome.tabs.query(...) callback runs (see popup.html's
 // installSbwStubs() comment above) — this file's own top-level code runs
 // at parse time, before that callback fires, so no extra wiring is needed.
+// Appearance (Night / Day): `?theme=light|dark` on any preview page pre-seeds
+// the stored choice that src/lib/theme-mode.js reads at load, so the harness
+// can assert `html[data-theme]` and the tri-state control's aria-pressed.
+{
+  const themeParam = new URLSearchParams(location.search).get('theme');
+  if (themeParam === 'light' || themeParam === 'dark') store.bwThemeMode = themeParam;
+}
+
 if (PREVIEW_STATE === 'review-strip') {
   store.sbwReview = { analyses: 5, prompted: false, installedAt: Date.now() };
 }
