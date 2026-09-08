@@ -394,7 +394,10 @@ window.chrome = {
     lastError: null,
     sendMessage(msg, cb) {
       const reply = handleMessage(msg);
-      setTimeout(() => cb && cb(reply), 90);   // visible async, exercises loading states
+      // Real MV3 resolves a promise when no callback is passed (which is the
+      // form src/lib/sbw-data.js uses) and calls the callback when one is.
+      // Support both, on the same visible delay that exercises loading states.
+      return new Promise(resolve => setTimeout(() => { if (cb) cb(reply); resolve(reply); }, 90));
     },
     // Link checker port (src/background/service-worker.js's onConnect
     // handler). Only 'link-check' ports do anything; postMessage({type:
@@ -489,7 +492,10 @@ window.chrome = {
         cb(result);
       },
       set(items, cb) { if (cb) cb(); }
-    }
+    },
+    // Real Chrome always provides this; src/panel/panel.js repaints its
+    // account line from it when the options page changes a key.
+    onChanged: { addListener() {} }
   },
   tabs: {
     query(_, cb) {
@@ -531,13 +537,17 @@ window.chrome = {
     // would eventually fire webNavigation.onCompleted and re-fetch the
     // chain, but nothing in this offline harness ever navigates, so this is
     // a no-op the click handler's own status message covers for.
-    reload(tabId, cb) { if (cb) cb(); }
+    reload(tabId, cb) { if (cb) cb(); },
+    // src/panel/panel.js re-paints on a tab switch or a finished reload.
+    // Nothing in this offline harness navigates, so these never fire.
+    onActivated: { addListener() {} },
+    onUpdated: { addListener() {} }
   },
   scripting: { executeScript: () => Promise.resolve([]) },
-  sidePanel: { open() {}, setPanelBehavior() {} },
+  sidePanel: { open() {}, setPanelBehavior() {}, setOptions() { return Promise.resolve(); } },
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
   contextMenus: { create() {}, onClicked: { addListener() {} } },
-  commands: { onCommand: { addListener() {} } },
+  commands: { onCommand: { addListener() {} }, getAll: () => Promise.resolve([{ name: 'analyze-current', shortcut: 'Ctrl+Shift+S' }]) },
   windows: { create() {} },
   // Task 2: the redirect tracer's raw capture surface. Nothing in this
   // harness ever fires these — the fixtures above are served straight from
@@ -663,6 +673,10 @@ function installSbwStubs() {
   const delay = (v, ms = 120) => new Promise(r => setTimeout(() => r(v), ms));
   // Never let the real network-hitting bits fire in a preview.
   SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });
+  // The same rule storage.sync.apiKey above uses, so the account line on the
+  // themed panel agrees with what the rest of the preview is pretending.
+  SBW.hasApiKey = () => delay(PREVIEW_STATE !== 'signed-out' && PREVIEW_STATE !== 'key-missing', 0);
+  SBW.isDataCollectionEnabled = () => delay(PREVIEW_STATE !== 'collection-off', 0);
   // Domain history (popup.js's loadDomainHistory, `domain-history` state):
   // every other state gets an empty/never-seen response so the strip stays
   // hidden without touching real network stubs.

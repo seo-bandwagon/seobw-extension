@@ -869,6 +869,18 @@ function setFoot(text) {
   document.getElementById('spFootStat').textContent = text;
 }
 
+// Swap this tab's panel to the themed page-checks panel (src/panel/). Both
+// panels ship; setOptions changes the path for this tab only, and the themed
+// panel's own footer link swaps back. No manifest default is touched.
+document.getElementById('spPageChecks').addEventListener('click', async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await chrome.sidePanel.setOptions({ tabId: tab && tab.id, path: 'src/panel/panel.html', enabled: true });
+  } catch (e) {
+    console.warn('[SBW] could not open the page-checks panel', e);
+  }
+});
+
 document.getElementById('spExport').addEventListener('click', async () => {
   if (!spBiz) { setFoot('Pick a business first'); return; }
   try {

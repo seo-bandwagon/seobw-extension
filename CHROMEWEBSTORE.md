@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-09-07
+> Last Updated: 2026-09-08
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -104,6 +104,13 @@ per-permission fields.
 Not present and deliberately so: `management`, `chrome_url_overrides`,
 `web_accessible_resources`, `identity`, `oauth2`.
 
+The themed page-checks panel added 2026-09-08 needs **no manifest change**: it
+is opened per tab with `chrome.sidePanel.setOptions({ tabId, path })` from the
+existing side panel's footer, so `side_panel.default_path` is untouched and no
+permission or host is added. Reviewers who ask what the second panel is: it
+shows the same on-page checks as the toolbar popup, computed in the page, and
+requires no account.
+
 ## Privacy & Data Use
 
 ### Data Collection
@@ -174,7 +181,7 @@ Until both ids are real, the options page hides its theme links.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.6.0 | 2026-09-06 (main) | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts (no manifest change). Release notes in `docs/CWS-LISTING-1.6.0.md` §6. | Draft — package with `npm run zip`, not Finder |
+| 1.6.0 | 2026-09-06 (main) | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.0.md` §6. | Draft — package with `npm run zip`, not Finder |
 | 1.5.2 | 2026-09-06 | Search Console helpers (Queries-tab icons, compare badges). Content-script match on `search.google.com/search-console/*` (added in 1.5.1). | Not submitted (folded into 1.6.0) |
 | 1.5.0 | 2026-09-04 | API-key connect flow, capture sync with retry, citations and link-building in the side panel; `identity`/`oauth2` removed; `alarms` + `externally_connectable` added. | Not submitted (folded into 1.6.0) |
 | 1.2.0 | 2026-04-23 | Repointed API host to seobandwagon.com. | Published |

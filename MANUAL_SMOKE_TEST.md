@@ -13,6 +13,21 @@ The automated suite (vitest + Playwright canary) covers most regressions, but no
 
 ## Critical path (must pass)
 
+### 0. Themed page-checks panel
+
+- Click the extension icon, then open the side panel
+- Click **Page checks →** in the panel footer
+- Verify:
+  - [ ] The panel swaps to page checks for the tab you are on
+  - [ ] The host in the header matches the tab
+  - [ ] Check rows show green / amber / red dots and a "N of 14 passed" heading
+  - [ ] **Tools** shows Search Console, PageSpeed, Rich results, sitemap.xml, robots.txt
+  - [ ] **Account** reads "Connected" with a key saved, "Signed out" without one
+  - [ ] Auto / Night / Day switches this panel, the popup and the options page together
+  - [ ] **Citations & link building →** swaps back to the other panel
+  - [ ] Switching browser tabs re-runs the checks for the new tab
+
+
 ### 1. Happy-path capture against the canonical fixture
 
 - Navigate to **`https://seobandwagon.com/local-seo`**

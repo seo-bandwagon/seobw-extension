@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../extension/src/styles/fonts.css">
+  <script src="../extension/src/lib/theme-mode.js"></script>
+  <link rel="stylesheet" href="../extension/src/styles/popup.css">
+  <link rel="stylesheet" href="../extension/src/panel/panel.css">
+  <script src="stub.js"></script>
+</head>
+<body class="page-panel">
+  <header class="pn-head">
+    <span class="pn-crumb">Page checks</span>
+    <span class="pn-host" id="pnHost">—</span>
+    <div class="sp-appearance" id="pnAppearance" role="group" aria-label="Appearance" title="Night / Day for the extension's own pages. Auto follows your system setting.">
+      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-mode="dark" aria-pressed="false">Night</button>
+      <button type="button" data-mode="light" aria-pressed="false">Day</button>
+    </div>
+  </header>
+
+  <main class="pn-body">
+    <section>
+      <p class="pn-eyebrow" id="pnChecksHead">On-page checks</p>
+      <ul class="pn-list" id="pnChecks">
+        <li class="pn-empty">Reading the page…</li>
+      </ul>
+    </section>
+
+    <section id="pnDirSection" hidden>
+      <p class="pn-eyebrow">Citation directory</p>
+      <p class="pn-line" id="pnDirLine"></p>
+    </section>
+
+    <section>
+      <p class="pn-eyebrow">Tools</p>
+      <div class="pn-tags" id="pnTools"></div>
+    </section>
+
+    <section>
+      <p class="pn-eyebrow">Account</p>
+      <p class="pn-line" id="pnAccount">Checking…</p>
+      <p class="pn-line pn-sync" id="pnSync" hidden></p>
+      <button type="button" class="pn-link" id="pnOptions" hidden>Open settings</button>
+    </section>
+  </main>
+
+  <footer class="pn-foot">
+    <button type="button" class="btn-primary" id="pnRescan">Re-scan</button>
+    <button type="button" class="pn-link" id="pnCitations">Citations &amp; link building →</button>
+  </footer>
+
+  <script src="../extension/src/lib/sync-state.js"></script>
+  <script src="../extension/src/lib/api.js"></script>
+  <script src="../extension/src/lib/structured-data.js"></script>
+  <script src="../extension/src/lib/capture-strip.js"></script>
+  <script src="../extension/src/lib/tool-links.js"></script>
+  <script src="../extension/src/lib/sub-scores.js"></script>
+  <script src="../extension/src/lib/directory-matcher.js"></script>
+  <script>
+    // panel.js is an ES module and runs deferred, so the SBW.* stubs are in
+    // place by the time it imports src/lib/sbw-data.js. Installing them here
+    // anyway keeps the ordering explicit rather than incidental.
+    installSbwStubs();
+  </script>
+  <script type="module" src="../extension/src/panel/panel.js"></script>
+</body>
+</html>
