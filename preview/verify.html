@@ -253,6 +253,26 @@ const CASES = [
     no: ['#spAppearance button[data-mode="light"][aria-pressed="true"]', '#spAppearance button[data-mode="dark"][aria-pressed="true"]'] },
   { q: 'sidepanel.html?state=lb-outlets&section=outlets&theme=dark',
     need: ['html[data-theme="dark"]', '#spAppearance button[data-mode="dark"][aria-pressed="true"]'] },
+  // The themed page-checks panel (src/panel/). Its checks are computed in the
+  // page from the same analyzer fixture the popup renders, so they must be
+  // present with no account at all; the account line is the only part that
+  // changes with the key.
+  { q: 'panel.html',
+    need: ['.pn-list li', '.pn-dot', '#pnTools a', '#pnChecksHead',
+           // The fixture tab is a Yelp business page, one of the curated
+           // citation directories, so that section unhides itself.
+           '#pnDirSection:not([hidden])',
+           // A key is present in this state, so no "open settings" prompt.
+           '#pnOptions[hidden]'],
+    text: ['of 14 passed', 'Title', 'yelp.com', 'Yelp', 'Connected'] },
+  { q: 'panel.html?state=signed-out',
+    need: ['.pn-list li', '#pnOptions:not([hidden])'],
+    text: ['Signed out'] },
+  { q: 'panel.html?state=key-invalid',
+    need: ['.pn-list li', '#pnOptions:not([hidden])'],
+    text: ['rejected'] },
+  { q: 'panel.html?theme=light',
+    need: ['html[data-theme="light"]', '#pnAppearance button[data-mode="light"][aria-pressed="true"]'] },
   { q: 'options.html?theme=light',
     need: ['html[data-theme="light"]', '#optAppearance button[data-mode="light"][aria-pressed="true"]'],
     no: ['#themeLinks:not([hidden])'] },
@@ -384,6 +404,7 @@ async function checkReleaseVersion() {
 (async () => {
   await checkShellDrift('../extension/src/popup/popup.html', 'popup.html', 'popup');
   await checkShellDrift('../extension/src/sidepanel/sidepanel.html', 'sidepanel.html', 'sidepanel');
+  await checkShellDrift('../extension/src/panel/panel.html', 'panel.html', 'panel');
   await checkReleaseVersion();
   for (const c of CASES) await run(c);
   lines.push('', failures ? `${failures} FAILING` : 'ALL PASS');

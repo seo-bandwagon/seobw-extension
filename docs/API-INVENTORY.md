@@ -1,6 +1,7 @@
 # API inventory — Phase 0
 
 > Written 2026-09-08 against extension `main` (a4b2c60) and site `main`.
+> Updated the same day, after Phase 1 landed the bridge and the page-checks panel.
 
 Every endpoint the extension can reach, what calls it today, what the themed
 surfaces would want from it, and what each one returns. Phase 0 of the
@@ -19,8 +20,9 @@ response before Phase 1 depends on a field. Rows are marked accordingly.
 
 | Assumed | Reality |
 |---|---|
-| `extension/newtab/`, `extension/popup/`, `extension/sidepanel/` themed skins | **Absent.** They exist only in the design package at `/Users/kylealm/Projects/seo-bw-extension-design/SEO Bandwagon Chrome Theme/extension/`. |
-| `extension/sbw-data.js`, `extension/theme-sync.js`, `extension/vendor/` | **Absent**, same place. |
+| `extension/newtab/`, `extension/popup/`, `extension/sidepanel/` themed skins | The new tab was declined and the popup skin would replace a richer popup, so neither was ported. The panel skin shipped as `extension/src/panel/`. |
+| `extension/sbw-data.js`, `extension/theme-sync.js`, `extension/vendor/` | The bridge and the theme seam shipped as `extension/src/lib/sbw-data.js` and `extension/src/lib/theme-sync.js`. `vendor/bandwagon.css` was not ported; the panel uses the shipped tokens. |
+| Any of them can live at the `extension/` root | **No.** `npm run zip` packages only `manifest.json`, `lib/` and `src/`, so a file at the `extension/` root would never reach the store build. Everything went under `src/`. |
 | `src/lib/api.js`, `src/lib/sync-state.js`, `src/lib/domain-history.js` | Present, but at **`extension/src/lib/`** since the folder move (#14). The design's own `<script src="../src/lib/...">` paths already assume this layout and resolve correctly. |
 | `management` permission and `chrome_url_overrides.newtab` are agreed | **Ruled out by the owner on 2026-09-07** when the theme scope was chosen. `extension/manifest.snippet.json` in the design still marks `management` "SHIPPING". |
 | `MANUAL_SMOKE_TEST.md`, `tests/e2e/canary.spec.mjs`, `tests/unit/api.test.js` | All present. |
@@ -29,6 +31,13 @@ Everything the design's data bridge depends on inside this repo **does** exist:
 all six service-worker message actions (`getLocalCaptures`, `getCachedAnalysis`,
 `storeAnalysis`, `updateBadge`, `checkDirectory`, `openSidePanel`) are handled,
 and all six `ANALYZER_FILES` injection paths resolve.
+
+## One bug the design's bridge carried in
+
+Its `tools()` helper read `globalThis.SBWTools`. `src/lib/tool-links.js` attaches
+`globalThis.SBWToolLinks`, so every tool link resolved to null and the row
+rendered empty — silently, because `toolRow()` filters out anything without a
+URL. Fixed in the port and covered by a test that asserts the real global.
 
 ## The one HTTP layer
 
@@ -169,11 +178,11 @@ seventh state the wiring prompt's six-state matrix omits.
 
 ## State matrix
 
-What each surface shows for each outcome. `—` means the surface never reaches
-that state. Nothing here is implemented yet; this is the contract Phase 1 builds
-against.
+What each surface shows for each outcome. The panel column is implemented and
+covered by the preview harness; the other two are the contract if those surfaces
+are ever built.
 
-| State | New tab | Popup skin | Side panel |
+| State | Page-checks panel (shipped) | New tab (declined) | Popup skin (not ported) |
 |---|---|---|---|
 | `ok` | local captures, enriched with batch stats | score, groups, issues, tools | citations + directory match |
 | `no_key` | "Connect your account" badge, link to options; local captures still listed in full | same badge; analysis unaffected | "Connect your account"; directory match still works, it is local |

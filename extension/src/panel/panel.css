@@ -1,0 +1,158 @@
+/* SEO Bandwagon — themed page-checks panel.
+ *
+ * Layout only. Every colour, face and radius comes from the tokens in
+ * ../styles/popup.css, so this panel follows Night/Day with the popup, the
+ * existing side panel and the options page, and there is no second palette to
+ * keep in step. The design package's vendor/bandwagon.css was not ported for
+ * that reason; its token names map onto these:
+ *   --text → --ink · --text-muted → --paper-50 · --text-secondary → --paper-70
+ *   --rule → --hairline · --surface-raised → --surface-2 · --on-pink → --navy
+ */
+
+html, body { height: 100%; }
+
+body.page-panel {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------- head ---------------------------------- */
+
+.pn-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-1);
+}
+.pn-crumb {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.pn-host {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--paper-50);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* .sp-appearance carries its own styles from popup.css; only the placement
+   differs here, and margin-left:auto is already on it. */
+
+/* ---------------------------------- body ---------------------------------- */
+
+.pn-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pn-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin: 0 0 10px;
+}
+
+.pn-list { list-style: none; margin: 0; padding: 0; }
+.pn-list li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 12px;
+  color: var(--ink);
+}
+.pn-list li:last-child { border-bottom: none; }
+.pn-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.pn-dot[data-s='pass'] { background: var(--success); }
+.pn-dot[data-s='warn'] { background: var(--warning); }
+.pn-dot[data-s='fail'] { background: var(--error); }
+.pn-name { flex: 1; }
+.pn-note {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--paper-50);
+  white-space: nowrap;
+}
+.pn-empty { color: var(--paper-70); border-bottom: none; }
+
+.pn-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.pn-tags a {
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border: 1px solid var(--pink-30);
+  border-radius: var(--radius-pill);
+  color: var(--accent-text);
+}
+.pn-tags a:hover { background: var(--pink-08); }
+
+.pn-line {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--paper-70);
+  margin: 0 0 8px;
+}
+.pn-sync { color: var(--success); }
+
+/* ---------------------------------- foot ---------------------------------- */
+
+.pn-foot {
+  flex: none;
+  padding: 12px 14px;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface-1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pn-foot .btn-primary {
+  width: 100%;
+  padding: 11px 0;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--pink);
+  color: var(--navy);
+  cursor: pointer;
+}
+.pn-foot .btn-primary:hover { background: var(--pink-hover); }
+
+.pn-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-align: left;
+}

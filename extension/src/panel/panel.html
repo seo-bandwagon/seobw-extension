@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>SEO Bandwagon — Page checks</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/theme-mode.js"></script>
+  <link rel="stylesheet" href="../styles/popup.css">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body class="page-panel">
+  <header class="pn-head">
+    <span class="pn-crumb">Page checks</span>
+    <span class="pn-host" id="pnHost">—</span>
+    <div class="sp-appearance" id="pnAppearance" role="group" aria-label="Appearance" title="Night / Day for the extension's own pages. Auto follows your system setting.">
+      <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-mode="dark" aria-pressed="false">Night</button>
+      <button type="button" data-mode="light" aria-pressed="false">Day</button>
+    </div>
+  </header>
+
+  <main class="pn-body">
+    <section>
+      <p class="pn-eyebrow" id="pnChecksHead">On-page checks</p>
+      <ul class="pn-list" id="pnChecks">
+        <li class="pn-empty">Reading the page…</li>
+      </ul>
+    </section>
+
+    <section id="pnDirSection" hidden>
+      <p class="pn-eyebrow">Citation directory</p>
+      <p class="pn-line" id="pnDirLine"></p>
+    </section>
+
+    <section>
+      <p class="pn-eyebrow">Tools</p>
+      <div class="pn-tags" id="pnTools"></div>
+    </section>
+
+    <section>
+      <p class="pn-eyebrow">Account</p>
+      <p class="pn-line" id="pnAccount">Checking…</p>
+      <p class="pn-line pn-sync" id="pnSync" hidden></p>
+      <button type="button" class="pn-link" id="pnOptions" hidden>Open settings</button>
+    </section>
+  </main>
+
+  <footer class="pn-foot">
+    <button type="button" class="btn-primary" id="pnRescan">Re-scan</button>
+    <button type="button" class="pn-link" id="pnCitations">Citations &amp; link building →</button>
+  </footer>
+
+  <script src="../lib/sync-state.js"></script>
+  <script src="../lib/api.js"></script>
+  <script src="../lib/structured-data.js"></script>
+  <script src="../lib/capture-strip.js"></script>
+  <script src="../lib/tool-links.js"></script>
+  <script src="../lib/sub-scores.js"></script>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

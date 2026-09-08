@@ -206,49 +206,11 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
 
 /* ---------- sub-scores derived from real analyzer data ---------- */
 
+// The 14 checks moved to src/lib/sub-scores.js so the themed surfaces can
+// show the same numbers without a second copy of the thresholds. Loaded as a
+// classic <script> before this file (see popup.html).
 function computeSubScores(data) {
-  const m = data.meta || {};
-  const c = data.content || {};
-  const h = data.headings || {};
-  const l = data.links || {};
-  const t = data.technical || {};
-  const img = data.images || {};
-
-  const pct = (passed, total) => total ? Math.round((passed / total) * 100) : 0;
-
-  // META — title, description, canonical, Open Graph, schema
-  let metaPass = 0;
-  if (m.title && m.title.text && m.title.length >= 30 && m.title.length <= 60) metaPass++;
-  if (m.description && m.description.text && m.description.length >= 120 && m.description.length <= 160) metaPass++;
-  if (m.canonical) metaPass++;
-  if (m.openGraph && m.openGraph.title) metaPass++;
-  if (m.schema && m.schema.length > 0) metaPass++;
-
-  // CONTENT — depth, readability, single H1
-  let contentPass = 0;
-  if ((c.wordCount || 0) >= 600) contentPass++;
-  else if ((c.wordCount || 0) >= 300) contentPass += 0.5;
-  if (c.readability && c.readability.fleschKincaid <= 14) contentPass++;
-  if (h.h1 && h.h1.length === 1) contentPass++;
-
-  // LINKS — internal depth, external presence, images with alt
-  let linksPass = 0;
-  if ((l.internal?.count || 0) >= 3) linksPass++;
-  if ((l.external?.count || 0) > 0) linksPass++;
-  if (!img.total || (img.missingAlt?.count || 0) === 0) linksPass++;
-
-  // TECH — DOM size, https, no mixed content
-  let techPass = 0;
-  if ((t.domElements || 0) <= 2000) techPass++;
-  if ((data.url || '').startsWith('https://')) techPass++;
-  if (!data.mixedContent || data.mixedContent.mixedCount === 0) techPass++;
-
-  return [
-    { k: 'Meta', v: pct(metaPass, 5) },
-    { k: 'Content', v: pct(contentPass, 3) },
-    { k: 'Links', v: pct(linksPass, 3) },
-    { k: 'Tech', v: pct(techPass, 3) }
-  ];
+  return globalThis.SBWSubScores.computeSubScores(data);
 }
 
 /* ---------- main renderer ---------- */
