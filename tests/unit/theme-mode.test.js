@@ -86,12 +86,24 @@ describe('SBWTheme', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
   });
 
-  it('listingUrl() is null while THEME_IDS are placeholders, and a real id builds the store URL', async () => {
+  it('listingUrl() builds a store URL from each shipped id, and is null for a non-id', async () => {
     const S = await load(chromeStub());
+    // The two published theme items. A typo here would point the options page
+    // at someone else's listing, so assert the exact ids, not just the shape.
+    expect(S.THEME_IDS.dark).toBe('bomhiblgnbmpgbddhocomnbijdkmpbhl');
+    expect(S.THEME_IDS.light).toBe('ldifldabjbffldoekbebpickddaiiggm');
+    expect(S.listingUrl('dark')).toBe(
+      'https://chromewebstore.google.com/detail/bomhiblgnbmpgbddhocomnbijdkmpbhl'
+    );
+    expect(S.listingUrl('light')).toBe(
+      'https://chromewebstore.google.com/detail/ldifldabjbffldoekbebpickddaiiggm'
+    );
+    // Anything that is not a 32-char a–p id hides the link rather than
+    // producing a broken URL — the pre-upload behaviour, still reachable.
+    S.THEME_IDS.dark = 'REPLACE_WITH_NEON_NIGHT_ITEM_ID';
     expect(S.listingUrl('dark')).toBeNull();
+    S.THEME_IDS.light = '';
     expect(S.listingUrl('light')).toBeNull();
-    S.THEME_IDS.dark = 'abcdefghijklmnopabcdefghijklmnop';
-    expect(S.listingUrl('dark')).toBe('https://chromewebstore.google.com/detail/abcdefghijklmnopabcdefghijklmnop');
   });
 
   it('bindControl(): buttons reflect the STORED choice and clicking writes/removes the key', async () => {

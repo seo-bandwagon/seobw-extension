@@ -4,7 +4,7 @@ Two items, one per mode. A Chrome theme is images and colours only, so nothing
 below claims behaviour a theme can't have; every extension claim matches
 `docs/CWS-LISTING-1.6.0.md`.
 
-Fill `ITEM_ID_NIGHT` / `ITEM_ID_DAY` in after the first upload of each, then
+Fill `bomhiblgnbmpgbddhocomnbijdkmpbhl` / `ldifldabjbffldoekbebpickddaiiggm` in after the first upload of each, then
 paste the cross-link line into the other listing.
 
 ---
@@ -39,7 +39,7 @@ WHAT YOU GET
 
 PREFER LIGHT?
 Install SEO Bandwagon — Neon Day instead:
-https://chromewebstore.google.com/detail/ITEM_ID_DAY
+https://chromewebstore.google.com/detail/ldifldabjbffldoekbebpickddaiiggm
 Chrome runs one theme at a time, so installing either replaces the other.
 
 WORKS WITH THE SEO BANDWAGON EXTENSION
@@ -87,7 +87,7 @@ WHAT YOU GET
 
 PREFER DARK?
 Install SEO Bandwagon — Neon Night instead:
-https://chromewebstore.google.com/detail/ITEM_ID_NIGHT
+https://chromewebstore.google.com/detail/bomhiblgnbmpgbddhocomnbijdkmpbhl
 Chrome runs one theme at a time, so installing either replaces the other.
 
 WORKS WITH THE SEO BANDWAGON EXTENSION

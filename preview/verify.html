@@ -274,8 +274,12 @@ const CASES = [
   { q: 'panel.html?theme=light',
     need: ['html[data-theme="light"]', '#pnAppearance button[data-mode="light"][aria-pressed="true"]'] },
   { q: 'options.html?theme=light',
-    need: ['html[data-theme="light"]', '#optAppearance button[data-mode="light"][aria-pressed="true"]'],
-    no: ['#themeLinks:not([hidden])'] },
+    need: ['html[data-theme="light"]', '#optAppearance button[data-mode="light"][aria-pressed="true"]',
+           // Both theme items are published, so the links unhide and carry the
+           // real store URLs. They hide again only if an id stops being an id.
+           '#themeLinks:not([hidden])',
+           '#linkThemeNight[href="https://chromewebstore.google.com/detail/bomhiblgnbmpgbddhocomnbijdkmpbhl"]',
+           '#linkThemeDay[href="https://chromewebstore.google.com/detail/ldifldabjbffldoekbebpickddaiiggm"]'] },
   { q: 'popup.html?state=review-strip-none',
     need: ['.seo-hero'],
     no: ['.review-strip'] },

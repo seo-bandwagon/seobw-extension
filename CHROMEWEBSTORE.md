@@ -172,10 +172,17 @@ Two Chrome themes, separate store items, listing text in
 
 | Item | Status | Item ID |
 |------|--------|---------|
-| SEO Bandwagon — Neon Night | Draft, not uploaded | fill `THEME_IDS.dark` in `extension/src/lib/theme-mode.js` and `ITEM_ID_NIGHT` in the listing after upload |
-| SEO Bandwagon — Neon Day | Draft, not uploaded | fill `THEME_IDS.light` and `ITEM_ID_DAY` |
+| SEO Bandwagon — Neon Night | Published 2026-09-08, category Dark & Black | `bomhiblgnbmpgbddhocomnbijdkmpbhl` |
+| SEO Bandwagon — Neon Day | Published 2026-09-08, category Other | `ldifldabjbffldoekbebpickddaiiggm` |
 
-Until both ids are real, the options page hides its theme links.
+Both ids are in `THEME_IDS` in `extension/src/lib/theme-mode.js`, so the
+extension's options page shows its theme links from 1.6.0 on.
+
+**Open on the live listings:** both descriptions were uploaded with the
+placeholder cross-link URLs (`.../detail/ITEM_ID_DAY` and `.../ITEM_ID_NIGHT`)
+still in them, so each theme's "PREFER LIGHT / PREFER DARK" link is dead. Paste
+the corrected blocks from `themes/store/LISTING.md` over the description in each
+item's dashboard listing.
 
 ## Version History
 
