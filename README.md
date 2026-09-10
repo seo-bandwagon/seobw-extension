@@ -46,14 +46,22 @@ A key carries scopes (what it's allowed to do) set when it was created; Options 
 ## Appearance and the Chrome themes
 
 The popup, side panel and options page render in **Night** (midnight navy) or
-**Day** (off-white) from one token block in `src/styles/popup.css`; `<html
-data-theme>` is the only switch, set by `src/lib/theme-mode.js`. **Auto** (the
+**Day** (off-white) from one token block in `extension/src/styles/popup.css`; `<html
+data-theme>` is the only switch, set by `extension/src/lib/theme-mode.js`. **Auto** (the
 default) follows your system setting; picking Night or Day in the side panel's
 header or on the options page stores one key (`bwThemeMode`) that all three
 surfaces read, so a choice made anywhere applies everywhere. Auto is the absence
 of a stored choice — it removes the key rather than writing "auto". The last
 mode is mirrored into the page's own `localStorage` so the first paint is right
 before storage answers.
+
+The **page-checks panel** (`src/panel/`) is a second side panel: the current
+page's checks, the tools row, the citation-directory note and the account line,
+opened from the "Page checks" link in the existing panel's footer and swapped
+back from its own. Both panels ship; `chrome.sidePanel.setOptions` switches the
+path for that tab only, so `side_panel.default_path` in the manifest is
+untouched. Everything it shows comes through `src/lib/sbw-data.js`, the one
+bridge from a themed surface to the product — see `docs/API-INVENTORY.md`.
 
 Two matching **Chrome themes** — SEO Bandwagon Neon Night and Neon Day — ship as
 separate Web Store items from `themes/` (a theme is images and colours only and

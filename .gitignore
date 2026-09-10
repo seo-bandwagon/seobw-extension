@@ -18,3 +18,6 @@ _*/
 # Packaged builds
 # store packages are build output (npm run zip / zip:themes), never committed
 *.zip
+
+# Chrome/Brave writes this into a theme folder when it is loaded unpacked
+Cached Theme.pak

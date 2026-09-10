@@ -21,11 +21,12 @@
   const MIRROR_KEY = 'bwThemeMode:last';
   const MODES = ['dark', 'light'];
 
-  // Fill in after each theme's first Web Store upload (dashboard → item → Item ID).
-  // Left as placeholders, listingUrl() returns null and every link to a theme hides.
+  // The two published Chrome theme items (filled 2026-09-08). A non-id here —
+  // a placeholder, or a cleared string — makes listingUrl() return null and
+  // every link to a theme hide itself, which is the behaviour before upload.
   const THEME_IDS = {
-    dark: 'REPLACE_WITH_NEON_NIGHT_ITEM_ID',
-    light: 'REPLACE_WITH_NEON_DAY_ITEM_ID',
+    dark: 'bomhiblgnbmpgbddhocomnbijdkmpbhl',
+    light: 'ldifldabjbffldoekbebpickddaiiggm',
   };
   const ID_RE = /^[a-p]{32}$/; // Chrome extension/theme ids are 32 chars of a–p
 

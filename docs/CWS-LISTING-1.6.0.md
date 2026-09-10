@@ -91,9 +91,15 @@ computed from the numbers already on the page.
 
 APPEARANCE
 Night or Day for the extension's own pages, or Auto to follow your system
-setting — one choice, applied to the popup, side panel and options page.
-Matching Chrome themes (SEO Bandwagon Neon Night / Neon Day) are separate
-Web Store items.
+setting. Choose it in the side panel's header or on the Settings page; one
+choice applies to the popup, both side panels and Settings. Matching Chrome
+themes (SEO Bandwagon Neon Night / Neon Day) are separate Web Store items.
+
+PAGE CHECKS PANEL
+A second side panel listing the current page's checks as you work, with the
+pass, warn and fail count, the tools row, and a note when the page is one of
+the local-SEO directories. Open it from the "Page checks" link in the side
+panel's footer; the link there swaps back.
 
 TOOLS MENU
 A right-click menu and a matching row in the popup for opening the current

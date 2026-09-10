@@ -4,7 +4,7 @@ Two items, one per mode. A Chrome theme is images and colours only, so nothing
 below claims behaviour a theme can't have; every extension claim matches
 `docs/CWS-LISTING-1.6.0.md`.
 
-Fill `ITEM_ID_NIGHT` / `ITEM_ID_DAY` in after the first upload of each, then
+Fill `bomhiblgnbmpgbddhocomnbijdkmpbhl` / `ldifldabjbffldoekbebpickddaiiggm` in after the first upload of each, then
 paste the cross-link line into the other listing.
 
 ---
@@ -35,11 +35,13 @@ the sky — not the buildings — falls behind Chrome's search box.
 WHAT YOU GET
 - Frame, tab strip, toolbar and omnibox in the Bandwagon palette
 - A new-tab wallpaper that stays put and never stretches, at any window size
+  (Chrome only — browsers that replace the new tab page with their own, such
+  as Brave, show the frame and toolbar colours but not the wallpaper)
 - Matching pink accents on the active tab, links and buttons
 
 PREFER LIGHT?
 Install SEO Bandwagon — Neon Day instead:
-https://chromewebstore.google.com/detail/ITEM_ID_DAY
+https://chromewebstore.google.com/detail/ldifldabjbffldoekbebpickddaiiggm
 Chrome runs one theme at a time, so installing either replaces the other.
 
 WORKS WITH THE SEO BANDWAGON EXTENSION
@@ -52,7 +54,7 @@ data, and a results overlay on Google's own search pages. No account required
 for any of it.
 
 The theme collects nothing. It has no code, no permissions and no network
-access — it is a colour map and two images.
+access — it is a colour map and a handful of images.
 ```
 
 ---
@@ -71,7 +73,7 @@ SEO Bandwagon — Neon Day
 Bandwagon pink on off-white, with a daylight city skyline behind every new tab.
 ```
 
-**Category:** Themes → Light & White
+**Category:** Themes → Minimalist (the dashboard has no light counterpart to Dark & Black; pick the closest it offers)
 
 **Detailed description**
 
@@ -83,11 +85,13 @@ composition as Neon Night, repainted for a bright desk.
 WHAT YOU GET
 - Frame, tab strip, toolbar and omnibox in the Bandwagon palette
 - A new-tab wallpaper that stays put and never stretches, at any window size
+  (Chrome only — browsers that replace the new tab page with their own, such
+  as Brave, show the frame and toolbar colours but not the wallpaper)
 - Matching pink accents on the active tab, links and buttons
 
 PREFER DARK?
 Install SEO Bandwagon — Neon Night instead:
-https://chromewebstore.google.com/detail/ITEM_ID_NIGHT
+https://chromewebstore.google.com/detail/bomhiblgnbmpgbddhocomnbijdkmpbhl
 Chrome runs one theme at a time, so installing either replaces the other.
 
 WORKS WITH THE SEO BANDWAGON EXTENSION
@@ -100,7 +104,7 @@ data, and a results overlay on Google's own search pages. No account required
 for any of it.
 
 The theme collects nothing. It has no code, no permissions and no network
-access — it is a colour map and two images.
+access — it is a colour map and a handful of images.
 ```
 
 ---
