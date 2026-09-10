@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 await import('../../extension/src/lib/gsc-inject.js');
 await import('../../extension/src/lib/gsc-compare.js');
+const G = globalThis.SBWGscInject;
 
 function buildReport() {
   document.body.innerHTML = `
@@ -59,6 +60,51 @@ describe('gsc-serp runner — Queries-only icons, compare math everywhere', () =
     expect(document.querySelectorAll('.' + window.SBWGscInject.ICON_GROUP).length).toBe(0);
     expect(applySpy).toHaveBeenCalled();
     applySpy.mockRestore();
+  });
+
+  it('a pushState tab switch strips the icons with no DOM mutation at all', async () => {
+    // The regression this closes: Search Console changes the URL when you
+    // click Pages, and the DOM change that follows can be recycled rows the
+    // own-node filter reads as ours — so the observer never fired and the
+    // icons sat on the Pages tab until something unrelated mutated.
+    buildReport();
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+    await loadRunner();
+    await frame();
+    await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+
+    // Navigate only. Nothing touches the table.
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=page');
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+  });
+
+  it('popstate (back/forward) is handled the same way', async () => {
+    buildReport();
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+    await loadRunner();
+    await frame();
+    await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=page');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await frame();
+    await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+  });
+
+  it('a report whose tab cannot be identified is left alone', async () => {
+    // No breakdown param, no tablist, no header — the old code assumed
+    // Queries here and injected.
+    document.body.innerHTML = `<table><tbody>
+      <tr><td>roofing repair denver</td><td>1,230</td></tr>
+    </tbody></table>`;
+    setPerformancePath();
+    await loadRunner();
+    await frame();
+    await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
   });
 
   it('on the Queries tab (breakdown=query) injects row icons and applies the compare math', async () => {

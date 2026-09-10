@@ -62,18 +62,71 @@
     return '';
   }
 
-  // The icons only make sense on the Queries dimension — a page URL, country
-  // or device is not something to search Google for. Search Console encodes
-  // the tab in the URL (`breakdown=query|page|country|device|...`); when the
-  // param is absent (the default tab) fall back to the table's first header
-  // cell, and with neither assume the default, which is Queries.
+  // The other dimensions Search Console offers. Matching one of these is a
+  // positive "not Queries" answer, which is stronger than failing to match
+  // /quer/i — "Top pages" and "Top queries" both contain neither word's stem
+  // in some locales, so we look for a known dimension either way.
+  const OTHER_DIMENSION = /\b(page|url|countr|device|appearance|date|filter)/i;
+  const QUERY_DIMENSION = /\b(quer|search term|keyword)/i;
+
+  /**
+   * Is the report currently showing the Queries dimension?
+   *
+   * The icons only make sense there — a page URL, country or device is not
+   * something to search Google for.
+   *
+   * Ordered checks, each returning a definite answer, ending in NO. Until
+   * 2026-09-10 the last tier returned YES ("assume the default tab"), which
+   * meant that any moment we could not identify the tab — including the frame
+   * between an SPA tab switch and the new table painting — we injected. That
+   * is how the icons reached the Pages tab.
+   *
+   * Nothing here has been verified against real Search Console markup; every
+   * `breakdown=` reference in this repo is our own. So each tier is written to
+   * abstain rather than guess, and the fallback is "do not inject".
+   */
   function isQueriesView(loc, rootEl) {
-    const search = (loc && loc.search) || '';
-    const m = /[?&]breakdown=([^&]*)/.exec(search);
+    // 1. The tab in the URL, if Search Console puts it there. Checked in both
+    //    the query string and the hash — an SPA may use either.
+    const fromUrl = ((loc && loc.search) || '') + ' ' + ((loc && loc.hash) || '');
+    const m = /[?&#]breakdown=([^&#\s]*)/.exec(fromUrl);
     if (m) return decodeURIComponent(m[1]).toLowerCase() === 'query';
-    const th = rootEl && rootEl.querySelector && rootEl.querySelector('table th');
-    if (th) return /quer/i.test(th.textContent || '');
-    return true;
+
+    const root = rootEl && rootEl.querySelector ? rootEl : null;
+    if (!root) return false;
+
+    // 2. The selected tab itself. This is the most direct statement of what
+    //    the user is looking at, and it does not depend on the table.
+    const tab = root.querySelector('[role="tab"][aria-selected="true"]');
+    if (tab) {
+      const label = (tab.textContent || '').trim();
+      if (QUERY_DIMENSION.test(label)) return true;
+      if (OTHER_DIMENSION.test(label)) return false;
+    }
+
+    // 3. The first header of the table that actually holds data rows — not
+    //    simply the first <table> in the document, which may be a summary.
+    const th = dataTableHeader(root);
+    if (th) {
+      const label = (th.textContent || '').trim();
+      if (QUERY_DIMENSION.test(label)) return true;
+      if (OTHER_DIMENSION.test(label)) return false;
+    }
+
+    // 4. Unknown. Do not inject.
+    return false;
+  }
+
+  /** First header cell of the first table that contains a data row. */
+  function dataTableHeader(root) {
+    const tables = root.querySelectorAll('table');
+    for (const table of tables) {
+      const hasData = Array.prototype.some.call(table.querySelectorAll('tr'), isDataRow);
+      if (!hasData) continue;
+      const th = table.querySelector('th');
+      if (th) return th;
+    }
+    return null;
   }
 
   // Remove every injected group (used when the report switches away from
@@ -172,7 +225,7 @@
     '.' + ICON_CLASS + ':hover{background:rgba(245,55,150,.12);color:#c2185b}' +
     '.seo-bw-gsc-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;background:#000022;color:#f5f5f5;font:13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,34,.35);max-width:520px}';
 
-  const api = { ICON_GROUP, ICON_CLASS, CSS, isDataRow, isNumericCell, extractQuery, searchUrl, injectRow, injectAll, removeAll, isQueriesView, makeButton };
+  const api = { ICON_GROUP, ICON_CLASS, CSS, isDataRow, isNumericCell, extractQuery, searchUrl, injectRow, injectAll, removeAll, isQueriesView, dataTableHeader, makeButton };
   root.SBWGscInject = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

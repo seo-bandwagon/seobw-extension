@@ -63,13 +63,63 @@ describe('SBWGscInject', () => {
     expect(G.isQueriesView({ search: '?breakdown=device' }, root)).toBe(false);
   });
 
-  it('isQueriesView: without a breakdown param, the table header decides; no header means the default (queries) tab', () => {
+  it('isQueriesView: the breakdown param is read from the hash too, not only the query string', () => {
+    const root = table(row('x'));
+    expect(G.isQueriesView({ search: '', hash: '#breakdown=query' }, root)).toBe(true);
+    expect(G.isQueriesView({ search: '', hash: '#breakdown=page' }, root)).toBe(false);
+  });
+
+  it('isQueriesView: the selected tab decides before the table does', () => {
+    // A Pages table still showing stale Queries markup: the tab is the truth.
+    document.body.innerHTML =
+      `<div role="tablist">` +
+      `<span role="tab" aria-selected="false">Queries</span>` +
+      `<span role="tab" aria-selected="true">Pages</span></div>` +
+      `<table><thead><tr><th>Top queries</th><th>Clicks</th></tr></thead><tbody>${row('x')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
+
+    document.body.innerHTML =
+      `<div role="tablist">` +
+      `<span role="tab" aria-selected="true">Queries</span>` +
+      `<span role="tab" aria-selected="false">Pages</span></div>` +
+      `<table><tbody>${row('x')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(true);
+  });
+
+  it('isQueriesView: an outer selected tab it does not recognise is abstained on, not guessed', () => {
+    // Search Console nests tab groups — "Search results / Discover / News"
+    // sits above the dimension tabs, and its selected tab is the first match.
+    // Matching neither vocabulary must fall through to the table, not decide.
+    document.body.innerHTML =
+      `<div role="tablist"><span role="tab" aria-selected="true">Search results</span></div>` +
+      `<table><thead><tr><th>Top pages</th><th>Clicks</th></tr></thead><tbody>${row('https://a.com/p')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
+  });
+
+  it('isQueriesView: the header comes from the table with data rows, not the first table on the page', () => {
+    // A summary table above the report would otherwise answer for it.
+    document.body.innerHTML =
+      `<table><thead><tr><th>Total clicks</th></tr></thead><tbody><tr><td>Totals</td><td>text</td></tr></tbody></table>` +
+      `<table><thead><tr><th>Top pages</th><th>Clicks</th></tr></thead><tbody>${row('https://a.com/p')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
+    expect(G.dataTableHeader(document.body).textContent).toBe('Top pages');
+  });
+
+  it('isQueriesView: an unidentifiable report does NOT inject', () => {
+    // Changed 2026-09-10. This used to return true ("assume the default tab"),
+    // so every moment the tab could not be identified — including the frame
+    // between an SPA tab switch and the new table painting — injected icons.
+    // That is how they reached the Pages tab.
+    document.body.innerHTML = `<table><tbody>${row('x')}</tbody></table>`;
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
+    expect(G.isQueriesView({ search: '' }, null)).toBe(false);
+    document.body.innerHTML = '';
+    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
+  });
+
+  it('isQueriesView: a real Queries report with a header still injects', () => {
     const root = table(row('x'));
     expect(G.isQueriesView({ search: '?resource_id=sc-domain:a.com' }, root)).toBe(true);
-    document.body.innerHTML = `<table><thead><tr><th>Top pages</th><th>Clicks</th></tr></thead><tbody>${row('https://a.com/p')}</tbody></table>`;
-    expect(G.isQueriesView({ search: '' }, document.body)).toBe(false);
-    document.body.innerHTML = `<table><tbody>${row('x')}</tbody></table>`;
-    expect(G.isQueriesView({ search: '' }, document.body)).toBe(true);
   });
 
   it('removeAll strips every injected group so a tab switch leaves nothing behind', () => {
