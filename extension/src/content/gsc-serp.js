@@ -56,10 +56,15 @@
   }
 
   function scan() {
-    if (!/\/performance\b/.test(location.pathname)) return;
+    if (!/\/performance\b/.test(location.pathname)) {
+      // Left the report entirely; take our icons with us.
+      inject.removeAll(document);
+      return;
+    }
     // Queries tab only: on Pages/Countries/Devices/Dates/Search appearance
     // the first cell is not a search query, so strip anything we injected
-    // before the SPA swapped the table in place.
+    // before the SPA swapped the table in place. isQueriesView abstains to
+    // "no" when it cannot identify the tab, so removeAll runs on any doubt.
     // The compare-mode math applies on every dimension tab — the metric
     // cards and the % change column mean the same thing for pages, countries
     // and devices — so only the row icons are gated.
@@ -112,10 +117,19 @@
   // scan terminates in one pass.
   let missed = false;
 
+  // requestAnimationFrame coalesces a burst of mutations into one scan. It is
+  // always present in a real content script; the setTimeout fallback is for
+  // contexts that lack it (a detached document during teardown, for one),
+  // where throwing would surface as an uncaught error from the observer.
+  const nextFrame =
+    typeof requestAnimationFrame === 'function'
+      ? requestAnimationFrame
+      : (fn) => setTimeout(fn, 16);
+
   function schedule() {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => {
+    nextFrame(() => {
       scheduled = false;
       runScan();
     });
@@ -148,5 +162,34 @@
   if (window.__seoBwGscSerpObserver) window.__seoBwGscSerpObserver.disconnect();
   Object.defineProperty(window, '__seoBwGscSerpObserver', { value: observer, configurable: true, enumerable: false, writable: true });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // Search Console is an SPA: clicking Pages changes the URL, and the DOM
+  // change that follows may be recycled rows the own-node filter treats as
+  // ours. Without this the icons survived the tab switch until some unrelated
+  // mutation happened to fire. Watch navigation directly instead of hoping
+  // for a mutation: popstate for back/forward, and a patch on pushState /
+  // replaceState for the tab clicks themselves.
+  function onNavigated() {
+    // Strip immediately rather than waiting for the next frame, so the icons
+    // never render over a table that is no longer Queries.
+    if (!inject.isQueriesView(location, document)) inject.removeAll(document);
+    schedule();
+  }
+
+  window.addEventListener('popstate', onNavigated);
+  if (!window.__seoBwGscHistoryPatched) {
+    Object.defineProperty(window, '__seoBwGscHistoryPatched', { value: true, configurable: true, enumerable: false, writable: true });
+    for (const name of ['pushState', 'replaceState']) {
+      const original = history[name];
+      if (typeof original !== 'function') continue;
+      history[name] = function () {
+        const result = original.apply(this, arguments);
+        try { window.dispatchEvent(new Event('seo-bw-gsc-navigated')); } catch (e) { /* ignore */ }
+        return result;
+      };
+    }
+  }
+  window.addEventListener('seo-bw-gsc-navigated', onNavigated);
+
   runScan();
 })();
