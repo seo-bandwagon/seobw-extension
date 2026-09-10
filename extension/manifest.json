@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SEO Bandwagon",
   "version": "1.6.0",
-  "version_name": "1.6.0 — competitor parity: link check, indexability, hreflang, rendering, structured data, SERP overlay, tools",
+  "version_name": "1.6.0 — competitor parity, Night/Day appearance, page-checks panel",
   "description": "SEO analysis, link check, indexability, hreflang, rendering, structured data, citations and link-building, synced to your account.",
   "permissions": [
     "activeTab",

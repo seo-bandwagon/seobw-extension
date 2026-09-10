@@ -55,6 +55,14 @@ of a stored choice — it removes the key rather than writing "auto". The last
 mode is mirrored into the page's own `localStorage` so the first paint is right
 before storage answers.
 
+The **page-checks panel** (`src/panel/`) is a second side panel: the current
+page's checks, the tools row, the citation-directory note and the account line,
+opened from the "Page checks" link in the existing panel's footer and swapped
+back from its own. Both panels ship; `chrome.sidePanel.setOptions` switches the
+path for that tab only, so `side_panel.default_path` in the manifest is
+untouched. Everything it shows comes through `src/lib/sbw-data.js`, the one
+bridge from a themed surface to the product — see `docs/API-INVENTORY.md`.
+
 Two matching **Chrome themes** — SEO Bandwagon Neon Night and Neon Day — ship as
 separate Web Store items from `themes/` (a theme is images and colours only and
 cannot follow the OS setting, so light and dark are two listings; see

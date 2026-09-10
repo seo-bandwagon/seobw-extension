@@ -35,6 +35,8 @@ the sky — not the buildings — falls behind Chrome's search box.
 WHAT YOU GET
 - Frame, tab strip, toolbar and omnibox in the Bandwagon palette
 - A new-tab wallpaper that stays put and never stretches, at any window size
+  (Chrome only — browsers that replace the new tab page with their own, such
+  as Brave, show the frame and toolbar colours but not the wallpaper)
 - Matching pink accents on the active tab, links and buttons
 
 PREFER LIGHT?
@@ -83,6 +85,8 @@ composition as Neon Night, repainted for a bright desk.
 WHAT YOU GET
 - Frame, tab strip, toolbar and omnibox in the Bandwagon palette
 - A new-tab wallpaper that stays put and never stretches, at any window size
+  (Chrome only — browsers that replace the new tab page with their own, such
+  as Brave, show the frame and toolbar colours but not the wallpaper)
 - Matching pink accents on the active tab, links and buttons
 
 PREFER DARK?

@@ -29,6 +29,14 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 ## Changelog — v1.6.0 (2026-09-06)
 
+- **Appearance (2026-09-07)** — Night / Day / Auto for the popup, both side
+  panels and Settings, from one stored key. Two matching Chrome themes ship as
+  separate Web Store items from `themes/`.
+- **Page-checks panel (2026-09-08)** — a second side panel showing the current
+  page's checks, opened per tab from the existing panel's footer. No manifest
+  change, no new permission. The 14 checks moved to `src/lib/sub-scores.js` so
+  the popup and the panel cannot disagree.
+
 Extension competitor-parity work (Phase 3 of the SDD plan). Adds a broken-link
 checker, an indexability panel (redirect chain, headers, X-Robots-Tag),
 hreflang validation with return-tag checks, a raw-HTML-vs-rendered-DOM

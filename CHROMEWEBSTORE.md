@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-09-08
+> Last Updated: 2026-09-09
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -183,6 +183,11 @@ placeholder cross-link URLs (`.../detail/ITEM_ID_DAY` and `.../ITEM_ID_NIGHT`)
 still in them, so each theme's "PREFER LIGHT / PREFER DARK" link is dead. Paste
 the corrected blocks from `themes/store/LISTING.md` over the description in each
 item's dashboard listing.
+
+**Known and worth saying in the theme listings:** the new-tab wallpaper is a
+Chrome feature. Brave replaces the new tab page with its own and shows the frame
+and toolbar colours but not the wallpaper — a long-standing Brave limitation,
+not a fault in the package. Both theme descriptions now say so.
 
 ## Version History
 
