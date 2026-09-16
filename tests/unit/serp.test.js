@@ -430,13 +430,15 @@ describe('PRESET_LOCATIONS', () => {
 describe('formula-injection guard — parity with SBWCsv (fix round 1, item 13)', () => {
   it('guards a hostile/plain value identically to SBWCsv\'s own cell guard', () => {
     ['=x', '+x', '-x', '@x', '\tx', '\rx', 'plain'].forEach((value) => {
-      // Isolate SBWSerp's guarded Title cell (the last of its 4 fixed
-      // columns) by using empty, non-quoting values for the rest.
-      const serpCsv = SBWSerp.resultsToCsv([
-        { position: '', url: '', domain: '', title: value }
-      ]);
-      const serpLine = serpCsv.split('\r\n')[1];
-      const serpCell = serpLine.slice(',,,'.length);
+      // Isolate SBWSerp's guarded Title cell by index rather than by string
+      // offset — the column list grew on 2026-09-16 when the snippet and the
+      // search context were added, and a fixed prefix length silently
+      // stopped pointing at Title.
+      const serpCsv = SBWSerp.resultsToCsv([{ title: value }], {});
+      const header = serpCsv.replace(/^\uFEFF/, '').split('\r\n')[0].split(',');
+      const titleIndex = header.indexOf('Title');
+      expect(titleIndex).toBeGreaterThan(-1);
+      const serpCell = serpCsv.split('\r\n')[1].split(',')[titleIndex];
 
       // SBWCsv.toCsv with a single column isolates its own guarded cell the
       // same way — one data line, nothing else in it.
@@ -445,5 +447,61 @@ describe('formula-injection guard — parity with SBWCsv (fix round 1, item 13)'
 
       expect(serpCell).toBe(genericCell);
     });
+  });
+});
+
+describe('searchContext + export completeness', () => {
+  it('reads the whole search context out of the results URL', () => {
+    const ctx = SBWSerp.searchContext({ search: '?q=nonprofit+salaries&gl=us&hl=en&uule=w+CAIQ&start=20' });
+    expect(ctx).toMatchObject({
+      query: 'nonprofit salaries',
+      country: 'us',
+      language: 'en',
+      location: 'w CAIQ',
+      page: 3,
+    });
+    expect(ctx.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('defaults to page 1 and empty strings rather than undefined', () => {
+    const ctx = SBWSerp.searchContext({ search: '' });
+    expect(ctx).toMatchObject({ query: '', country: '', language: '', location: '', page: 1 });
+    expect(SBWSerp.searchContext(null).page).toBe(1);
+    expect(SBWSerp.searchContext({ search: '?start=notanumber' }).page).toBe(1);
+  });
+
+  it('the CSV carries the snippet — it was extracted and then dropped until 2026-09-16', () => {
+    const doc = parseFragment(
+      '<div id="search"><div><a href="https://example.com/a"><h3>A title</h3></a>' +
+      '<div>A real description long enough to qualify as a snippet for this result.</div></div></div>'
+    );
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].snippet).toContain('A real description');
+
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=test' }));
+    expect(csv).toContain('Query,Position,URL,Domain,Title,Snippet,Captured,Country,Language,Location,Page');
+    expect(csv).toContain('A real description');
+    expect(csv).toContain('test');
+  });
+
+  it('writes the context on every row so files concatenate', () => {
+    const rows = [
+      { position: 1, url: 'https://a.com/', domain: 'a.com', title: 'A' },
+      { position: 2, url: 'https://b.com/', domain: 'b.com', title: 'B' },
+    ];
+    const csv = SBWSerp.resultsToCsv(rows, { query: 'q', country: 'us', page: 1, capturedAt: 'Z' });
+    const body = csv.replace(/^﻿/, '').trim().split('\r\n').slice(1);
+    expect(body).toHaveLength(2);
+    body.forEach((line) => expect(line.startsWith('q,')).toBe(true));
+    // A row with no snippet still emits the column, empty.
+    expect(body[0].split(',').length).toBe(11);
+  });
+
+  it('still guards formula injection in the new columns', () => {
+    const rows = [{ position: 1, url: 'https://a.com/', domain: 'a.com', title: 'T', snippet: '=SUM(A1)' }];
+    const csv = SBWSerp.resultsToCsv(rows, { query: '+evil', capturedAt: 'Z', page: 1 });
+    expect(csv).not.toContain(',=SUM(A1)');
+    expect(csv).not.toContain(',+evil');
   });
 });

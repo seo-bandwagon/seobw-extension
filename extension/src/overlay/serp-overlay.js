@@ -338,11 +338,21 @@
   // TSV's own column/row delimiters — guarding first matters, since a
   // guard-triggering leading tab or CR would otherwise be collapsed away by
   // the whitespace cleanup before ever being seen.
-  function rowsToTsv(rows) {
+  // Same columns as the CSV, so a paste into a sheet and a saved file agree.
+  // The snippet used to be dropped here too, even though parseResults had it.
+  function rowsToTsv(rows, context) {
+    const ctx = context || {};
     const clean = (v) => globalThis.SBWSerp.guardCell(v).replace(/[\t\r\n]+/g, ' ').trim();
-    const lines = [['Position', 'URL', 'Domain', 'Title'].join('\t')];
+    const lines = [
+      ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet', 'Captured', 'Country', 'Language', 'Location', 'Page'].join('\t')
+    ];
     rows.forEach((row) => {
-      lines.push([row.position, row.url, row.domain, row.title].map(clean).join('\t'));
+      lines.push(
+        [
+          ctx.query, row.position, row.url, row.domain, row.title, row.snippet,
+          ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page
+        ].map(clean).join('\t')
+      );
     });
     return lines.join('\n');
   }
@@ -390,12 +400,24 @@
       .catch(() => flashLabel(btn, 'Copy failed'));
   }
 
-  function downloadCsv(csvText) {
+  // The old name was the date alone, so two exports on one day overwrote each
+  // other and neither said which search it came from.
+  function csvFilename(query) {
+    const slug = String(query || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60);
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    return 'serp-' + (slug || 'results') + '-' + stamp + '.csv';
+  }
+
+  function downloadCsv(csvText, query) {
     const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'serp-results-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.download = csvFilename(query);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -540,7 +562,7 @@
     copyBtn.appendChild(document.createTextNode(')'));
     copyBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
-      copyText(rowsToTsv(rows), copyBtn);
+      copyText(rowsToTsv(rows, globalThis.SBWSerp.searchContext(window.location)), copyBtn);
     });
     toolbarEl.appendChild(copyBtn);
 
@@ -550,7 +572,8 @@
     exportBtn.textContent = 'Export CSV';
     exportBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
-      downloadCsv(globalThis.SBWSerp.resultsToCsv(rows));
+      const ctx = globalThis.SBWSerp.searchContext(window.location);
+      downloadCsv(globalThis.SBWSerp.resultsToCsv(rows, ctx), ctx.query);
     });
     toolbarEl.appendChild(exportBtn);
 

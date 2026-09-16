@@ -295,18 +295,62 @@
     return s;
   }
 
+  /**
+   * What search produced these rows, read straight from the results URL.
+   *
+   * Every field here is already in `location` — no DOM guessing, so this is
+   * safe to build without a captured copy of Google's markup. An export
+   * without it is orphaned data: you cannot tell which query, which country
+   * or which page a row came from, and two exports on one day collide.
+   */
+  function searchContext(loc) {
+    let params;
+    try {
+      params = new URLSearchParams((loc && loc.search) || '');
+    } catch (e) {
+      params = new URLSearchParams();
+    }
+    const start = parseInt(params.get('start') || '0', 10);
+    return {
+      query: params.get('q') || '',
+      country: params.get('gl') || '',
+      language: params.get('hl') || '',
+      location: params.get('uule') || '',
+      page: Number.isFinite(start) && start > 0 ? Math.floor(start / 10) + 1 : 1,
+      capturedAt: new Date().toISOString()
+    };
+  }
+
+  // Every column is written on every row so a file is self-describing and
+  // several exports concatenate cleanly. `snippet` was extracted by
+  // parseResults from the start and silently dropped here until 2026-09-16 —
+  // the search result's own description never reached the file.
   const RESULT_CSV_COLUMNS = [
+    ['Query', 'query'],
     ['Position', 'position'],
     ['URL', 'url'],
     ['Domain', 'domain'],
-    ['Title', 'title']
+    ['Title', 'title'],
+    ['Snippet', 'snippet'],
+    ['Captured', 'capturedAt'],
+    ['Country', 'country'],
+    ['Language', 'language'],
+    ['Location', 'location'],
+    ['Page', 'page']
   ];
 
-  function resultsToCsv(rows) {
+  function resultsToCsv(rows, context) {
+    const ctx = context || {};
     const header = RESULT_CSV_COLUMNS.map((c) => csvCell(c[0])).join(',');
     const lines = [header];
     (rows || []).forEach((row) => {
-      lines.push(RESULT_CSV_COLUMNS.map((c) => csvCell(row ? row[c[1]] : '')).join(','));
+      lines.push(
+        RESULT_CSV_COLUMNS.map((c) => {
+          const key = c[1];
+          const value = row && key in row ? row[key] : ctx[key];
+          return csvCell(value === undefined || value === null ? '' : value);
+        }).join(',')
+      );
     });
     return CSV_BOM + lines.join('\r\n') + '\r\n';
   }
@@ -474,6 +518,7 @@
     parseResults,
     parsePaa,
     resultsToCsv,
+    searchContext,
     paaToText,
     uule,
     buildSearchUrl,

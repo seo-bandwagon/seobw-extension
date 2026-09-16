@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-09-09
+> Last Updated: 2026-09-16
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -98,7 +98,7 @@ per-permission fields.
 | `http://localhost/*`, `http://127.0.0.1/*` | optional_host_permissions | Requested only if the Advanced API URL points at a local dev server. |
 | `<all_urls>` | optional_host_permissions | Requested on first use of Link Check, Indexability, Hreflang or Rendering, with the consent text in `extension/src/lib/perms.js`. Cookieless fetches; nothing read on those sites is sent to us. |
 | `https://search.google.com/search-console/*` | content_scripts | Queries-tab "open in Google Search" icons and compare-mode percent badges, computed from the table already on the page. Nothing fetched or sent. |
-| `https://www.google.com/search*` + 9 ccTLDs | content_scripts | Results overlay: appends a stats bar and toolbar, never hides or moves anything including ads. Sends only bare result domains to our API, never the query. |
+| `https://www.google.com/search*` + 9 ccTLDs | content_scripts | Results overlay: appends a stats bar and toolbar, never hides or moves anything including ads. Sends only bare result domains to our API, never the query. The CSV and clipboard exports stay entirely on the device and now also carry each result's own snippet plus the search context read from the URL — none of it is transmitted. |
 | `externally_connectable` → `https://seobandwagon.com/*` | manifest key | Lets the dashboard's "Connect Chrome extension" button hand over a freshly minted API key. No other origin can message the extension. |
 
 Not present and deliberately so: `management`, `chrome_url_overrides`,
