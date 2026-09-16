@@ -576,3 +576,82 @@ describe('parseResults against a real saved SERP', () => {
     rows.forEach((r) => expect(r.snippet).not.toMatch(/SBW INJECTED TEXT/));
   });
 });
+
+describe('a real commercial SERP — dates, ratings, PAA, related searches', () => {
+  // tests/fixtures/serp-google-commercial-query.html: "best crm for nonprofits",
+  // saved 2026-09-16. The site: fixture has none of these features, which is
+  // why two real pages are kept rather than one.
+  const realDoc = () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(
+      path.join(__dirname, '../fixtures/serp-google-commercial-query.html'), 'utf8');
+    return new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
+  };
+
+  it('splits Google\'s date stamp out of the description', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    const dated = rows.filter((r) => r.date);
+    expect(dated.length).toBeGreaterThanOrEqual(2);
+    dated.forEach((r) => {
+      // The stamp must leave the snippet, not sit at the front of it.
+      expect(r.snippet.startsWith(r.date)).toBe(false);
+      expect(r.snippet).not.toMatch(/^\s*—/);
+    });
+    expect(rows.find((r) => r.domain === 'kindsight.io').date).toBe('Mar 28, 2025');
+  });
+
+  it('handles both absolute and relative date stamps', () => {
+    expect(SBWSerp.splitDatePrefix('Mar 28, 2025 — Discover the best.'))
+      .toEqual({ date: 'Mar 28, 2025', rest: 'Discover the best.' });
+    expect(SBWSerp.splitDatePrefix('6 days ago — A nonprofit CRM.'))
+      .toEqual({ date: '6 days ago', rest: 'A nonprofit CRM.' });
+    // An em dash inside prose is not a date stamp.
+    expect(SBWSerp.splitDatePrefix('Donor tools — and more').date).toBe('');
+  });
+
+  it('reads a star rating off its aria-label', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    const rated = rows.filter((r) => r.rating);
+    expect(rated.length).toBeGreaterThanOrEqual(1);
+    expect(rated[0].rating).toBe('5.0/5');
+  });
+
+  it('never leaks an inline script into a snippet', () => {
+    // One result's description came back as "(function(){window.sn=…" until
+    // script/style were added to the strip list.
+    SBWSerp.parseResults(realDoc()).forEach((r) => {
+      expect(r.snippet || '').not.toMatch(/function\s*\(|window\.|\{|\}/);
+    });
+  });
+
+  it('excludes the search itself from People also ask', () => {
+    // [data-q] is not PAA-only: Google stamps the query with it too, so
+    // "best crm for nonprofits" was exported as a question.
+    const questions = SBWSerp.parsePaa(realDoc());
+    expect(questions.length).toBeGreaterThanOrEqual(3);
+    questions.forEach((q) => expect(q.endsWith('?')).toBe(true));
+    expect(questions).not.toContain('best crm for nonprofits');
+  });
+
+  it('collects related searches without the pagination controls', () => {
+    const related = SBWSerp.parseRelatedSearches(realDoc());
+    expect(related.length).toBeGreaterThanOrEqual(5);
+    expect(related).toContain('Best CRM for small nonprofits');
+    ['Next', 'Previous', 'More results'].forEach((chrome) =>
+      expect(related).not.toContain(chrome));
+  });
+
+  it('carries the page-level fields into the export', () => {
+    const doc = realDoc();
+    const ctx = SBWSerp.searchContext({ search: '?q=best+crm+for+nonprofits' }, doc);
+    expect(ctx.resultStats).toMatch(/About [\d,]+ results/);
+    expect(ctx.relatedSearches).toContain('|');
+    expect(ctx.paa).toMatch(/\?/);
+
+    const csv = SBWSerp.resultsToCsv(SBWSerp.parseResults(doc), ctx);
+    const header = csv.replace(/^﻿/, '').split('\r\n')[0].split(',');
+    ['Date', 'Rating', 'Result stats', 'Related searches', 'People also ask']
+      .forEach((col) => expect(header).toContain(col));
+  });
+});

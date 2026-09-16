@@ -345,14 +345,16 @@
     const clean = (v) => globalThis.SBWSerp.guardCell(v).replace(/[\t\r\n]+/g, ' ').trim();
     const lines = [
       ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet', 'Site name', 'Display URL',
-        'Breadcrumb', 'Captured', 'Country', 'Language', 'Location', 'Page', 'Result stats'].join('\t')
+        'Breadcrumb', 'Date', 'Rating', 'Captured', 'Country', 'Language', 'Location', 'Page',
+        'Result stats', 'Related searches', 'People also ask'].join('\t')
     ];
     rows.forEach((row) => {
       lines.push(
         [
           ctx.query, row.position, row.url, row.domain, row.title, row.snippet,
-          row.siteName, row.displayUrl, row.breadcrumb,
-          ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page, ctx.resultStats
+          row.siteName, row.displayUrl, row.breadcrumb, row.date, row.rating,
+          ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page,
+          ctx.resultStats, ctx.relatedSearches, ctx.paa
         ].map(clean).join('\t')
       );
     });
