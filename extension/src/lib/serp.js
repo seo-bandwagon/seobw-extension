@@ -117,16 +117,94 @@
     return node;
   }
 
-  // Best-effort snippet: clone the block, strip the link/heading/citation
-  // elements that already surface as url/title, and use whatever text is
-  // left. Returns undefined (not '') when nothing useful remains, so callers
-  // can treat `snippet` as optional per the brief.
+  // Google puts the description in its own element, a SIBLING of the
+  // title/URL block rather than inside it. `findBlock` deliberately stops at
+  // the tight block (it is the overlay bar's insertion point), so extraction
+  // needs to climb further. Verified against a real saved SERP —
+  // tests/fixtures/serp-google-site-query.html.
+  //
+  // `data-sncf` is an attribute rather than one of Google's obfuscated class
+  // names, so it leads; the classes are fallbacks and will rotate.
+  const DESCRIPTION_SELECTOR = '[data-sncf], .VwiC3b, .yXK7lf';
+
+  // Text that is chrome, not content: Google's own "About this result"
+  // control, and anything this extension injected itself.
+  const NOT_CONTENT_SELECTOR =
+    'a, h3, cite, [role="button"], [aria-label="About this result"], ' +
+    '[class^="sbw-"], [class*=" sbw-"]';
+
+  /**
+   * The whole result: the nearest ancestor of the block that also holds the
+   * description. Stops before swallowing a second result — an ancestor with
+   * two <h3> is the results list, not one result.
+   */
+  function resultContainer(block) {
+    let node = block;
+    for (let i = 0; i < 6 && node; i++) {
+      if (node.querySelector && node.querySelector(DESCRIPTION_SELECTOR)) return node;
+      const parent = node.parentElement;
+      if (!parent || !parent.querySelectorAll) break;
+      if (parent.querySelectorAll('h3').length > 1) break;
+      node = parent;
+    }
+    return block;
+  }
+
+  function cleanText(el) {
+    if (!el) return '';
+    return (el.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * The result's own description.
+   *
+   * Until 2026-09-16 this cloned the tight block and removed `a, h3, cite`,
+   * which on a real SERP left the site name and the "About this result"
+   * button label — so every exported row read "Philanthropy.org" or
+   * "Philanthropy.orgAbout this result" instead of the description, which was
+   * sitting untouched in a sibling element.
+   */
   function extractSnippet(block) {
     if (!block || typeof block.cloneNode !== 'function') return undefined;
+    const container = resultContainer(block);
+    const desc = container.querySelector && container.querySelector(DESCRIPTION_SELECTOR);
+    if (desc) {
+      const clone = desc.cloneNode(true);
+      clone.querySelectorAll(NOT_CONTENT_SELECTOR).forEach((n) => n.remove());
+      const text = cleanText(clone);
+      if (text) return text;
+    }
+    // No description element: fall back to whatever prose the block holds,
+    // with the chrome stripped this time.
     const clone = block.cloneNode(true);
-    clone.querySelectorAll('a, h3, cite').forEach((n) => n.remove());
-    const text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    clone.querySelectorAll(NOT_CONTENT_SELECTOR).forEach((n) => n.remove());
+    const text = cleanText(clone);
     return text || undefined;
+  }
+
+  /**
+   * Everything else Google shows about a result: the site's display name, the
+   * URL as rendered, and the breadcrumb trail after it. All additive — a
+   * missing one is an empty string, never a reason to drop the row.
+   */
+  function extractResultDetail(block) {
+    const container = resultContainer(block);
+    if (!container || !container.querySelector) return {};
+    const citeEl = container.querySelector('cite');
+    const crumbEl = citeEl && citeEl.querySelector
+      ? citeEl.querySelector('[role="text"], .ylgVCe')
+      : null;
+    const breadcrumb = cleanText(crumbEl);
+    let displayUrl = cleanText(citeEl);
+    // The breadcrumb renders inside <cite>, so the display URL would repeat it.
+    if (breadcrumb && displayUrl.endsWith(breadcrumb)) {
+      displayUrl = displayUrl.slice(0, -breadcrumb.length).trim();
+    }
+    return {
+      siteName: cleanText(container.querySelector('.VuuXrf')),
+      displayUrl,
+      breadcrumb
+    };
   }
 
   // Fix round 1, item 1: require the accepted block to actually look like a
@@ -218,6 +296,10 @@
       const row = { position, url: anchor.href, domain, title };
       const snippet = extractSnippet(block);
       if (snippet) row.snippet = snippet;
+      const detail = extractResultDetail(block);
+      if (detail.siteName) row.siteName = detail.siteName;
+      if (detail.displayUrl) row.displayUrl = detail.displayUrl;
+      if (detail.breadcrumb) row.breadcrumb = detail.breadcrumb;
       // Non-enumerable: lets the content script find where to insert the
       // bar (block.insertAdjacentElement/appendChild) without this leaking
       // into resultsToCsv(), clipboard text, or a JSON.stringify/toEqual
@@ -303,7 +385,7 @@
    * without it is orphaned data: you cannot tell which query, which country
    * or which page a row came from, and two exports on one day collide.
    */
-  function searchContext(loc) {
+  function searchContext(loc, doc) {
     let params;
     try {
       params = new URLSearchParams((loc && loc.search) || '');
@@ -311,14 +393,20 @@
       params = new URLSearchParams();
     }
     const start = parseInt(params.get('start') || '0', 10);
-    return {
+    const ctx = {
       query: params.get('q') || '',
       country: params.get('gl') || '',
       language: params.get('hl') || '',
       location: params.get('uule') || '',
       page: Number.isFinite(start) && start > 0 ? Math.floor(start / 10) + 1 : 1,
-      capturedAt: new Date().toISOString()
+      capturedAt: new Date().toISOString(),
+      resultStats: ''
     };
+    // "About 2,070,000 results (0.18s)" — how deep the whole result set goes,
+    // which a ten-row page cannot otherwise tell you.
+    const stats = doc && doc.querySelector && doc.querySelector('#result-stats');
+    if (stats) ctx.resultStats = (stats.textContent || '').replace(/\s+/g, ' ').trim();
+    return ctx;
   }
 
   // Every column is written on every row so a file is self-describing and
@@ -332,11 +420,15 @@
     ['Domain', 'domain'],
     ['Title', 'title'],
     ['Snippet', 'snippet'],
+    ['Site name', 'siteName'],
+    ['Display URL', 'displayUrl'],
+    ['Breadcrumb', 'breadcrumb'],
     ['Captured', 'capturedAt'],
     ['Country', 'country'],
     ['Language', 'language'],
     ['Location', 'location'],
-    ['Page', 'page']
+    ['Page', 'page'],
+    ['Result stats', 'resultStats']
   ];
 
   function resultsToCsv(rows, context) {

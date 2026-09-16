@@ -344,13 +344,15 @@
     const ctx = context || {};
     const clean = (v) => globalThis.SBWSerp.guardCell(v).replace(/[\t\r\n]+/g, ' ').trim();
     const lines = [
-      ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet', 'Captured', 'Country', 'Language', 'Location', 'Page'].join('\t')
+      ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet', 'Site name', 'Display URL',
+        'Breadcrumb', 'Captured', 'Country', 'Language', 'Location', 'Page', 'Result stats'].join('\t')
     ];
     rows.forEach((row) => {
       lines.push(
         [
           ctx.query, row.position, row.url, row.domain, row.title, row.snippet,
-          ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page
+          row.siteName, row.displayUrl, row.breadcrumb,
+          ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page, ctx.resultStats
         ].map(clean).join('\t')
       );
     });
@@ -562,7 +564,7 @@
     copyBtn.appendChild(document.createTextNode(')'));
     copyBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
-      copyText(rowsToTsv(rows, globalThis.SBWSerp.searchContext(window.location)), copyBtn);
+      copyText(rowsToTsv(rows, globalThis.SBWSerp.searchContext(window.location, document)), copyBtn);
     });
     toolbarEl.appendChild(copyBtn);
 
@@ -572,7 +574,7 @@
     exportBtn.textContent = 'Export CSV';
     exportBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
-      const ctx = globalThis.SBWSerp.searchContext(window.location);
+      const ctx = globalThis.SBWSerp.searchContext(window.location, document);
       downloadCsv(globalThis.SBWSerp.resultsToCsv(rows, ctx), ctx.query);
     });
     toolbarEl.appendChild(exportBtn);

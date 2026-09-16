@@ -480,7 +480,9 @@ describe('searchContext + export completeness', () => {
     expect(rows[0].snippet).toContain('A real description');
 
     const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=test' }));
-    expect(csv).toContain('Query,Position,URL,Domain,Title,Snippet,Captured,Country,Language,Location,Page');
+    const header = csv.replace(/^\uFEFF/, '').split('\r\n')[0];
+    ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet'].forEach((col) =>
+      expect(header.split(',')).toContain(col));
     expect(csv).toContain('A real description');
     expect(csv).toContain('test');
   });
@@ -494,8 +496,10 @@ describe('searchContext + export completeness', () => {
     const body = csv.replace(/^﻿/, '').trim().split('\r\n').slice(1);
     expect(body).toHaveLength(2);
     body.forEach((line) => expect(line.startsWith('q,')).toBe(true));
-    // A row with no snippet still emits the column, empty.
-    expect(body[0].split(',').length).toBe(11);
+    // A row with no snippet still emits every column, empty — count against
+    // the header rather than a literal, so adding a field never breaks this.
+    const headerCols = csv.replace(/^\uFEFF/, '').split('\r\n')[0].split(',').length;
+    expect(body[0].split(',').length).toBe(headerCols);
   });
 
   it('still guards formula injection in the new columns', () => {
@@ -503,5 +507,72 @@ describe('searchContext + export completeness', () => {
     const csv = SBWSerp.resultsToCsv(rows, { query: '+evil', capturedAt: 'Z', page: 1 });
     expect(csv).not.toContain(',=SUM(A1)');
     expect(csv).not.toContain(',+evil');
+  });
+});
+
+/* ---------- real Google markup, not a hand-written fixture ---------- */
+
+describe('parseResults against a real saved SERP', () => {
+  // tests/fixtures/serp-google-site-query.html is genuine Google output from
+  // 2026-09-16. Every other fixture in this file is hand-written, which is how
+  // the snippet bug below survived: invented markup put the description where
+  // the parser was already looking.
+  const realDoc = () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(
+      path.join(__dirname, '../fixtures/serp-google-site-query.html'), 'utf8');
+    return new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
+  };
+
+  it('extracts the real description, not the site name or the button label', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+
+    // The bug: until 2026-09-16 this returned "Philanthropy.org" or
+    // "Philanthropy.orgAbout this result" — the description lives in a
+    // SIBLING element the parser never reached.
+    rows.forEach((r) => {
+      expect(r.snippet).toBeTruthy();
+      expect(r.snippet).not.toBe('Philanthropy.org');
+      expect(r.snippet).not.toMatch(/About this result/);
+      expect(r.snippet.length).toBeGreaterThan(40);
+    });
+    expect(rows[0].snippet).toMatch(/philanthropy\.org is where serious thinkers/i);
+  });
+
+  it('captures the site name, display URL and breadcrumb Google renders', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    expect(rows[0].siteName).toBe('Philanthropy.org');
+    expect(rows[0].displayUrl).toBe('https://philanthropy.org');
+    expect(rows[0].breadcrumb).toMatch(/Home/);
+    // The breadcrumb renders inside <cite>, so the display URL must not repeat it.
+    expect(rows[0].displayUrl).not.toMatch(/Home/);
+  });
+
+  it('reads the total result count off the page', () => {
+    const ctx = SBWSerp.searchContext({ search: '?q=x' }, realDoc());
+    expect(ctx.resultStats).toMatch(/results/);
+  });
+
+  it('every captured field reaches the CSV', () => {
+    const doc = realDoc();
+    const rows = SBWSerp.parseResults(doc);
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=site:philanthropy.org' }, doc));
+    expect(csv).toContain('Site name,Display URL,Breadcrumb');
+    expect(csv).toContain('Result stats');
+    expect(csv).toMatch(/serious thinkers/);
+    expect(csv).toContain('site:philanthropy.org');
+  });
+
+  it('ignores this extension\'s own injected overlay', () => {
+    const doc = realDoc();
+    const first = doc.querySelector('#rso h3').closest('div');
+    const ours = doc.createElement('span');
+    ours.className = 'sbw-serp-bar';
+    ours.textContent = 'SBW INJECTED TEXT';
+    first.appendChild(ours);
+    const rows = SBWSerp.parseResults(doc);
+    rows.forEach((r) => expect(r.snippet).not.toMatch(/SBW INJECTED TEXT/));
   });
 });
