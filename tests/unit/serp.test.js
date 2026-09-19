@@ -430,13 +430,15 @@ describe('PRESET_LOCATIONS', () => {
 describe('formula-injection guard — parity with SBWCsv (fix round 1, item 13)', () => {
   it('guards a hostile/plain value identically to SBWCsv\'s own cell guard', () => {
     ['=x', '+x', '-x', '@x', '\tx', '\rx', 'plain'].forEach((value) => {
-      // Isolate SBWSerp's guarded Title cell (the last of its 4 fixed
-      // columns) by using empty, non-quoting values for the rest.
-      const serpCsv = SBWSerp.resultsToCsv([
-        { position: '', url: '', domain: '', title: value }
-      ]);
-      const serpLine = serpCsv.split('\r\n')[1];
-      const serpCell = serpLine.slice(',,,'.length);
+      // Isolate SBWSerp's guarded Title cell by index rather than by string
+      // offset — the column list grew on 2026-09-16 when the snippet and the
+      // search context were added, and a fixed prefix length silently
+      // stopped pointing at Title.
+      const serpCsv = SBWSerp.resultsToCsv([{ title: value }], {});
+      const header = serpCsv.replace(/^\uFEFF/, '').split('\r\n')[0].split(',');
+      const titleIndex = header.indexOf('Title');
+      expect(titleIndex).toBeGreaterThan(-1);
+      const serpCell = serpCsv.split('\r\n')[1].split(',')[titleIndex];
 
       // SBWCsv.toCsv with a single column isolates its own guarded cell the
       // same way — one data line, nothing else in it.
@@ -445,5 +447,211 @@ describe('formula-injection guard — parity with SBWCsv (fix round 1, item 13)'
 
       expect(serpCell).toBe(genericCell);
     });
+  });
+});
+
+describe('searchContext + export completeness', () => {
+  it('reads the whole search context out of the results URL', () => {
+    const ctx = SBWSerp.searchContext({ search: '?q=nonprofit+salaries&gl=us&hl=en&uule=w+CAIQ&start=20' });
+    expect(ctx).toMatchObject({
+      query: 'nonprofit salaries',
+      country: 'us',
+      language: 'en',
+      location: 'w CAIQ',
+      page: 3,
+    });
+    expect(ctx.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('defaults to page 1 and empty strings rather than undefined', () => {
+    const ctx = SBWSerp.searchContext({ search: '' });
+    expect(ctx).toMatchObject({ query: '', country: '', language: '', location: '', page: 1 });
+    expect(SBWSerp.searchContext(null).page).toBe(1);
+    expect(SBWSerp.searchContext({ search: '?start=notanumber' }).page).toBe(1);
+  });
+
+  it('the CSV carries the snippet — it was extracted and then dropped until 2026-09-16', () => {
+    const doc = parseFragment(
+      '<div id="search"><div><a href="https://example.com/a"><h3>A title</h3></a>' +
+      '<div>A real description long enough to qualify as a snippet for this result.</div></div></div>'
+    );
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].snippet).toContain('A real description');
+
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=test' }));
+    const header = csv.replace(/^\uFEFF/, '').split('\r\n')[0];
+    ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet'].forEach((col) =>
+      expect(header.split(',')).toContain(col));
+    expect(csv).toContain('A real description');
+    expect(csv).toContain('test');
+  });
+
+  it('writes the context on every row so files concatenate', () => {
+    const rows = [
+      { position: 1, url: 'https://a.com/', domain: 'a.com', title: 'A' },
+      { position: 2, url: 'https://b.com/', domain: 'b.com', title: 'B' },
+    ];
+    const csv = SBWSerp.resultsToCsv(rows, { query: 'q', country: 'us', page: 1, capturedAt: 'Z' });
+    const body = csv.replace(/^﻿/, '').trim().split('\r\n').slice(1);
+    expect(body).toHaveLength(2);
+    body.forEach((line) => expect(line.startsWith('q,')).toBe(true));
+    // A row with no snippet still emits every column, empty — count against
+    // the header rather than a literal, so adding a field never breaks this.
+    const headerCols = csv.replace(/^\uFEFF/, '').split('\r\n')[0].split(',').length;
+    expect(body[0].split(',').length).toBe(headerCols);
+  });
+
+  it('still guards formula injection in the new columns', () => {
+    const rows = [{ position: 1, url: 'https://a.com/', domain: 'a.com', title: 'T', snippet: '=SUM(A1)' }];
+    const csv = SBWSerp.resultsToCsv(rows, { query: '+evil', capturedAt: 'Z', page: 1 });
+    expect(csv).not.toContain(',=SUM(A1)');
+    expect(csv).not.toContain(',+evil');
+  });
+});
+
+/* ---------- real Google markup, not a hand-written fixture ---------- */
+
+describe('parseResults against a real saved SERP', () => {
+  // tests/fixtures/serp-google-site-query.html is genuine Google output from
+  // 2026-09-16. Every other fixture in this file is hand-written, which is how
+  // the snippet bug below survived: invented markup put the description where
+  // the parser was already looking.
+  const realDoc = () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(
+      path.join(__dirname, '../fixtures/serp-google-site-query.html'), 'utf8');
+    return new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
+  };
+
+  it('extracts the real description, not the site name or the button label', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+
+    // The bug: until 2026-09-16 this returned "Philanthropy.org" or
+    // "Philanthropy.orgAbout this result" — the description lives in a
+    // SIBLING element the parser never reached.
+    rows.forEach((r) => {
+      expect(r.snippet).toBeTruthy();
+      expect(r.snippet).not.toBe('Philanthropy.org');
+      expect(r.snippet).not.toMatch(/About this result/);
+      expect(r.snippet.length).toBeGreaterThan(40);
+    });
+    expect(rows[0].snippet).toMatch(/philanthropy\.org is where serious thinkers/i);
+  });
+
+  it('captures the site name, display URL and breadcrumb Google renders', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    expect(rows[0].siteName).toBe('Philanthropy.org');
+    expect(rows[0].displayUrl).toBe('https://philanthropy.org');
+    expect(rows[0].breadcrumb).toMatch(/Home/);
+    // The breadcrumb renders inside <cite>, so the display URL must not repeat it.
+    expect(rows[0].displayUrl).not.toMatch(/Home/);
+  });
+
+  it('reads the total result count off the page', () => {
+    const ctx = SBWSerp.searchContext({ search: '?q=x' }, realDoc());
+    expect(ctx.resultStats).toMatch(/results/);
+  });
+
+  it('every captured field reaches the CSV', () => {
+    const doc = realDoc();
+    const rows = SBWSerp.parseResults(doc);
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=site:philanthropy.org' }, doc));
+    expect(csv).toContain('Site name,Display URL,Breadcrumb');
+    expect(csv).toContain('Result stats');
+    expect(csv).toMatch(/serious thinkers/);
+    expect(csv).toContain('site:philanthropy.org');
+  });
+
+  it('ignores this extension\'s own injected overlay', () => {
+    const doc = realDoc();
+    const first = doc.querySelector('#rso h3').closest('div');
+    const ours = doc.createElement('span');
+    ours.className = 'sbw-serp-bar';
+    ours.textContent = 'SBW INJECTED TEXT';
+    first.appendChild(ours);
+    const rows = SBWSerp.parseResults(doc);
+    rows.forEach((r) => expect(r.snippet).not.toMatch(/SBW INJECTED TEXT/));
+  });
+});
+
+describe('a real commercial SERP — dates, ratings, PAA, related searches', () => {
+  // tests/fixtures/serp-google-commercial-query.html: "best crm for nonprofits",
+  // saved 2026-09-16. The site: fixture has none of these features, which is
+  // why two real pages are kept rather than one.
+  const realDoc = () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(
+      path.join(__dirname, '../fixtures/serp-google-commercial-query.html'), 'utf8');
+    return new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
+  };
+
+  it('splits Google\'s date stamp out of the description', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    const dated = rows.filter((r) => r.date);
+    expect(dated.length).toBeGreaterThanOrEqual(2);
+    dated.forEach((r) => {
+      // The stamp must leave the snippet, not sit at the front of it.
+      expect(r.snippet.startsWith(r.date)).toBe(false);
+      expect(r.snippet).not.toMatch(/^\s*—/);
+    });
+    expect(rows.find((r) => r.domain === 'kindsight.io').date).toBe('Mar 28, 2025');
+  });
+
+  it('handles both absolute and relative date stamps', () => {
+    expect(SBWSerp.splitDatePrefix('Mar 28, 2025 — Discover the best.'))
+      .toEqual({ date: 'Mar 28, 2025', rest: 'Discover the best.' });
+    expect(SBWSerp.splitDatePrefix('6 days ago — A nonprofit CRM.'))
+      .toEqual({ date: '6 days ago', rest: 'A nonprofit CRM.' });
+    // An em dash inside prose is not a date stamp.
+    expect(SBWSerp.splitDatePrefix('Donor tools — and more').date).toBe('');
+  });
+
+  it('reads a star rating off its aria-label', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    const rated = rows.filter((r) => r.rating);
+    expect(rated.length).toBeGreaterThanOrEqual(1);
+    expect(rated[0].rating).toBe('5.0/5');
+  });
+
+  it('never leaks an inline script into a snippet', () => {
+    // One result's description came back as "(function(){window.sn=…" until
+    // script/style were added to the strip list.
+    SBWSerp.parseResults(realDoc()).forEach((r) => {
+      expect(r.snippet || '').not.toMatch(/function\s*\(|window\.|\{|\}/);
+    });
+  });
+
+  it('excludes the search itself from People also ask', () => {
+    // [data-q] is not PAA-only: Google stamps the query with it too, so
+    // "best crm for nonprofits" was exported as a question.
+    const questions = SBWSerp.parsePaa(realDoc());
+    expect(questions.length).toBeGreaterThanOrEqual(3);
+    questions.forEach((q) => expect(q.endsWith('?')).toBe(true));
+    expect(questions).not.toContain('best crm for nonprofits');
+  });
+
+  it('collects related searches without the pagination controls', () => {
+    const related = SBWSerp.parseRelatedSearches(realDoc());
+    expect(related.length).toBeGreaterThanOrEqual(5);
+    expect(related).toContain('Best CRM for small nonprofits');
+    ['Next', 'Previous', 'More results'].forEach((chrome) =>
+      expect(related).not.toContain(chrome));
+  });
+
+  it('carries the page-level fields into the export', () => {
+    const doc = realDoc();
+    const ctx = SBWSerp.searchContext({ search: '?q=best+crm+for+nonprofits' }, doc);
+    expect(ctx.resultStats).toMatch(/About [\d,]+ results/);
+    expect(ctx.relatedSearches).toContain('|');
+    expect(ctx.paa).toMatch(/\?/);
+
+    const csv = SBWSerp.resultsToCsv(SBWSerp.parseResults(doc), ctx);
+    const header = csv.replace(/^﻿/, '').split('\r\n')[0].split(',');
+    ['Date', 'Rating', 'Result stats', 'Related searches', 'People also ask']
+      .forEach((col) => expect(header).toContain(col));
   });
 });

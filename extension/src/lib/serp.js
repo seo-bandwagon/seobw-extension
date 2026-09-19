@@ -117,16 +117,153 @@
     return node;
   }
 
-  // Best-effort snippet: clone the block, strip the link/heading/citation
-  // elements that already surface as url/title, and use whatever text is
-  // left. Returns undefined (not '') when nothing useful remains, so callers
-  // can treat `snippet` as optional per the brief.
+  // Google puts the description in its own element, a SIBLING of the
+  // title/URL block rather than inside it. `findBlock` deliberately stops at
+  // the tight block (it is the overlay bar's insertion point), so extraction
+  // needs to climb further. Verified against a real saved SERP —
+  // tests/fixtures/serp-google-site-query.html.
+  //
+  // `data-sncf` is an attribute rather than one of Google's obfuscated class
+  // names, so it leads; the classes are fallbacks and will rotate.
+  const DESCRIPTION_SELECTOR = '[data-sncf], .VwiC3b, .yXK7lf';
+
+  // Text that is chrome, not content: Google's own "About this result"
+  // control, and anything this extension injected itself.
+  // `script` and `style` matter: textContent walks them, and a real SERP
+  // carries inline scripts inside result containers — one row's description
+  // came back as "(function(){window.sn={_setImageSrc:function(" without this.
+  const NOT_CONTENT_SELECTOR =
+    'a, h3, cite, script, style, noscript, template, ' +
+    '[role="button"], [aria-label="About this result"], ' +
+    '[class^="sbw-"], [class*=" sbw-"]';
+
+  /**
+   * The whole result: the nearest ancestor of the block that also holds the
+   * description. Stops before swallowing a second result — an ancestor with
+   * two <h3> is the results list, not one result.
+   */
+  function resultContainer(block) {
+    let node = block;
+    for (let i = 0; i < 6 && node; i++) {
+      if (node.querySelector && node.querySelector(DESCRIPTION_SELECTOR)) return node;
+      const parent = node.parentElement;
+      if (!parent || !parent.querySelectorAll) break;
+      if (parent.querySelectorAll('h3').length > 1) break;
+      node = parent;
+    }
+    return block;
+  }
+
+  function cleanText(el) {
+    if (!el) return '';
+    return (el.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * The result's own description.
+   *
+   * Until 2026-09-16 this cloned the tight block and removed `a, h3, cite`,
+   * which on a real SERP left the site name and the "About this result"
+   * button label — so every exported row read "Philanthropy.org" or
+   * "Philanthropy.orgAbout this result" instead of the description, which was
+   * sitting untouched in a sibling element.
+   */
   function extractSnippet(block) {
     if (!block || typeof block.cloneNode !== 'function') return undefined;
+    const container = resultContainer(block);
+    const desc = container.querySelector && container.querySelector(DESCRIPTION_SELECTOR);
+    if (desc) {
+      const clone = desc.cloneNode(true);
+      clone.querySelectorAll(NOT_CONTENT_SELECTOR).forEach((n) => n.remove());
+      const text = cleanText(clone);
+      if (text) return text;
+    }
+    // No description element: fall back to whatever prose the block holds,
+    // with the chrome stripped this time.
     const clone = block.cloneNode(true);
-    clone.querySelectorAll('a, h3, cite').forEach((n) => n.remove());
-    const text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    clone.querySelectorAll(NOT_CONTENT_SELECTOR).forEach((n) => n.remove());
+    const text = cleanText(clone);
     return text || undefined;
+  }
+
+  // Google prefixes a freshness stamp into the description element itself,
+  // separated by an em dash: "Mar 28, 2025 — Discover the 14 best…" or
+  // "6 days ago — A nonprofit CRM centralizes…". Both forms are in
+  // tests/fixtures/serp-google-commercial-query.html. Splitting it out gives
+  // a real date field and stops the snippet opening with a date.
+  const DATE_PREFIX_RE = new RegExp(
+    '^(' +
+      '[A-Z][a-z]{2}\\s+\\d{1,2},\\s+\\d{4}' +            // Mar 28, 2025
+      '|\\d+\\s+(?:second|minute|hour|day|week|month|year)s?\\s+ago' + // 6 days ago
+    ')\\s*\\u2014\\s*'
+  );
+
+  /** `{ date, rest }` — `date` is '' when the description carries no stamp. */
+  function splitDatePrefix(text) {
+    const m = DATE_PREFIX_RE.exec(text || '');
+    if (!m) return { date: '', rest: text || '' };
+    return { date: m[1], rest: (text || '').slice(m[0].length) };
+  }
+
+  /**
+   * Everything else Google shows about a result: the site's display name, the
+   * URL as rendered, and the breadcrumb trail after it. All additive — a
+   * missing one is an empty string, never a reason to drop the row.
+   */
+  function extractResultDetail(block) {
+    const container = resultContainer(block);
+    if (!container || !container.querySelector) return {};
+    const citeEl = container.querySelector('cite');
+    const crumbEl = citeEl && citeEl.querySelector
+      ? citeEl.querySelector('[role="text"], .ylgVCe')
+      : null;
+    const breadcrumb = cleanText(crumbEl);
+    let displayUrl = cleanText(citeEl);
+    // The breadcrumb renders inside <cite>, so the display URL would repeat it.
+    if (breadcrumb && displayUrl.endsWith(breadcrumb)) {
+      displayUrl = displayUrl.slice(0, -breadcrumb.length).trim();
+    }
+    // Star ratings render as an aria-label, which is stable text rather than
+    // an obfuscated class: "Rated 5.0 out of 5,".
+    let rating = '';
+    const rated = container.querySelector('[aria-label^="Rated "]');
+    if (rated) {
+      const m = /Rated\s+([\d.]+)\s+out of\s+([\d.]+)/i.exec(rated.getAttribute('aria-label') || '');
+      if (m) rating = m[1] + '/' + m[2];
+    }
+
+    return {
+      siteName: cleanText(container.querySelector('.VuuXrf')),
+      displayUrl,
+      breadcrumb,
+      rating
+    };
+  }
+
+  /**
+   * "People also search for" — the query refinements under the results.
+   * Page-level, not per-result.
+   */
+  // Pagination and footer chrome sit in the same containers as the
+  // refinements — "Next" was being exported as a related search.
+  const PAGINATION_LABEL = /^(next|previous|prev|more results|page \d+|\d+)$/i;
+
+  function parseRelatedSearches(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return [];
+    const out = [];
+    const seen = new Set();
+    root.querySelectorAll('.b2Rnsc, [data-abe] a, #botstuff a').forEach((el) => {
+      if (isAd(el)) return;
+      if (el.closest && el.closest('#pnnext, #pnprev, [role="navigation"], table#nav')) return;
+      const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      // A refinement is a short phrase, not a sentence or a chrome label.
+      if (!t || t.length < 3 || t.length > 90) return;
+      if (PAGINATION_LABEL.test(t)) return;
+      if (seen.has(t.toLowerCase())) return;
+      seen.add(t.toLowerCase());
+      out.push(t);
+    });
+    return out;
   }
 
   // Fix round 1, item 1: require the accepted block to actually look like a
@@ -216,8 +353,18 @@
       position += 1;
       const title = (h3.textContent || '').trim();
       const row = { position, url: anchor.href, domain, title };
-      const snippet = extractSnippet(block);
-      if (snippet) row.snippet = snippet;
+      const rawSnippet = extractSnippet(block);
+      if (rawSnippet) {
+        const split = splitDatePrefix(rawSnippet);
+        if (split.date) row.date = split.date;
+        if (split.rest) row.snippet = split.rest;
+        else row.snippet = rawSnippet;
+      }
+      const detail = extractResultDetail(block);
+      if (detail.siteName) row.siteName = detail.siteName;
+      if (detail.displayUrl) row.displayUrl = detail.displayUrl;
+      if (detail.breadcrumb) row.breadcrumb = detail.breadcrumb;
+      if (detail.rating) row.rating = detail.rating;
       // Non-enumerable: lets the content script find where to insert the
       // bar (block.insertAdjacentElement/appendChild) without this leaking
       // into resultsToCsv(), clipboard text, or a JSON.stringify/toEqual
@@ -248,9 +395,14 @@
       }
     }
 
+    // [data-q] is not PAA-only: on a commercial SERP Google also stamps the
+    // SEARCH ITSELF with it, so "best crm for nonprofits" was being exported
+    // as a People-also-ask question. Require a question, same bar as the
+    // broader selector below.
     root.querySelectorAll('[data-q]').forEach((el) => {
       if (isAd(el)) return;
       const q = (el.getAttribute('data-q') || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!q.endsWith('?')) return;
       add(q);
     });
 
@@ -295,18 +447,82 @@
     return s;
   }
 
+  /**
+   * What search produced these rows, read straight from the results URL.
+   *
+   * Every field here is already in `location` — no DOM guessing, so this is
+   * safe to build without a captured copy of Google's markup. An export
+   * without it is orphaned data: you cannot tell which query, which country
+   * or which page a row came from, and two exports on one day collide.
+   */
+  function searchContext(loc, doc) {
+    let params;
+    try {
+      params = new URLSearchParams((loc && loc.search) || '');
+    } catch (e) {
+      params = new URLSearchParams();
+    }
+    const start = parseInt(params.get('start') || '0', 10);
+    const ctx = {
+      query: params.get('q') || '',
+      country: params.get('gl') || '',
+      language: params.get('hl') || '',
+      location: params.get('uule') || '',
+      page: Number.isFinite(start) && start > 0 ? Math.floor(start / 10) + 1 : 1,
+      capturedAt: new Date().toISOString(),
+      resultStats: '',
+      relatedSearches: '',
+      paa: ''
+    };
+    // "About 2,070,000 results (0.18s)" — how deep the whole result set goes,
+    // which a ten-row page cannot otherwise tell you.
+    const stats = doc && doc.querySelector && doc.querySelector('#result-stats');
+    if (stats) ctx.resultStats = (stats.textContent || '').replace(/\s+/g, ' ').trim();
+    // Page-level, so it rides in the context rather than on a row. Joined
+    // rather than dropped: the whole point is that nothing is thrown away.
+    ctx.relatedSearches = doc ? parseRelatedSearches(doc).join(' | ') : '';
+    ctx.paa = doc ? parsePaa(doc).join(' | ') : '';
+    return ctx;
+  }
+
+  // Every column is written on every row so a file is self-describing and
+  // several exports concatenate cleanly. `snippet` was extracted by
+  // parseResults from the start and silently dropped here until 2026-09-16 —
+  // the search result's own description never reached the file.
   const RESULT_CSV_COLUMNS = [
+    ['Query', 'query'],
     ['Position', 'position'],
     ['URL', 'url'],
     ['Domain', 'domain'],
-    ['Title', 'title']
+    ['Title', 'title'],
+    ['Snippet', 'snippet'],
+    ['Site name', 'siteName'],
+    ['Display URL', 'displayUrl'],
+    ['Breadcrumb', 'breadcrumb'],
+    ['Date', 'date'],
+    ['Rating', 'rating'],
+    ['Captured', 'capturedAt'],
+    ['Country', 'country'],
+    ['Language', 'language'],
+    ['Location', 'location'],
+    ['Page', 'page'],
+    ['Result stats', 'resultStats'],
+    ['Related searches', 'relatedSearches'],
+    ['People also ask', 'paa']
   ];
 
-  function resultsToCsv(rows) {
+  function resultsToCsv(rows, context) {
+    const ctx = context || {};
     const header = RESULT_CSV_COLUMNS.map((c) => csvCell(c[0])).join(',');
     const lines = [header];
     (rows || []).forEach((row) => {
-      lines.push(RESULT_CSV_COLUMNS.map((c) => csvCell(row ? row[c[1]] : '')).join(','));
+      lines.push(
+        RESULT_CSV_COLUMNS.map((c) => {
+          const key = c[1];
+          const value = row && key in row ? row[key] : ctx[key];
+          return csvCell(value === undefined || value === null ? '' : value);
+        }).join(',')
+      );
     });
     return CSV_BOM + lines.join('\r\n') + '\r\n';
   }
@@ -474,6 +690,9 @@
     parseResults,
     parsePaa,
     resultsToCsv,
+    searchContext,
+    parseRelatedSearches,
+    splitDatePrefix,
     paaToText,
     uule,
     buildSearchUrl,
