@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.6.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.6.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -385,13 +385,14 @@ Before every Chrome Web Store submission, also walk through [MANUAL_SMOKE_TEST.m
 ## Releasing
 
 ```bash
-npm run zip        # manifest.json lib/ src/ README.md ROADMAP.md → seo-bw-extension.zip
+npm run zip        # manifest.json lib/ src/ (from inside extension/) → seo-bw-extension.zip
 npm run check:zip  # same, plus: fails if any file manifest.json/popup.html/options.html/
                     # history.html/sidepanel.html reference is missing from the zip; deletes
                     # the zip itself afterward (scripts/check-zip-manifest.mjs)
+npm run bump -- patch   # or minor / x.y.z — see ROADMAP.md's versioning policy
 ```
 
-Bump `version` and `version_name` in `manifest.json` first (see `ROADMAP.md`'s versioning policy). Unzip and inspect the listing before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/`, `src/`, `README.md`, `ROADMAP.md` and nothing else (no `preview/`, `tests/`, `node_modules/`, or internal docs).
+Bump the version first with `npm run bump` (see `ROADMAP.md`'s versioning policy); CI fails a pull request that changes `extension/` without a bump. Unzip and inspect the package before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/` and `src/` and nothing else (no `preview/`, `tests/`, `node_modules/`, docs or README). Listing text for the submission is in `docs/CWS-LISTING-1.6.1.md`; store-facing metadata in `CHROMEWEBSTORE.md`.
 
 ## API contract
 

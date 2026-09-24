@@ -1,13 +1,12 @@
-# Chrome Web Store listing text — v1.6.0
+# Chrome Web Store listing text — v1.6.1
 
-`docs/CWS-LISTING-1.5.2.md` does not exist and is not needed: 1.5.2 shipped
-under the listing text already live on the Chrome Web Store (no new
-permission, no new content-script match, so nothing in the store listing
-needed to change). This file is the first CWS-LISTING doc in the repo — it
-covers v1.6.0, the release that adds new permissions and a new content-script
-match and therefore needs reviewer-facing justification text and an updated
-listing. Paste the relevant section into the corresponding Chrome Web Store
-Developer Dashboard field when submitting this version.
+This file is the listing text for the first submission since 1.2.0. It was
+written for 1.6.0, which added new permissions and a new content-script match
+and therefore needs reviewer-facing justification text and an updated listing.
+1.6.0 was never submitted; 1.6.1 is 1.6.0 plus the fixes listed in ROADMAP.md
+("Changelog — v1.6.1") and changes no permission. Paste the relevant section
+into the corresponding Chrome Web Store Developer Dashboard field when
+submitting.
 
 Every claim below is verifiable against this branch — no feature described
 here that isn't shipped, no competitor names, no authority-metric claims,
@@ -76,9 +75,11 @@ result for either.
 
 GOOGLE RESULTS OVERLAY
 On Google's own search results pages, adds a small stats bar under each
-organic result and a toolbar for copying the results and "People also ask"
-questions, plus a tool for opening a search with location parameters to see
-what searchers in another area are shown. Only bare domain names are ever
+organic result and a toolbar for copying or exporting what the page shows:
+each result's position, title, URL, description, date, rating, site name and
+breadcrumb, with the page's related searches and "People also ask" questions,
+plus a tool for opening a search with location parameters to see what
+searchers in another area are shown. Copies and exports stay on your computer. Only bare domain names are ever
 sent anywhere for this — never your search query, never a page title or
 snippet.
 
@@ -286,7 +287,7 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.6.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.6.1 (release notes, ≤ 10 lines)
 
 ```
 - Link Check: probes every link on the page, groups results, highlights
@@ -298,8 +299,8 @@ for lending purposes.
   switcher.
 - Structured Data: JSON-LD/Microdata/RDFa validation with rich-result
   eligibility.
-- Google results overlay is back: stats bar, results/PAA export, location
-  simulator.
+- Google results overlay is back: stats bar, location simulator, and an
+  export with each result's description, date, rating and breadcrumb.
 - New "SEO Bandwagon tools" right-click menu; CSV export for headings,
   images, and links.
 ```

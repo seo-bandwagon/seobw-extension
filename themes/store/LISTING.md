@@ -2,7 +2,7 @@
 
 Two items, one per mode. A Chrome theme is images and colours only, so nothing
 below claims behaviour a theme can't have; every extension claim matches
-`docs/CWS-LISTING-1.6.0.md`.
+`docs/CWS-LISTING-1.6.1.md`.
 
 Fill `bomhiblgnbmpgbddhocomnbijdkmpbhl` / `ldifldabjbffldoekbebpickddaiiggm` in after the first upload of each, then
 paste the cross-link line into the other listing.

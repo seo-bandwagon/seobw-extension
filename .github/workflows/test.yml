@@ -13,6 +13,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The bump check diffs against the base branch, so it needs history.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -22,3 +25,9 @@ jobs:
       - run: npm ci
 
       - run: npm test
+
+      - name: Version bumped when shipped code changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-version-bump.mjs "origin/$BASE_REF"

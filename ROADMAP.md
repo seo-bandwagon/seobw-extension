@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.6.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.6.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -18,12 +18,48 @@ Semantic-ish, three digits, driven by what the user would notice:
 | New user-facing feature | **Minor** | 1.5.x → 1.6.0 |
 | Rework that resets expectations (rare) | **Major** | 1.x → 2.0.0 |
 
-- **Stay on 1.5.x until a new feature lands.** Little changes increment the patch
-  digit only.
-- The version lives in `manifest.json` (`version` + human-readable `version_name`).
-  The popup footer and side panel header read it via `chrome.runtime.getManifest()`,
-  so **bump the manifest only** — nothing else to update.
+- **Every PR that changes what ships bumps the version.** "What ships" is
+  anything under `extension/` except Markdown. A fix or small edit bumps the
+  patch digit (1.6.0 → 1.6.1); only a feature from the feature list below bumps
+  the minor. Stay on 1.6.x until a v1.7 feature lands.
+- **Bump with `npm run bump -- patch`** (or `minor`, or an explicit `x.y.z`). It
+  writes `extension/manifest.json` (`version` and the number leading
+  `version_name`), `package.json`, `package-lock.json` and the "Current version"
+  line above. Then edit `version_name`'s summary, add the
+  `CHROMEWEBSTORE.md` Version History row, and add a changelog section here.
+- **CI enforces it.** `scripts/check-version-bump.mjs` fails a pull request that
+  changes `extension/` without raising the version, and
+  `tests/unit/version.test.js` fails when the four files disagree or the store
+  file has no row for the current version. Until 2026-09-24 only the manifest
+  was bumped; seven PRs after 1.6.0 changed shipped code without a bump, and
+  `package.json` / `package-lock.json` had drifted to 1.5.0 / 1.4.0.
+- The popup footer and side panel header read the version via
+  `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
+- Tag each version submitted to the store: `git tag v1.6.1 <merge commit>`.
+
+---
+
+## Changelog — v1.6.1 (2026-09-24)
+
+The first submission since 1.2.0. 1.6.0 was never submitted, so the store goes
+from 1.2.0 straight to 1.6.1; everything in the 1.6.0 changelog below ships
+with it. Fixes since the 1.6.0 bump, and no permission changes:
+
+- **Search Console compare mode is two inline badges and nothing else** (#13,
+  `cd5df0e`). A percent-change badge on each metric card and inside each changed
+  cell; the sort, filter and copy tools are gone.
+- **Search Console row icons stay on the Queries tab** (#20, `0f401c5`). Tab
+  detection fails closed: when the extension cannot tell which tab is showing,
+  it adds nothing. It re-checks on every in-page navigation, and icons are
+  removed as soon as the report leaves Queries.
+- **The SERP export captures what the results page actually shows** (#22,
+  `7823bba`). Each row carries the description, date, rating, site name,
+  display URL and breadcrumb, plus the search's context (query, country,
+  language, location, page, result stats, related searches, People also ask).
+  Built against two real saved Google results pages, now the test fixtures.
+- **Version bookkeeping.** `npm run bump`, the CI bump check and the version
+  test above; `package.json` and `package-lock.json` now match the manifest.
 
 ---
 
@@ -332,7 +368,7 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.6.0 (Sep 2026)
+## Where we are — v1.6.1 (Sep 2026)
 
 - **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
   preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings (with outline export),
@@ -359,7 +395,8 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
   Link Building mode (outlets / pitches / results), CSV export. `src/sidepanel/`.
 - **SERP overlay** — stats bar under each organic result on Google's own
-  results pages, results/PAA export, location simulator. `src/overlay/serp-overlay.js`,
+  results pages, results/PAA export (19 columns: description, date, rating,
+  site name, breadcrumb and the search's context), location simulator. `src/overlay/serp-overlay.js`,
   `src/lib/serp.js`.
 - **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
   (Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine,
@@ -372,6 +409,11 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   a Search Console Performance report's Queries tab (open in Google Search, and
   in a private window), plus inline percent-change badges
   when a report compares two date ranges. `src/lib/gsc-inject.js`, `src/lib/gsc-compare.js`, `src/content/gsc-serp.js`.
+- **Page-checks panel** — a second side panel with the current page's checks,
+  pass/warn/fail counts and the tools row. `src/panel/`.
+- **Appearance** — Night / Day / Auto for the popup, side panels and options,
+  bundled brand fonts, and two matching Chrome theme items (Neon Night
+  `bomhiblgnbmpgbddhocomnbijdkmpbhl`, Neon Day `ldifldabjbffldoekbebpickddaiiggm`).
 - **Brand system** — Bandwagon Pink on Midnight Navy, tokens throughout
   `src/styles/popup.css`.
 - **Dev harness** — `preview/index.html` renders every UI state against the real
@@ -401,7 +443,7 @@ composite score — free, no account gate.
 
 ---
 
-## v1.5.x — maintenance lane (patch bumps)
+## v1.6.x — maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 
@@ -429,8 +471,16 @@ v1.6.0" sections above for what actually landed:
 6. **SERP location simulator** — shipped as part of "SERP overlay, re-enabled
    and rewritten" (the location simulator).
 
-## v1.6+ — needs backend or heavier lift
+## v1.7 — feature candidates
 
+The next minor. 1.7.0 ships when one of these lands; until then everything is a
+1.6.x patch.
+
+- **Search Console row actions, account-backed** — "add this keyword to my rank
+  tracker" on the Queries tab and "send this page to my captures" on the Pages
+  tab, shown only with an API key connected and data collection on. Needs a new
+  site endpoint (`POST /api/v1/keywords`, scope `keywords:write`) and a
+  data-use disclosure change; planned 2026-09-10, not started.
 - **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
   CitationForge backend (SEOquake gets this from Semrush)
 - **Full-page screenshot stitching** — scroll-and-stitch capture to replace
