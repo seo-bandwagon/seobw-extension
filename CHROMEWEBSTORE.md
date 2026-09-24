@@ -17,7 +17,9 @@ Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Measured on the live store page
 2026-09-24: version 1.2.0, "Updated May 8, 2026", 7 users, and the detailed
 description still opens with the April 23 downtime notice ("We are updating our
 infrastructure for our new version, you may experience downtime April 23,
-2026"). 1.6.1 is the next submission; 1.6.0 was never submitted.
+2026"). 1.6.1 is the next submission; 1.6.0 was never submitted. The live
+category is **Productivity › Tools**, not the Developer Tools set below; change
+it in the dashboard with this submission. 1 rating (5 stars).
 
 ## Store Listing
 
