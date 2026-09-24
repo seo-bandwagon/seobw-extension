@@ -1,10 +1,12 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.5.0",
+  "version": "1.6.1",
   "private": true,
   "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection. Dev tooling only \u2014 the extension itself ships as manifest.json + src/ (no build step).",
   "scripts": {
     "build": "echo 'No build step needed - load unpacked in Chrome'",
+    "bump": "node scripts/bump-version.mjs",
+    "check:version-bump": "node scripts/check-version-bump.mjs",
     "zip": "cd extension && zip -r ../seo-bw-extension.zip manifest.json lib/ src/ -x '*.DS_Store'",
     "check:zip": "npm run zip && (node scripts/check-zip-manifest.mjs; rc=$?; rm -f seo-bw-extension.zip; exit $rc)",
     "test": "vitest run",

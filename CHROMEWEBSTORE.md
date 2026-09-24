@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-09-16
+> Last Updated: 2026-09-24
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -9,12 +9,25 @@ user-facing behaviour changed, re-justify any permission, host or content-script
 change, and add a Version History row.
 
 Long-form reviewer text (one paragraph per permission, data-use reasoning,
-reviewer test steps) is in `docs/CWS-LISTING-1.6.0.md`; the two Chrome theme
+reviewer test steps) is in `docs/CWS-LISTING-1.6.1.md`; the two Chrome theme
 items have their own listing text in `themes/store/LISTING.md`. This file
 summarises both and says where to paste what.
 
-Store item: `dphmaddiedhkejfhabkfdenfphjljioj` (serving 1.2.0 as of
-2026-09-07; 1.6.0 is on `main` and not yet submitted).
+Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Measured on the live store page
+2026-09-24: version 1.2.0, "Updated May 8, 2026", 7 users, and the detailed
+description still opens with the April 23 downtime notice ("We are updating our
+infrastructure for our new version, you may experience downtime April 23,
+2026"). Google's update server (what Chrome installs from) also returned
+1.2.0 that day. In the dashboard, 1.6.0 is an **uploaded draft that cannot be
+published** until six permissions have a justification (alarms,
+declarativeNetRequestWithHostAccess, sidePanel, tabs, webNavigation,
+webRequest; paste text in `docs/CWS-LISTING-1.6.1.md` §3a). The listing edits
+(downtime notice removed, theme cross-link IDs) were made in the dashboard but
+had not reached the public pages on 2026-09-24. Check the update server, not
+only the listing page:
+`https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc` The live
+category is **Productivity › Tools**, not the Developer Tools set below; change
+it in the dashboard with this submission. 1 rating (5 stars).
 
 ## Store Listing
 
@@ -24,19 +37,18 @@ Store item: `dphmaddiedhkejfhabkfdenfphjljioj` (serving 1.2.0 as of
 SEO Bandwagon
 ```
 
-**Short Description** (130 chars, matches `extension/manifest.json` `description`)
+**Short Description** (107 chars, matches `extension/manifest.json` `description`; a sentence, never a list of terms)
 
 ```
-SEO analysis, link check, indexability, hreflang, rendering, structured data, citations and link-building, synced to your account.
+Check the on-page SEO of any page in one click: a score with fixes, link and indexability checks, and more.
 ```
 
 **Detailed Description**
 
-Paste `docs/CWS-LISTING-1.6.0.md` §2 verbatim. Section headings it covers, in
-order: On-page analysis · Link check · Indexability · Hreflang · Rendering ·
-Structured data · Google results overlay · Search Console helpers ·
-Appearance · Tools menu · Exports · Account sync (optional). Every feature
-named there is shipped on `main`; nothing planned appears in it.
+Paste `docs/CWS-LISTING-1.6.1.md` §2 verbatim. Rewritten 2026-09-24 after the
+keyword-stuffing violation below: plain sentences, **no lists of schema types,
+metric names, crawler names, product names or export targets**. Every
+feature named there is shipped on `main`; nothing planned appears in it.
 
 **Category**
 
@@ -61,13 +73,13 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready | `extension/src/icons/icon128.png` |
-| Screenshot 1 — popup, Analysis tab with score and fixes | 1280×800 | 🟡 Needs update (store still shows 1.2.0 UI) | not in repo |
-| Screenshot 2 — Link Check results grouped by outcome | 1280×800 | ⬜ Not created | not in repo |
-| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ⬜ Not created | not in repo |
-| Screenshot 4 — Google results overlay stats bar | 1280×800 | ⬜ Not created | not in repo |
-| Screenshot 5 — Side panel (Citations / Links) in Night and Day | 1280×800 | ⬜ Not created | not in repo |
-| Small Promo Tile | 440×280 | ⬜ Not created | (theme tiles exist under `themes/store/`, not for this item) |
-| Marquee Promo Tile | 1400×560 | ⬜ Not created | |
+| Screenshot 1 — popup, Analysis tab with score and fixes | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-1-analysis-1280x800.png` |
+| Screenshot 2 — Link Check results grouped by outcome | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-2-link-check-1280x800.png` |
+| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-3-indexability-1280x800.png` |
+| Screenshot 4 — Google results overlay stats bar | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-4-serp-overlay-1280x800.png` |
+| Screenshot 5 — Page-checks panel in Night and Day | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-5-night-day-1280x800.png` |
+| Small Promo Tile | 440×280 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/promo-tile-440x280.png` |
+| Marquee Promo Tile | 1400×560 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/promo-marquee-1400x560.png` |
 
 ### Screenshot Notes
 
@@ -79,7 +91,7 @@ logos anywhere in frame.
 ## Permissions Justification
 
 One line each here; the reviewer-length paragraph for every row is in
-`docs/CWS-LISTING-1.6.0.md` §3 — paste those into the dashboard's
+`docs/CWS-LISTING-1.6.1.md` §3 — paste those into the dashboard's
 per-permission fields.
 
 | Permission | Type | Justification |
@@ -131,7 +143,7 @@ all except the bare-domain overlay lookup on Google results pages.
 | User activity | No | — | — | No |
 | Website content | Yes | Yes, to seobandwagon.com only | Extracted metadata of analyzed pages (title, meta, headings, links, images, structured-data type and property names, technical facts). Never structured-data values. | No |
 
-Reasoning for each row: `docs/CWS-LISTING-1.6.0.md` §5.
+Reasoning for each row: `docs/CWS-LISTING-1.6.1.md` §5.
 
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
@@ -182,7 +194,11 @@ extension's options page shows its theme links from 1.6.0 on.
 placeholder cross-link URLs (`.../detail/ITEM_ID_DAY` and `.../ITEM_ID_NIGHT`)
 still in them, so each theme's "PREFER LIGHT / PREFER DARK" link is dead. Paste
 the corrected blocks from `themes/store/LISTING.md` over the description in each
-item's dashboard listing.
+item's dashboard listing. Re-measured 2026-09-24: both placeholders still live,
+both items at 1.0.0 with 3 users. The corrected blocks also describe the
+extension's 1.6 features (Appearance, Link Check and the rest), which the store
+extension only has once 1.6.1 is approved; until then, fix just the two
+cross-link URLs.
 
 **Known and worth saying in the theme listings:** the new-tab wallpaper is a
 Chrome feature. Brave replaces the new tab page with its own and shows the frame
@@ -193,7 +209,8 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.6.0 | 2026-09-06 (main) | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.0.md` §6. | Draft — package with `npm run zip`, not Finder |
+| 1.6.1 | 2026-09-24 (main) | Short description (manifest) and detailed description rewritten without term lists after a keyword-stuffing violation on the 1.6.0 draft. 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING-1.6.1.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
+| 1.6.0 | 2026-09-06 | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.1.md` §6. | Uploaded as a dashboard draft, not published: six permission justifications missing (2026-09-24). Replace the package with 1.6.1 |
 | 1.5.2 | 2026-09-06 | Search Console helpers (Queries-tab icons, compare badges). Content-script match on `search.google.com/search-console/*` (added in 1.5.1). | Not submitted (folded into 1.6.0) |
 | 1.5.0 | 2026-09-04 | API-key connect flow, capture sync with retry, citations and link-building in the side panel; `identity`/`oauth2` removed; `alarms` + `externally_connectable` added. | Not submitted (folded into 1.6.0) |
 | 1.2.0 | 2026-04-23 | Repointed API host to seobandwagon.com. | Published |
@@ -208,9 +225,16 @@ not a fault in the package. Both theme descriptions now say so.
 - `webRequest` is dormant until the optional `<all_urls>` grant; reviewers
   testing Indexability must grant it and then reload the page.
 - Reviewer test steps for every permission-bearing feature, none of which
-  need an account: `docs/CWS-LISTING-1.6.0.md` §7.
-- Store screenshots still show the 1.2.0 interface; refresh before submitting.
+  need an account: `docs/CWS-LISTING-1.6.1.md` §7.
+- The live store screenshots still show the 1.2.0 interface. Replacements for 1.6.1
+  are in `store-assets/1.6.1/` (real extension, real pages; how in its README).
+- The live 1.2.0 description still carries the April 23 downtime notice
+  (measured 2026-09-24). The 1.6.1 description in `docs/CWS-LISTING-1.6.1.md` §2
+  replaces it; until then, the notice can be removed from the live listing on
+  its own.
 
 ### Rejection History
 
-None recorded.
+| Date | Version | Policy | Cause | Fix |
+|---|---|---|---|---|
+| 2026-09-24 | 1.6.0 draft | Keyword stuffing (spam policy) | The detailed description listed about fifteen structured-data types in one sentence, plus lists of metric names, crawler names, tool names and export targets; the short description was a comma list of eight terms | Both rewritten as plain sentences (`docs/CWS-LISTING-1.6.1.md` §1–2, manifest `description`). Resubmit as a revision with the 1.6.1 package; do not spend the one allowed appeal on it |

@@ -2,7 +2,7 @@
 
 Two items, one per mode. A Chrome theme is images and colours only, so nothing
 below claims behaviour a theme can't have; every extension claim matches
-`docs/CWS-LISTING-1.6.0.md`.
+`docs/CWS-LISTING-1.6.1.md`.
 
 Fill `bomhiblgnbmpgbddhocomnbijdkmpbhl` / `ldifldabjbffldoekbebpickddaiiggm` in after the first upload of each, then
 paste the cross-link line into the other listing.
@@ -46,12 +46,8 @@ Chrome runs one theme at a time, so installing either replaces the other.
 
 WORKS WITH THE SEO BANDWAGON EXTENSION
 If you also run our free extension, its popup, side panel and options page can
-match this theme (Appearance → Night). The extension is an on-page SEO toolkit
-that runs entirely in your browser: a 0–100 score with an A–F grade and four
-sub-scores, page meta with a search-result preview, Core Web Vitals, heading,
-link and image audits, link check, indexability, hreflang, rendering, structured
-data, and a results overlay on Google's own search pages. No account required
-for any of it.
+match this theme (Appearance → Night). The extension checks the on-page SEO of
+the page you are viewing, in your browser, with one click. No account required.
 
 The theme collects nothing. It has no code, no permissions and no network
 access — it is a colour map and a handful of images.
@@ -96,12 +92,8 @@ Chrome runs one theme at a time, so installing either replaces the other.
 
 WORKS WITH THE SEO BANDWAGON EXTENSION
 If you also run our free extension, its popup, side panel and options page can
-match this theme (Appearance → Day). The extension is an on-page SEO toolkit
-that runs entirely in your browser: a 0–100 score with an A–F grade and four
-sub-scores, page meta with a search-result preview, Core Web Vitals, heading,
-link and image audits, link check, indexability, hreflang, rendering, structured
-data, and a results overlay on Google's own search pages. No account required
-for any of it.
+match this theme (Appearance → Day). The extension checks the on-page SEO of
+the page you are viewing, in your browser, with one click. No account required.
 
 The theme collects nothing. It has no code, no permissions and no network
 access — it is a colour map and a handful of images.
