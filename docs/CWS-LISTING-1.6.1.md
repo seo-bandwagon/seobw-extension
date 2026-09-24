@@ -27,68 +27,72 @@ Check the on-page SEO of any page in one click: a score with fixes, link and ind
 
 ## 2. Detailed description
 
-Rewritten 2026-09-24 after a Chrome Web Store keyword-stuffing violation. The
-earlier text listed schema types, metric names, crawler names, product names
-and export targets; Chrome's spam policy treats long lists of terms as
-keyword stuffing. **Rule for this field: sentences, no lists of names, no
-term repeated for its own sake.**
+Rewritten 2026-09-24 after the Chrome Web Store removed the 1.6.0 draft for
+keyword spam (violation Yellow Argon). The notice cited one string: fifteen
+structured-data type names in a row. Google's rules for this field
+(developer.chrome.com/docs/webstore/spam-faq and /troubleshooting):
+
+- no lists of sites, brands or keywords without substantial added value
+- no single keyword more than five times
+- keywords used in context, in clear sentences
+
+`tests/unit/listing-copy.test.js` enforces the second rule and a list
+detector on the block below. Examples go in a sentence, two at most.
 
 ```
-SEO Bandwagon checks the on-page SEO of the page you are viewing, in your
-browser, with one click. No account is needed for any of the checks below.
+SEO Bandwagon reviews the on-page SEO of the site you have open, right in
+your browser. One click gives you the findings, and no account is needed.
 
 ON-PAGE ANALYSIS
 A score from 0 to 100 with a letter grade, four sub-scores and a short list
-of what to fix. It also shows how the page could look in search results, its
-loading and layout speed as measured in your browser, its heading outline,
-its links and images, and the technology the site is built on.
+of fixes. You also see a preview of how the listing could look on Google,
+loading and layout speed as your browser measured it, the heading outline,
+links and images, and the technology behind the site.
 
 LINK CHECK
-When you ask, checks every link on the page, groups them by result, and
-highlights the broken ones on the page itself.
+On request, tests every link, groups them by status code and highlights the
+broken ones where they sit.
 
 INDEXABILITY
-Shows how the page was reached and whether search engines are allowed to
-index it, with a plain yes or no. You can check another address without
-leaving the page.
+Shows the redirects that led to the URL and whether search engines may index
+it, with a plain yes or no. You can trace another address without leaving.
 
 HREFLANG
-Checks the page's language and region tags for mistakes and, when you ask,
-confirms that each alternate page links back.
+Finds mistakes in language and region tags and, when you ask, confirms that
+each alternate version links back.
 
 RENDERING
-Compares the page as the server sent it with what your browser displayed,
-so you can see what changed after scripts ran. You can also reload the tab
-as a search-engine crawler would request it, to test how the site responds.
+Compares the HTML the server sent with what your browser displayed, so you
+can spot what scripts changed. You can also reload the tab the way a crawler
+requests it.
 
 STRUCTURED DATA
-Reads the page's structured data, checks each item for missing required and
-recommended fields, and shows which rich results a complete item is eligible
-for.
+Reads the structured data on the page and tells you what is missing before
+Google can use it. A local business without a phone number, or a product
+without an offer, is flagged with the exact field to add, and complete items
+show the rich result they qualify for.
 
 SEARCH RESULTS OVERLAY
-On a Google results page, adds a small bar under each organic result and a
-toolbar to copy or export what the page shows. Exports stay on your computer.
-Only the domain names of the results are looked up, never your search.
+Adds a small stats bar under each organic listing on Google and a toolbar to
+copy or export what you see. Exports stay on your computer, and only domain
+names are looked up, never your query.
 
 SEARCH CONSOLE HELPERS
-In a Search Console performance report, adds a one-click search for each
-query and, when you compare two date ranges, a percent change next to each
-number.
+In a performance report, opens any query on Google in one click and, when
+you compare two date ranges, puts the percent change beside each number.
 
-PAGE CHECKS PANEL AND APPEARANCE
-A side panel keeps the current page's checks open while you work. Night, Day
-or Auto appearance applies to every page of the extension, with two matching
-Chrome themes available separately.
+PANELS AND APPEARANCE
+A side panel keeps the findings open while you work. Choose Night, Day or
+Auto; two matching Chrome themes are available separately.
 
 EXPORTS AND TOOLS
-Each section exports a CSV you save yourself. A right-click menu opens the
-current page in common testing and archive tools.
+Every section exports a CSV you save yourself, and a right-click menu opens
+the current URL in common testing and archive tools.
 
 OPTIONAL ACCOUNT
-Connect a free SEO Bandwagon account to keep your analyses, check local
-business listings and manage outreach. Nothing is sent until you connect an
-account and turn on sending in Settings.
+Connect a free SEO Bandwagon account to keep your analyses, review local
+business listings and manage outreach. Nothing is sent until you connect and
+turn on sending in Settings.
 ```
 
 **Privacy policy**: https://seobandwagon.com/privacy
