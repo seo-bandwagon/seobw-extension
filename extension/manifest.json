@@ -3,7 +3,7 @@
   "name": "SEO Bandwagon",
   "version": "1.6.1",
   "version_name": "1.6.1 — competitor parity, Night/Day appearance, page-checks panel, fuller SERP export",
-  "description": "SEO analysis, link check, indexability, hreflang, rendering, structured data, citations and link-building, synced to your account.",
+  "description": "Check the on-page SEO of any page in one click: a score with fixes, link and indexability checks, and more.",
   "permissions": [
     "activeTab",
     "storage",

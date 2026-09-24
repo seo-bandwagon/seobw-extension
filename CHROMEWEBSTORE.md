@@ -37,19 +37,18 @@ it in the dashboard with this submission. 1 rating (5 stars).
 SEO Bandwagon
 ```
 
-**Short Description** (130 chars, matches `extension/manifest.json` `description`)
+**Short Description** (107 chars, matches `extension/manifest.json` `description`; a sentence, never a list of terms)
 
 ```
-SEO analysis, link check, indexability, hreflang, rendering, structured data, citations and link-building, synced to your account.
+Check the on-page SEO of any page in one click: a score with fixes, link and indexability checks, and more.
 ```
 
 **Detailed Description**
 
-Paste `docs/CWS-LISTING-1.6.1.md` §2 verbatim. Section headings it covers, in
-order: On-page analysis · Link check · Indexability · Hreflang · Rendering ·
-Structured data · Google results overlay · Search Console helpers ·
-Appearance · Tools menu · Exports · Account sync (optional). Every feature
-named there is shipped on `main`; nothing planned appears in it.
+Paste `docs/CWS-LISTING-1.6.1.md` §2 verbatim. Rewritten 2026-09-24 after the
+keyword-stuffing violation below: plain sentences, **no lists of schema types,
+metric names, crawler names, product names or export targets**. Every
+feature named there is shipped on `main`; nothing planned appears in it.
 
 **Category**
 
@@ -210,7 +209,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.6.1 | 2026-09-24 (main) | 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING-1.6.1.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
+| 1.6.1 | 2026-09-24 (main) | Short description (manifest) and detailed description rewritten without term lists after a keyword-stuffing violation on the 1.6.0 draft. 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING-1.6.1.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
 | 1.6.0 | 2026-09-06 | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.1.md` §6. | Uploaded as a dashboard draft, not published: six permission justifications missing (2026-09-24). Replace the package with 1.6.1 |
 | 1.5.2 | 2026-09-06 | Search Console helpers (Queries-tab icons, compare badges). Content-script match on `search.google.com/search-console/*` (added in 1.5.1). | Not submitted (folded into 1.6.0) |
 | 1.5.0 | 2026-09-04 | API-key connect flow, capture sync with retry, citations and link-building in the side panel; `identity`/`oauth2` removed; `alarms` + `externally_connectable` added. | Not submitted (folded into 1.6.0) |
@@ -236,4 +235,6 @@ not a fault in the package. Both theme descriptions now say so.
 
 ### Rejection History
 
-None recorded.
+| Date | Version | Policy | Cause | Fix |
+|---|---|---|---|---|
+| 2026-09-24 | 1.6.0 draft | Keyword stuffing (spam policy) | The detailed description listed about fifteen structured-data types in one sentence, plus lists of metric names, crawler names, tool names and export targets; the short description was a comma list of eight terms | Both rewritten as plain sentences (`docs/CWS-LISTING-1.6.1.md` §1–2, manifest `description`). Resubmit as a revision with the 1.6.1 package; do not spend the one allowed appeal on it |

@@ -16,318 +16,80 @@ no bot-impersonation framing, no accuracy or superiority claims.
 
 ## 1. Short description (≤ 132 chars)
 
-Same text as `manifest.json`'s `description` field (130 chars):
+Same text as `manifest.json`'s `description` field. A sentence, not a list:
+the earlier comma list of eight terms read as keyword stuffing.
 
 ```
-SEO analysis, link check, indexability, hreflang, rendering, structured data, citations and link-building, synced to your account.
+Check the on-page SEO of any page in one click: a score with fixes, link and indexability checks, and more.
 ```
 
 ---
 
 ## 2. Detailed description
 
+Rewritten 2026-09-24 after a Chrome Web Store keyword-stuffing violation. The
+earlier text listed schema types, metric names, crawler names, product names
+and export targets; Chrome's spam policy treats long lists of terms as
+keyword stuffing. **Rule for this field: sentences, no lists of names, no
+term repeated for its own sake.**
+
 ```
-SEO Bandwagon is an on-page SEO toolkit that runs entirely in your browser.
-Click the toolbar icon on any page for an instant analysis — no account
-required for the core features below.
+SEO Bandwagon checks the on-page SEO of the page you are viewing, in your
+browser, with one click. No account is needed for any of the checks below.
 
 ON-PAGE ANALYSIS
-A 0–100 score with an A–F grade and four sub-scores (Meta, Content, Links,
-Tech), page meta with a search-result preview, Core Web Vitals (LCP, INP,
-CLS, FCP, TTFB), heading structure with on-page highlighting, link and image
-audits, content statistics and word/phrase frequency, and detected
-technologies (CMS, analytics, frameworks).
+A score from 0 to 100 with a letter grade, four sub-scores and a short list
+of what to fix. It also shows how the page could look in search results, its
+loading and layout speed as measured in your browser, its heading outline,
+its links and images, and the technology the site is built on.
 
 LINK CHECK
-Checks every link on the page and groups the results by outcome (working,
-redirected, 4xx, 5xx, timeout, network error), highlights broken links on the
-page itself, and exports the results as a CSV. Runs only when you click
-"Check N links."
+When you ask, checks every link on the page, groups them by result, and
+highlights the broken ones on the page itself.
 
 INDEXABILITY
-Shows the current page's redirect chain, response headers, and X-Robots-Tag
-directive alongside its on-page meta robots and canonical tag, combined into
-a plain indexable / not-indexable verdict. You can also trace any URL you
-type without leaving the page you're on.
+Shows how the page was reached and whether search engines are allowed to
+index it, with a plain yes or no. You can check another address without
+leaving the page.
 
 HREFLANG
-Validates every hreflang tag declared on the page — tag format, duplicate
-language tags, a missing x-default, a missing self-reference — and, on
-request, fetches each alternate URL to confirm it links back to this page.
+Checks the page's language and region tags for mistakes and, when you ask,
+confirms that each alternate page links back.
 
 RENDERING
-Compares the page's raw, unrendered HTML against what your browser actually
-rendered, so you can see what changed via JavaScript. A "View as" option lets
-you reload the current tab under a different User-Agent (Googlebot Desktop,
-Googlebot Smartphone, Bingbot, or iPhone Safari) for testing how a page's
-server-side rendering or cloaking behaves — not for bypassing a paywall,
-login gate, or any other access control.
+Compares the page as the server sent it with what your browser displayed,
+so you can see what changed after scripts ran. You can also reload the tab
+as a search-engine crawler would request it, to test how the site responds.
 
 STRUCTURED DATA
-Extracts JSON-LD, Microdata, and RDFa structured data from the page and
-checks each item's properties against the required and recommended fields
-for its type (Article, Product, LocalBusiness and its many subtypes,
-Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event,
-VideoObject, Review, WebSite, WebPage, JobPosting, and more), showing which
-Google rich results a complete item is eligible for. FAQPage and HowTo are
-still validated as markup, with a note that Google no longer shows a rich
-result for either.
+Reads the page's structured data, checks each item for missing required and
+recommended fields, and shows which rich results a complete item is eligible
+for.
 
-GOOGLE RESULTS OVERLAY
-On Google's own search results pages, adds a small stats bar under each
-organic result and a toolbar for copying or exporting what the page shows:
-each result's position, title, URL, description, date, rating, site name and
-breadcrumb, with the page's related searches and "People also ask" questions,
-plus a tool for opening a search with location parameters to see what
-searchers in another area are shown. Copies and exports stay on your
-computer. Only bare domain names are ever sent anywhere for this — never your
-search query, never a page title or snippet.
+SEARCH RESULTS OVERLAY
+On a Google results page, adds a small bar under each organic result and a
+toolbar to copy or export what the page shows. Exports stay on your computer.
+Only the domain names of the results are looked up, never your search.
 
 SEARCH CONSOLE HELPERS
-On a Google Search Console Performance report's Queries tab, adds two
-one-click "open in Google Search" actions (a normal tab and a private
-window) to each query row, and — when comparing two date ranges — percent-
-change badges on the metric cards and inside each row's Difference cell, all
-computed from the numbers already on the page.
+In a Search Console performance report, adds a one-click search for each
+query and, when you compare two date ranges, a percent change next to each
+number.
 
-APPEARANCE
-Night or Day for the extension's own pages, or Auto to follow your system
-setting. Choose it in the side panel's header or on the Settings page; one
-choice applies to the popup, both side panels and Settings. Matching Chrome
-themes (SEO Bandwagon Neon Night / Neon Day) are separate Web Store items.
+PAGE CHECKS PANEL AND APPEARANCE
+A side panel keeps the current page's checks open while you work. Night, Day
+or Auto appearance applies to every page of the extension, with two matching
+Chrome themes available separately.
 
-PAGE CHECKS PANEL
-A second side panel listing the current page's checks as you work, with the
-pass, warn and fail count, the tools row, and a note when the page is one of
-the local-SEO directories. Open it from the "Page checks" link in the side
-panel's footer; the link there swaps back.
+EXPORTS AND TOOLS
+Each section exports a CSV you save yourself. A right-click menu opens the
+current page in common testing and archive tools.
 
-TOOLS MENU
-A right-click menu and a matching row in the popup for opening the current
-page in Google Search Console (URL inspection), PageSpeed Insights, Rich
-Results Test, and the Wayback Machine, plus a domain-scoped site: search and
-shortcuts to the page's sitemap.xml and robots.txt.
-
-EXPORTS
-Link Check, Indexability, Hreflang, Rendering, Structured Data, the results
-overlay, and the headings/images/links tables each export a CSV you save
-yourself; the Search Console helpers copy TSV to the clipboard.
-
-ACCOUNT SYNC (OPTIONAL)
-Connect a free SEO Bandwagon account to sync your page analyses, check
-citations against local-SEO directories, and manage link-building outreach
-without leaving the page. Nothing syncs until you connect an account and
-turn on the data-collection setting.
+OPTIONAL ACCOUNT
+Connect a free SEO Bandwagon account to keep your analyses, check local
+business listings and manage outreach. Nothing is sent until you connect an
+account and turn on sending in Settings.
 ```
-
----
-
-## 3. Permission justifications
-
-### 3a. Dashboard fields (Privacy practices tab), paste as is
-
-The dashboard refused to publish the 1.6.0 draft on 2026-09-24 until these six
-had a justification. Plain language, no API names, each under the 1,000-character
-field limit. Checked against the service worker, popup, panels and options code
-the same day.
-
-**alarms**
-
-```
-Runs one background timer every 15 minutes that retries sending page analyses that failed to reach the user's SEO Bandwagon account (for example, because they were offline). It does nothing unless the user has connected an account and turned on the "Send analyses to SEO Bandwagon" setting. No other scheduled work exists.
-```
-
-**declarativeNetRequestWithHostAccess**
-
-```
-Used only by the "View as" option in the Rendering section, which lets the user reload the current tab as Googlebot, Bingbot or iPhone Safari to test how a page renders for search engines. Choosing a preset adds one temporary rule that changes the User-Agent header for requests from that single tab only. The rule is removed as soon as the user switches back to Default or closes the tab. The extension ships no static rules, never blocks or redirects requests, and adds nothing until the user picks a preset.
-```
-
-**sidePanel**
-
-```
-The extension has two side panels, both opened only by the user: a Citations and Link Building panel (local-business listings, outreach contacts and results for users with an account) and a Page checks panel that lists the current page's SEO checks while the user works. The side panel lets these stay open beside the page instead of closing like the popup does.
-```
-
-**tabs**
-
-```
-Reads the URL and title of the tab the user is analyzing, so the popup and the Page checks panel can show results for that page and refresh them when the user switches tabs or the page reloads. It is also used to open result links and dashboard pages in new tabs, and, when the user asks to trace a URL in the Indexability section, to open that URL in a background tab and close it when done. When a page finishes loading, its hostname is compared on the device against a built-in list of local business directories to show a small toolbar badge; that comparison is local and the URL is not sent anywhere for it.
-```
-
-**webNavigation**
-
-```
-Used only by the Indexability section to report how a page was reached. It detects JavaScript redirects that the network layer does not show, and notices when a page the user reloaded, or a URL the user asked to trace, has finished loading so the results can be read. It only observes; it never changes or blocks navigation. It is inactive unless the user has granted the optional access to other sites for these checks.
-```
-
-**webRequest**
-
-```
-Used only by the Indexability section, which shows the user the redirect chain, HTTP status and a fixed set of response headers (X-Robots-Tag, Cache-Control, Content-Type, Link, and whether HSTS and CSP are present) for the page they are checking. It observes top-level page loads only, keeps the last 25 events per tab on the device, and clears them when the tab closes or the browser restarts. It never reads page content, never blocks, redirects or modifies a request, and nothing it observes is sent anywhere. It is inactive unless the user has granted the optional access to other sites for these checks.
-```
-
-### 3b. Reviewer detail, one paragraph per permission
-
-**`activeTab`** — reads the current tab's URL and title only when you click
-the toolbar icon or use the keyboard shortcut. Never used passively in the
-background.
-
-**`storage`** — saves your page analyses locally, caches API responses, and
-stores your API key and settings on your own device.
-
-**`contextMenus`** — adds the right-click "Analyze this page" / "Analyze
-linked page" / "Count words & characters" entries and the "SEO Bandwagon
-tools" submenu. Each item only opens a new tab or runs the page analysis;
-nothing runs without you choosing a menu item.
-
-**`scripting`** — injects the page-analysis script into the active tab when
-you ask for an analysis. Not used to inject anything into any other tab.
-
-**`sidePanel`** — powers two side panels, both opened by the user: Citations
-and Link Building, and the Page checks panel (switched per tab).
-
-**`tabs`** — reads the active tab's URL and title so the popup and the Page
-checks panel show and refresh results for that page, opens and closes the
-background tab used by "Trace another URL", opens dashboard links in new tabs,
-and watches for a tab finishing a page load so the background service worker
-can match its URL against a bundled list of local-SEO directory hostnames and
-paint a small toolbar badge when there's a match. That match is a local
-string comparison only; the URL itself is never sent anywhere for it.
-
-**`alarms`** — runs a 15-minute background timer that retries any capture
-that failed to sync to your account. Does nothing when no account is
-connected.
-
-**`webRequest`** — observes top-level navigations in every open tab (a fixed
-listener filter matching main-frame requests only), buffering each tab's last
-25 redirect/status/response-header events in `chrome.storage.session`. Only
-the buffer for the tab you currently have the popup open on is ever read —
-by the Indexability panel — and it's cleared when that tab closes, the
-browser restarts, or the optional permission below is revoked. It is
-observe-only: it never blocks, redirects, or modifies a request or response.
-It fires on nothing at all unless you've separately granted the optional
-`<all_urls>` permission below, and it never reads a response body.
-
-**`webNavigation`** — detects client-side (JavaScript) redirects for the same
-Indexability panel, and notices when a page finishes reloading so the
-"Reload to capture" button can re-check it. Also observe-only.
-
-**`declarativeNetRequestWithHostAccess`** — used only for the Rendering
-section's "View as" option. Choosing a preset other than Default installs
-one session-scoped rule that rewrites the outgoing User-Agent header for
-requests from exactly the tab you're on; the rule is removed automatically
-the moment you switch back to Default or close that tab. No rule is ever
-installed until you pick a preset, and the extension ships with no static
-rulesets at all — every rule is created and torn down at runtime, per tab.
-
-**`host_permissions`: `https://seobandwagon.com/*`** — the only host the
-extension talks to on your behalf: your own analyses, citation checks, and
-link-building data, when an account is connected.
-
-**`optional_host_permissions`: `http://localhost/*`, `http://127.0.0.1/*`**
-— requested only if you point the Options page's Advanced API URL setting at
-a local development server. Never requested otherwise.
-
-**`optional_host_permissions`: `<all_urls>` (optional, requested on first
-use)** — never requested at install. Requested only when you click "Allow
-access to check other sites" in the Link Check, Indexability, Hreflang, or
-Rendering section. The consent text shown at request time, verbatim
-(`ALL_URLS_REASON` in `src/lib/perms.js`):
-
-> To check links, hreflang alternates and redirects, and to compare a page's
-> raw HTML with what your browser rendered, the extension has to look at
-> pages on other sites from your browser: it fetches them without cookies,
-> and when you ask it to trace a URL it opens that URL in a background tab
-> like any normal visit. The "View as" option uses the same access to change
-> the User-Agent header on requests from the current tab only, until you
-> switch it off or close the tab. Nothing it sees on those sites is sent to
-> SEO Bandwagon. You can revoke this at any time from the extensions page.
-
-**Content-script match on Google Search Console** (`https://search.google.com/search-console/*`,
-pre-existing since 1.5.1) — adds two small "open in Google Search" icons to
-each row of a Performance report's Queries tab, and, when a report compares
-two date ranges, small percent-change badges on the metric cards and inside
-each row's Difference cell. Everything here reads the report table already
-rendered on the page; nothing is fetched or sent anywhere.
-
-**Content-script match on Google's own results pages** (`https://www.google.com/search*`
-and the same path on nine other Google TLDs) — this is a declared
-content-script match, not a host permission, so it is granted at install like
-any other content script rather than requested at first use. We recognize
-this widens the install-time permission warning to cover 10 Google search
-hosts, on top of the search.google.com and seobandwagon.com access the
-extension already has, and justify it plainly: the
-script only reads the organic results already rendered on the page, sends
-nothing but the bare domain names of those results to our own API (never the
-search query, never a title or snippet), and is additive-only — it appends a
-small stats bar and a toolbar, and never hides, moves, covers, or restyles
-any existing content, including ads. Nothing is fetched from Google by the
-extension itself; the stats lookup goes through our own background service
-worker to our own API.
-
-**`web_accessible_resources`** — not present in this manifest. `src/history/
-history.html` (the capture-history page) is only ever opened by
-`chrome.tabs.create(chrome.runtime.getURL(...))` from the extension's own
-Options page (`src/options/options.js`) — a full-tab navigation between two
-of the extension's own pages, which Chrome always allows regardless of this
-key. No web page and no content script references it, so declaring it
-web-accessible would only widen exposure for no purpose; it has been
-removed rather than narrowed.
-
-**`externally_connectable`** (`https://seobandwagon.com/*`) — lets the
-"Connect Chrome extension" button on the seobandwagon.com dashboard message
-the extension directly (`chrome.runtime.onMessageExternal`) to hand it a
-freshly minted API key, which the extension then verifies the same way a
-key pasted into Options is verified. No other site can message the
-extension this way.
-
----
-
-## 4. Single-purpose statement
-
-SEO Bandwagon analyses the SEO signals of the page you are viewing and syncs
-that analysis — and the local-SEO citation and outreach records derived from
-it — to the user's own SEO Bandwagon account.
-
----
-
-## 5. Data-use disclosures (Privacy tab checkboxes)
-
-Chrome's Privacy tab asks for a yes/no against nine data categories. Ours,
-with the reasoning behind each:
-
-- **Personally identifiable information — No.** A synced capture carries the
-  page URL and its extracted metadata — structured-data blocks are reduced to
-  their type and property names, never values — not anything identifying the
-  person using the extension. The user's own SEO Bandwagon account email is
-  held server-side by seobandwagon.com; the extension never collects it.
-- **Health information — No.**
-- **Financial and payment information — No.**
-- **Authentication information — Yes.** The user's SEO Bandwagon API key is
-  stored locally (`chrome.storage`) and sent as a Bearer header to
-  `seobandwagon.com` only — never to any other host, never to a page being
-  analyzed.
-- **Personal communications — No.**
-- **Location — No.**
-- **Web history — Yes.** Each synced capture carries the URL and timestamp of
-  a page the user chose to analyze. Separately, the results-overlay lookup
-  sends the bare domain names of search results currently displayed on a
-  Google results page — domains shown, not a browsing history and not pages
-  visited.
-- **User activity — No.**
-- **Website content — Yes.** Extracted metadata of the pages a user chooses
-  to analyze (title, meta tags, headings, links, images, structured-data type
-  and property names, technical facts).
-
-A user with the data-collection setting off sends nothing but the bare-domain
-overlay lookup described above; a signed-out user (no API key configured)
-sends nothing at all.
-
-**Certifications** — This data is not sold to third parties. It is not used
-for purposes unrelated to the extension's stated SEO-analysis and
-account-sync functionality. It is not used to determine creditworthiness or
-for lending purposes.
 
 **Privacy policy**: https://seobandwagon.com/privacy
 
