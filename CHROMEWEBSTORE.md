@@ -64,13 +64,13 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready | `extension/src/icons/icon128.png` |
-| Screenshot 1 — popup, Analysis tab with score and fixes | 1280×800 | 🟡 Needs update (store still shows 1.2.0 UI) | not in repo |
-| Screenshot 2 — Link Check results grouped by outcome | 1280×800 | ⬜ Not created | not in repo |
-| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ⬜ Not created | not in repo |
-| Screenshot 4 — Google results overlay stats bar | 1280×800 | ⬜ Not created | not in repo |
-| Screenshot 5 — Side panel (Citations / Links) in Night and Day | 1280×800 | ⬜ Not created | not in repo |
-| Small Promo Tile | 440×280 | ⬜ Not created | (theme tiles exist under `themes/store/`, not for this item) |
-| Marquee Promo Tile | 1400×560 | ⬜ Not created | |
+| Screenshot 1 — popup, Analysis tab with score and fixes | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-1-analysis-1280x800.png` |
+| Screenshot 2 — Link Check results grouped by outcome | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-2-link-check-1280x800.png` |
+| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-3-indexability-1280x800.png` |
+| Screenshot 4 — Google results overlay stats bar | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-4-serp-overlay-1280x800.png` |
+| Screenshot 5 — Page-checks panel in Night and Day | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-5-night-day-1280x800.png` |
+| Small Promo Tile | 440×280 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/promo-tile-440x280.png` |
+| Marquee Promo Tile | 1400×560 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/promo-marquee-1400x560.png` |
 
 ### Screenshot Notes
 
@@ -217,7 +217,8 @@ not a fault in the package. Both theme descriptions now say so.
   testing Indexability must grant it and then reload the page.
 - Reviewer test steps for every permission-bearing feature, none of which
   need an account: `docs/CWS-LISTING-1.6.1.md` §7.
-- Store screenshots still show the 1.2.0 interface; refresh before submitting.
+- The live store screenshots still show the 1.2.0 interface. Replacements for 1.6.1
+  are in `store-assets/1.6.1/` (real extension, real pages; how in its README).
 - The live 1.2.0 description still carries the April 23 downtime notice
   (measured 2026-09-24). The 1.6.1 description in `docs/CWS-LISTING-1.6.1.md` §2
   replaces it; until then, the notice can be removed from the live listing on
