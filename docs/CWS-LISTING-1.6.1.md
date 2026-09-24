@@ -79,9 +79,9 @@ organic result and a toolbar for copying or exporting what the page shows:
 each result's position, title, URL, description, date, rating, site name and
 breadcrumb, with the page's related searches and "People also ask" questions,
 plus a tool for opening a search with location parameters to see what
-searchers in another area are shown. Copies and exports stay on your computer. Only bare domain names are ever
-sent anywhere for this — never your search query, never a page title or
-snippet.
+searchers in another area are shown. Copies and exports stay on your
+computer. Only bare domain names are ever sent anywhere for this — never your
+search query, never a page title or snippet.
 
 SEARCH CONSOLE HELPERS
 On a Google Search Console Performance report's Queries tab, adds two
