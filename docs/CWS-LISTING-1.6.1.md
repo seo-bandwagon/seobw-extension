@@ -3,7 +3,7 @@
 This file is the listing text for the first submission since 1.2.0. It was
 written for 1.6.0, which added new permissions and a new content-script match
 and therefore needs reviewer-facing justification text and an updated listing.
-1.6.0 was never submitted; 1.6.1 is 1.6.0 plus the fixes listed in ROADMAP.md
+1.6.0 was uploaded as a draft but never published; 1.6.1 is 1.6.0 plus the fixes listed in ROADMAP.md
 ("Changelog — v1.6.1") and changes no permission. Paste the relevant section
 into the corresponding Chrome Web Store Developer Dashboard field when
 submitting.
@@ -124,7 +124,50 @@ turn on the data-collection setting.
 
 ## 3. Permission justifications
 
-One paragraph per permission, written for a Chrome Web Store reviewer.
+### 3a. Dashboard fields (Privacy practices tab), paste as is
+
+The dashboard refused to publish the 1.6.0 draft on 2026-09-24 until these six
+had a justification. Plain language, no API names, each under the 1,000-character
+field limit. Checked against the service worker, popup, panels and options code
+the same day.
+
+**alarms**
+
+```
+Runs one background timer every 15 minutes that retries sending page analyses that failed to reach the user's SEO Bandwagon account (for example, because they were offline). It does nothing unless the user has connected an account and turned on the "Send analyses to SEO Bandwagon" setting. No other scheduled work exists.
+```
+
+**declarativeNetRequestWithHostAccess**
+
+```
+Used only by the "View as" option in the Rendering section, which lets the user reload the current tab as Googlebot, Bingbot or iPhone Safari to test how a page renders for search engines. Choosing a preset adds one temporary rule that changes the User-Agent header for requests from that single tab only. The rule is removed as soon as the user switches back to Default or closes the tab. The extension ships no static rules, never blocks or redirects requests, and adds nothing until the user picks a preset.
+```
+
+**sidePanel**
+
+```
+The extension has two side panels, both opened only by the user: a Citations and Link Building panel (local-business listings, outreach contacts and results for users with an account) and a Page checks panel that lists the current page's SEO checks while the user works. The side panel lets these stay open beside the page instead of closing like the popup does.
+```
+
+**tabs**
+
+```
+Reads the URL and title of the tab the user is analyzing, so the popup and the Page checks panel can show results for that page and refresh them when the user switches tabs or the page reloads. It is also used to open result links and dashboard pages in new tabs, and, when the user asks to trace a URL in the Indexability section, to open that URL in a background tab and close it when done. When a page finishes loading, its hostname is compared on the device against a built-in list of local business directories to show a small toolbar badge; that comparison is local and the URL is not sent anywhere for it.
+```
+
+**webNavigation**
+
+```
+Used only by the Indexability section to report how a page was reached. It detects JavaScript redirects that the network layer does not show, and notices when a page the user reloaded, or a URL the user asked to trace, has finished loading so the results can be read. It only observes; it never changes or blocks navigation. It is inactive unless the user has granted the optional access to other sites for these checks.
+```
+
+**webRequest**
+
+```
+Used only by the Indexability section, which shows the user the redirect chain, HTTP status and a fixed set of response headers (X-Robots-Tag, Cache-Control, Content-Type, Link, and whether HSTS and CSP are present) for the page they are checking. It observes top-level page loads only, keeps the last 25 events per tab on the device, and clears them when the tab closes or the browser restarts. It never reads page content, never blocks, redirects or modifies a request, and nothing it observes is sent anywhere. It is inactive unless the user has granted the optional access to other sites for these checks.
+```
+
+### 3b. Reviewer detail, one paragraph per permission
 
 **`activeTab`** — reads the current tab's URL and title only when you click
 the toolbar icon or use the keyboard shortcut. Never used passively in the
@@ -141,9 +184,12 @@ nothing runs without you choosing a menu item.
 **`scripting`** — injects the page-analysis script into the active tab when
 you ask for an analysis. Not used to inject anything into any other tab.
 
-**`sidePanel`** — powers the Link Building and Citations side panel.
+**`sidePanel`** — powers two side panels, both opened by the user: Citations
+and Link Building, and the Page checks panel (switched per tab).
 
-**`tabs`** — reads the active tab's URL to open dashboard links in new tabs,
+**`tabs`** — reads the active tab's URL and title so the popup and the Page
+checks panel show and refresh results for that page, opens and closes the
+background tab used by "Trace another URL", opens dashboard links in new tabs,
 and watches for a tab finishing a page load so the background service worker
 can match its URL against a bundled list of local-SEO directory hostnames and
 paint a small toolbar badge when there's a match. That match is a local

@@ -42,7 +42,8 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 ## Changelog — v1.6.1 (2026-09-24)
 
-The first submission since 1.2.0. 1.6.0 was never submitted, so the store goes
+The first submission since 1.2.0. 1.6.0 was uploaded as a dashboard draft but
+never published (it lacked six permission justifications), so the store goes
 from 1.2.0 straight to 1.6.1; everything in the 1.6.0 changelog below ships
 with it. Fixes since the 1.6.0 bump, and no permission changes:
 

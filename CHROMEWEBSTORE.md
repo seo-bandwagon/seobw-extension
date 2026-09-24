@@ -17,7 +17,15 @@ Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Measured on the live store page
 2026-09-24: version 1.2.0, "Updated May 8, 2026", 7 users, and the detailed
 description still opens with the April 23 downtime notice ("We are updating our
 infrastructure for our new version, you may experience downtime April 23,
-2026"). 1.6.1 is the next submission; 1.6.0 was never submitted. The live
+2026"). Google's update server (what Chrome installs from) also returned
+1.2.0 that day. In the dashboard, 1.6.0 is an **uploaded draft that cannot be
+published** until six permissions have a justification (alarms,
+declarativeNetRequestWithHostAccess, sidePanel, tabs, webNavigation,
+webRequest; paste text in `docs/CWS-LISTING-1.6.1.md` §3a). The listing edits
+(downtime notice removed, theme cross-link IDs) were made in the dashboard but
+had not reached the public pages on 2026-09-24. Check the update server, not
+only the listing page:
+`https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc` The live
 category is **Productivity › Tools**, not the Developer Tools set below; change
 it in the dashboard with this submission. 1 rating (5 stars).
 
@@ -203,7 +211,7 @@ not a fault in the package. Both theme descriptions now say so.
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
 | 1.6.1 | 2026-09-24 (main) | 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING-1.6.1.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
-| 1.6.0 | 2026-09-06 | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.1.md` §6. | Not submitted (folded into 1.6.1) |
+| 1.6.0 | 2026-09-06 | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.1.md` §6. | Uploaded as a dashboard draft, not published: six permission justifications missing (2026-09-24). Replace the package with 1.6.1 |
 | 1.5.2 | 2026-09-06 | Search Console helpers (Queries-tab icons, compare badges). Content-script match on `search.google.com/search-console/*` (added in 1.5.1). | Not submitted (folded into 1.6.0) |
 | 1.5.0 | 2026-09-04 | API-key connect flow, capture sync with retry, citations and link-building in the side panel; `identity`/`oauth2` removed; `alarms` + `externally_connectable` added. | Not submitted (folded into 1.6.0) |
 | 1.2.0 | 2026-04-23 | Repointed API host to seobandwagon.com. | Published |
