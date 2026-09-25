@@ -31,7 +31,13 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # xvfb-run provides a virtual display for headful Chromium in CI
+      # SBW_CANARY_KEY (optional): an sbw_ API key with the `captures` scope,
+      # from a dedicated account. Set, the canary uploads a real capture;
+      # unset, it checks that the extension refuses without a key and that
+      # production answers an anonymous capture with 401.
       - name: Run canary under xvfb
+        env:
+          SBW_CANARY_KEY: ${{ secrets.SBW_CANARY_KEY }}
         run: xvfb-run --auto-servernum -- npm run test:e2e
 
       - name: Upload trace on failure

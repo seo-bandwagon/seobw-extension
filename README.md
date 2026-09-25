@@ -374,7 +374,7 @@ Three layers of automated test cover this extension, plus a manual dev harness:
 |---|---|---|---|
 | Unit | vitest + JSDOM | `tests/unit/` | Every PR + push |
 | Integration | vitest + JSDOM + fixture HTML | `tests/integration/` | Every PR + push |
-| E2E canary | Playwright + real Chromium + real prod | `tests/e2e/` | Weekly cron + push to main |
+| E2E canary | Playwright + real Chromium + real prod; loads `extension/` and injects popup.js's own file list. With the `SBW_CANARY_KEY` secret (an `sbw_` key with the `captures` scope) it uploads a real capture; without it, it checks the no-key refusal and production's 401 | `tests/e2e/` | Weekly cron + push to main |
 
 CI workflows in `.github/workflows/`. The weekly canary auto-creates a GitHub issue on scheduled failure.
 

@@ -1,41 +1,70 @@
-// Weekly canary: launches Chromium with the extension loaded, visits
-// https://seobandwagon.com/local-seo, drives the content-analysis pipeline
-// through the extension's service worker, then POSTs the resulting capture
-// to the public /api/v1/captures endpoint.
+// Canary: launches Chromium with the extension loaded, visits
+// https://seobandwagon.com/local-seo, runs the extension's page analysis the
+// same way the popup does, then sends the capture to production through the
+// extension's own API layer (src/lib/api.js), exactly as a synced capture goes.
 //
 // What this verifies:
-//   1. The unpacked extension loads into Chromium (manifest is valid,
-//      service worker boots).
-//   2. chrome.scripting.executeScript successfully injects content-analysis.js,
-//      dom-extraction.js, and content.js into a real seobandwagon.com page.
-//   3. The content script's message listener responds with structured data
-//      from a real (non-fixture) page.
-//   4. The /api/v1/captures endpoint accepts that payload and returns 201
-//      (or 409 if we already captured it this hour — still a valid signal).
+//   1. The unpacked extension (extension/) loads into Chromium: the manifest
+//      is valid and the service worker boots.
+//   2. The popup's injection list loads into a real seobandwagon.com page and
+//      the analyzer answers { action: 'analyze' } with structured data.
+//   3. The capture, stripped the way the extension strips it before upload,
+//      is accepted by POST /api/v1/captures.
 //
-// What this does NOT verify:
-//   - The extension's popup.js autoSaveCapture wrapper (untested here; lives
-//     in UI code that's hard to drive from Playwright). The important parts
-//     are exercised via direct fetch.
-//   - Rollup stats, domain_stats rolling averages (platform-side concern).
+// The captures endpoint requires an API key (anonymous posts were removed on
+// the site). With the SBW_CANARY_KEY secret set, step 3 posts for real and
+// expects 201 (new) or 409 (already captured in the dedupe window); the row
+// is private to the key's account. Without it, step 3 checks the contract
+// instead: the extension reports `no_key` without touching the network, and
+// an unauthenticated POST gets 401.
 //
-// Intentional pollution: this test creates ONE real row in Neon's
-// extension_analyses per run. On the weekly cron cadence, that's fine. If
-// the backend ever adds a "test canary" flag, swap to that.
+// History: this passed weekly from April to 2026-08-31, then broke three
+// ways. #7 (1.5.0) moved content.js to src/content/analyzer.js, so injection
+// failed with "Could not load file: 'content.js'". #14 moved the manifest into
+// extension/, so loading the repo root hung the browser launch until the
+// 60-second test timeout, which hid the first break. The site then started
+// requiring an API key for captures.
 
 import { test, expect, chromium } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const EXTENSION_PATH = resolve(__dirname, '..', '..');
+const EXTENSION_PATH = resolve(__dirname, '..', '..', 'extension');
 const TARGET_URL = 'https://seobandwagon.com/local-seo';
 const CAPTURES_ENDPOINT = 'https://seobandwagon.com/api/v1/captures';
+const CANARY_KEY = process.env.SBW_CANARY_KEY || '';
+
+// The popup's own injection list, read from popup.js so the two can never
+// drift apart again (the hard-coded copy here is how #7 broke this test).
+function popupInjectionFiles() {
+  const src = readFileSync(resolve(EXTENSION_PATH, 'src/popup/popup.js'), 'utf8');
+  const m = /executeScript\(\{\s*target:\s*\{\s*tabId:\s*tab\.id\s*\},\s*files:\s*(\[[^\]]+\])/.exec(src);
+  if (!m) throw new Error('could not find the analysis executeScript files list in popup.js');
+  return JSON.parse(m[1].replace(/'/g, '"'));
+}
+
+// The extension strips a capture before it is stored or uploaded
+// (src/lib/capture-strip.js, which uses SBWSchema to drop structured-data
+// values). Both libs are dual-export, so Node can load them directly.
+function stripCapture(capture) {
+  const require = createRequire(import.meta.url);
+  require(resolve(EXTENSION_PATH, 'src/lib/structured-data.js'));
+  const { strip } = require(resolve(EXTENSION_PATH, 'src/lib/capture-strip.js'));
+  return strip(capture);
+}
+
+test('the canary injects exactly what the popup injects', () => {
+  const files = popupInjectionFiles();
+  expect(files).toContain('src/content/analyzer.js');
+  for (const f of files) expect(() => readFileSync(resolve(EXTENSION_PATH, f))).not.toThrow();
+});
 
 test('canary: analyze local-seo and POST capture to production', async () => {
-  // Launch Chromium with the extension loaded. Must run in headful mode —
-  // Playwright's default `chromium-headless-shell` doesn't support MV3
-  // service workers. CI wraps this in xvfb-run to provide a virtual display.
+  // Headful: Playwright's headless shell doesn't run MV3 service workers.
+  // CI wraps this in xvfb-run to provide a virtual display.
   const context = await chromium.launchPersistentContext('', {
     headless: false,
     args: [
@@ -46,70 +75,62 @@ test('canary: analyze local-seo and POST capture to production', async () => {
   });
 
   try {
-    // Wait for the service worker to come up (MV3 SWs are lazy).
     let [serviceWorker] = context.serviceWorkers();
     if (!serviceWorker) {
       serviceWorker = await context.waitForEvent('serviceworker', { timeout: 10_000 });
     }
     const extensionId = serviceWorker.url().split('/')[2];
-    expect(extensionId).toMatch(/^[a-p]{32}$/); // Chrome extension IDs are 32 lowercase a-p
+    expect(extensionId).toMatch(/^[a-p]{32}$/);
 
-    // Open the target page.
     const page = await context.newPage();
     await page.goto(TARGET_URL, { waitUntil: 'load', timeout: 30_000 });
+    await page.waitForTimeout(1_000); // let client components hydrate
 
-    // Give the page ~1s to hydrate Next.js client components so the DOM is
-    // representative of what a human would see.
-    await page.waitForTimeout(1_000);
-
-    // Get the active tab ID from the service worker.
-    const tabId = await serviceWorker.evaluate(async () => {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      return tabs[0]?.id;
-    });
+    const tabId = await serviceWorker.evaluate(async (url) => {
+      const tabs = await chrome.tabs.query({});
+      return tabs.find((t) => t.url && t.url.startsWith(url))?.id;
+    }, TARGET_URL);
     expect(tabId).toBeTruthy();
 
-    // Inject the extension's scripts into the tab — same load order popup.js uses.
-    await serviceWorker.evaluate(async (id) => {
-      await chrome.scripting.executeScript({
-        target: { tabId: id },
-        files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'content.js']
-      });
-    }, tabId);
+    const files = popupInjectionFiles();
+    await serviceWorker.evaluate(async ({ id, files }) => {
+      await chrome.scripting.executeScript({ target: { tabId: id }, files });
+    }, { id: tabId, files });
 
-    // Ask the content script to analyze the page, wait up to 10s.
     const capture = await serviceWorker.evaluate(async (id) => {
       return await chrome.tabs.sendMessage(id, { action: 'analyze' });
     }, tabId);
 
-    // Basic shape assertions on the analyzed payload.
     expect(capture).toBeTruthy();
     expect(capture.url).toContain('seobandwagon.com');
-    expect(capture.meta).toBeTruthy();
-    expect(capture.meta.title).toBeTruthy();
-    expect(capture.meta.title.text.length).toBeGreaterThan(0);
-    expect(capture.content).toBeTruthy();
-    expect(capture.content.wordCount).toBeGreaterThan(0);
-    expect(capture.seoScore).toBeTruthy();
-    expect(typeof capture.seoScore.score).toBe('number');
+    expect(capture.meta?.title?.text?.length).toBeGreaterThan(0);
+    expect(capture.content?.wordCount).toBeGreaterThan(0);
+    expect(typeof capture.seoScore?.score).toBe('number');
     expect(capture.seoScore.score).toBeGreaterThanOrEqual(0);
     expect(capture.seoScore.score).toBeLessThanOrEqual(100);
 
-    // POST the capture to production. Accepts 201 (new) or 409 (already
-    // captured within the 1h dedupe window on the backend).
-    const response = await page.request.post(CAPTURES_ENDPOINT, {
-      data: capture,
-      headers: { 'Content-Type': 'application/json' }
-    });
-    expect([201, 409]).toContain(response.status());
+    const payload = stripCapture(capture);
 
-    if (response.status() === 201) {
-      const body = await response.json();
-      expect(body.id).toBeTruthy();
-      expect(body.url).toContain('seobandwagon.com');
-      console.log(`[canary] capture created: id=${body.id}`);
+    if (CANARY_KEY) {
+      // Real upload, through the extension's own API layer.
+      const result = await serviceWorker.evaluate(async ({ key, payload }) => {
+        await chrome.storage.sync.set({ apiKey: key });
+        return await SBW.postCapture(payload);
+      }, { key: CANARY_KEY, payload });
+      expect([201, 409], `postCapture returned ${JSON.stringify({ status: result.status, code: result.code, data: result.data })}`)
+        .toContain(result.status);
+      console.log(`[canary] capture ${result.status === 201 ? 'created' : 'already captured (409)'}`);
     } else {
-      console.log('[canary] 409 — already captured within the last hour (expected on close-timing reruns)');
+      // No key: the extension must refuse locally, and production must
+      // refuse an anonymous capture.
+      const result = await serviceWorker.evaluate(async (payload) => SBW.postCapture(payload), payload);
+      expect(result.code).toBe('no_key');
+      const response = await page.request.post(CAPTURES_ENDPOINT, {
+        data: payload,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      expect(response.status()).toBe(401);
+      console.log('[canary] SBW_CANARY_KEY not set: checked no_key locally and 401 from production');
     }
   } finally {
     await context.close();
