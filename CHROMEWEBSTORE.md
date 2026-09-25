@@ -47,7 +47,10 @@ Check the on-page SEO of any page in one click: a score with fixes, link and ind
 
 Paste `docs/CWS-LISTING-1.6.1.md` §2 verbatim. Rewritten 2026-09-24 after the
 keyword-stuffing violation below: plain sentences, **no lists of schema types,
-metric names, crawler names, product names or export targets**. Every
+metric names, crawler names, product names or export targets**, and **no single
+keyword more than five times** (Google's spam FAQ). Rewritten again the same
+day to meet the five-times rule; `tests/unit/listing-copy.test.js` fails if
+either rule breaks. Every
 feature named there is shipped on `main`; nothing planned appears in it.
 
 **Category**
