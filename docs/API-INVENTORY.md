@@ -4,9 +4,11 @@
 > Updated the same day, after Phase 1 landed the bridge and the page-checks panel.
 
 Every endpoint the extension can reach, what calls it today, what the themed
-surfaces would want from it, and what each one returns. Phase 0 of the
-themed-surface API wiring: **no feature code has been written**, and the
-themed surfaces are **not yet in this repo** — see "Preconditions" below.
+surfaces would want from it, and what each one returns. Written as Phase 0 of
+the themed-surface API wiring, before any feature code. Phase 1 has since
+shipped the bridge (`extension/src/lib/sbw-data.js`) and the page-checks panel
+(`extension/src/panel/`); the new tab and popup skin were not ported — see
+"Preconditions" below.
 
 ## How the shapes were derived
 
@@ -218,6 +220,10 @@ All four keys the prompt names already exist and are already written:
 and the side panel).
 
 ## Two collisions to resolve before Phase 1
+
+> Status 2026-09-28: (1) is resolved — `theme-sync.js` is a thin wrapper over
+> `theme-mode.js`. (2) is still open, but only matters if another themed surface
+> is built: `vendor/` was never ported, so `popup.css` is the only sheet today.
 
 1. **Two theme systems.** The design's `theme-sync.js` and the shipped
    `extension/src/lib/theme-mode.js` both own `bwThemeMode`, so they agree on

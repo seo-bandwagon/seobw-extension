@@ -4,8 +4,8 @@ Two items, one per mode. A Chrome theme is images and colours only, so nothing
 below claims behaviour a theme can't have; every extension claim matches
 `docs/CWS-LISTING-1.6.1.md`.
 
-Fill `bomhiblgnbmpgbddhocomnbijdkmpbhl` / `ldifldabjbffldoekbebpickddaiiggm` in after the first upload of each, then
-paste the cross-link line into the other listing.
+Item IDs: Neon Night `bomhiblgnbmpgbddhocomnbijdkmpbhl`, Neon Day
+`ldifldabjbffldoekbebpickddaiiggm`. Each listing's cross-link line points at the other.
 
 ---
 
@@ -69,7 +69,7 @@ SEO Bandwagon — Neon Day
 Bandwagon pink on off-white, with a daylight city skyline behind every new tab.
 ```
 
-**Category:** Themes → Minimalist (the dashboard has no light counterpart to Dark & Black; pick the closest it offers)
+**Category:** Other (as published 2026-09-08; the dashboard has no light counterpart to Dark & Black)
 
 **Detailed description**
 

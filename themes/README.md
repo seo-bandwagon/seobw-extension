@@ -20,7 +20,8 @@ panel and on the options page; Auto follows the OS setting).
 `npm run zip:themes` writes `seo-bw-theme-neon-night.zip` and `seo-bw-theme-neon-day.zip`
 at the repo root, each with `manifest.json` at the zip root (the usual mistake is
 zipping the folder instead of its contents). Upload each as a **new item** in the
-developer dashboard; category Themes → Dark & Black / Light & White.
+developer dashboard. Categories as published: Neon Night → Themes → Dark & Black;
+Neon Day → Other (the dashboard offered no light counterpart; see `CHROMEWEBSTORE.md`).
 
 ## Listing
 Text and the asset table are in `store/LISTING.md`. Assets:
@@ -32,9 +33,10 @@ Text and the asset table are in `store/LISTING.md`. Assets:
 | Marquee 1400 × 560 | `store/marquee-1400x560-night.png` | `store/marquee-1400x560-day.png` |
 | Screenshot 1280 × 800 | install the theme, open a new tab, capture the window | same |
 
-After the first upload of each item, put its Item ID into `THEME_IDS` in
-`extension/src/lib/theme-mode.js` and paste each listing's URL into the other's
-"Prefer light? / Prefer dark?" line.
+Both items are published and their Item IDs are already in `THEME_IDS` in
+`extension/src/lib/theme-mode.js`, and each listing cross-links the other in its
+"Prefer light? / Prefer dark?" line. A brand-new theme item would need the same
+two steps after its first upload.
 
 ## Regenerating art
 - `node themes/art/render.mjs [seed]` — both wallpapers, 3840 × 1250, from

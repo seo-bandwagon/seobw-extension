@@ -8,7 +8,7 @@ The automated suite (vitest + Playwright canary) covers most regressions, but no
 
 1. **Fresh Chrome profile** (or guest window). Prevents stale extension state from tainting the test.
 2. **Clone + pull main** — `git pull origin main`
-3. **Load unpacked**: Chrome → `chrome://extensions` → Developer mode ON → Load unpacked → select the repo root.
+3. **Load unpacked**: Chrome → `chrome://extensions` → Developer mode ON → Load unpacked → select the `extension/` folder (not the repo root; the manifest lives in `extension/`).
 4. **Pin the extension** to the toolbar (optional, but makes the icon click easier).
 
 ## Critical path (must pass)
@@ -41,14 +41,15 @@ The automated suite (vitest + Playwright canary) covers most regressions, but no
   - [ ] **Images** section shows total and missing-alt counts
   - [ ] No red error banner, no "Analysis failed" state
 
-### 2. Backend round-trip
+### 2. Account sync round-trip
 
-- Check Neon `extension_analyses` table in your DB dashboard (search by `url LIKE '%/local-seo'`, most recent)
+Needs an API key saved in Options and data collection on. Without them, captures stay local and this step is skipped.
+
+- Open **History**
 - Verify:
-  - [ ] A row was created within the last minute
-  - [ ] `domain` = `'seobandwagon.com'`
-  - [ ] `overall_score` is non-null and matches what the popup showed
-  - [ ] `seo_score`, `content`, `meta`, `headings`, `links`, `images`, `technical` are all populated JSON blobs
+  - [ ] The capture from step 1 shows a **synced** badge within a minute (the `sbw-sync` alarm drains the queue)
+  - [ ] It appears in the account's captures on seobandwagon.com
+  - [ ] `chrome://extensions` → service worker → Network: the `POST …/api/v1/captures` carries `Authorization: Bearer <key>`
 
 ### 3. Local history
 
@@ -75,10 +76,10 @@ The automated suite (vitest + Playwright canary) covers most regressions, but no
   - [ ] Popup still opens
   - [ ] Analysis completes
   - [ ] No error UI shown to the user
-  - [ ] History still records the capture locally
+  - [ ] History still records the capture locally (with sync on, it shows **pending**)
 - Return Network to **Online**
 - Verify:
-  - [ ] Extension does **not** retry the offline capture (fire-and-forget behaviour is intentional — the capture is local-only once the POST has been skipped)
+  - [ ] With sync on, the pending capture is retried and turns **synced** on a later drain. With sync off it stays local-only and nothing is sent
 
 ### 6. Keyboard shortcut
 
@@ -95,13 +96,21 @@ For each URL below, click the extension icon and confirm the popup shows a grace
 - [ ] A PDF rendered in Chrome (any public PDF URL)
 - [ ] A page with a very long title (e.g. some Wikipedia article pages)
 
-## Post-v1.2.0 additions (fill in when shipped)
+### 8. 1.6.x surfaces
 
-When the following features ship, add their smoke checks here:
+On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 
-- **v1.3.0 — SERP overlay**: `https://www.google.com/search?q=local+seo` → badges under each organic result showing domain age + aggregate capture stats where available.
-- **v1.3.0 — Paid-tier Authorization header**: Options page → set API Key to any non-empty string → capture a page → Network tab shows `Authorization: Bearer <key>` header on the POST to `/api/v1/captures`. Clear API Key → verify header is absent on subsequent captures.
-- **v1.3.0 — `visibility` column**: after a free-tier capture, the new Neon row has `visibility = 'public'`; after a paid-tier capture (with an API key), the row has `visibility = 'private'`.
+- [ ] **Link check** — "Check N links" runs only on click. The first time, it asks for the optional site access, and the request can be declined. Result chips (ok / redirect / 4xx / 5xx / timeout / network) add up, and "Export CSV" downloads
+- [ ] **Indexability** — shows an indexable / not-indexable verdict, the redirect chain and headers. Tracing `http://` → `https://` for a redirecting URL lists every hop
+- [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status
+- [ ] **Rendering** — raw-HTML vs rendered-DOM comparison loads, and the user-agent switcher changes the result for this tab only
+- [ ] **Structured data** — JSON-LD / Microdata / RDFa items listed with rich-result eligibility
+- [ ] **Right-click menu** — "SEO Bandwagon tools" opens the chosen tool for this page
+- [ ] **SERP overlay** — `https://www.google.com/search?q=local+seo`: the stats bar shows, and "Copy results", "Export CSV" and "Copy PAA" work. The CSV includes description, site name and breadcrumb. The location simulator changes the results
+- [ ] **Search Console** (Performance report, on a property you own): row icons ("open in Google", "open in private window") appear on the **Queries** tab only, and disappear when you switch to Pages. With "Compare" dates on, each metric card and changed cell gets a % badge, and nothing else changes
+- [ ] **Appearance** — Auto / Night / Day in Settings changes the popup, both side panels and Settings together
+
+When a new user-facing feature ships, add its check here in the same PR.
 
 ## Sign-off
 

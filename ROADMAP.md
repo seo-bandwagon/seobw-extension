@@ -434,13 +434,15 @@ Chrome Web Store listings Aug 13, 2026): **SEOquake** (1M, 4.5★, Semrush),
 **Detailed** (600K, 4.9★, now an Ahrefs property), **Ahrefs SEO Toolbar** (400K,
 4.4★, metrics gated behind paid Ahrefs), **SEO Minion** (200K, 4.0★, **no longer
 free** — requires a Keywords Everywhere Silver+ plan). Full matrix and sources in
-`COMPARISON-PAGE.md`.
+`docs/archive/website/COMPARISON-PAGE.md`.
 
 **Only we have:** local-SEO citation tooling (NAP checks, proof screenshots,
 citation filing), in-browser Core Web Vitals, tech stack detection, and a
 composite score — free, no account gate.
 
-**Table-stakes features we lack** (competitor precedent → our path):
+**Table-stakes gaps** (broken links, redirects/headers, hreflang, SERP overlay
+and export, location simulator) were the v1.6 candidates and all closed in
+1.6.0. Candidates for the next minor are under "v1.7" below.
 
 ---
 
@@ -456,21 +458,12 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 - [ ] Move `lib/content-analysis.js` / `lib/dom-extraction.js` under `src/lib/`
       (deferred from 1.5.0 — see changelog above)
 
-## v1.6 — feature candidates (competitor-informed, by value ÷ effort)
+## v1.6 — feature candidates (done)
 
-All six shipped in v1.6.0 — see the "Changelog — v1.6.0" and "Where we are —
-v1.6.0" sections above for what actually landed:
-
-1. **Wire up the SERP overlay** — shipped as "SERP overlay, re-enabled and
-   rewritten."
-2. **Broken link checker** — shipped as "Broken-link checker."
-3. **Redirect tracer + HTTP headers** — shipped as "Indexability panel."
-4. **Hreflang reciprocal validation** — shipped as "Hreflang validation with
-   return tags."
-5. **SERP data export** — shipped as part of "SERP overlay, re-enabled and
-   rewritten" (Copy results / Export CSV / Copy PAA).
-6. **SERP location simulator** — shipped as part of "SERP overlay, re-enabled
-   and rewritten" (the location simulator).
+All six shipped in v1.6.0: SERP overlay (with export and the location
+simulator), broken-link checker, redirect tracer + headers (Indexability panel),
+and hreflang return-tag validation. See "Changelog — v1.6.0" and "Where we are —
+v1.6.1" above.
 
 ## v1.7 — feature candidates
 
@@ -497,8 +490,9 @@ The next minor. 1.7.0 ships when one of these lands; until then everything is a
 - **Authority metrics (DA/PA/DR)** — requires a proprietary link index; MozBar and
   Ahrefs gate theirs behind paid accounts. We don't chase this; our free CWV +
   citations + score is the counter-position.
-- **Build tooling / npm** — the zero-dependency, no-build-step architecture is a
-  feature. Keep it.
+- **A runtime build step or runtime dependencies** — the extension ships as
+  plain files from `extension/` with no bundler and no npm packages, and that is
+  a feature. Keep it. npm is dev-only (tests, `bump`, `zip`, CI).
 
 ---
 
@@ -509,17 +503,5 @@ health dashboard) live in the main SEO Bandwagon Notion. The old extension
 data-capture phases (content/meta/links capture, `/v1/captures` API, Supabase
 tables, `/captures` dashboard) shipped and remain live.
 
-## Reconciliation — 2026-09-03
-
-This branch merges two divergent lines: `origin/main` (April 2026: v1.2.0 repoint to
-`seobandwagon.com/api`, vitest+jsdom unit harness, integration tests, Playwright
-canary, v1.3.0 SERP-overlay spec, `MANUAL_SMOKE_TEST.md`) and the uncommitted
-1.4.0 tree snapshotted as `wip/1.4.0-citationforge` (`src/` layout, CitationForge
-layer, side panel, preview harness). Product code is the 1.4.0 `src/` tree; the
-April test harness, specs and workflows are kept. `lib/content-analysis.js` and
-`lib/dom-extraction.js` are April's extracted pure modules and are a RUNTIME
-dependency: the merged `src/content/analyzer.js` destructures
-`self.SEOBWAnalysis` / `self.SEOBWExtraction`, so both files are injected before
-it (popup.js and service-worker.js executeScript lists) and ship in the zip.
-`tests/unit` imports them via the same dual-export. A later 1.5.0 task may move
-them under `src/lib/`; until then they stay at the root.
+The 2026-09-03 reconciliation notes (how 1.5.0 merged the April `origin/main`
+with the 1.4.0 tree) are in `docs/archive/2026-09-03-reconciliation.md`.
