@@ -4,8 +4,9 @@
 //
 // Scope (deliberately narrow — see task-8-brief.md section A): every local
 // path referenced by manifest.json itself, plus every local <script src>/
-// <link href> in the four HTML entry points (popup, options, history,
-// sidepanel). This does NOT walk chrome.scripting.executeScript file lists
+// <link href> in the five HTML entry points (popup, options, history,
+// sidepanel, panel), plus the relative `import ... from` graph of any ES
+// module those pages load (panel.js imports theme-sync.js). This does NOT walk chrome.scripting.executeScript file lists
 // inside service-worker.js/popup.js (e.g. lib/content-analysis.js,
 // lib/dom-extraction.js, src/content/analyzer.js) — those are a separate,
 // already-covered injection path, not something a browser loads from the
@@ -35,7 +36,8 @@ const HTML_ENTRY_POINTS = [
   'src/popup/popup.html',
   'src/options/options.html',
   'src/history/history.html',
-  'src/sidepanel/sidepanel.html'
+  'src/sidepanel/sidepanel.html',
+  'src/panel/panel.html'
 ];
 
 function isLocal(ref) {
@@ -84,6 +86,21 @@ function collectFromManifest(manifestPath) {
   return [...refs].map((r) => path.normalize(r));
 }
 
+// Static relative imports of an ES module, followed recursively. Bare
+// specifiers and URLs are skipped (the extension has neither), as are dynamic
+// import() calls.
+function collectImports(absJsPath, seen = new Set()) {
+  if (seen.has(absJsPath) || !existsSync(absJsPath)) return seen;
+  seen.add(absJsPath);
+  const js = readFileSync(absJsPath, 'utf8');
+  const importRe = /^\s*(?:import|export)\b[^'"]*?\bfrom\s*['"](\.{1,2}\/[^'"]+)['"]|^\s*import\s*['"](\.{1,2}\/[^'"]+)['"]/gm;
+  let m;
+  while ((m = importRe.exec(js))) {
+    collectImports(path.resolve(path.dirname(absJsPath), m[1] || m[2]), seen);
+  }
+  return seen;
+}
+
 function collectFromHtml(relHtmlPath) {
   const absHtmlPath = path.join(ROOT, relHtmlPath);
   const html = readFileSync(absHtmlPath, 'utf8');
@@ -93,6 +110,13 @@ function collectFromHtml(relHtmlPath) {
   while ((m = attrRe.exec(html))) {
     const ref = m[1];
     if (isLocal(ref)) refs.add(resolveRef(absHtmlPath, ref));
+  }
+  const moduleRe = /<script\b[^>]*\btype\s*=\s*"module"[^>]*\bsrc\s*=\s*"([^"]+)"/g;
+  while ((m = moduleRe.exec(html))) {
+    if (!isLocal(m[1])) continue;
+    for (const abs of collectImports(path.resolve(path.dirname(absHtmlPath), m[1]))) {
+      refs.add(path.relative(ROOT, abs));
+    }
   }
   return [...refs];
 }
@@ -112,7 +136,7 @@ function main() {
 
   const manifestRefs = collectFromManifest(path.join(ROOT, 'manifest.json'));
   const htmlRefs = HTML_ENTRY_POINTS.flatMap(collectFromHtml);
-  // manifest.json + the four HTML entry points must themselves be in the
+  // manifest.json + the five HTML entry points must themselves be in the
   // zip, same as anything they reference.
   const required = new Set([
     'manifest.json',

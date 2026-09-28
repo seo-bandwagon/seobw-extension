@@ -26,6 +26,9 @@ jobs:
 
       - run: npm test
 
+      - name: Store zip contains every referenced file
+        run: npm run check:zip
+
       - name: Version bumped when shipped code changed
         if: github.event_name == 'pull_request'
         env:
