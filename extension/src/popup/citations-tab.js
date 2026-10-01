@@ -8,6 +8,8 @@ let cfDir = null;          // matched directory for current tab
 let cfTab = null;          // current chrome tab
 let cfResult = null;       // { kind: 'loading'|'nap'|'proof'|'alert', ... }
 let cfRecent = [];         // recent citations for the idle panel
+let cfProofUrl = null;     // blob: URL of the current full-page proof; revoked when the result changes
+let cfShotAbort = null;    // AbortController of a running full-page capture
 
 const CF_STORE_KEY = 'cfSelectedBusiness';
 
@@ -48,6 +50,13 @@ function fmtBytes(n) {
 
 function send(msg) {
   return new Promise(resolve => chrome.runtime.sendMessage(msg, resolve));
+}
+
+// Lets preview/stub.js show a result state directly (the preview harness has
+// no real page to capture). Unused in the extension itself.
+function cfShowResult(r) {
+  cfResult = r;
+  renderResult();
 }
 
 function cfSetStatus(msg, type) {
@@ -240,7 +249,7 @@ async function renderMain(el) {
         <button class="act-tile" id="cfShot">
           <span class="act-tile-glyph">▣</span>
           <span class="act-tile-title">SCREENSHOT</span>
-          <span class="act-tile-sub">Download proof of this listing</span>
+          <span class="act-tile-sub">Download full-page proof of this listing</span>
         </button>
         <button class="act-tile" id="cfReport">
           <span class="act-tile-glyph">⚑</span>
@@ -248,6 +257,7 @@ async function renderMain(el) {
           <span class="act-tile-sub">Log this citation to the campaign</span>
         </button>
       </div>
+      <button class="cf-shot-visible" id="cfShotVisible">Visible area only</button>
     </div>
     <div id="cfResult"></div>
     <div class="status" id="cfStatus"></div>
@@ -260,6 +270,7 @@ async function renderMain(el) {
   document.querySelector('.dir-avatar')?.addEventListener('click', disconnect);
   document.getElementById('cfNap').addEventListener('click', runNapCheck);
   document.getElementById('cfShot').addEventListener('click', runScreenshot);
+  document.getElementById('cfShotVisible').addEventListener('click', runVisibleShot);
   document.getElementById('cfReport').addEventListener('click', () => runReport());
   document.getElementById('cfDash').addEventListener('click', openDashboard);
 
@@ -293,13 +304,19 @@ function dirHeader() {
 /* ---------- result zone ---------- */
 
 function renderResult() {
+  // A full-page proof holds its PNG in a blob: URL. Free it once that proof
+  // is no longer the result on screen.
+  if (cfProofUrl && !(cfResult && cfResult.kind === 'proof' && cfResult.href === cfProofUrl)) {
+    URL.revokeObjectURL(cfProofUrl);
+    cfProofUrl = null;
+  }
   const zone = document.getElementById('cfResult');
   if (!zone) return;
 
   if (!cfResult) { renderIdle(zone); return; }
 
   switch (cfResult.kind) {
-    case 'loading': renderLoading(zone, cfResult.label); break;
+    case 'loading': renderLoading(zone, cfResult.label, cfResult.onCancel); break;
     case 'nap': renderNap(zone, cfResult); break;
     case 'proof': renderProof(zone, cfResult); break;
     case 'alert': renderAlert(zone, cfResult); break;
@@ -335,17 +352,21 @@ function renderIdle(zone) {
   </div>`;
 }
 
-function renderLoading(zone, label) {
+function renderLoading(zone, label, onCancel) {
   zone.innerHTML = `<div class="cf-card loading-card">
     <div class="load-label">${esc(label || 'Working…')}</div>
     <div class="skeleton"><i style="width:62%"></i><i style="width:88%"></i><i style="width:44%"></i></div>
+    ${onCancel ? '<button class="proof-chip bare" id="cfLoadCancel">CANCEL</button>' : ''}
   </div>`;
+  if (onCancel) document.getElementById('cfLoadCancel').addEventListener('click', onCancel);
 }
 
 function renderAlert(zone, r) {
   zone.innerHTML = `<div style="margin:0 14px 12px">
     <div class="alert alert-${esc(r.tone)}"><b>${esc(r.title)}</b><span>${esc(r.body)}</span></div>
+    ${r.retryVisible ? '<button class="proof-chip cf-retry-visible" id="cfShotVisibleRetry">CAPTURE VISIBLE AREA INSTEAD</button>' : ''}
   </div>`;
+  if (r.retryVisible) document.getElementById('cfShotVisibleRetry').addEventListener('click', runVisibleShot);
 }
 
 function renderNap(zone, r) {
@@ -389,14 +410,14 @@ function renderProof(zone, r) {
     <div class="proof-head">
       <span class="proof-check">✓</span>
       <span class="proof-title">SCREENSHOT CAPTURED</span>
-      <span class="proof-dims">VIEWPORT · ${esc(r.w)}×${esc(r.h)} · ${esc(fmtBytes(r.bytes))}</span>
+      <span class="proof-dims">${esc(r.label)}</span>
     </div>
     <div class="proof-body">
-      <img class="proof-thumb" src="${r.dataUrl}" alt="Captured listing">
+      <img class="proof-thumb" src="${esc(r.href)}" alt="Captured listing">
       <div class="proof-meta">
         <div class="proof-meta-text">${esc(cfDir ? cfDir.name : 'Untracked site')} · ${esc(cfBiz.name)}<br><span>${esc(new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></div>
         <div class="proof-chips">
-          <a class="proof-chip" id="cfShotDownload" href="${r.dataUrl}" download="${esc(SBWCitations.screenshotFilename(cfTab.url))}">DOWNLOAD PNG</a>
+          <a class="proof-chip" id="cfShotDownload" href="${esc(r.href)}" download="${esc(SBWCitations.screenshotFilename(cfTab.url))}">DOWNLOAD PNG</a>
           <button class="proof-chip bare" id="cfShotClose">✕</button>
         </div>
       </div>
@@ -446,7 +467,62 @@ async function runNapCheck() {
   renderResult();
 }
 
+// Full-page proof: scroll and stitch in the popup (src/popup/fullpage-capture.js).
 async function runScreenshot() {
+  if (cfShotAbort) cfShotAbort.abort();
+  const controller = new AbortController();
+  cfShotAbort = controller;
+  const tab = cfTab;
+
+  const showProgress = label => {
+    if (cfShotAbort !== controller) return;
+    cfResult = { kind: 'loading', label, onCancel: () => controller.abort() };
+    renderResult();
+  };
+  showProgress('Measuring the page…');
+
+  try {
+    const shot = await SBWFullPageCapture.captureFullPage({
+      tabId: tab.id,
+      windowId: tab.windowId,
+      inject: () => chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content/page-scroller.js'] }),
+      send: msg => chrome.tabs.sendMessage(tab.id, msg),
+      capture: windowId => chrome.tabs.captureVisibleTab(windowId, { format: 'png' }),
+      getActiveTabId: async windowId => {
+        const [active] = await chrome.tabs.query({ active: true, windowId });
+        return active ? active.id : null;
+      },
+      draw: SBWFullPageCapture.canvasDrawer(document),
+      onProgress: (n, total) => showProgress(`Capturing ${n} of ${total}…`),
+      signal: controller.signal
+    });
+    if (cfShotAbort !== controller) return;
+    cfProofUrl = URL.createObjectURL(shot.blob);
+    cfResult = {
+      kind: 'proof',
+      href: cfProofUrl,
+      label: SBWFullPage.describeProof(shot, fmtBytes(shot.blob.size)),
+      downloaded: false
+    };
+    renderResult();
+  } catch (e) {
+    if (cfShotAbort !== controller) return;
+    if (e.code === 'cancelled') { cfResult = null; renderResult(); return; }
+    cfResult = {
+      kind: 'alert', tone: 'error', title: 'CAPTURE FAILED',
+      body: e.message || 'Chrome blocked the capture on this page.',
+      retryVisible: e.code === 'canvas-failed'
+    };
+    renderResult();
+  } finally {
+    if (cfShotAbort === controller) cfShotAbort = null;
+  }
+}
+
+// Visible area only: the pre-1.7 one-frame capture through the service
+// worker's captureScreenshot action.
+async function runVisibleShot() {
+  if (cfShotAbort) { cfShotAbort.abort(); cfShotAbort = null; }
   cfResult = { kind: 'loading', label: 'Capturing proof…' };
   renderResult();
 
@@ -460,7 +536,12 @@ async function runScreenshot() {
   const dims = await imageDims(res.dataUrl);
   const bytes = Math.round((res.dataUrl.length - res.dataUrl.indexOf(',') - 1) * 0.75);
 
-  cfResult = { kind: 'proof', dataUrl: res.dataUrl, w: dims.w, h: dims.h, bytes, downloaded: false };
+  cfResult = {
+    kind: 'proof',
+    href: res.dataUrl,
+    label: SBWFullPage.describeProof({ mode: 'viewport', reason: null, width: dims.w, height: dims.h }, fmtBytes(bytes)),
+    downloaded: false
+  };
   renderResult();
 }
 

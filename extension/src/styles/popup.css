@@ -1456,6 +1456,23 @@ body {
 }
 .cf-card.loading-card { border-color: var(--hairline); background: rgba(var(--ink-rgb), 0.04); padding: 14px; }
 
+/* "Visible area only": the one-frame proof, under the SCREENSHOT / REPORT tiles */
+.cf-shot-visible {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--paper-50);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 0 0 1px;
+  cursor: pointer;
+}
+.cf-shot-visible:hover { color: var(--ink); border-bottom-color: var(--pink); }
+.loading-card #cfLoadCancel { margin-top: 10px; }
+.cf-retry-visible { margin-top: 8px; }
+
 /* NAP result */
 .nap-head { display: flex; align-items: center; gap: 13px; padding: 12px 13px; background: var(--pink-08); }
 .nap-head .ring { width: 56px; height: 56px; }
