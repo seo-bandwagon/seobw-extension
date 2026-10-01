@@ -197,11 +197,12 @@ describe('captureFullPage', () => {
     h.deps.capture = async w => {
       calls++;
       if (calls === 1) throw new Error(RATE_LIMIT);
-      active = 9;  // Switch tab before retry
       return capture(w);
     };
+    const origSleep = h.deps.sleep;
+    h.deps.sleep = async ms => { await origSleep(ms); if (ms === 1000) active = 9; };
     await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'tab-changed' });
-    expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
+    expect(calls).toBe(1);  // Retry capture never ran, stopped by beforeCapture
   });
 
   it('a cancel during the last frame returns no result', async () => {
