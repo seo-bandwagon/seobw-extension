@@ -129,4 +129,31 @@ describe('page-scroller', () => {
     expect(await call('fpRestore')).toEqual({ ok: true });
     expect(window.scrollTo).not.toHaveBeenCalled();
   });
+
+  it('fpScrollTo before any fpPrepare replies with error and does not scroll', async () => {
+    const reply = await call('fpScrollTo', { y: 720 });
+    expect(reply).toEqual({ error: 'not-prepared' });
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('after fpPrepare, fpScrollTo once the watchdog has fired replies with error and does not scroll', async () => {
+    await call('fpPrepare');
+    await vi.advanceTimersByTimeAsync(5000);
+    window.scrollTo.mockClear();
+    const reply = await call('fpScrollTo', { y: 720 });
+    expect(reply).toEqual({ error: 'not-prepared' });
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('if fpRestore arrives before fpScrollTo settles, no stray watchdog restores the page', async () => {
+    await call('fpPrepare');
+    const scrollReply = call('fpScrollTo', { y: 360 });
+    await vi.advanceTimersByTimeAsync(100);
+    await call('fpRestore');
+    window.scrollTo.mockClear();
+    await vi.advanceTimersByTimeAsync(100);
+    await scrollReply;
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
 });

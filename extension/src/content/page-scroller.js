@@ -114,8 +114,12 @@
         return false;
       }
       case 'fpScrollTo':
+        if (!saved) {
+          sendResponse({ error: 'not-prepared' });
+          return false;
+        }
         arm();
-        scrollToY(msg.y).then(reply => { arm(); sendResponse(reply); });
+        scrollToY(msg.y).then(reply => { if (saved) arm(); sendResponse(reply); });
         return true;
       case 'fpHideFixed':
         arm();
