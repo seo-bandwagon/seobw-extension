@@ -21,7 +21,7 @@ Semantic-ish, three digits, driven by what the user would notice:
 - **Every PR that changes what ships bumps the version.** "What ships" is
   anything under `extension/` except Markdown. A fix or small edit bumps the
   patch digit (1.6.0 → 1.6.1); only a feature from the feature list below bumps
-  the minor. Stay on 1.6.x until a v1.7 feature lands.
+  the minor. Stay on 1.7.x until the next feature from that list lands (1.8.0).
 - **Bump with `npm run bump -- patch`** (or `minor`, or an explicit `x.y.z`). It
   writes `extension/manifest.json` (`version` and the number leading
   `version_name`), `package.json`, `package-lock.json` and the "Current version"
@@ -36,7 +36,7 @@ Semantic-ish, three digits, driven by what the user would notice:
 - The popup footer and side panel header read the version via
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
-- Tag each version submitted to the store: `git tag v1.6.1 <merge commit>`.
+- Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
 
 ---
 
@@ -395,7 +395,7 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.6.1 (Sep 2026)
+## Where we are — v1.7.0 (Oct 2026)
 
 - **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
   preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings (with outline export),
@@ -416,7 +416,8 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   `src/popup/structured-data.js`, `src/lib/structured-data.js`, `src/lib/credits.js`.
 - **Citations tab** — directory takeover header (40 curated directories
   auto-detected), client-side NAP extraction (JSON-LD → microdata → heuristic)
-  and weighted match scoring, proof screenshot capture (local download only),
+  and weighted match scoring, proof screenshot capture (full page by default, with a visible-area
+  option; local download only),
   one-click citation filing against the SEO Bandwagon API.
   `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`.
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
@@ -489,14 +490,13 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 All six shipped in v1.6.0: SERP overlay (with export and the location
 simulator), broken-link checker, redirect tracer + headers (Indexability panel),
 and hreflang return-tag validation. See "Changelog — v1.6.0" and "Where we are —
-v1.6.1" above.
+v1.7.0" above.
 
 ## v1.7 — feature candidates
 
-The next minor. 1.7.0 ships when one of these lands; until then everything is a
-1.6.x patch.
-
-Shipped in 1.7.0: full-page proof screenshots.
+1.7.0 shipped the first of these, full-page proof screenshots. The rest are
+candidates for the next minor (1.8.0); until one lands, everything is a 1.7.x
+patch.
 
 - **Search Console row actions, account-backed** — "add this keyword to my rank
   tracker" on the Queries tab and "send this page to my captures" on the Pages
