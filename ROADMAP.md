@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.6.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,32 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.6.1 <merge commit>`.
+
+---
+
+## Changelog — v1.7.0 (2026-10-01)
+
+The first feature minor since 1.6.0.
+
+- **Full-page proof screenshots.** The Citations tab's SCREENSHOT tile now
+  scrolls the page and stitches every frame into one PNG, instead of saving only
+  what is on screen; "Visible area only" keeps the old one-frame capture. Three
+  new modules: `src/lib/fullpage-plan.js` (the frame planner and the proof
+  label), `src/content/page-scroller.js` (injected on demand to measure and
+  scroll the page, hide fixed and sticky elements after the first frame, and put
+  everything back) and `src/popup/fullpage-capture.js` (the capture loop, with
+  progress, Cancel and a tab check before every frame). The proof stays a local
+  PNG download; nothing is uploaded.
+- **No permission change.** The page helper is injected with the existing
+  `activeTab` + `scripting`; no new permission, host permission or content-script
+  match, and the service worker is unchanged.
+- **Limits, stated honestly.** Chrome allows two screenshots a second, so frames
+  are spaced at least 550 ms apart, with one retry after a second on the
+  rate-limit error. The stitched image is capped at 32,767 px tall and 100M
+  pixels in all; a taller page is captured from the top and labelled
+  `FULL PAGE · first N of M px`, and a page too large to stitch offers "Capture
+  visible area instead". A page that scrolls inside a panel is labelled
+  `VIEWPORT · page scrolls inside a panel`, not passed off as full page.
 
 ---
 
@@ -470,6 +496,8 @@ v1.6.1" above.
 The next minor. 1.7.0 ships when one of these lands; until then everything is a
 1.6.x patch.
 
+Shipped in 1.7.0: full-page proof screenshots.
+
 - **Search Console row actions, account-backed** — "add this keyword to my rank
   tracker" on the Queries tab and "send this page to my captures" on the Pages
   tab, shown only with an API key connected and data collection on. Needs a new
@@ -477,8 +505,6 @@ The next minor. 1.7.0 ships when one of these lands; until then everything is a
   data-use disclosure change; planned 2026-09-10, not started.
 - **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
   CitationForge backend (SEOquake gets this from Semrush)
-- **Full-page screenshot stitching** — scroll-and-stitch capture to replace
-  viewport-only proof (see DESIGN-GAPS)
 - **Citation remediation flow** — the `FIX ON THIS SITE` concept from the design
   mockups: corrected-NAP copy block + deep link to each directory's edit page
 - **Citation delete/undo endpoint** — enables the `Undo` affordance from mockups

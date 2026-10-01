@@ -1,6 +1,6 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "description": "Instant SEO analysis: scores, meta tags, headings, schema, links, and tech stack detection. Dev tooling only \u2014 the extension itself ships as extension/ (manifest.json + lib/ + src/, no build step).",
   "scripts": {
