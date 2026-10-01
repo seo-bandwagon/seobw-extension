@@ -25,7 +25,7 @@ says so (`VIEWPORT · W×H · size`). The design mockup (1n) asked for
 
 ### 1. `src/lib/fullpage-plan.js` — pure planning (dual export, `globalThis.SBWFullPage`)
 
-`planCapture({ scrollHeight, viewportWidth, viewportHeight, dpr, maxCanvasPx = 32767, maxPixels = 100_000_000 })`
+`planCapture({ scrollHeight, viewportWidth, viewportHeight, dpr, innerScroll = false, maxCanvasPx = 32767, maxPixels = 100_000_000 })`
 returns:
 
 ```js
@@ -47,8 +47,7 @@ returns:
   `srcY` crops the rows the previous frame already drew.
 - Rounding is computed from CSS px once per frame and carried in output px, so
   frames abut with no 1px gap or overlap at fractional `dpr` (1.25, 1.5).
-- `mode: 'viewport', reason: 'inner-scroll'` when
-  `scrollHeight <= viewportHeight + 2`.
+- When `scrollHeight <= viewportHeight + 2`: if an inner element scrolls (`innerScroll` from `fpPrepare`), `mode: 'viewport', reason: 'inner-scroll'`; otherwise the page simply fits, and the result is a one-frame `mode: 'fullpage'` of `viewportHeight`.
 
 ### 2. `src/content/page-scroller.js` — injected on demand (like `nap-extractor.js`)
 
@@ -57,7 +56,7 @@ It answers `chrome.runtime.onMessage` actions:
 
 | Action | Does | Returns |
 |---|---|---|
-| `fpPrepare` | Saves `scrollX/Y` and the inline `scroll-behavior` of `html` and `body`, sets both to `auto`, and measures | `{ scrollHeight, viewportWidth, viewportHeight, dpr }` (`scrollHeight` = max of `documentElement.scrollHeight` and `body.scrollHeight`; viewport = `documentElement.clientWidth/innerHeight`) |
+| `fpPrepare` | Saves `scrollX/Y` and the inline `scroll-behavior` of `html` and `body`, sets both to `auto`, and measures | `{ scrollHeight, viewportWidth, viewportHeight, dpr, innerScroll }` (`scrollHeight` = max of `documentElement.scrollHeight` and `body.scrollHeight`; viewport = `documentElement.clientWidth/innerHeight`; `innerScroll` = true when some element at least half the window tall has `overflow-y: auto\|scroll` and more content than it shows) |
 | `fpScrollTo` `{ y }` | `scrollTo(0, y)`, waits two animation frames plus 150 ms for lazy content to settle | `{ scrollY }` actually reached |
 | `fpHideFixed` | Finds elements with computed `position` `fixed` or `sticky` that are visible, saves their inline `visibility` (value and priority), and sets `visibility: hidden !important` | `{ hidden: n }` |
 | `fpRestore` | Puts back every saved inline style and the scroll position; clears the watchdog | `{ ok: true }` |
