@@ -35,7 +35,7 @@
 
   function hasInnerScroller() {
     const minHeight = window.innerHeight * 0.5;
-    for (const el of document.querySelectorAll('body *')) {
+    for (const el of document.querySelectorAll('body, body *')) {
       if (el.clientHeight < minHeight || el.scrollHeight <= el.clientHeight + 2) continue;
       const overflowY = getComputedStyle(el).overflowY;
       if (overflowY === 'auto' || overflowY === 'scroll') return true;
@@ -52,10 +52,12 @@
       el.style.setProperty('scroll-behavior', 'auto', 'important');
     }
     const de = document.documentElement;
+    const se = document.scrollingElement || de;
     return {
-      scrollHeight: Math.max(de.scrollHeight, document.body ? document.body.scrollHeight : 0),
+      scrollHeight: Math.max(se.scrollHeight, de.scrollHeight),
       viewportWidth: de.clientWidth || window.innerWidth,
-      viewportHeight: window.innerHeight,
+      // clientHeight leaves out a horizontal scrollbar, which a screenshot doesn't show.
+      viewportHeight: se.clientHeight || window.innerHeight,
       dpr: window.devicePixelRatio || 1,
       innerScroll: hasInnerScroller()
     };

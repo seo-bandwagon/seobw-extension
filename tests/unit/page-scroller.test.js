@@ -69,6 +69,15 @@ describe('page-scroller', () => {
     expect((await call('fpPrepare')).innerScroll).toBe(true);
   });
 
+  it('reports innerScroll when the body itself is the scroller', async () => {
+    document.body.style.overflowY = 'auto';
+    Object.defineProperty(document.body, 'clientHeight', { configurable: true, value: window.innerHeight });
+    Object.defineProperty(document.body, 'scrollHeight', { configurable: true, value: window.innerHeight * 3 });
+    expect((await call('fpPrepare')).innerScroll).toBe(true);
+    delete document.body.clientHeight;
+    delete document.body.scrollHeight;
+  });
+
   it('scrolls, waits for the page to settle, and reports where it landed', async () => {
     await call('fpPrepare');
     const reply = call('fpScrollTo', { y: 720 });

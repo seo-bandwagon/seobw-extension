@@ -103,8 +103,12 @@
         onProgress(i + 1, p.frames.length);
         const scrollReply = await send({ action: 'fpScrollTo', y: frame.scrollY });
         if (!scrollReply || typeof scrollReply.scrollY !== 'number') throw captureError('capture-failed', 'The page was reset during capture.');
-        // Keep sticky headers in the first frame only.
-        if (i === 1) await send({ action: 'fpHideFixed' });
+        if (Math.abs(scrollReply.scrollY - frame.scrollY) > 1) {
+          throw captureError('capture-failed', "The page didn't scroll as expected, so a full-page image would repeat itself. Try the visible area instead.");
+        }
+        // Keep sticky headers in the first frame only. Hide again before each later
+        // frame: some headers only turn fixed after a scroll threshold (idempotent).
+        if (i >= 1) await send({ action: 'fpHideFixed' });
         checkCancelled();
         const wait = lastShot + MIN_GAP_MS - now();
         if (wait > 0) await sleep(wait);
@@ -158,6 +162,9 @@
         canvas.height = height;
         ctx = canvas.getContext('2d');
         if (!ctx || canvas.width !== width || canvas.height !== height) throw new Error('canvas unavailable');
+        // White underneath, so a rounding seam is white rather than transparent.
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
       },
       async frame(dataUrl, f) {
         const img = await loadImage(doc, dataUrl);
@@ -167,7 +174,12 @@
       },
       finish() {
         return new Promise((resolve, reject) => {
-          canvas.toBlob(b => (b ? resolve(b) : reject(new Error('PNG encode failed'))), 'image/png');
+          canvas.toBlob(b => {
+            // Free the backing store (it can be ~100 MP) before anything else runs.
+            canvas.width = 0;
+            canvas.height = 0;
+            if (b) resolve(b); else reject(new Error('PNG encode failed'));
+          }, 'image/png');
         });
       }
     };

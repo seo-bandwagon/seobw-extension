@@ -526,7 +526,7 @@ async function runScreenshot() {
     cfResult = {
       kind: 'alert', tone: 'error', title: 'CAPTURE FAILED',
       body: e.message || 'Chrome blocked the capture on this page.',
-      retryVisible: e.code === 'canvas-failed'
+      retryVisible: e.code === 'canvas-failed' || e.code === 'capture-failed'
     };
     renderResult();
   } finally {

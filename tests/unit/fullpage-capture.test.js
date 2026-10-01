@@ -41,14 +41,14 @@ function harness(over = {}) {
 }
 
 describe('captureFullPage', () => {
-  it('scrolls, hides fixed elements once, captures, draws and restores in order', async () => {
+  it('scrolls, hides fixed elements before every frame from the second, captures, draws and restores in order', async () => {
     const h = harness();
     const result = await captureFullPage(h.deps);
     expect(h.log).toEqual([
       'inject', 'fpPrepare', 'begin:1280x2000',
       'progress:1/3', 'fpScrollTo:0', 'capture', 'draw:0',
       'progress:2/3', 'fpScrollTo:720', 'fpHideFixed', 'capture', 'draw:720',
-      'progress:3/3', 'fpScrollTo:1280', 'capture', 'draw:1440',
+      'progress:3/3', 'fpScrollTo:1280', 'fpHideFixed', 'capture', 'draw:1440',
       'fpRestore', 'finish'
     ]);
     expect(result).toMatchObject({
@@ -176,6 +176,19 @@ describe('captureFullPage', () => {
     await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'capture-failed', message: 'The page was reset during capture.' });
     expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
     expect(h.log).toContain('fpRestore');
+  });
+
+  it('stops with an honest error when the page never scrolls, instead of repeating the top screen', async () => {
+    const h = harness();
+    const send = h.deps.send;
+    h.deps.send = async msg => (msg.action === 'fpScrollTo' ? (h.log.push(`fpScrollTo:${msg.y}`), { scrollY: 0 }) : send(msg));
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({
+      code: 'capture-failed',
+      message: "The page didn't scroll as expected, so a full-page image would repeat itself. Try the visible area instead."
+    });
+    expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
+    expect(h.log).toContain('fpRestore');
+    expect(h.log).not.toContain('finish');
   });
 
   it('checks the active tab after the spacing wait, right before capturing', async () => {
