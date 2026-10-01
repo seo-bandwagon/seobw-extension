@@ -152,6 +152,8 @@ function makeShot(w = 320, h = 220) {
   return c.toDataURL('image/png');
 }
 const SHOT = makeShot();
+// One screen of a 1280×720 window, the frame the full-page proof stitches.
+const SHOT_FRAME = makeShot(1280, 720);
 
 /* ---------- chrome API stub ---------- */
 
@@ -532,7 +534,11 @@ window.chrome = {
       return new Promise(resolve => setTimeout(() => { if (cb) cb(r); resolve(r); }, 0));
     },
     create(o) { console.log('[preview] would open', o.url); },
-    captureVisibleTab(_, __, cb) { cb(SHOT); },
+    // The popup's full-page proof calls this promise-style (no callback).
+    captureVisibleTab(_, __, cb) {
+      if (cb) { cb(SHOT); return; }
+      return new Promise(resolve => setTimeout(() => resolve(SHOT_FRAME), 0));
+    },
     // indexability.js's "Reload to capture" button (Task 2) — a real reload
     // would eventually fire webNavigation.onCompleted and re-fetch the
     // chain, but nothing in this offline harness ever navigates, so this is
@@ -590,6 +596,12 @@ window.chrome = {
 function handleMessage(msg) {
   switch (msg.action) {
     case 'captureScreenshot': return { ok: true, dataUrl: SHOT };
+    // src/content/page-scroller.js, driven by the full-page proof: a
+    // 1,800px page in a 1280×720 window → three frames.
+    case 'fpPrepare': return { scrollHeight: 1800, viewportWidth: 1280, viewportHeight: 720, dpr: 1, innerScroll: false };
+    case 'fpScrollTo': return { scrollY: msg.y };
+    case 'fpHideFixed': return { hidden: 1 };
+    case 'fpRestore': return { ok: true };
     case 'checkDirectory': return { match: matchDirectory(msg.url) };
     case 'extractNap':
       if (PREVIEW_STATE === 'nap-error') return { error: 'No NAP block found on this page.' };
@@ -884,6 +896,24 @@ window.addEventListener('DOMContentLoaded', () => {
         break;
       case 'proof':
         document.getElementById('cfShot')?.click();
+        break;
+      case 'proof-visible':
+        document.getElementById('cfShotVisible')?.click();
+        break;
+      case 'proof-capturing':
+        cfShowResult({ kind: 'loading', label: 'Capturing 3 of 9…', onCancel() {} });
+        break;
+      case 'proof-truncated':
+        cfShowResult({ kind: 'proof', href: SHOT, downloaded: false, label: SBWFullPage.describeProof(
+          { mode: 'fullpage', reason: null, width: 2560, height: 32766, truncated: true, capturedCssHeight: 16383, pageHeight: 41200 }, '9.4 MB') });
+        break;
+      case 'proof-panel':
+        cfShowResult({ kind: 'proof', href: SHOT, downloaded: false, label: SBWFullPage.describeProof(
+          { mode: 'viewport', reason: 'inner-scroll', width: 1280, height: 720 }, '214 KB') });
+        break;
+      case 'proof-canvas-failed':
+        cfShowResult({ kind: 'alert', tone: 'error', title: 'CAPTURE FAILED',
+          body: 'This page is too large to stitch into one image in this browser.', retryVisible: true });
         break;
       case 'nap-loading':
         window.cfResult = { kind: 'loading', label: 'Reading listing…' };

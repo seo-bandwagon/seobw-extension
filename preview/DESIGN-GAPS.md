@@ -19,8 +19,7 @@ There is no citation-delete endpoint, and no concept of filing *into a named cam
 
 ### Full-page capture (1n: `FULL PAGE · 1440×2100`)
 `chrome.tabs.captureVisibleTab` only captures the **visible viewport**. Full-page needs scroll-and-stitch, which is a real feature, not a label change.
-**Shipped instead:** honest `VIEWPORT · 1280×720 · 214 KB`.
-**Needs decision:** build scroll-stitching, or keep viewport capture and design the label around it.
+**Shipped in 1.7.0:** scroll-and-stitch in the popup, full page by default with a "Visible area only" option; pages taller than Chrome's image limit are captured from the top and labelled "first N of M px".
 
 ### `ATTACH TO REPORT` (1n)
 Wired: it saves the screenshot, then files a citation carrying `screenshot_url`. But the mockup implies attaching to an *existing* report/campaign, which doesn't exist as a concept.

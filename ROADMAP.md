@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.6.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -21,7 +21,7 @@ Semantic-ish, three digits, driven by what the user would notice:
 - **Every PR that changes what ships bumps the version.** "What ships" is
   anything under `extension/` except Markdown. A fix or small edit bumps the
   patch digit (1.6.0 → 1.6.1); only a feature from the feature list below bumps
-  the minor. Stay on 1.6.x until a v1.7 feature lands.
+  the minor. Stay on 1.7.x until the next feature from that list lands (1.8.0).
 - **Bump with `npm run bump -- patch`** (or `minor`, or an explicit `x.y.z`). It
   writes `extension/manifest.json` (`version` and the number leading
   `version_name`), `package.json`, `package-lock.json` and the "Current version"
@@ -36,7 +36,33 @@ Semantic-ish, three digits, driven by what the user would notice:
 - The popup footer and side panel header read the version via
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
-- Tag each version submitted to the store: `git tag v1.6.1 <merge commit>`.
+- Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.0 (2026-10-01)
+
+The first feature minor since 1.6.0.
+
+- **Full-page proof screenshots.** The Citations tab's SCREENSHOT tile now
+  scrolls the page and stitches every frame into one PNG, instead of saving only
+  what is on screen; "Visible area only" keeps the old one-frame capture. Three
+  new modules: `src/lib/fullpage-plan.js` (the frame planner and the proof
+  label), `src/content/page-scroller.js` (injected on demand to measure and
+  scroll the page, hide fixed and sticky elements after the first frame, and put
+  everything back) and `src/popup/fullpage-capture.js` (the capture loop, with
+  progress, Cancel and a tab check before every frame). The proof stays a local
+  PNG download; nothing is uploaded.
+- **No permission change.** The page helper is injected with the existing
+  `activeTab` + `scripting`; no new permission, host permission or content-script
+  match, and the service worker is unchanged.
+- **Limits, stated honestly.** Chrome allows two screenshots a second, so frames
+  are spaced at least 550 ms apart, with one retry after a second on the
+  rate-limit error. The stitched image is capped at 32,767 px tall and 100M
+  pixels in all; a taller page is captured from the top and labelled
+  `FULL PAGE · first N of M px`, and a page too large to stitch offers "Capture
+  visible area instead". A page that scrolls inside a panel is labelled
+  `VIEWPORT · page scrolls inside a panel`, not passed off as full page.
 
 ---
 
@@ -369,7 +395,7 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.6.1 (Sep 2026)
+## Where we are — v1.7.0 (Oct 2026)
 
 - **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
   preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings (with outline export),
@@ -390,7 +416,8 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   `src/popup/structured-data.js`, `src/lib/structured-data.js`, `src/lib/credits.js`.
 - **Citations tab** — directory takeover header (40 curated directories
   auto-detected), client-side NAP extraction (JSON-LD → microdata → heuristic)
-  and weighted match scoring, proof screenshot capture (local download only),
+  and weighted match scoring, proof screenshot capture (full page by default, with a visible-area
+  option; local download only),
   one-click citation filing against the SEO Bandwagon API.
   `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`.
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
@@ -446,7 +473,7 @@ and export, location simulator) were the v1.6 candidates and all closed in
 
 ---
 
-## v1.6.x — maintenance lane (patch bumps)
+## Maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 
@@ -463,12 +490,13 @@ Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 All six shipped in v1.6.0: SERP overlay (with export and the location
 simulator), broken-link checker, redirect tracer + headers (Indexability panel),
 and hreflang return-tag validation. See "Changelog — v1.6.0" and "Where we are —
-v1.6.1" above.
+v1.7.0" above.
 
 ## v1.7 — feature candidates
 
-The next minor. 1.7.0 ships when one of these lands; until then everything is a
-1.6.x patch.
+1.7.0 shipped the first of these, full-page proof screenshots. The rest are
+candidates for the next minor (1.8.0); until one lands, everything is a 1.7.x
+patch.
 
 - **Search Console row actions, account-backed** — "add this keyword to my rank
   tracker" on the Queries tab and "send this page to my captures" on the Pages
@@ -477,8 +505,6 @@ The next minor. 1.7.0 ships when one of these lands; until then everything is a
   data-use disclosure change; planned 2026-09-10, not started.
 - **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
   CitationForge backend (SEOquake gets this from Semrush)
-- **Full-page screenshot stitching** — scroll-and-stitch capture to replace
-  viewport-only proof (see DESIGN-GAPS)
 - **Citation remediation flow** — the `FIX ON THIS SITE` concept from the design
   mockups: corrected-NAP copy block + deep link to each directory's edit page
 - **Citation delete/undo endpoint** — enables the `Undo` affordance from mockups
