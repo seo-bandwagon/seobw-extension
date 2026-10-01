@@ -62,15 +62,24 @@
       try { await send({ action: 'fpRestore' }); } catch (_) { /* the helper's watchdog restores the page */ }
     }
 
+    async function beforeCapture() {
+      checkCancelled();
+      if ((await getActiveTabId(windowId)) !== tabId) throw captureError('tab-changed');
+    }
+
     async function captureWithRetry() {
       try {
+        await beforeCapture();
         return await capture(windowId);
       } catch (e) {
+        if (e && e.code) throw e;  // Re-throw tab-changed and cancelled
         if (!RATE_LIMIT_RE.test(String(e && e.message))) throw captureError('capture-failed', e && e.message);
         await sleep(RATE_LIMIT_WAIT_MS);
         try {
+          await beforeCapture();
           return await capture(windowId);
         } catch (e2) {
+          if (e2 && e2.code) throw e2;  // Re-throw tab-changed and cancelled
           throw captureError('capture-failed', e2 && e2.message);
         }
       }
@@ -97,15 +106,15 @@
         // Keep sticky headers in the first frame only.
         if (i === 1) await send({ action: 'fpHideFixed' });
         checkCancelled();
-        // captureVisibleTab shoots whatever tab is active; never stitch in another tab.
-        if ((await getActiveTabId(windowId)) !== tabId) throw captureError('tab-changed');
         const wait = lastShot + MIN_GAP_MS - now();
         if (wait > 0) await sleep(wait);
-        checkCancelled();
         const dataUrl = await captureWithRetry();
         lastShot = now();
         try { await draw.frame(dataUrl, frame); } catch (_) { throw captureError('canvas-failed'); }
       }
+
+      // Cancel during the last frame should not return a result.
+      checkCancelled();
 
       // Give the page back before the (slow) PNG encode.
       await restore();

@@ -177,4 +177,43 @@ describe('captureFullPage', () => {
     expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
     expect(h.log).toContain('fpRestore');
   });
+
+  it('checks the active tab after the spacing wait, right before capturing', async () => {
+    const h = harness();
+    let active = 7;
+    h.deps.getActiveTabId = async () => active;
+    const origSleep = h.deps.sleep;
+    h.deps.sleep = async ms => { await origSleep(ms); active = 9; };
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'tab-changed' });
+    expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
+  });
+
+  it('checks the active tab again before the rate-limit retry', async () => {
+    const h = harness();
+    let active = 7;
+    h.deps.getActiveTabId = async () => active;
+    let calls = 0;
+    const capture = h.deps.capture;
+    h.deps.capture = async w => {
+      calls++;
+      if (calls === 1) throw new Error(RATE_LIMIT);
+      active = 9;  // Switch tab before retry
+      return capture(w);
+    };
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'tab-changed' });
+    expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
+  });
+
+  it('a cancel during the last frame returns no result', async () => {
+    const controller = new AbortController();
+    const h = harness({ signal: controller.signal });
+    const origFrame = h.deps.draw.frame;
+    h.deps.draw.frame = async (dataUrl, f) => {
+      if (f.destY === 1440) controller.abort();  // Last frame for METRICS (1280x2000)
+      return origFrame(dataUrl, f);
+    };
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'cancelled' });
+    expect(h.log).toContain('fpRestore');
+    expect(h.log).not.toContain('finish');
+  });
 });
