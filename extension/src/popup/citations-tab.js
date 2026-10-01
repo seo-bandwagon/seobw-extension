@@ -10,6 +10,8 @@ let cfResult = null;       // { kind: 'loading'|'nap'|'proof'|'alert', ... }
 let cfRecent = [];         // recent citations for the idle panel
 let cfProofUrl = null;     // blob: URL of the current full-page proof; revoked when the result changes
 let cfShotAbort = null;    // AbortController of a running full-page capture
+let cfShotRun = null;      // promise of the running full-page capture; settles after the page is restored
+let cfShotSeq = 0;         // bumped by each capture request, so a request that waited on a stop can tell it was superseded
 
 const CF_STORE_KEY = 'cfSelectedBusiness';
 
@@ -467,9 +469,19 @@ async function runNapCheck() {
   renderResult();
 }
 
+// Abort a running full-page capture and wait until it has put the page back.
+async function stopFullPageShot() {
+  if (cfShotAbort) { cfShotAbort.abort(); cfShotAbort = null; }
+  // Wait even when another request already aborted it: the page is only back
+  // once the run has settled.
+  try { await cfShotRun; } catch (_) { /* its own catch already handled the UI */ }
+}
+
 // Full-page proof: scroll and stitch in the popup (src/popup/fullpage-capture.js).
 async function runScreenshot() {
-  if (cfShotAbort) cfShotAbort.abort();
+  const seq = ++cfShotSeq;
+  await stopFullPageShot();
+  if (seq !== cfShotSeq) return;   // a newer capture request took over while we waited
   const controller = new AbortController();
   cfShotAbort = controller;
   const tab = cfTab;
@@ -481,8 +493,9 @@ async function runScreenshot() {
   };
   showProgress('Measuring the page…');
 
+  let run = null;
   try {
-    const shot = await SBWFullPageCapture.captureFullPage({
+    cfShotRun = SBWFullPageCapture.captureFullPage({
       tabId: tab.id,
       windowId: tab.windowId,
       inject: () => chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content/page-scroller.js'] }),
@@ -496,6 +509,8 @@ async function runScreenshot() {
       onProgress: (n, total) => showProgress(`Capturing ${n} of ${total}…`),
       signal: controller.signal
     });
+    run = cfShotRun;
+    const shot = await run;
     if (cfShotAbort !== controller) return;
     cfProofUrl = URL.createObjectURL(shot.blob);
     cfResult = {
@@ -516,13 +531,16 @@ async function runScreenshot() {
     renderResult();
   } finally {
     if (cfShotAbort === controller) cfShotAbort = null;
+    if (cfShotRun === run) cfShotRun = null;
   }
 }
 
 // Visible area only: the pre-1.7 one-frame capture through the service
 // worker's captureScreenshot action.
 async function runVisibleShot() {
-  if (cfShotAbort) { cfShotAbort.abort(); cfShotAbort = null; }
+  const seq = ++cfShotSeq;
+  await stopFullPageShot();
+  if (seq !== cfShotSeq) return;
   cfResult = { kind: 'loading', label: 'Capturing proof…' };
   renderResult();
 
