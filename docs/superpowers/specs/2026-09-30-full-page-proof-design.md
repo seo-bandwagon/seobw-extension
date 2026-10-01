@@ -43,7 +43,7 @@ returns:
 
 - The cap is the lower of `maxCanvasPx` and `floor(maxPixels / width)`, in output px.
 - Each frame scrolls to `k * viewportHeight`. The last frame scrolls to
-  `min(k * viewportHeight, capturedCssHeight - viewportHeight)`, and its
+  `min(k * viewportHeight, pageHeight - viewportHeight)`, and its
   `srcY` crops the rows the previous frame already drew.
 - Rounding is computed from CSS px once per frame and carried in output px, so
   frames abut with no 1px gap or overlap at fractional `dpr` (1.25, 1.5).
@@ -76,12 +76,11 @@ runs `fpRestore` itself. That covers the popup closing mid-capture.
   1. Inject `page-scroller.js` and send `fpPrepare`.
   2. Build the plan with `planCapture`. If `mode === 'viewport'`, take one capture and finish.
   3. For each frame:
-     1. Scroll with `fpScrollTo`.
-     2. Before the second frame only, send `fpHideFixed`.
+     1. Report `onProgress(i + 1, frames.length)` (this fires before the frame is captured), then scroll with `fpScrollTo`.
+     2. Before every frame from the second, send `fpHideFixed` (idempotent: already-hidden elements are skipped, and it catches headers that only turn fixed after a scroll threshold).
      3. Confirm `getActiveTabId(windowId) === tabId`. If not, abort with `tab-changed`.
      4. Wait until at least **550 ms** have passed since the last capture.
      5. Capture and draw.
-     6. Report `onProgress(i + 1, frames.length)`.
   4. Always send `fpRestore`, in a `finally` block.
 - **Rate limit:** on an error containing `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`,
   wait 1 s and retry once. A second failure aborts.
@@ -137,7 +136,7 @@ The new content script is injected with `chrome.scripting.executeScript`
   - the watchdog restores after 5 s of silence, with fake timers
   - a double injection is harmless
 - **`tests/unit/fullpage-capture.test.js`:**
-  - call order (scroll → hide once → capture)
+  - call order (scroll → hide before every frame from the second → capture)
   - 550 ms spacing, with fake timers
   - one retry on the rate-limit error
   - `tab-changed` abort

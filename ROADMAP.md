@@ -473,7 +473,7 @@ and export, location simulator) were the v1.6 candidates and all closed in
 
 ---
 
-## v1.6.x — maintenance lane (patch bumps)
+## Maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 

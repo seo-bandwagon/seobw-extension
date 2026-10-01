@@ -96,7 +96,7 @@ For each URL below, click the extension icon and confirm the popup shows a grace
 - [ ] A PDF rendered in Chrome (any public PDF URL)
 - [ ] A page with a very long title (e.g. some Wikipedia article pages)
 
-### 8. 1.6.x surfaces
+### 8. 1.6.x and 1.7 surfaces
 
 On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 
