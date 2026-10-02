@@ -60,7 +60,7 @@ export function bumpVersion(current, level) {
 /**
  * Does this set of changed paths need a version bump? Anything under
  * extension/ ships in the zip, except Markdown, which the zip never reads.
- * Docs, tests, preview/, scripts/ and themes/ do not ship in the extension.
+ * Docs, tests, preview/ and scripts/ do not ship in the extension.
  */
 export function needsBump(changedPaths) {
   return changedPaths.some((p) => p.startsWith('extension/') && !p.endsWith('.md'));

@@ -110,7 +110,7 @@ with it. Fixes since the 1.6.0 bump, and no permission changes:
 
 - **Appearance (2026-09-07)** — Night / Day / Auto for the popup, both side
   panels and Settings, from one stored key. Two matching Chrome themes ship as
-  separate Web Store items from `themes/`.
+  separate Web Store items (now in their own repo, seo-bandwagon/seobw-themes).
 - **Page-checks panel (2026-09-08)** — a second side panel showing the current
   page's checks, opened per tab from the existing panel's footer. No manifest
   change, no new permission. The 14 checks moved to `src/lib/sub-scores.js` so
@@ -325,11 +325,12 @@ match on Google's own results pages.
 
 
 - **Appearance: Night / Day / Auto + two Chrome themes** (`src/lib/theme-mode.js`,
-  `src/styles/popup.css` token blocks, `themes/`). The extension's own pages
+  `src/styles/popup.css` token blocks; the themes moved to their own repo,
+  seo-bandwagon/seobw-themes, on 2026-10-01). The extension's own pages
   follow a stored choice, else the OS setting, via `<html data-theme>`; the
   control sits in the side panel header and on the options page. Two Web Store
-  theme items (Neon Night, Neon Day — `themes/bandwagon-neon-*`, listing text in
-  `themes/store/LISTING.md`) match them. Scoped deliberately: no new-tab
+  theme items (Neon Night, Neon Day — `bandwagon-neon-*`, listing text in
+  `store/LISTING.md`, both in that repo) match them. Scoped deliberately: no new-tab
   override and no `management` permission (the design's fuller 1.7.0 plan);
   the extension cannot tell which theme is installed, so the theme links on
   the options page are the only cross-promotion, and they stay hidden until

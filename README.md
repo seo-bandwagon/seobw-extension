@@ -64,9 +64,9 @@ untouched. Everything it shows comes through `src/lib/sbw-data.js`, the one
 bridge from a themed surface to the product — see `docs/API-INVENTORY.md`.
 
 Two matching **Chrome themes** — SEO Bandwagon Neon Night and Neon Day — ship as
-separate Web Store items from `themes/` (a theme is images and colours only and
-cannot follow the OS setting, so light and dark are two listings; see
-`themes/README.md`). The extension does not detect which theme is installed —
+separate Web Store items from their own repo, [seo-bandwagon/seobw-themes](https://github.com/seo-bandwagon/seobw-themes) (a theme is images and
+colours only and cannot follow the OS setting, so light and dark are two
+listings). The extension does not detect which theme is installed —
 that would need the `management` permission, which it does not ask for — so the
 Appearance control is how you match them. Links to the two listings appear on
 the options page once their Web Store item ids are filled into `THEME_IDS`.
