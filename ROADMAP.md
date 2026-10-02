@@ -24,12 +24,12 @@ Semantic-ish, three digits, driven by what the user would notice:
   the minor. Stay on 1.7.x until the next feature from that list lands (1.8.0).
 - **Bump with `npm run bump -- patch`** (or `minor`, or an explicit `x.y.z`). It
   writes `extension/manifest.json` (`version` and the number leading
-  `version_name`), `package.json`, `package-lock.json` and the "Current version"
-  line above. Then edit `version_name`'s summary, add the
+  `version_name`), `package.json`, `package-lock.json`, the "Current version"
+  line above and the "Version" line at the top of README.md. Then edit `version_name`'s summary, add the
   `CHROMEWEBSTORE.md` Version History row, and add a changelog section here.
 - **CI enforces it.** `scripts/check-version-bump.mjs` fails a pull request that
   changes `extension/` without raising the version, and
-  `tests/unit/version.test.js` fails when the four files disagree or the store
+  `tests/unit/version.test.js` fails when the five files disagree or the store
   file has no row for the current version. Until 2026-09-24 only the manifest
   was bumped; seven PRs after 1.6.0 changed shipped code without a bump, and
   `package.json` / `package-lock.json` had drifted to 1.5.0 / 1.4.0.
