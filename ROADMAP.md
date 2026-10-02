@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,22 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.1 (2026-10-01)
+
+Fixes from the first real-browser check of full-page proof, on a Datanyze
+company page. No permission change.
+
+- **Cookie banners no longer repeat down the proof.** Fixed and sticky elements
+  were hidden after the first frame with `visibility: hidden`, but banners that
+  set `visibility: visible` on their own text still drew it, without its
+  background, over every frame. Hidden elements now also get `opacity: 0`,
+  which nothing inside them can override (`src/content/page-scroller.js`).
+- **No scrollbar strip at each frame's edge.** macOS shows its overlay
+  scrollbar for a moment after every scroll; the page's scrollbar is now hidden
+  (`scrollbar-width: none`) while the capture runs and restored afterwards.
 
 ---
 

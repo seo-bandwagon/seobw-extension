@@ -52,6 +52,11 @@
       el.style.setProperty('scroll-behavior', 'auto', 'important');
     }
     const de = document.documentElement;
+    // macOS shows its overlay scrollbar briefly after every scroll, so it
+    // would land in each frame. Set before measuring: hiding a classic
+    // scrollbar changes the page's width.
+    remember(de, 'scrollbar-width');
+    de.style.setProperty('scrollbar-width', 'none', 'important');
     const se = document.scrollingElement || de;
     return {
       scrollHeight: Math.max(se.scrollHeight, de.scrollHeight),
@@ -86,8 +91,13 @@
       const cs = getComputedStyle(el);
       if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
       if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      // Opacity as well as visibility: a child styled `visibility: visible`
+      // (cookie banners do this) still draws inside a visibility-hidden
+      // parent, but nothing inside an opacity-0 parent can.
       remember(el, 'visibility');
+      remember(el, 'opacity');
       el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('opacity', '0', 'important');
       hidden++;
     }
     return { hidden };

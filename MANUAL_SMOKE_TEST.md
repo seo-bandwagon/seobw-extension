@@ -109,7 +109,7 @@ On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 - [ ] **SERP overlay** — `https://www.google.com/search?q=local+seo`: the stats bar shows, and "Copy results", "Export CSV" and "Copy PAA" work. The CSV includes description, site name and breadcrumb. The location simulator changes the results
 - [ ] **Search Console** (Performance report, on a property you own): row icons ("open in Google", "open in private window") appear on the **Queries** tab only, and disappear when you switch to Pages. With "Compare" dates on, each metric card and changed cell gets a % badge, and nothing else changes
 - [ ] **Appearance** — Auto / Night / Day in Settings changes the popup, both side panels and Settings together
-- [ ] **Full-page proof** — on a directory listing with a sticky header (Yelp or BBB), Citations → SCREENSHOT: progress counts up, the PNG shows the header once with no seams, the page scrolls back to where it was, and the label reads FULL PAGE with the PNG's real size. Cancel mid-capture restores the page. "Visible area only" gives a VIEWPORT proof.
+- [ ] **Full-page proof** — on a directory listing with a sticky header (Yelp or BBB), Citations → SCREENSHOT: progress counts up, the PNG shows the header once with no seams, a cookie banner at most once (in the first screen) and no scrollbar strip at the right edge, the page scrolls back to where it was, and the label reads FULL PAGE with the PNG's real size. Cancel mid-capture restores the page. "Visible area only" gives a VIEWPORT proof.
 
 When a new user-facing feature ships, add its check here in the same PR.
 

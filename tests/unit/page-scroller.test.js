@@ -104,6 +104,40 @@ describe('page-scroller', () => {
     expect(document.getElementById('d').style.visibility).toBe('');
   });
 
+  it('also zeroes the opacity of a hidden element, which a child cannot override', async () => {
+    // Cookie banners set `visibility: visible` on their own children, which
+    // beats the container's `visibility: hidden`: the background vanished but
+    // the text was drawn over every frame. Opacity applies to the whole subtree.
+    document.body.innerHTML = `
+      <div id="banner" style="position: fixed; opacity: 0.95">
+        <p id="text" style="visibility: visible">By clicking "Allow All Cookies"…</p>
+      </div>`;
+    await call('fpPrepare');
+    expect(await call('fpHideFixed')).toEqual({ hidden: 1 });
+    const banner = document.getElementById('banner').style;
+    expect(banner.getPropertyValue('opacity')).toBe('0');
+    expect(banner.getPropertyPriority('opacity')).toBe('important');
+
+    await call('fpRestore');
+    expect(banner.getPropertyValue('opacity')).toBe('0.95');
+    expect(banner.getPropertyPriority('opacity')).toBe('');
+    expect(banner.getPropertyValue('visibility')).toBe('');
+  });
+
+  it('hides the page scrollbar while capturing and puts it back', async () => {
+    // macOS draws its overlay scrollbar for a moment after every scroll, and
+    // it landed in each frame as a grey bar at the right edge.
+    document.documentElement.style.setProperty('scrollbar-width', 'thin');
+    await call('fpPrepare');
+    const de = document.documentElement.style;
+    expect(de.getPropertyValue('scrollbar-width')).toBe('none');
+    expect(de.getPropertyPriority('scrollbar-width')).toBe('important');
+
+    await call('fpRestore');
+    expect(de.getPropertyValue('scrollbar-width')).toBe('thin');
+    expect(de.getPropertyPriority('scrollbar-width')).toBe('');
+  });
+
   it('restores scroll position and every inline style exactly, including !important', async () => {
     scrollY = 300;
     document.documentElement.style.setProperty('scroll-behavior', 'smooth', 'important');
