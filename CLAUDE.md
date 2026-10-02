@@ -11,8 +11,9 @@ for working in the repo.
   exactly those three, so anything placed elsewhere never reaches the store.
 - `preview/` — design harness: the extension's real pages with `stub.js`
   standing in for `chrome.*`. Keep its markup in step when a page changes.
-- `themes/` — the two Chrome theme items (Neon Night / Neon Day), separate store
-  listings, packaged by `npm run zip:themes`.
+- The two Chrome theme items (Neon Night / Neon Day) are not in this repo: they
+  live in seo-bandwagon/seobw-themes. This repo only links to them by store ID
+  (`THEME_IDS` in `src/lib/theme-mode.js`).
 - `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — the
   Playwright canary (weekly + every push to `main`, files an issue on failure).
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only.

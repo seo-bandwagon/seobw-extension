@@ -10,7 +10,7 @@ change, and add a Version History row.
 
 Long-form reviewer text (one paragraph per permission, data-use reasoning,
 reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
-items have their own listing text in `themes/store/LISTING.md`. This file
+items have their own listing text in the seobw-themes repo's `store/LISTING.md`. This file
 summarises both and says where to paste what.
 
 Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Measured on the live store page
@@ -182,8 +182,8 @@ recorded here).
 
 ## Companion items
 
-Two Chrome themes, separate store items, listing text in
-`themes/store/LISTING.md`, packaged by `npm run zip:themes`:
+Two Chrome themes, separate store items, in their own repo, [seo-bandwagon/seobw-themes](https://github.com/seo-bandwagon/seobw-themes): listing
+text in its `store/LISTING.md`, packaged by its `npm run zip`:
 
 | Item | Status | Item ID |
 |------|--------|---------|
@@ -196,7 +196,7 @@ extension's options page shows its theme links from 1.6.0 on.
 **Open on the live listings:** both descriptions were uploaded with the
 placeholder cross-link URLs (`.../detail/ITEM_ID_DAY` and `.../ITEM_ID_NIGHT`)
 still in them, so each theme's "PREFER LIGHT / PREFER DARK" link is dead. Paste
-the corrected blocks from `themes/store/LISTING.md` over the description in each
+the corrected blocks from the seobw-themes repo's `store/LISTING.md` over the description in each
 item's dashboard listing. Re-measured 2026-09-24: both placeholders still live,
 both items at 1.0.0 with 3 users. The corrected blocks also describe the
 extension's 1.6 features (Appearance, Link Check and the rest), which the store

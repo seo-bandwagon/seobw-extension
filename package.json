@@ -14,8 +14,7 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
-    "test:coverage": "vitest run --coverage",
-    "zip:themes": "for t in bandwagon-neon-night bandwagon-neon-day; do (cd themes/$t && rm -f ../../seo-bw-theme-${t#bandwagon-}.zip && zip -qr ../../seo-bw-theme-${t#bandwagon-}.zip manifest.json images -x '*.DS_Store'); done && ls -la seo-bw-theme-*.zip"
+    "test:coverage": "vitest run --coverage"
   },
   "repository": {
     "type": "git",
