@@ -6,7 +6,7 @@
 // Patch for fixes and small edits, minor for a feature from ROADMAP.md's
 // feature list, major almost never (see ROADMAP.md, "Versioning policy").
 // Writes the manifest (version + the number leading version_name),
-// package.json, package-lock.json and ROADMAP.md's "Current version" line.
+// package.json, package-lock.json, ROADMAP.md's "Current version" line and README.md's "Version" line.
 // It does not write the CHROMEWEBSTORE.md Version History row or the ROADMAP
 // changelog — those need words, and tests/unit/version.test.js fails until the
 // history row exists.

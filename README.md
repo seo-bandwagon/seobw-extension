@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.6.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.7.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -389,9 +389,10 @@ Before every Chrome Web Store submission, also walk through [MANUAL_SMOKE_TEST.m
 
 ```bash
 npm run zip        # manifest.json lib/ src/ (from inside extension/) → seo-bw-extension.zip
-npm run check:zip  # same, plus: fails if any file manifest.json/popup.html/options.html/
-                    # history.html/sidepanel.html reference is missing from the zip; deletes
-                    # the zip itself afterward (scripts/check-zip-manifest.mjs)
+npm run check:zip  # same, plus: fails if any file manifest.json or one of the five pages
+                    # (popup, options, history, both side panels, with their module imports)
+                    # references is missing from the zip; deletes the zip afterward
+                    # (scripts/check-zip-manifest.mjs). CI runs it on every pull request.
 npm run bump -- patch   # or minor / x.y.z — see ROADMAP.md's versioning policy
 ```
 

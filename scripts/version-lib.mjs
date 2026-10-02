@@ -1,9 +1,11 @@
 // SEO Bandwagon — version helpers shared by bump-version.mjs,
 // check-version-bump.mjs and tests/unit/version.test.js.
 //
-// The version lives in four places: extension/manifest.json (`version` and the
+// The version lives in five places: extension/manifest.json (`version` and the
 // leading number of `version_name`), package.json, package-lock.json (top level
-// and packages[""]), and the "Current version" line of ROADMAP.md. Until
+// and packages[""]), the "Current version" line of ROADMAP.md, and the
+// "Version" line at the top of README.md (the page GitHub shows; it sat at
+// 1.6.1 through two releases before it was added here on 2026-10-01). Until
 // 2026-09-24 only the manifest was bumped, and package.json / the lockfile sat
 // at 1.5.0 / 1.4.0 while the manifest said 1.6.0. Every writer here edits the
 // text in place (a regex on the one line) rather than re-serialising JSON, so
@@ -20,6 +22,7 @@ export const FILES = {
   pkg: 'package.json',
   lock: 'package-lock.json',
   roadmap: 'ROADMAP.md',
+  readme: 'README.md',
   store: 'CHROMEWEBSTORE.md',
 };
 
@@ -75,6 +78,7 @@ export function readVersions(repo = REPO) {
   const pkg = JSON.parse(read(FILES.pkg, repo));
   const lock = JSON.parse(read(FILES.lock, repo));
   const roadmap = /\*\*Current version: (\d+\.\d+\.\d+)\*\*/.exec(read(FILES.roadmap, repo));
+  const readme = /^\*\*Version (\d+\.\d+\.\d+)\*\*/m.exec(read(FILES.readme, repo));
   const nameLead = /^(\d+\.\d+\.\d+)\b/.exec(manifest.version_name || '');
   return {
     manifest: manifest.version,
@@ -83,6 +87,7 @@ export function readVersions(repo = REPO) {
     lock: lock.version,
     lockRoot: lock.packages && lock.packages[''] ? lock.packages[''].version : null,
     roadmap: roadmap ? roadmap[1] : null,
+    readme: readme ? readme[1] : null,
   };
 }
 
@@ -107,7 +112,7 @@ function replaceOnce(text, re, replacement, label) {
   return text.replace(re, replacement);
 }
 
-/** Write `next` to all four files. Returns the list of files changed. */
+/** Write `next` to all five files. Returns the list of files changed. */
 export function writeVersion(next, repo = REPO) {
   parseVersion(next);
   const edits = [
@@ -123,6 +128,7 @@ export function writeVersion(next, repo = REPO) {
       return replaceOnce(t, /(\n    "": \{\n(?:      .*\n)*?      "version"\s*:\s*")\d+\.\d+\.\d+(")/, `$1${next}$2`, `${FILES.lock} packages[""]`);
     }],
     [FILES.roadmap, (t) => replaceOnce(t, /(\*\*Current version: )\d+\.\d+\.\d+(\*\*)/, `$1${next}$2`, FILES.roadmap)],
+    [FILES.readme, (t) => replaceOnce(t, /^(\*\*Version )\d+\.\d+\.\d+(\*\*)/m, `$1${next}$2`, FILES.readme)],
   ];
   const changed = [];
   for (const [rel, edit] of edits) {

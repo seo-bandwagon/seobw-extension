@@ -13,12 +13,13 @@ import {
 describe('the version on main', () => {
   const v = readVersions();
 
-  it('is the same in the manifest, version_name, package.json, the lockfile and ROADMAP', () => {
+  it('is the same in the manifest, version_name, package.json, the lockfile, ROADMAP and README', () => {
     expect(v.versionName).toBe(v.manifest);
     expect(v.pkg).toBe(v.manifest);
     expect(v.lock).toBe(v.manifest);
     expect(v.lockRoot).toBe(v.manifest);
     expect(v.roadmap).toBe(v.manifest);
+    expect(v.readme).toBe(v.manifest);
   });
 
   it('has a CHROMEWEBSTORE.md Version History row', () => {
@@ -76,30 +77,30 @@ describe('needsBump', () => {
 });
 
 describe('writeVersion', () => {
-  // Run against a copy of the four real files, so the regexes are tested on
+  // Run against a copy of the five real files, so the regexes are tested on
   // the formatting they will actually meet.
   function copyRepo() {
     const dir = mkdtempSync(path.join(tmpdir(), 'sbw-version-'));
     mkdirSync(path.join(dir, 'extension'));
-    for (const rel of [FILES.manifest, FILES.pkg, FILES.lock, FILES.roadmap, FILES.store]) {
+    for (const rel of [FILES.manifest, FILES.pkg, FILES.lock, FILES.roadmap, FILES.readme, FILES.store]) {
       cpSync(path.join(REPO, rel), path.join(dir, rel));
     }
     return dir;
   }
 
-  it('changes exactly the four files and nothing else in them', () => {
+  it('changes exactly the five files and nothing else in them', () => {
     const dir = copyRepo();
     const before = readVersions(dir).manifest;
     const next = bumpVersion(before, 'patch');
     const originals = Object.fromEntries(
-      [FILES.manifest, FILES.pkg, FILES.lock, FILES.roadmap].map((f) => [f, readFileSync(path.join(dir, f), 'utf8')]),
+      [FILES.manifest, FILES.pkg, FILES.lock, FILES.roadmap, FILES.readme].map((f) => [f, readFileSync(path.join(dir, f), 'utf8')]),
     );
 
     const changed = writeVersion(next, dir);
-    expect(changed.sort()).toEqual([FILES.manifest, FILES.pkg, FILES.lock, FILES.roadmap].sort());
+    expect(changed.sort()).toEqual([FILES.manifest, FILES.pkg, FILES.lock, FILES.roadmap, FILES.readme].sort());
 
     const after = readVersions(dir);
-    expect(after).toEqual({ manifest: next, versionName: next, pkg: next, lock: next, lockRoot: next, roadmap: next });
+    expect(after).toEqual({ manifest: next, versionName: next, pkg: next, lock: next, lockRoot: next, roadmap: next, readme: next });
 
     // Only the version string moved: swapping it back restores each file byte
     // for byte (package.json keeps its — escape, the lockfile keeps its
