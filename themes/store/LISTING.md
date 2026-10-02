@@ -2,7 +2,7 @@
 
 Two items, one per mode. A Chrome theme is images and colours only, so nothing
 below claims behaviour a theme can't have; every extension claim matches
-`docs/CWS-LISTING-1.6.1.md`.
+`docs/CWS-LISTING.md`.
 
 Item IDs: Neon Night `bomhiblgnbmpgbddhocomnbijdkmpbhl`, Neon Day
 `ldifldabjbffldoekbebpickddaiiggm`. Each listing's cross-link line points at the other.
