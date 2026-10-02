@@ -9,7 +9,7 @@ user-facing behaviour changed, re-justify any permission, host or content-script
 change, and add a Version History row.
 
 Long-form reviewer text (one paragraph per permission, data-use reasoning,
-reviewer test steps) is in `docs/CWS-LISTING-1.6.1.md`; the two Chrome theme
+reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
 items have their own listing text in `themes/store/LISTING.md`. This file
 summarises both and says where to paste what.
 
@@ -21,7 +21,7 @@ infrastructure for our new version, you may experience downtime April 23,
 1.2.0 that day. In the dashboard, 1.6.0 is an **uploaded draft that cannot be
 published** until six permissions have a justification (alarms,
 declarativeNetRequestWithHostAccess, sidePanel, tabs, webNavigation,
-webRequest; paste text in `docs/CWS-LISTING-1.6.1.md` §3a). The listing edits
+webRequest; paste text in `docs/CWS-LISTING.md` §3). The listing edits
 (downtime notice removed, theme cross-link IDs) were made in the dashboard but
 had not reached the public pages on 2026-09-24. Check the update server, not
 only the listing page:
@@ -45,7 +45,7 @@ Check the on-page SEO of any page in one click: a score with fixes, link and ind
 
 **Detailed Description**
 
-Paste `docs/CWS-LISTING-1.6.1.md` §2 verbatim. Rewritten 2026-09-24 after the
+Paste `docs/CWS-LISTING.md` §2 verbatim. Rewritten 2026-09-24 after the
 keyword-stuffing violation below: plain sentences, **no lists of schema types,
 metric names, crawler names, product names or export targets**, and **no single
 keyword more than five times** (Google's spam FAQ). Rewritten again the same
@@ -94,15 +94,15 @@ logos anywhere in frame.
 ## Permissions Justification
 
 One line each here; the reviewer-length paragraph for every row is in
-`docs/CWS-LISTING-1.6.1.md` §3 — paste those into the dashboard's
+`docs/CWS-LISTING.md` §3 — paste those into the dashboard's
 per-permission fields.
 
 | Permission | Type | Justification |
 |------------|------|---------------|
-| `activeTab` | permissions | Reads the current tab's URL and title only when the user clicks the icon or uses the shortcut. |
+| `activeTab` | permissions | Reads the current tab's URL and title only when the user clicks the icon or uses the shortcut, and screenshots that tab when the user asks for listing proof. |
 | `storage` | permissions | Saves analyses, cached responses, the API key and settings on the user's device. |
 | `contextMenus` | permissions | Right-click "Analyze this page", "Analyze linked page", "Count words" and the tools submenu. Nothing runs without a menu choice. |
-| `scripting` | permissions | Injects the analysis script into the active tab when an analysis is requested. |
+| `scripting` | permissions | Injects into the active tab only on request: the analysis script, the NAP reader (Check NAP), and the scroll helper for a full-page proof screenshot. |
 | `sidePanel` | permissions | Powers the Citations / Link Building side panel. |
 | `tabs` | permissions | Opens dashboard links; matches finished page loads against a bundled directory-hostname list to paint a badge. Local string compare only. |
 | `alarms` | permissions | 15-minute retry of captures that failed to sync. Idle with no account connected. |
@@ -146,7 +146,7 @@ all except the bare-domain overlay lookup on Google results pages.
 | User activity | No | — | — | No |
 | Website content | Yes | Yes, to seobandwagon.com only | Extracted metadata of analyzed pages (title, meta, headings, links, images, structured-data type and property names, technical facts). Never structured-data values. | No |
 
-Reasoning for each row: `docs/CWS-LISTING-1.6.1.md` §5.
+Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
@@ -214,8 +214,8 @@ not a fault in the package. Both theme descriptions now say so.
 |---------|------|---------|--------|
 | 1.7.1 | 2026-10-01 (main) | 1.7.0 plus a fix found in the first real-browser check: a cookie banner whose text overrides its container's visibility was drawn over every frame of a full-page proof, and the macOS overlay scrollbar appeared at the right edge of each frame. Hidden elements now also get `opacity: 0`, and the page's scrollbar is hidden during capture. No permission, host or content-script change. | Draft |
 | 1.7.0 | 2026-10-01 (main) | Full-page proof screenshots in the Citations tab: the SCREENSHOT tile scrolls and stitches the whole page (capped at Chrome's 32,767 px image height and a 100-million-pixel budget, and labelled when capped), with a "Visible area only" option. No permission, host or content-script change; the page helper is injected on demand with the existing activeTab + scripting. | Not submitted (folded into 1.7.1) |
-| 1.6.1 | 2026-09-24 (main) | Short description (manifest) and detailed description rewritten without term lists after a keyword-stuffing violation on the 1.6.0 draft. 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING-1.6.1.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
-| 1.6.0 | 2026-09-06 | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING-1.6.1.md` §6. | Uploaded as a dashboard draft, not published: six permission justifications missing (2026-09-24). Replace the package with 1.6.1 |
+| 1.6.1 | 2026-09-24 (main) | Short description (manifest) and detailed description rewritten without term lists after a keyword-stuffing violation on the 1.6.0 draft. 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
+| 1.6.0 | 2026-09-06 | Competitor parity: Link Check, Indexability, Hreflang, Rendering + "View as", Structured Data validation, Google results overlay, Search Console compare badges, tools menu, CSV exports. New permissions: `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, optional `<all_urls>`; new content-script match on Google search. 2026-09-07: Night/Day/Auto appearance, bundled brand fonts. 2026-09-08: themed page-checks side panel, opened per tab from the existing panel. Neither changes the manifest. Release notes in `docs/CWS-LISTING.md` §6. | Uploaded as a dashboard draft, not published: six permission justifications missing (2026-09-24). Replace the package with 1.6.1 |
 | 1.5.2 | 2026-09-06 | Search Console helpers (Queries-tab icons, compare badges). Content-script match on `search.google.com/search-console/*` (added in 1.5.1). | Not submitted (folded into 1.6.0) |
 | 1.5.0 | 2026-09-04 | API-key connect flow, capture sync with retry, citations and link-building in the side panel; `identity`/`oauth2` removed; `alarms` + `externally_connectable` added. | Not submitted (folded into 1.6.0) |
 | 1.2.0 | 2026-04-23 | Repointed API host to seobandwagon.com. | Published |
@@ -230,11 +230,11 @@ not a fault in the package. Both theme descriptions now say so.
 - `webRequest` is dormant until the optional `<all_urls>` grant; reviewers
   testing Indexability must grant it and then reload the page.
 - Reviewer test steps for every permission-bearing feature, none of which
-  need an account: `docs/CWS-LISTING-1.6.1.md` §7.
+  need an account: `docs/CWS-LISTING.md` §7.
 - The live store screenshots still show the 1.2.0 interface. Replacements for 1.6.1
   are in `store-assets/1.6.1/` (real extension, real pages; how in its README).
 - The live 1.2.0 description still carries the April 23 downtime notice
-  (measured 2026-09-24). The 1.6.1 description in `docs/CWS-LISTING-1.6.1.md` §2
+  (measured 2026-09-24). The description in `docs/CWS-LISTING.md` §2
   replaces it; until then, the notice can be removed from the live listing on
   its own.
 
@@ -242,4 +242,4 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Date | Version | Policy | Cause | Fix |
 |---|---|---|---|---|
-| 2026-09-24 | 1.6.0 draft | Keyword stuffing (spam policy) | The detailed description listed about fifteen structured-data types in one sentence, plus lists of metric names, crawler names, tool names and export targets; the short description was a comma list of eight terms | Both rewritten as plain sentences (`docs/CWS-LISTING-1.6.1.md` §1–2, manifest `description`). Resubmit as a revision with the 1.6.1 package; do not spend the one allowed appeal on it |
+| 2026-09-24 | 1.6.0 draft | Keyword stuffing (spam policy) | The detailed description listed about fifteen structured-data types in one sentence, plus lists of metric names, crawler names, tool names and export targets; the short description was a comma list of eight terms | Both rewritten as plain sentences (`docs/CWS-LISTING.md` §1–2, manifest `description`). Resubmit as a revision with the 1.6.1 package; do not spend the one allowed appeal on it |

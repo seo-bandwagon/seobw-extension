@@ -4,7 +4,7 @@ Copy for directory submissions, listing claims and pitches. The target list,
 with what each one wants and where each one stands, lives in the vault:
 `03_Wiki/Extension_Promotion_Targets.md` (SEO Bandwagon Brain).
 
-Every claim here is checkable against `main` and `docs/CWS-LISTING-1.6.1.md`.
+Every claim here is checkable against `main` and `docs/CWS-LISTING.md`.
 House rules, from the vault's standing facts:
 - no prices
 - no install or user counts
@@ -86,7 +86,7 @@ Night and Day themes included.
 
 ## 500 words
 
-Use `docs/CWS-LISTING-1.6.1.md` §2 (the store's detailed description) as is. It
+Use `docs/CWS-LISTING.md` §2 (the store's detailed description) as is. It
 is written to the same rules.
 
 ## Tags / keywords

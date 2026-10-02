@@ -395,7 +395,7 @@ npm run check:zip  # same, plus: fails if any file manifest.json/popup.html/opti
 npm run bump -- patch   # or minor / x.y.z — see ROADMAP.md's versioning policy
 ```
 
-Bump the version first with `npm run bump` (see `ROADMAP.md`'s versioning policy); CI fails a pull request that changes `extension/` without a bump. Unzip and inspect the package before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/` and `src/` and nothing else (no `preview/`, `tests/`, `node_modules/`, docs or README). Listing text for the submission is in `docs/CWS-LISTING-1.6.1.md`; store-facing metadata in `CHROMEWEBSTORE.md`.
+Bump the version first with `npm run bump` (see `ROADMAP.md`'s versioning policy); CI fails a pull request that changes `extension/` without a bump. Unzip and inspect the package before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/` and `src/` and nothing else (no `preview/`, `tests/`, `node_modules/`, docs or README). Listing text for the submission is in `docs/CWS-LISTING.md`; store-facing metadata in `CHROMEWEBSTORE.md`.
 
 ## API contract
 

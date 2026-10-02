@@ -68,7 +68,7 @@ describe('needsBump', () => {
 
   it('is false for docs, tests, preview, scripts and themes', () => {
     expect(needsBump([
-      'README.md', 'ROADMAP.md', 'CHROMEWEBSTORE.md', 'docs/CWS-LISTING-1.6.1.md',
+      'README.md', 'ROADMAP.md', 'CHROMEWEBSTORE.md', 'docs/CWS-LISTING.md',
       'tests/unit/serp.test.js', 'preview/verify.html', 'scripts/bump-version.mjs',
       'themes/bandwagon-neon-day/manifest.json', 'extension/README.md',
     ])).toBe(false);

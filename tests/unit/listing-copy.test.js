@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const REPO = path.resolve(__dirname, '../..');
-const listing = readFileSync(path.join(REPO, 'docs/CWS-LISTING-1.6.1.md'), 'utf8');
+const listing = readFileSync(path.join(REPO, 'docs/CWS-LISTING.md'), 'utf8');
 const detailed = listing.split('## 2. Detailed description')[1].split('```')[1];
 const short = JSON.parse(readFileSync(path.join(REPO, 'extension/manifest.json'), 'utf8')).description;
 
