@@ -75,8 +75,14 @@
     };
   }
 
-  function round100(n) {
-    return Math.round(n / 100) * 100;
+  // Captured height rounds down and page height rounds up, so a capped page
+  // can never read "first 32,800 of 32,800 px".
+  function floor100(n) {
+    return Math.floor(n / 100) * 100;
+  }
+
+  function ceil100(n) {
+    return Math.ceil(n / 100) * 100;
   }
 
   // The proof card's header line. `sizeText` is already formatted
@@ -89,8 +95,8 @@
         : `VIEWPORT · ${dims} · ${sizeText}`;
     }
     if (r.truncated) {
-      const fmt = n => round100(n).toLocaleString('en-US');
-      return `FULL PAGE · first ${fmt(r.capturedCssHeight)} of ${fmt(r.pageHeight)} px · ${sizeText}`;
+      const fmt = n => n.toLocaleString('en-US');
+      return `FULL PAGE · first ${fmt(floor100(r.capturedCssHeight))} of ${fmt(ceil100(r.pageHeight))} px · ${sizeText}`;
     }
     return `FULL PAGE · ${dims} · ${sizeText}`;
   }

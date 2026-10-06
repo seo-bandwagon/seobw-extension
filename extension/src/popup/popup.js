@@ -108,6 +108,9 @@ function stampVersion(el) {
   el.title = m.version_name || ('Version ' + m.version);
 }
 stampVersion(document.getElementById('versionTag'));
+// "Rate us" opens the store's reviews page, the same URL the one-time review
+// prompt uses (src/lib/review-prompt.js), so there is one place to change it.
+document.querySelectorAll('[data-review-link]').forEach(a => { a.href = SBWReview.REVIEW_URL; });
 
 async function initDataToggle() {
   const toggle = document.getElementById('dataToggle');

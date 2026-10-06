@@ -2,11 +2,11 @@
 // Every Chrome call and the canvas are fakes, and time is a virtual clock, so
 // the tests check order, spacing, retries and cleanup without a browser.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 await import('../../extension/src/lib/fullpage-plan.js');
 await import('../../extension/src/popup/fullpage-capture.js');
-const { captureFullPage, MIN_GAP_MS } = globalThis.SBWFullPageCapture;
+const { captureFullPage, MIN_GAP_MS, MESSAGE_TIMEOUT_MS } = globalThis.SBWFullPageCapture;
 
 const METRICS = { scrollHeight: 2000, viewportWidth: 1280, viewportHeight: 720, dpr: 1, innerScroll: false };
 const RATE_LIMIT = 'This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota.';
@@ -229,5 +229,53 @@ describe('captureFullPage', () => {
     await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'cancelled' });
     expect(h.log).toContain('fpRestore');
     expect(h.log).not.toContain('finish');
+  });
+
+  it('says when it starts building the image, after the page is restored', async () => {
+    const h = harness();
+    h.deps.onEncoding = () => h.log.push('encoding');
+    await captureFullPage(h.deps);
+    expect(h.log.slice(-3)).toEqual(['fpRestore', 'encoding', 'finish']);
+  });
+
+  it('a cancel while the image is being built returns no result', async () => {
+    const controller = new AbortController();
+    const h = harness({ signal: controller.signal });
+    h.deps.draw = { ...h.deps.draw, finish: async () => { h.log.push('finish'); controller.abort(); return { size: 1 }; } };
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'cancelled' });
+    expect(h.log).toContain('fpRestore');
+  });
+
+  describe('a page that stops answering', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    it(`gives up after ${MESSAGE_TIMEOUT_MS} ms on one message instead of hanging`, async () => {
+      vi.useFakeTimers();
+      expect(MESSAGE_TIMEOUT_MS).toBe(6000);
+      const h = harness();
+      const send = h.deps.send;
+      h.deps.send = msg => (msg.action === 'fpScrollTo' && msg.y === 720 ? new Promise(() => {}) : send(msg));
+      const run = captureFullPage(h.deps);
+      const settled = expect(run).rejects.toMatchObject({
+        code: 'capture-failed', message: 'The page stopped responding. Reload it and try again.'
+      });
+      await vi.advanceTimersByTimeAsync(MESSAGE_TIMEOUT_MS + 10);
+      await settled;
+      expect(h.log).toContain('fpRestore');
+    });
+
+    it('stops at once when cancelled while waiting on the page', async () => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      const h = harness({ signal: controller.signal });
+      const send = h.deps.send;
+      h.deps.send = msg => (msg.action === 'fpScrollTo' && msg.y === 720 ? new Promise(() => {}) : send(msg));
+      const run = captureFullPage(h.deps);
+      const settled = expect(run).rejects.toMatchObject({ code: 'cancelled' });
+      await vi.advanceTimersByTimeAsync(100);
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(10);
+      await settled;
+    });
   });
 });

@@ -25,12 +25,16 @@
   const MIN_GAP_MS = 550;
   const RATE_LIMIT_WAIT_MS = 1000;
   const RATE_LIMIT_RE = /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND/;
+  // A page whose helper died (a tab left open across an extension update)
+  // never answers; without a limit the popup would wait forever.
+  const MESSAGE_TIMEOUT_MS = 6000;
 
   const MESSAGES = {
     'tab-changed': 'You switched tabs, so the capture stopped.',
     'capture-failed': 'Chrome blocked the capture on this page.',
     'canvas-failed': 'This page is too large to stitch into one image in this browser.',
-    'cancelled': 'Capture cancelled.'
+    'cancelled': 'Capture cancelled.',
+    'no-response': 'The page stopped responding. Reload it and try again.'
   };
 
   function captureError(code, message) {
@@ -46,6 +50,7 @@
       now = () => Date.now(),
       sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
       onProgress = () => {},
+      onEncoding = () => {},
       signal = null
     } = opts;
 
@@ -56,10 +61,35 @@
       if (signal && signal.aborted) throw captureError('cancelled');
     }
 
+    // One message to the page, bounded by MESSAGE_TIMEOUT_MS and by Cancel.
+    function ask(msg) {
+      return new Promise((resolve, reject) => {
+        let done = false;
+        const finish = (fn, value) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          if (signal) signal.removeEventListener('abort', onAbort);
+          fn(value);
+        };
+        const onAbort = () => finish(reject, captureError('cancelled'));
+        const timer = setTimeout(() => finish(reject, captureError('capture-failed', MESSAGES['no-response'])), MESSAGE_TIMEOUT_MS);
+        if (signal) {
+          if (signal.aborted) { onAbort(); return; }
+          signal.addEventListener('abort', onAbort);
+        }
+        Promise.resolve().then(() => send(msg)).then(v => finish(resolve, v), e => finish(reject, e));
+      });
+    }
+
     async function restore() {
       if (!injected || restored) return;
       restored = true;
-      try { await send({ action: 'fpRestore' }); } catch (_) { /* the helper's watchdog restores the page */ }
+      // Not ask(): a cancel must still put the page back. The helper's
+      // watchdog covers a page that never answers.
+      try {
+        await Promise.race([send({ action: 'fpRestore' }), new Promise(r => setTimeout(r, MESSAGE_TIMEOUT_MS))]);
+      } catch (_) { /* the helper's watchdog restores the page */ }
     }
 
     async function beforeCapture() {
@@ -90,7 +120,7 @@
       await inject();
       injected = true;
 
-      const metrics = await send({ action: 'fpPrepare' });
+      const metrics = await ask({ action: 'fpPrepare' });
       if (!metrics || !metrics.viewportHeight) throw captureError('capture-failed', 'Could not measure this page.');
       const p = plan(metrics);
 
@@ -101,14 +131,14 @@
         const frame = p.frames[i];
         checkCancelled();
         onProgress(i + 1, p.frames.length);
-        const scrollReply = await send({ action: 'fpScrollTo', y: frame.scrollY });
+        const scrollReply = await ask({ action: 'fpScrollTo', y: frame.scrollY });
         if (!scrollReply || typeof scrollReply.scrollY !== 'number') throw captureError('capture-failed', 'The page was reset during capture.');
         if (Math.abs(scrollReply.scrollY - frame.scrollY) > 1) {
           throw captureError('capture-failed', "The page didn't scroll as expected, so a full-page image would repeat itself. Try the visible area instead.");
         }
         // Keep sticky headers in the first frame only. Hide again before each later
         // frame: some headers only turn fixed after a scroll threshold (idempotent).
-        if (i >= 1) await send({ action: 'fpHideFixed' });
+        if (i >= 1) await ask({ action: 'fpHideFixed' });
         checkCancelled();
         const wait = lastShot + MIN_GAP_MS - now();
         if (wait > 0) await sleep(wait);
@@ -123,8 +153,11 @@
       // Give the page back before the (slow) PNG encode.
       await restore();
 
+      onEncoding();
       let blob;
       try { blob = await draw.finish(); } catch (_) { throw captureError('canvas-failed'); }
+      // A Cancel pressed while the image was being built wins.
+      checkCancelled();
 
       return {
         blob,
@@ -185,5 +218,5 @@
     };
   }
 
-  return { captureFullPage, canvasDrawer, MIN_GAP_MS };
+  return { captureFullPage, canvasDrawer, MIN_GAP_MS, MESSAGE_TIMEOUT_MS };
 });

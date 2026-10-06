@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,25 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.2 (2026-10-06)
+
+Reviews are the extension's call to action (owner, 2026-10-05), plus the
+full-page proof follow-ups deferred from 1.7.0. No permission change.
+
+- **"Rate us"** in the popup footer and a "Rate it on the Chrome Web Store"
+  line on the options page. Both read the store reviews URL from
+  `src/lib/review-prompt.js`, the same one the one-time review prompt uses.
+- **Full-page proof** (`src/popup/fullpage-capture.js`): progress reads
+  "Building the image…" while the PNG is encoded, and a Cancel pressed then
+  now cancels. Every message to the page is bounded at 6 s, so a tab whose
+  helper died, for example after an extension update, ends with "The page
+  stopped responding" instead of a capture that never finishes.
+- **Capped-page label** (`src/lib/fullpage-plan.js`): the captured height
+  rounds down and the page height rounds up, so it can never read
+  "first 32,800 of 32,800 px".
 
 ---
 

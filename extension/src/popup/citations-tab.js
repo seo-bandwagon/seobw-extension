@@ -507,6 +507,7 @@ async function runScreenshot() {
       },
       draw: SBWFullPageCapture.canvasDrawer(document),
       onProgress: (n, total) => showProgress(`Capturing ${n} of ${total}…`),
+      onEncoding: () => showProgress('Building the image…'),
       signal: controller.signal
     });
     run = cfShotRun;
