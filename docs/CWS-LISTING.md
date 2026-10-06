@@ -1,4 +1,4 @@
-# Chrome Web Store listing text — next submission: v1.7.1
+# Chrome Web Store listing text — next submission: v1.7.2
 
 The listing text for the next store submission, kept current with `main`
 (it was `CWS-LISTING-1.6.1.md`). 1.7.1 adds full-page proof screenshots
@@ -276,16 +276,14 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.7.1 (release notes, ≤ 10 lines)
+## 6. What's new in 1.7.2 (release notes, ≤ 10 lines)
 
 ```
-- Full-page proof screenshots: in the Citations tab, SCREENSHOT now saves
-  the whole page as one image, with pinned headers and cookie banners shown
-  once. "Visible area only" keeps the one-screen capture.
-- Very long pages are captured from the top and labelled with how much was
-  included; pages that scroll inside a panel save the visible area.
-- The results export now includes each result's description, date, rating
-  and breadcrumb.
+- New "Rate us" link in the popup and on the options page.
+- Full-page proof screenshots now show "Building the image…" while a long
+  page saves, and Cancel works right up to the end.
+- A page that stops responding ends the capture with a clear message.
+- Clearer labels on very long pages.
 ```
 
 ---

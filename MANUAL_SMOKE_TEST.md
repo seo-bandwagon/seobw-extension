@@ -100,6 +100,7 @@ For each URL below, click the extension icon and confirm the popup shows a grace
 
 On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 
+- [ ] **Rate us** — the popup footer's RATE US ★ and the options page's "Rate it on the Chrome Web Store" both open the store's reviews tab for SEO Bandwagon. A long page's full-page proof shows "Building the image…" before the proof card
 - [ ] **Link check** — "Check N links" runs only on click. The first time, it asks for the optional site access, and the request can be declined. Result chips (ok / redirect / 4xx / 5xx / timeout / network) add up, and "Export CSV" downloads
 - [ ] **Indexability** — shows an indexable / not-indexable verdict, the redirect chain and headers. Tracing `http://` → `https://` for a redirecting URL lists every hop
 - [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status

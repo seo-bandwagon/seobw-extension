@@ -112,9 +112,14 @@ describe('describeProof', () => {
       .toBe('FULL PAGE · 1440×9800 · 3.1 MB');
   });
 
-  it('says how much of a capped page it covers, rounded to 100 px', () => {
+  it('says how much of a capped page it covers: captured rounds down, page rounds up, to 100 px', () => {
     expect(describeProof({ mode: 'fullpage', reason: null, width: 2560, height: 32766, truncated: true, capturedCssHeight: 16383, pageHeight: 41200 }, '9.4 MB'))
-      .toBe('FULL PAGE · first 16,400 of 41,200 px · 9.4 MB');
+      .toBe('FULL PAGE · first 16,300 of 41,200 px · 9.4 MB');
+  });
+
+  it('never reads "first N of N" for a page cut just short of the end', () => {
+    expect(describeProof({ mode: 'fullpage', reason: null, width: 1280, height: 32750, truncated: true, capturedCssHeight: 32750, pageHeight: 32790 }, '20 MB'))
+      .toBe('FULL PAGE · first 32,700 of 32,800 px · 20 MB');
   });
 
   it('explains an inner-scroll fallback', () => {

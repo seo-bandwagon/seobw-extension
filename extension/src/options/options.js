@@ -223,3 +223,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     setStatus(document.getElementById('keyStatus'), 'Disconnected', 'pending');
   }
 });
+
+// "Rate it on the Chrome Web Store" uses the review prompt's URL
+// (src/lib/review-prompt.js), the one place it is defined.
+document.querySelectorAll('[data-review-link]').forEach(a => { a.href = SBWReview.REVIEW_URL; });

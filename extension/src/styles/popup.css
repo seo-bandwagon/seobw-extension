@@ -2083,6 +2083,8 @@ body {
 .footer-right { display: flex; align-items: center; gap: 10px; }
 .privacy-link { font-family: var(--font-mono); font-size: 8.5px; color: var(--paper-50); text-decoration: none; }
 .privacy-link:hover { color: var(--accent-text); }
+.rate-link { color: var(--accent-text); }
+.rate-hint { margin-top: 10px; }
 
 /* Build stamp — quiet, but enough to confirm a reload actually took */
 .version-tag {
