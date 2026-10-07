@@ -37,10 +37,10 @@ it in the dashboard with this submission. 1 rating (5 stars).
 SEO Bandwagon
 ```
 
-**Short Description** (107 chars, matches `extension/manifest.json` `description`; a sentence, never a list of terms)
+**Short Description** (120 chars, matches `extension/manifest.json` `description`; a sentence, never a list of terms)
 
 ```
-Check the on-page SEO of any page in one click: a score with fixes, link and indexability checks, and more.
+Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.
 ```
 
 **Detailed Description**
@@ -76,7 +76,7 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready | `extension/src/icons/icon128.png` |
-| Screenshot 1 — popup, Analysis tab with score and fixes | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-1-analysis-1280x800.png` |
+| Screenshot 1 — popup, Analysis tab with score and issues | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-1-analysis-1280x800.png` |
 | Screenshot 2 — Link Check results grouped by outcome | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-2-link-check-1280x800.png` |
 | Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-3-indexability-1280x800.png` |
 | Screenshot 4 — Google results overlay stats bar | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-4-serp-overlay-1280x800.png` |
@@ -212,7 +212,8 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.7.2 | 2026-10-06 (main) | A "Rate us" link in the popup footer and on the options page, opening the store reviews page. Full-page proof: shows "Building the image…" while a long page saves and honours Cancel there; a page that stops answering ends the capture after 6 s with a message instead of hanging; a capped page's label rounds the captured height down and the page height up. No permission, host or content-script change. | Draft |
+| 1.7.3 | 2026-10-07 (main) | 1.7.2 plus a corrected short description (manifest `description`, which the store shows as the summary): "a score with fixes" became "a score and the issues it finds", since the popup lists issues with no fix text. The detailed description in `docs/CWS-LISTING.md` drops "a short list of fixes" and "Every section exports a CSV" the same way. No permission, host or content-script change. | Draft |
+| 1.7.2 | 2026-10-06 (main) | A "Rate us" link in the popup footer and on the options page, opening the store reviews page. Full-page proof: shows "Building the image…" while a long page saves and honours Cancel there; a page that stops answering ends the capture after 6 s with a message instead of hanging; a capped page's label rounds the captured height down and the page height up. No permission, host or content-script change. | Not submitted (folded into 1.7.3) |
 | 1.7.1 | 2026-10-01 (main) | 1.7.0 plus a fix found in the first real-browser check: a cookie banner whose text overrides its container's visibility was drawn over every frame of a full-page proof, and the macOS overlay scrollbar appeared at the right edge of each frame. Hidden elements now also get `opacity: 0`, and the page's scrollbar is hidden during capture. No permission, host or content-script change. | **Published.** Submitted 2026-10-01; Google's update server served 1.7.1 on 2026-10-03 (package from `npm run zip` on `main`; GitHub release `1.7.1`, commit `d42d84e`) |
 | 1.7.0 | 2026-10-01 (main) | Full-page proof screenshots in the Citations tab: the SCREENSHOT tile scrolls and stitches the whole page (capped at Chrome's 32,767 px image height and a 100-million-pixel budget, and labelled when capped), with a "Visible area only" option. No permission, host or content-script change; the page helper is injected on demand with the existing activeTab + scripting. | Not submitted (folded into 1.7.1) |
 | 1.6.1 | 2026-09-24 (main) | Short description (manifest) and detailed description rewritten without term lists after a keyword-stuffing violation on the 1.6.0 draft. 1.6.0 plus fixes: Search Console compare mode reduced to two inline badges (#13); row icons stay on the Queries tab, tab detection fails closed (#20); SERP export carries each result's description, date, rating, site name, display URL and breadcrumb plus the search's context (#22). No permission, host or content-script change from 1.6.0. Listing text: `docs/CWS-LISTING.md`. Remove the downtime notice from the live description when submitting. | Draft — package with `npm run zip`, not Finder |
