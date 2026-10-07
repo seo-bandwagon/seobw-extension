@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,24 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.3 (2026-10-07)
+
+1.7.2 was never submitted; 1.7.3 is 1.7.2 with the store listing's words
+brought in line with what ships. No permission change.
+
+- **Short description** (`extension/manifest.json` `description`, the store's
+  summary): "a score with fixes" became "a score and the issues it finds". The
+  popup lists issue labels such as "Missing H1" in check order, with no fix
+  text (`lib/content-analysis.js`, `calculateSEOScore`).
+- **Detailed description** (`docs/CWS-LISTING.md`): "a short list of fixes"
+  became the issues it found, with the letter grade placed on the toolbar icon
+  where it shows; "Every section exports a CSV" became the sections that do,
+  plus the whole analysis as JSON.
+- `tests/unit/listing-copy.test.js` now holds the short description equal to
+  the listing doc's and keeps "fix" out of both.
 
 ---
 

@@ -1,11 +1,17 @@
-# Chrome Web Store listing text — next submission: v1.7.2
+# Chrome Web Store listing text — next submission: v1.7.3
 
 The listing text for the next store submission, kept current with `main`
-(it was `CWS-LISTING-1.6.1.md`). 1.7.1 adds full-page proof screenshots
-(1.7.0) and their first fixes; it adds no permission, host permission or
-content-script match since 1.6.0, but the `activeTab` and `scripting`
-justifications below now also describe the screenshot. Paste each section
-into the matching Chrome Web Store Developer Dashboard field when submitting.
+(it was `CWS-LISTING-1.6.1.md`). 1.7.3 is 1.7.2, never submitted, with the
+short description corrected: it named "fixes", and the extension lists the
+issues it finds without fix text (`lib/content-analysis.js`,
+`calculateSEOScore`). Nothing since 1.6.0 adds a permission, host permission
+or content-script match; the `activeTab` and `scripting` justifications below
+also describe the full-page proof screenshot (1.7.0). Paste each section into
+the matching Chrome Web Store Developer Dashboard field when submitting.
+
+The detailed description is the text inside the fence in section 2 and
+nothing after it: the live description read on 2026-10-06 ran on past
+"Nothing is sent until you connect" into sections 3 to 7 of this file.
 
 Sections 3 to 5 (permission justifications, single purpose, data use) were
 dropped by mistake when this file was renamed for 1.6.1 and are restored here
@@ -23,7 +29,7 @@ Same text as `manifest.json`'s `description` field. A sentence, not a list:
 the earlier comma list of eight terms read as keyword stuffing.
 
 ```
-Check the on-page SEO of any page in one click: a score with fixes, link and indexability checks, and more.
+Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.
 ```
 
 ---
@@ -47,8 +53,9 @@ SEO Bandwagon reviews the on-page SEO of the site you have open, right in
 your browser. One click gives you the findings, and no account is needed.
 
 ON-PAGE ANALYSIS
-A score from 0 to 100 with a letter grade, four sub-scores and a short list
-of fixes. You also see a preview of how the listing could look on Google,
+A score from 0 to 100, four sub-scores and the issues it found, such as a
+missing H1 or a title that runs too long, with the letter grade on the
+toolbar icon. You also see a preview of how the listing could look on Google,
 loading and layout speed as your browser measured it, the heading outline,
 links and images, and the technology behind the site.
 
@@ -89,8 +96,9 @@ A side panel keeps the findings open while you work. Choose Night, Day or
 Auto; two matching Chrome themes are available separately.
 
 EXPORTS AND TOOLS
-Every section exports a CSV you save yourself, and a right-click menu opens
-the current URL in common testing and archive tools.
+Headings, links, images and the results of the five checks above export as
+CSV files you save yourself, and the whole analysis as one JSON file. A
+right-click menu opens the current URL in common testing and archive tools.
 
 OPTIONAL ACCOUNT
 Connect a free SEO Bandwagon account to keep your analyses, review local
@@ -276,7 +284,9 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.7.2 (release notes, ≤ 10 lines)
+## 6. What's new in 1.7.3 (release notes, ≤ 10 lines)
+
+1.7.2 was never submitted, so these are its notes: what changed since 1.7.1.
 
 ```
 - New "Rate us" link in the popup and on the options page.

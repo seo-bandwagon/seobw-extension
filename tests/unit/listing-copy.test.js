@@ -56,6 +56,21 @@ describe('store listing copy', () => {
     });
   }
 
+  it('the listing doc carries the manifest short description, word for word', () => {
+    const doc = listing.split('## 1. Short description')[1].split('```')[1].trim();
+    expect(doc).toBe(short);
+  });
+
+  // The popup lists issue labels such as "Missing H1" with no fix text
+  // (lib/content-analysis.js, calculateSEOScore). The store said "a score with
+  // fixes" and "a short list of fixes" until 1.7.3; name fixes again only when
+  // a build that shows them ships.
+  for (const [name, text] of [['detailed description', detailed], ['short description', short]]) {
+    it(`${name}: names issues, not fixes`, () => {
+      expect(text).not.toMatch(/\bfix(es)?\b/i);
+    });
+  }
+
   it('the list detector catches the text that was removed', () => {
     const removed = 'checks each item against the fields for its type (Article, Product, LocalBusiness, Organization, Person, BreadcrumbList, FAQPage, HowTo, Recipe, Event, VideoObject, Review, WebSite, WebPage, JobPosting), showing eligibility.';
     expect(longestList(removed)).toBeGreaterThanOrEqual(5);
