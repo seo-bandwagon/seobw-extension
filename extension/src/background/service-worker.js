@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -278,6 +278,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.runtime.onInstalled.addListener(() => {
   if (chrome.sidePanel) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+  }
+});
+
+// Onboarding: the welcome page opens on a first install only, never on an
+// update; the uninstall survey URL is set on every install and update, so
+// people updating from a version without it get it too (Chrome keeps it).
+// Both URLs come from SBWSiteLinks.installActions (src/lib/site-links.js).
+chrome.runtime.onInstalled.addListener(async (details) => {
+  const actions = SBWSiteLinks.installActions(details.reason, chrome.runtime.getManifest().version);
+  try {
+    await chrome.runtime.setUninstallURL(actions.uninstallUrl);
+  } catch (e) {
+    console.warn('setUninstallURL failed:', e);
+  }
+  if (actions.welcomeUrl) {
+    try {
+      await chrome.tabs.create({ url: actions.welcomeUrl });
+    } catch (e) {
+      console.warn('Welcome tab failed to open:', e);
+    }
   }
 });
 

@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,34 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.4 (2026-10-09)
+
+Onboarding, and links to seobandwagon.com that GA4 can attribute. No
+permission, host or content-script change.
+
+- **Welcome tab**: on `runtime.onInstalled` with reason `install` only, one tab
+  opens at `https://seobandwagon.com/seo-chrome-extension/welcome?ref=install`
+  plus the UTM tags (campaign `install`). Updates, Chrome updates and
+  shared-module updates open nothing.
+- **Uninstall survey**: every `onInstalled` (install and update, so existing
+  users get it on updating) calls `runtime.setUninstallURL` with
+  `https://seobandwagon.com/seo-chrome-extension/uninstalled?ref=uninstall&v=<version>`
+  plus the UTM tags (campaign `uninstall`). The version is the only thing it
+  carries.
+- **UTM tags**: every page of ours the extension opens carries
+  `utm_source=chrome_extension&utm_medium=extension&utm_campaign=<surface>`,
+  surface one of `popup`, `options`, `citations_tab`, `side_panel`, `install`,
+  `uninstall`. Built by the new `src/lib/site-links.js`; only the privacy link
+  was tagged before, and with the source alone.
+- `tests/unit/site-links.test.js` covers the URLs and the install-reason
+  rule, fails on an untagged static `href` to seobandwagon.com anywhere under
+  `extension/src`, and on a script that opens one of our paths without
+  `siteUrl()`.
+- Both pages are website work (keepkalm/platform) and must answer 200 before
+  1.7.4 is submitted.
 
 ---
 

@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-09-24
+> Last Updated: 2026-10-09
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -134,6 +134,12 @@ requires no account.
 connected and the data-collection setting on. Signed out, it sends nothing at
 all except the bare-domain overlay lookup on Google results pages.
 
+From 1.7.4 a first install opens our welcome page in a tab, and removing the
+extension opens a one-question survey page. Both are ordinary visits to
+seobandwagon.com, handled under its privacy policy; the extension adds only
+`ref`, the UTM tags and (survey only) its version number to the address. No
+install id, setting or usage leaves with either, so no data-use answer changes.
+
 | Data Type | Collected? | Transmitted Off-Device? | Purpose | Shared with Third Parties? |
 |-----------|-----------|------------------------|---------|---------------------------|
 | Personally identifiable info | No | — | — | No |
@@ -212,7 +218,8 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.7.3 | 2026-10-07 (main) | 1.7.2 plus a corrected short description (manifest `description`, which the store shows as the summary): "a score with fixes" became "a score and the issues it finds", since the popup lists issues with no fix text. The detailed description in `docs/CWS-LISTING.md` drops "a short list of fixes" and "Every section exports a CSV" the same way. No permission, host or content-script change. | Draft |
+| 1.7.4 | 2026-10-09 (main) | 1.7.3 plus onboarding: a first install opens one tab at `https://seobandwagon.com/seo-chrome-extension/welcome?ref=install` (never on an update), and the uninstall URL is set on every install and update to `https://seobandwagon.com/seo-chrome-extension/uninstalled?ref=uninstall&v=<version>`, a one-question survey. Every link the extension opens on seobandwagon.com (popup, options page, Citations tab, side panel, and the two pages above) carries `utm_source=chrome_extension&utm_medium=extension&utm_campaign=<surface>` (`extension/src/lib/site-links.js`). No permission, host or content-script change; no data-use category changes (the survey URL carries the version only). | Draft. **Submit only once both pages answer 200** (both 404 on 2026-10-09): a welcome tab on a dead page is the store's "broken functionality" |
+| 1.7.3 | 2026-10-07 (main) | 1.7.2 plus a corrected short description (manifest `description`, which the store shows as the summary): "a score with fixes" became "a score and the issues it finds", since the popup lists issues with no fix text. The detailed description in `docs/CWS-LISTING.md` drops "a short list of fixes" and "Every section exports a CSV" the same way. No permission, host or content-script change. | Not submitted (folded into 1.7.4) |
 | 1.7.2 | 2026-10-06 (main) | A "Rate us" link in the popup footer and on the options page, opening the store reviews page. Full-page proof: shows "Building the image…" while a long page saves and honours Cancel there; a page that stops answering ends the capture after 6 s with a message instead of hanging; a capped page's label rounds the captured height down and the page height up. No permission, host or content-script change. | Not submitted (folded into 1.7.3) |
 | 1.7.1 | 2026-10-01 (main) | 1.7.0 plus a fix found in the first real-browser check: a cookie banner whose text overrides its container's visibility was drawn over every frame of a full-page proof, and the macOS overlay scrollbar appeared at the right edge of each frame. Hidden elements now also get `opacity: 0`, and the page's scrollbar is hidden during capture. No permission, host or content-script change. | **Published.** Submitted 2026-10-01; Google's update server served 1.7.1 on 2026-10-03 (package from `npm run zip` on `main`; GitHub release `1.7.1`, commit `d42d84e`) |
 | 1.7.0 | 2026-10-01 (main) | Full-page proof screenshots in the Citations tab: the SCREENSHOT tile scrolls and stitches the whole page (capped at Chrome's 32,767 px image height and a 100-million-pixel budget, and labelled when capped), with a "Visible area only" option. No permission, host or content-script change; the page helper is injected on demand with the existing activeTab + scripting. | Not submitted (folded into 1.7.1) |
