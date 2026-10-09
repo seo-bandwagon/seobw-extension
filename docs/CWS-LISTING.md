@@ -1,10 +1,13 @@
-# Chrome Web Store listing text — next submission: v1.7.3
+# Chrome Web Store listing text — next submission: v1.7.4
 
 The listing text for the next store submission, kept current with `main`
-(it was `CWS-LISTING-1.6.1.md`). 1.7.3 is 1.7.2, never submitted, with the
+(it was `CWS-LISTING-1.6.1.md`). 1.7.4 is 1.7.3, never submitted, plus the
+welcome page on first install and the uninstall survey; 1.7.3 is 1.7.2 with the
 short description corrected: it named "fixes", and the extension lists the
 issues it finds without fix text (`lib/content-analysis.js`,
-`calculateSEOScore`). Nothing since 1.6.0 adds a permission, host permission
+`calculateSEOScore`). Submit 1.7.4 only once
+`https://seobandwagon.com/seo-chrome-extension/welcome` and `/uninstalled`
+answer 200. Nothing since 1.6.0 adds a permission, host permission
 or content-script match; the `activeTab` and `scripting` justifications below
 also describe the full-page proof screenshot (1.7.0). Paste each section into
 the matching Chrome Web Store Developer Dashboard field when submitting.
@@ -284,11 +287,13 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.7.3 (release notes, ≤ 10 lines)
+## 6. What's new in 1.7.4 (release notes, ≤ 10 lines)
 
-1.7.2 was never submitted, so these are its notes: what changed since 1.7.1.
+1.7.2 and 1.7.3 were never submitted, so these cover everything since 1.7.1.
 
 ```
+- A short welcome page opens once, when you first install.
+- If you remove the extension, a one-question page asks why.
 - New "Rate us" link in the popup and on the options page.
 - Full-page proof screenshots now show "Building the image…" while a long
   page saves, and Cancel works right up to the end.
@@ -299,6 +304,12 @@ for lending purposes.
 ---
 
 ## 7. Reviewer test notes
+
+On a first install one tab opens at our welcome page
+(`https://seobandwagon.com/seo-chrome-extension/welcome`); an update opens
+nothing. Removing the extension opens a one-question survey page on
+seobandwagon.com. Neither needs a permission or sends anything but the
+extension's version (survey only).
 
 No account is required to exercise every permission-bearing feature below.
 Full-page proof screenshots (Citations tab) need a connected account; they

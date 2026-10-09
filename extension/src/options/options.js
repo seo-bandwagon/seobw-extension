@@ -96,7 +96,7 @@ async function disconnect() {
 async function openDashboardPath(path) {
   const settings = await SBW.getApiSettings();
   const origin = SBWOptions.dashboardOrigin(settings.apiUrl);
-  chrome.tabs.create({ url: origin + path });
+  chrome.tabs.create({ url: SBWSiteLinks.siteUrl(origin, path, 'options') });
 }
 
 function wireLink(id, handler) {

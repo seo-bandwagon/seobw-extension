@@ -183,7 +183,7 @@ function renderSignedOut(el) {
   document.getElementById('cfSignup').addEventListener('click', async () => {
     const settings = await SBW.getApiSettings();
     const origin = SBWOptions.dashboardOrigin(settings.apiUrl);
-    chrome.tabs.create({ url: `${origin}/dashboard/api-keys` });
+    chrome.tabs.create({ url: SBWSiteLinks.siteUrl(origin, '/dashboard/api-keys', 'citations_tab') });
   });
 }
 
@@ -665,6 +665,6 @@ async function disconnect() {
 async function openDashboard() {
   const settings = await SBW.getApiSettings();
   const origin = SBWOptions.dashboardOrigin(settings.apiUrl);
-  chrome.tabs.create({ url: `${origin}/dashboard/citations` });
+  chrome.tabs.create({ url: SBWSiteLinks.siteUrl(origin, '/dashboard/citations', 'citations_tab') });
   window.close();
 }

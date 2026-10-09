@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.7.3",
-  "version_name": "1.7.3 — a Rate us link, and full-page proof that never hangs",
+  "version": "1.7.4",
+  "version_name": "1.7.4 — a welcome page on first install, and a one-question survey on removal",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "permissions": [
     "activeTab",

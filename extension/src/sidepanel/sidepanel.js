@@ -483,7 +483,7 @@ function setCardActionsDisabled(id, disabled) {
 async function openSetSenderPage() {
   const settings = await SBW.getApiSettings();
   const origin = settings.apiUrl.replace(/\/api$/, '');
-  chrome.tabs.create({ url: `${origin}/dashboard/link-building` });
+  chrome.tabs.create({ url: SBWSiteLinks.siteUrl(origin, '/dashboard/link-building', 'side_panel') });
 }
 
 /* ---------- outlets ---------- */
