@@ -62,7 +62,34 @@ describe('bareDomain', () => {
 
   it('returns null for internal links on other Google TLDs the overlay also runs on', () => {
     expect(SBWSerp.bareDomain('https://www.google.co.uk/preferences')).toBeNull();
-    expect(SBWSerp.bareDomain('https://support.google.de/websearch')).toBeNull();
+    expect(SBWSerp.bareDomain('https://www.google.de/search?q=x')).toBeNull();
+  });
+
+  // Issue #42: until 1.7.5 every *.google.* host was treated as internal,
+  // including support.google.de here, so Google's own properties never
+  // appeared as results. They are organic results like any other site.
+  it('keeps Google properties that rank as organic results (#42)', () => {
+    expect(SBWSerp.bareDomain('https://chromewebstore.google.com/detail/seo-bandwagon/dphmaddiedhkejfhabkfdenfphjljioj'))
+      .toBe('chromewebstore.google.com');
+    expect(SBWSerp.bareDomain('https://search.google.com/search-console/about')).toBe('search.google.com');
+    expect(SBWSerp.bareDomain('https://developers.google.com/search/docs')).toBe('developers.google.com');
+    expect(SBWSerp.bareDomain('https://support.google.de/websearch')).toBe('support.google.de');
+    expect(SBWSerp.bareDomain('https://play.google.com/store/apps')).toBe('play.google.com');
+    expect(SBWSerp.bareDomain('https://www.google.com/chrome/')).toBe('google.com');
+  });
+
+  it('still treats Google navigation as internal on every search host (#42)', () => {
+    [
+      'https://www.google.com/',
+      'https://www.google.com/url?q=https://example.com',
+      'https://www.google.com/goto?url=CAES',
+      'https://www.google.com/imgres?imgurl=x',
+      'https://www.google.com/maps/place/x',
+      'https://google.com/intl/en/policies/',
+      'https://maps.google.com/',
+      'https://consent.google.com/ml',
+      'https://policies.google.com/privacy'
+    ].forEach((u) => expect(SBWSerp.bareDomain(u)).toBeNull());
   });
 
   it('does not false-positive on an unrelated domain containing "google"', () => {
@@ -671,6 +698,29 @@ describe('a real signed-out SERP whose results link through /goto (issue #41)', 
       path.join(__dirname, '../fixtures/serp-google-goto-links.html'), 'utf8');
     return new JSDOM(`<!doctype html><body>${html}</body>`, { url: 'https://www.google.com/search?q=seo+stats+chrome' }).window.document;
   };
+
+  it('reads every organic result in page order, Google properties included (#41, #42)', () => {
+    // 1.7.4 read 0 of these 9: the four Google properties were dropped as
+    // "internal" (#42) and the five other sites hid behind /goto (#41).
+    expect(SBWSerp.parseResults(realDoc()).map((r) => r.domain)).toEqual([
+      'chromewebstore.google.com',
+      'chromewebstore.google.com',
+      'search.google.com',
+      'rankmath.com',
+      'detailed.com',
+      'developers.google.com',
+      'seobolt.io',
+      'reddit.com',
+      'open-seo-statsformerly-pagerank-status.en.softonic.com'
+    ]);
+  });
+
+  it('gives a Chrome Web Store result its exact listing URL (#42)', () => {
+    const [first] = SBWSerp.parseResults(realDoc());
+    expect(first.url).toMatch(/^https:\/\/chromewebstore\.google\.com\/detail\//);
+    expect(first.urlResolved).toBeUndefined();
+    expect(first.position).toBe(1);
+  });
 
   it('keeps every third-party result, in page order', () => {
     const rows = SBWSerp.parseResults(realDoc());

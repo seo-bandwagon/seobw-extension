@@ -24,15 +24,32 @@
   // Domains
   // ============================================
 
-  // Any google.<tld> (and subdomains — accounts.google.com,
-  // support.google.com, www.google.co.uk, ...) is an internal Google link,
-  // never an organic result. The overlay itself runs on nine Google TLDs
-  // (see manifest content_scripts), not just .com, so this generalizes past
-  // the ledger's literal "google.com" wording rather than missing internal
-  // links on the other eight hosts. Requires a '.' (or start-of-string)
-  // immediately before "google" so an unrelated domain like
-  // "mygoogle.com" does not false-positive.
+  // Any google.<tld>, on any of the nine Google TLDs the overlay runs on
+  // (see manifest content_scripts). Requires a '.' (or start-of-string)
+  // immediately before "google" so an unrelated domain like "mygoogle.com"
+  // does not false-positive.
   const GOOGLE_HOST_RE = /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2,3})?$/i;
+
+  // Google's own properties are organic results like any other site:
+  // chromewebstore.google.com, support.google.com, developers.google.com,
+  // search.google.com, play.google.com, www.google.com/chrome/… Until 1.7.5
+  // every *.google.* host was dropped, which hid the Chrome Web Store
+  // listings for extension keywords and moved every later result up (#42).
+  // Internal means Google's own navigation, never a result:
+  //   - the account, consent, policy, cache and maps hosts, and
+  //   - on google.<tld> / www.google.<tld>, the search, redirect, settings
+  //     and vertical paths below (and the bare homepage).
+  const GOOGLE_INTERNAL_HOST_RE = /^(accounts|consent|myaccount|policies|webcache|maps)\./i;
+  const GOOGLE_SEARCH_HOST_RE = /^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2,3})?$/i;
+  const GOOGLE_INTERNAL_PATH_RE =
+    /^\/(search|url|goto|imgres|aclk|setprefs|preferences|webhp|advanced_search|maps|travel|shopping|finance|sorry|intl)?(\/|$)/i;
+
+  function isGoogleInternal(u) {
+    const host = u.hostname.toLowerCase();
+    if (!GOOGLE_HOST_RE.test(host)) return false;
+    if (GOOGLE_INTERNAL_HOST_RE.test(host)) return true;
+    return GOOGLE_SEARCH_HOST_RE.test(host) && GOOGLE_INTERNAL_PATH_RE.test(u.pathname);
+  }
 
   function bareDomain(href) {
     let u;
@@ -44,7 +61,7 @@
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     let host = (u.hostname || '').toLowerCase();
     if (!host) return null;
-    if (GOOGLE_HOST_RE.test(host)) return null;
+    if (isGoogleInternal(u)) return null;
     if (host.startsWith('www.')) host = host.slice(4);
     return host || null;
   }

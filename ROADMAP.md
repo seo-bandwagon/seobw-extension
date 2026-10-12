@@ -58,9 +58,18 @@ permission, host or content-script change so far.
   (non-enumerable `row._href`). Live, signed out, page 1: "rank tracking
   software" 0 → 9 of 9 results, "seo chrome extension" 0 → 7 of 10 (the rest
   are Google properties, #42).
+- **Google's own properties are results (#42)**: `bareDomain` dropped every
+  `*.google.*` host as "internal", so Chrome Web Store listings (ours
+  included), Search Console, Search Central, support.google.com and the rest
+  never appeared and every later result moved up. Internal now means Google's
+  navigation only: the accounts/consent/myaccount/policies/webcache/maps hosts,
+  and search, redirect, settings and vertical paths (`/search`, `/url`,
+  `/goto`, `/imgres`, `/maps`, `/intl`, the homepage, …) on `google.<tld>`.
+  Live, page 1: "seo stats chrome" 0 → 9 of 9 results (with #41), "seo chrome
+  extension" 9 of 10, "google search console" 8 of 9.
 - `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
   ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
-  `serp-overlay.test.js` add 12 tests, 10 of which fail on 1.7.4.
+  `serp-overlay.test.js` add 15 tests, 13 of which fail on 1.7.4.
 
 ---
 
