@@ -298,8 +298,70 @@
     return root;
   }
 
+  // Google links third-party results through its own redirects on some
+  // layouts: `/goto?url=CAES…` (an opaque token, signed-out SERPs since
+  // Oct 2026) or `/url?q=<destination>`. Google's own properties keep direct
+  // links. All three are result links. Saved real markup:
+  // tests/fixtures/serp-google-goto-links.html.
+  const RESULT_LINK_SELECTOR = 'a[href^="http"], a[href^="/goto?"], a[href^="/url?"]';
+  const REDIRECT_PATH_RE = /^\/(goto|url)$/;
+
+  // The leading `https://host` of a <cite> breadcrumb, e.g.
+  // "https://rankmath.com › SEO Basics". A host Google cut short ("…" or
+  // "...") is not a host.
+  const CITE_ORIGIN_RE = /^(https?:\/\/[^\s/›…]+)(?:\s|›|\/|$)/;
+
+  // Forum and video results often show a site name and "10+ comments · 3
+  // years ago" instead of a URL breadcrumb. Only names that map to exactly
+  // one site belong here.
+  const SITE_NAME_DOMAINS = {
+    reddit: 'reddit.com',
+    youtube: 'youtube.com',
+    quora: 'quora.com'
+  };
+
+  /**
+   * Where a result link really goes: `{ url, resolved, key }` or null.
+   *
+   * `resolved` is false when only the site's origin is known (read from the
+   * breadcrumb or the site name), because a `/goto` token can't be decoded
+   * on the page. The domain is still right, which is what rank checks need.
+   * `key` dedupes results: the destination URL when it's known, otherwise
+   * the redirect itself, so two different pages on one site whose origin
+   * alone is known are not merged.
+   */
+  function resolveResultUrl(anchor, block) {
+    const href = anchor.getAttribute('href') || '';
+    let u;
+    try {
+      u = new URL(href, 'https://www.google.com');
+    } catch (e) {
+      return null;
+    }
+    if (!(GOOGLE_HOST_RE.test(u.hostname) && REDIRECT_PATH_RE.test(u.pathname))) {
+      return { url: anchor.href, resolved: true, key: anchor.href };
+    }
+    const q = u.searchParams.get('q') || u.searchParams.get('url');
+    if (q && /^https?:\/\//i.test(q)) return { url: q, resolved: true, key: q };
+
+    const container = resultContainer(block);
+    if (!container || !container.querySelector) return null;
+    const media = container.querySelector('[data-curl^="http"], [data-surl^="http"]');
+    if (media) {
+      const url = media.getAttribute('data-curl') || media.getAttribute('data-surl');
+      return { url, resolved: true, key: url };
+    }
+    const m = CITE_ORIGIN_RE.exec(cleanText(container.querySelector('cite')));
+    if (m && !/\.\./.test(m[1])) return { url: m[1].toLowerCase() + '/', resolved: false, key: href };
+
+    const name = cleanText(container.querySelector('.VuuXrf')).split('·')[0].trim().toLowerCase();
+    if (SITE_NAME_DOMAINS[name]) return { url: 'https://' + SITE_NAME_DOMAINS[name] + '/', resolved: false, key: href };
+    return null;
+  }
+
   // DOM-tolerant extraction of organic results from a Google results page
-  // root. Candidates are blocks containing an a[href^="http"] with an h3
+  // root. Candidates are blocks containing a result link (direct, or one of
+  // Google's redirects — see resolveResultUrl) with an h3
   // descendant; anything inside an ad container, a non-organic surface
   // (AI Overview/carousels/shopping), or a sponsored-labelled block is
   // skipped, as is anything nested inside an already-accepted result
@@ -318,9 +380,9 @@
     scanRoot.querySelectorAll('h3').forEach((h3) => {
       if (isAd(h3) || isRejectedContainer(h3)) return;
 
-      let anchor = h3.closest('a[href^="http"]');
+      let anchor = h3.closest(RESULT_LINK_SELECTOR);
       if (!anchor) {
-        anchor = h3.querySelector && h3.querySelector('a[href^="http"]');
+        anchor = h3.querySelector && h3.querySelector(RESULT_LINK_SELECTOR);
       }
       let block;
       if (anchor) {
@@ -329,7 +391,7 @@
         // h3 and the result link are siblings rather than nested — fall
         // back to the nearest container that also holds a link.
         const container = (h3.closest && h3.closest('div, article, li')) || h3.parentElement;
-        anchor = container && container.querySelector && container.querySelector('a[href^="http"]');
+        anchor = container && container.querySelector && container.querySelector(RESULT_LINK_SELECTOR);
         block = container;
       }
       if (!anchor || !block) return;
@@ -342,17 +404,19 @@
       // accepted, rather than relying on URL dedupe alone.
       if (acceptedBlocks.some((accepted) => accepted.contains(block))) return;
 
-      const domain = bareDomain(anchor.href);
+      const target = resolveResultUrl(anchor, block);
+      const domain = target && bareDomain(target.url);
       if (!domain) return;
-      if (seenUrls.has(anchor.href)) return;
+      if (seenUrls.has(target.key)) return;
       if (!hasQualifyingContent(block)) return;
 
-      seenUrls.add(anchor.href);
+      seenUrls.add(target.key);
       acceptedBlocks.push(block);
 
       position += 1;
       const title = (h3.textContent || '').trim();
-      const row = { position, url: anchor.href, domain, title };
+      const row = { position, url: target.url, domain, title };
+      if (!target.resolved) row.urlResolved = false;
       const rawSnippet = extractSnippet(block);
       if (rawSnippet) {
         const split = splitDatePrefix(rawSnippet);
@@ -370,6 +434,10 @@
       // into resultsToCsv(), clipboard text, or a JSON.stringify/toEqual
       // comparison in tests.
       Object.defineProperty(row, '_el', { value: block, enumerable: false });
+      // Also non-enumerable: the link as Google rendered it. For a /goto row
+      // `url` may be only the site's origin, but Google's redirect still
+      // opens the actual page.
+      Object.defineProperty(row, '_href', { value: anchor.href, enumerable: false });
       rows.push(row);
     });
 

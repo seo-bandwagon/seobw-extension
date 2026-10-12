@@ -655,3 +655,107 @@ describe('a real commercial SERP — dates, ratings, PAA, related searches', () 
       .forEach((col) => expect(header).toContain(col));
   });
 });
+
+/* ---------- Google's redirect links (/goto, /url) — issue #41 ---------- */
+
+describe('a real signed-out SERP whose results link through /goto (issue #41)', () => {
+  // tests/fixtures/serp-google-goto-links.html: "seo stats chrome", saved
+  // 2026-10-12 signed out. Google links its own properties directly and every
+  // other site through an opaque /goto?url= token, so the destination is only
+  // in the <cite> breadcrumb (or the site name). Until 1.7.5 the parser
+  // required a[href^="http"] and found none of the third-party results.
+  const realDoc = () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(
+      path.join(__dirname, '../fixtures/serp-google-goto-links.html'), 'utf8');
+    return new JSDOM(`<!doctype html><body>${html}</body>`, { url: 'https://www.google.com/search?q=seo+stats+chrome' }).window.document;
+  };
+
+  it('keeps every third-party result, in page order', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    const third = rows.filter((r) => !/google\.com$/.test(r.domain));
+    expect(third.map((r) => r.domain)).toEqual([
+      'rankmath.com',
+      'detailed.com',
+      'seobolt.io',
+      'reddit.com',
+      'open-seo-statsformerly-pagerank-status.en.softonic.com'
+    ]);
+  });
+
+  it('reads the origin from the breadcrumb and says it is only the origin', () => {
+    const rank = SBWSerp.parseResults(realDoc()).find((r) => r.domain === 'rankmath.com');
+    expect(rank.url).toBe('https://rankmath.com/');
+    expect(rank.urlResolved).toBe(false);
+    expect(rank.title).toMatch(/Best SEO Chrome Extensions/);
+    expect(rank.snippet.length).toBeGreaterThan(40);
+  });
+
+  it('maps a forum result with no URL breadcrumb by its site name', () => {
+    // cite reads "10+ comments · 3 years ago"; the site name is "Reddit · r/…"
+    const reddit = SBWSerp.parseResults(realDoc()).find((r) => r.domain === 'reddit.com');
+    expect(reddit).toBeTruthy();
+    expect(reddit.urlResolved).toBe(false);
+  });
+
+  it('keeps the Google redirect as the link to open', () => {
+    const rank = SBWSerp.parseResults(realDoc()).find((r) => r.domain === 'rankmath.com');
+    expect(rank._href).toMatch(/^https:\/\/www\.google\.com\/goto\?url=/);
+    // non-enumerable: never reaches the CSV or clipboard
+    expect(Object.keys(rank)).not.toContain('_href');
+  });
+
+  it('exports the origin, not the opaque token', () => {
+    const doc = realDoc();
+    const csv = SBWSerp.resultsToCsv(SBWSerp.parseResults(doc), SBWSerp.searchContext({ search: '?q=seo+stats+chrome' }, doc));
+    expect(csv).toContain('https://rankmath.com/');
+    expect(csv).not.toContain('/goto?url=');
+  });
+});
+
+describe('resolving Google redirect links (issue #41)', () => {
+  const block = (href, extra = '') => `
+    <div class="g"><div>
+      <a href="${href}"><h3>A result title</h3></a>
+      ${extra}
+      <div class="VwiC3b">A description long enough to count as a real snippet for this result.</div>
+    </div></div>`;
+  const parse = (html) => SBWSerp.parseResults(
+    new JSDOM(`<!doctype html><body><div id="rso">${html}</div></body>`, { url: 'https://www.google.com/search?q=x' }).window.document);
+
+  it('takes the destination straight from /url?q=', () => {
+    const [row] = parse(block('/url?q=https://example.com/page&sa=U'));
+    expect(row.url).toBe('https://example.com/page');
+    expect(row.domain).toBe('example.com');
+    expect(row.urlResolved).toBeUndefined();
+  });
+
+  it('takes the destination from data-curl when Google provides it', () => {
+    const [row] = parse(block('/goto?url=CAESabc', '<div data-curl="https://www.youtube.com/watch?v=abc"></div><cite>YouTube · Channel</cite>'));
+    expect(row.url).toBe('https://www.youtube.com/watch?v=abc');
+    expect(row.urlResolved).toBeUndefined();
+  });
+
+  it('ignores a breadcrumb host Google cut short', () => {
+    expect(parse(block('/goto?url=CAESabc', '<cite>https://some-very-long-host-name.exa…</cite>'))).toEqual([]);
+    expect(parse(block('/goto?url=CAESabc', '<cite>https://some-very-long-host-name.exa...</cite>'))).toEqual([]);
+  });
+
+  it('drops a /goto result it cannot place rather than guessing', () => {
+    expect(parse(block('/goto?url=CAESabc', '<cite>10+ comments · 3 years ago</cite>'))).toEqual([]);
+  });
+
+  it('does not merge two different pages on one site known only by origin', () => {
+    const rows = parse(
+      block('/goto?url=CAESone', '<cite>https://example.com › blog</cite>') +
+      block('/goto?url=CAEStwo', '<cite>https://example.com › docs</cite>'));
+    expect(rows.map((r) => r.position)).toEqual([1, 2]);
+    expect(rows.every((r) => r.url === 'https://example.com/')).toBe(true);
+  });
+
+  it('still dedupes the same /goto link', () => {
+    const one = block('/goto?url=CAESsame', '<cite>https://example.com › blog</cite>');
+    expect(parse(one + one).length).toBe(1);
+  });
+});

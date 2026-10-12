@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,30 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.5 (in progress)
+
+SERP overlay fixes from the 2026-10-12 test pass (issues #41–#56). No
+permission, host or content-script change so far.
+
+- **Results linked through Google's redirects (#41)**: on signed-out results
+  pages Google links its own properties directly and every other site through
+  an opaque `/goto?url=CAES…` token, with the destination nowhere in the
+  markup. `parseResults` (`src/lib/serp.js`) required `a[href^="http"]`, so it
+  read none of them: "Copy results (0)", no bars, a header-only CSV. It now
+  accepts `/goto` and `/url` links and resolves them in order: `/url?q=`,
+  then `data-curl`/`data-surl`, then the origin in the `<cite>` breadcrumb,
+  then a short site-name map (Reddit, YouTube, Quora). A row known only by its
+  origin carries `urlResolved: false`, dedupes on the redirect so two pages on
+  one site aren't merged, and its bar's Analyze link opens Google's own link
+  (non-enumerable `row._href`). Live, signed out, page 1: "rank tracking
+  software" 0 → 9 of 9 results, "seo chrome extension" 0 → 7 of 10 (the rest
+  are Google properties, #42).
+- `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
+  ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
+  `serp-overlay.test.js` add 12 tests, 10 of which fail on 1.7.4.
 
 ---
 

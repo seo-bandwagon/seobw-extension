@@ -360,3 +360,21 @@ describe('fix round 1, item 16: dropped #sbw-analyze hash', () => {
     expect(link.getAttribute('href')).not.toContain('#');
   });
 });
+
+/* ---------- issue #41: /goto results ---------- */
+
+describe('issue #41: results linked through Google /goto redirects', () => {
+  it('draws a bar for a /goto result and opens it through Google\'s link', async () => {
+    document.body.innerHTML = `<div id="search"><div id="rso"><div class="g"><div>
+      <a href="/goto?url=CAESopaque"><h3>Goto result</h3></a>
+      <cite>https://goto-site.example › docs</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div>
+    </div></div></div></div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('goto-site.example')).toBeTruthy();
+    const link = barFor('goto-site.example').querySelector('.sbw-serp-analyze');
+    expect(link.getAttribute('href')).toMatch(/\/goto\?url=CAESopaque$/);
+    quickBatchMessages().forEach((m) => expect(m.init.body.domains).toContain('goto-site.example'));
+  });
+});

@@ -147,7 +147,9 @@
     // with no marker hash appended — README already describes this as
     // "opens the result in a new tab", and nothing in the popup consumes
     // such a marker.
-    analyzeLink.href = row.url;
+    // row._href is the link as Google rendered it; for a /goto result
+    // row.url can be just the site's origin (see SBWSerp.parseResults).
+    analyzeLink.href = row._href || row.url;
     analyzeLink.target = '_blank';
     analyzeLink.rel = 'noopener noreferrer';
     analyzeLink.textContent = 'Analyze';
