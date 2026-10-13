@@ -279,3 +279,87 @@ describe('captureFullPage', () => {
     });
   });
 });
+
+/* ---------- issue #43: a page that lands a few px off ---------- */
+
+describe('captureFullPage when the page lands a few px from the plan (#43)', () => {
+  // The real trace from seobandwagon.com/seo-chrome-extension: 14242 px tall,
+  // 813 px window, 18 frames. After fpHideFixed took the sticky header and the
+  // fixed bottom bar out, the page was 4 px shorter, so the last scroll
+  // (13429) landed at 13425 and 1.7.4 threw the whole capture away.
+  const REAL = { scrollHeight: 14242, viewportWidth: 1366, viewportHeight: 813, dpr: 1, innerScroll: false };
+
+  function landing(h, metrics, landAt) {
+    const send = h.deps.send;
+    const frames = [];
+    h.deps.send = async msg => {
+      if (msg.action === 'fpPrepare') { h.log.push('fpPrepare'); return metrics; }
+      if (msg.action === 'fpScrollTo') { h.log.push(`fpScrollTo:${msg.y}`); return { scrollY: landAt(msg.y) }; }
+      return send(msg);
+    };
+    h.deps.draw = { ...h.deps.draw, frame: async (_u, f) => { frames.push(f); } };
+    return frames;
+  }
+
+  it('finishes the capture instead of throwing it away', async () => {
+    const h = harness();
+    const frames = landing(h, REAL, y => Math.min(y, 13425));
+    const result = await captureFullPage(h.deps);
+    expect(result).toMatchObject({ width: 1366, height: 14242, mode: 'fullpage', truncated: false });
+    expect(frames.length).toBe(18);
+    // last frame: planned scrollY 13429 / srcY 392; drawn from 13425, so 4 rows lower
+    const last = frames[17];
+    expect(last.scrollY).toBe(13429);
+    expect(last.srcY).toBe(396);
+    expect(last.destY).toBe(13821);
+    // every other frame is drawn exactly as planned
+    frames.slice(0, 17).forEach((f, i) => {
+      expect(f.srcY).toBe(0);
+      expect(f.destY).toBe(i * 813);
+    });
+    expect(h.log.at(-2)).toBe('fpRestore');
+  });
+
+  it('scales the shift by the device-pixel ratio', async () => {
+    const h = harness();
+    const frames = landing(h, { ...METRICS, dpr: 2 }, y => (y === 1280 ? 1276 : y));
+    await captureFullPage(h.deps);
+    // planned last frame: scrollY 1280, srcY px(1440-1280)=320; 4 CSS px up = 8 device px
+    expect(frames.at(-1).srcY).toBe(328);
+  });
+
+  it('still fails when a middle frame lands off (its rows would leave a gap)', async () => {
+    const h = harness();
+    landing(h, METRICS, y => (y === 720 ? 710 : y));
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'capture-failed' });
+    expect(h.log).toContain('fpRestore');
+  });
+
+  it('still fails when a window lands below the rows it needs (they would be missing)', async () => {
+    const h = harness();
+    landing(h, METRICS, y => (y === 720 ? 730 : y));
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'capture-failed' });
+  });
+
+  it('uses the last frame when the page grew a little and the window landed lower', async () => {
+    const h = harness();
+    // rows 1440–2000 are still inside the window at 1290–2010
+    const frames = landing(h, METRICS, y => (y === 1280 ? 1290 : y));
+    await captureFullPage(h.deps);
+    expect(frames.at(-1).srcY).toBe(150);
+  });
+
+  it('still fails when the page shrank by more than a quarter screen', async () => {
+    const h = harness();
+    // 720 px window: up to 180 px may stay white at the bottom; 200 may not
+    landing(h, METRICS, y => (y === 1280 ? 1080 : y));
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'capture-failed' });
+  });
+
+  it('ignores a 1 px miss, as before', async () => {
+    const h = harness();
+    const frames = landing(h, METRICS, y => (y === 1280 ? 1279 : y));
+    await captureFullPage(h.deps);
+    expect(frames.at(-1).srcY).toBe(160);
+  });
+});

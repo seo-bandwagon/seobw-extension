@@ -37,6 +37,28 @@
     'no-response': 'The page stopped responding. Reload it and try again.'
   };
 
+  // Issue #43: the page can land a few px away from the planned scroll
+  // position, e.g. after fpHideFixed takes a sticky header or a fixed bar out
+  // of the layout and the page gets shorter (seobandwagon.com/seo-chrome-
+  // extension: asked for 13429, got 13425). Until 1.7.5 any miss over 1px
+  // threw away the whole capture. Now the frame's rows are read from where
+  // the window actually is, as long as they're on screen:
+  //   - rows above the window would leave a gap mid-image: fail;
+  //   - rows below it, on any frame but the last, would too: fail;
+  //   - on the last frame, rows below it no longer exist (the page got
+  //     shorter). Up to a quarter screen of them stays white at the bottom
+  //     (draw.begin fills the canvas white); more than that fails.
+  // Returns the frame to draw, or null.
+  function adjustFrame(frame, actualScrollY, ratio, viewportPx, isLast) {
+    const drift = actualScrollY - frame.scrollY;
+    if (Math.abs(drift) <= 1) return frame;
+    const srcY = frame.srcY - Math.round(drift * ratio);
+    if (srcY < 0) return null;
+    const missingBelow = srcY + frame.srcH - viewportPx;
+    if (missingBelow > 0 && (!isLast || missingBelow > viewportPx / 4)) return null;
+    return Object.assign({}, frame, { srcY });
+  }
+
   function captureError(code, message) {
     const e = new Error(message || MESSAGES[code]);
     e.code = code;
@@ -126,14 +148,18 @@
 
       try { await draw.begin(p.width, p.height); } catch (_) { throw captureError('canvas-failed'); }
 
+      const ratio = metrics.dpr > 0 ? metrics.dpr : 1;
+      const viewportPx = Math.round(metrics.viewportHeight * ratio);
+
       let lastShot = -Infinity;
       for (let i = 0; i < p.frames.length; i++) {
-        const frame = p.frames[i];
+        const planned = p.frames[i];
         checkCancelled();
         onProgress(i + 1, p.frames.length);
-        const scrollReply = await ask({ action: 'fpScrollTo', y: frame.scrollY });
+        const scrollReply = await ask({ action: 'fpScrollTo', y: planned.scrollY });
         if (!scrollReply || typeof scrollReply.scrollY !== 'number') throw captureError('capture-failed', 'The page was reset during capture.');
-        if (Math.abs(scrollReply.scrollY - frame.scrollY) > 1) {
+        const frame = adjustFrame(planned, scrollReply.scrollY, ratio, viewportPx, i === p.frames.length - 1);
+        if (!frame) {
           throw captureError('capture-failed', "The page didn't scroll as expected, so a full-page image would repeat itself. Try the visible area instead.");
         }
         // Keep sticky headers in the first frame only. Hide again before each later

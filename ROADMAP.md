@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,72 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.5 (2026-10-12)
+
+SERP overlay and full-page proof fixes from the 2026-10-12 test pass
+(issues #41–#56). No permission, host or content-script change.
+
+- **Results linked through Google's redirects (#41)**: on signed-out results
+  pages Google links its own properties directly and every other site through
+  an opaque `/goto?url=CAES…` token, with the destination nowhere in the
+  markup. `parseResults` (`src/lib/serp.js`) required `a[href^="http"]`, so it
+  read none of them: "Copy results (0)", no bars, a header-only CSV. It now
+  accepts `/goto` and `/url` links and resolves them in order: `/url?q=`,
+  then `data-curl`/`data-surl`, then the origin in the `<cite>` breadcrumb,
+  then a short site-name map (Reddit, YouTube, Quora). A row known only by its
+  origin carries `urlResolved: false`, dedupes on the redirect so two pages on
+  one site aren't merged, and its bar's Analyze link opens Google's own link
+  (non-enumerable `row._href`). Live, signed out, page 1: "rank tracking
+  software" 0 → 9 of 9 results, "seo chrome extension" 0 → 7 of 10 (the rest
+  are Google properties, #42).
+- **Google's own properties are results (#42)**: `bareDomain` dropped every
+  `*.google.*` host as "internal", so Chrome Web Store listings (ours
+  included), Search Console, Search Central, support.google.com and the rest
+  never appeared and every later result moved up. Internal now means Google's
+  navigation only: the accounts/consent/myaccount/policies/webcache/maps hosts,
+  and search, redirect, settings and vertical paths (`/search`, `/url`,
+  `/goto`, `/imgres`, `/maps`, `/intl`, the homepage, …) on `google.<tld>`.
+  Live, page 1: "seo stats chrome" 0 → 9 of 9 results (with #41), "seo chrome
+  extension" 9 of 10, "google search console" 8 of 9.
+- **Copy PAA and Copy results copy again (#37)**: both always flashed "Copy
+  failed". `navigator.clipboard.writeText()` rejects in a content script
+  ("NotAllowedError: Write permission denied"), since the isolated world
+  doesn't inherit the page's clipboard grant, and the error was discarded.
+  `copyText` (`src/overlay/serp-overlay.js`) now copies with
+  `execCommand('copy')` through an off-screen textarea, which needs only the
+  click's user activation, then restores focus and the page's selection; the
+  async API stays as a second try, and a failure is logged. The
+  `clipboardWrite` permission would also have fixed it, but it carries the
+  "Modify data you copy and paste" warning, which disables the extension on
+  update until each user accepts it. Verified live, signed out, with default
+  permissions: Copy PAA 4 → 9 questions after expanding, Copy results the
+  full table. `MANUAL_SMOKE_TEST.md` now says to paste after every Copy.
+- **Empty results are reported, not exported (#44)**: with 0 rows, "Copy
+  results" flashed "Copied" over a header-only table and "Export CSV"
+  downloaded a header-only file, which is how #41 went unnoticed; "Copy PAA"
+  with no questions copied an empty string, wiping the clipboard. Now the
+  buttons flash "No results found" / "No questions found" and touch neither
+  the clipboard nor Downloads. A page that has result headings but yields no
+  rows logs one console warning per page (heading and redirect-link counts),
+  flagged on the document so a re-injected script stays quiet.
+- **Full-page proof survives a page that shifts a few px (#43)**: the loop
+  threw away the whole capture when a scroll landed more than 1px from the
+  plan. After `fpHideFixed` takes a sticky header or fixed bar out of the
+  layout a page can get a few px shorter, so the last scroll falls short:
+  seobandwagon.com/seo-chrome-extension (asked 13429, got 13425, 18 frames
+  lost) and the seobandwagon.com home page both failed every time. The loop
+  (`src/popup/fullpage-capture.js`, `adjustFrame`) now reads each frame's rows
+  from where the window actually is when they're on screen. On the last frame
+  up to a quarter screen of rows that no longer exist stays white at the
+  bottom; a frame whose rows would leave a gap mid-image still fails with the
+  same message. Both pages now capture (1366×14242, 1366×10436), with no seam
+  at the adjusted frame; Wikipedia still captures as before.
+- `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
+  ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
+  `serp-overlay.test.js` add 27 tests, 20 of which fail on 1.7.4; `fullpage-capture.test.js` adds 7 for #43, 3 of which fail on 1.7.4 (1008 tests in all, 974 on 1.7.4).
 
 ---
 
@@ -555,6 +621,67 @@ and export, location simulator) were the v1.6 candidates and all closed in
 
 ---
 
+## Work plan — fixes from the 2026-10-12 test pass
+
+A full runtime test of 1.7.1 (installed build, re-checked against `main` at
+1.7.4) filed #41–#56 and diagnosed #37. Every item is still a 1.7.x patch
+unless marked; the existing maintenance lane below is unchanged. Releases
+are named by order, not number: `npm run bump` rewrites version strings.
+
+**1.7.5: done, on `release/1.7.5` (PR pending).** See its
+changelog above.
+- [x] #41 results behind Google `/goto` redirects (breadcrumb origin; no new permission)
+- [x] #42 Google's own properties (Chrome Web Store, Search Console…) count as results
+- [x] #37 Copy PAA / Copy results copy (no `clipboardWrite`, on purpose)
+- [x] #44 "No results found" instead of empty copies and exports
+- [x] #43 full-page proof survives a page that lands a few px off
+
+**Next patch: link check survives the popup.**
+- [ ] #47 run the check in the service worker keyed by tab + URL, keep it
+      going when the popup closes, persist progress in
+      `chrome.storage.session`, reattach on reopen
+- [ ] #46 classify Chrome Web Store links as "can't check", not NETWORK
+- [ ] #52 raise per-host / global concurrency, dedupe `#fragment` variants,
+      separate HEAD and GET timeouts
+
+**Patch after that: small correctness fixes.**
+- [ ] #50 SERP stats cache (`storage.session` from a content script) and the
+      signed-out "no request" guard the 1.6.0 changelog promises
+- [ ] #49 side panel "Page checks →" when the panel is open window-wide
+- [ ] #45 (part) an approximate absolute-position column; drop the dead `num`
+      param from `buildSearchUrl`
+- [ ] #56 popup text on a SERP reflects what the overlay actually read
+- [ ] #54 flash label leaves stale `textContent`
+- [ ] #55 export filenames: page number, path slug, seconds
+
+**Then: full-page proof off the popup (patch, larger).**
+- [ ] #48 move the scroll-and-stitch loop out of the popup (service worker
+      or offscreen document) so a click away doesn't kill it
+- [ ] #51 JPEG/WebP proofs and an up-front time estimate (with #48)
+
+**Feature candidates (next minor):** see "v1.7 — feature candidates" below,
+which now lists *Capture top N* (#45).
+
+**Open decisions**
+- #53 toolbar placement: the 1.6.0 changelog chose "after the results" on
+  purpose; revisit only with the owner.
+- #41 full destination URLs: resolving `/goto` tokens needs
+  `https://www.google.com/*` host access in the service worker. Check the
+  install-warning impact before choosing it; 1.7.5 reports the origin.
+- #36 canary: production's capture endpoint stopped returning the expected
+  401 on 2026-10-05. Website side, not the extension.
+
+**Test debt**
+- [ ] Pin Node for local runs (`.nvmrc` / `engines` = 20, as CI). On Node 25+,
+      `theme-mode.test.js` fails because Node's own global `localStorage`
+      shadows jsdom's.
+- [ ] An e2e check of the SERP Copy buttons **without** pre-granted clipboard
+      permissions (granting them is how #37 hid).
+- [ ] Refresh the real-SERP fixtures when Google's markup moves; the
+      overlay's new console warning (#44) is the signal.
+- [ ] The 63-item static review from the same pass (S1–S63) is not filed;
+      only runtime-confirmed findings became issues.
+
 ## Maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
@@ -585,6 +712,11 @@ patch.
   tab, shown only with an API key connected and data collection on. Needs a new
   site endpoint (`POST /api/v1/keywords`, scope `keywords:write`) and a
   data-use disclosure change; planned 2026-09-10, not started.
+- **Capture top N / page depth (#45)** — Google ignores `&num=100`, so
+  ranking checks need paging: a SERP action that walks `start=0,10,…` up to N
+  pages, dedupes by URL, and exports one table with an absolute position.
+  Needs the 1.7.5 parser fixes (#41, #42); complements the rank-tracker row
+  action above.
 - **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
   CitationForge backend (SEOquake gets this from Semrush)
 - **Citation remediation flow** — the `FIX ON THIS SITE` concept from the design

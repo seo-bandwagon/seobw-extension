@@ -147,7 +147,9 @@
     // with no marker hash appended — README already describes this as
     // "opens the result in a new tab", and nothing in the popup consumes
     // such a marker.
-    analyzeLink.href = row.url;
+    // row._href is the link as Google rendered it; for a /goto result
+    // row.url can be just the site's origin (see SBWSerp.parseResults).
+    analyzeLink.href = row._href || row.url;
     analyzeLink.target = '_blank';
     analyzeLink.rel = 'noopener noreferrer';
     analyzeLink.textContent = 'Analyze';
@@ -223,8 +225,24 @@
     return false;
   }
 
+  // Issue #44: a results page that has result headings but yields no rows
+  // means Google's markup moved under the parser (as /goto links did in
+  // #41). Say so once per page in the console, instead of every export
+  // silently coming out empty. The flag lives on the document, not in this
+  // script, so a second copy injected after an extension reload stays quiet.
+  function warnIfUnparsed(rowCount) {
+    if (rowCount || document.__sbwWarnedUnparsed || !hasOrganicContainerH3()) return;
+    document.__sbwWarnedUnparsed = true;
+    const root = document.querySelector('#rso') || document.querySelector('#search');
+    console.warn('[SBW] SERP overlay read 0 results from a page with ' +
+      root.querySelectorAll('h3').length + ' result headings (' +
+      root.querySelectorAll('a[href^="/goto?"], a[href^="/url?"]').length +
+      ' Google redirect links). Google\'s results markup may have changed.');
+  }
+
   function processResults() {
     const rows = globalThis.SBWSerp.parseResults(document);
+    warnIfUnparsed(rows.length);
     const newRows = [];
 
     rows.forEach((row) => {
@@ -394,14 +412,62 @@
     }, 1200);
   }
 
+  // Issue #37: navigator.clipboard.writeText() always rejects here
+  // ("NotAllowedError: Write permission denied"). A content script's
+  // isolated world doesn't inherit the page's clipboard grant, and the
+  // `clipboardWrite` permission that would allow it shows users a "Modify
+  // data you copy and paste" warning, which disables the extension on update
+  // until they accept it. execCommand('copy') needs only the click's user
+  // activation, so it goes first; the async API stays as a second try.
   function copyText(text, btn) {
+    if (execCopy(text)) {
+      flashLabel(btn, 'Copied');
+      return;
+    }
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
-      flashLabel(btn, 'Copy unsupported');
+      flashLabel(btn, 'Copy failed');
       return;
     }
     navigator.clipboard.writeText(text)
       .then(() => flashLabel(btn, 'Copied'))
-      .catch(() => flashLabel(btn, 'Copy failed'));
+      .catch((err) => {
+        console.warn('[SBW] copy failed:', err && err.name, err && err.message);
+        flashLabel(btn, 'Copy failed');
+      });
+  }
+
+  // Copies through a throwaway, off-screen textarea, then gives focus and the
+  // page's text selection back, so the click leaves Google's page as it was.
+  function execCopy(text) {
+    if (typeof document.execCommand !== 'function') return false;
+    const previousFocus = document.activeElement;
+    const selection = document.getSelection && document.getSelection();
+    const ranges = [];
+    if (selection) {
+      for (let i = 0; i < selection.rangeCount; i++) ranges.push(selection.getRangeAt(i));
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    let ok = false;
+    try {
+      ta.select();
+      ok = document.execCommand('copy') === true;
+    } catch (e) {
+      ok = false;
+    }
+    ta.remove();
+    if (previousFocus && typeof previousFocus.focus === 'function') {
+      try { previousFocus.focus({ preventScroll: true }); } catch (e) { /* element went away */ }
+    }
+    if (selection) {
+      selection.removeAllRanges();
+      ranges.forEach((r) => selection.addRange(r));
+    }
+    return ok;
   }
 
   // The old name was the date alone, so two exports on one day overwrote each
@@ -564,8 +630,15 @@
     copyCount.textContent = '0';
     copyBtn.appendChild(copyCount);
     copyBtn.appendChild(document.createTextNode(')'));
+    // Issue #44: with nothing to copy or export, say so and leave the
+    // clipboard and Downloads alone; a "Copied" over a header-only table hid
+    // parser failures.
     copyBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
+      if (!rows.length) {
+        flashLabel(copyBtn, 'No results found');
+        return;
+      }
       copyText(rowsToTsv(rows, globalThis.SBWSerp.searchContext(window.location, document)), copyBtn);
     });
     toolbarEl.appendChild(copyBtn);
@@ -576,6 +649,10 @@
     exportBtn.textContent = 'Export CSV';
     exportBtn.addEventListener('click', () => {
       const rows = globalThis.SBWSerp.parseResults(document);
+      if (!rows.length) {
+        flashLabel(exportBtn, 'No results found');
+        return;
+      }
       const ctx = globalThis.SBWSerp.searchContext(window.location, document);
       downloadCsv(globalThis.SBWSerp.resultsToCsv(rows, ctx), ctx.query);
     });
@@ -592,6 +669,11 @@
     paaBtn.appendChild(document.createTextNode(')'));
     paaBtn.addEventListener('click', () => {
       const questions = globalThis.SBWSerp.parsePaa(document);
+      if (!questions.length) {
+        // Copying '' would wipe the user's clipboard and still say "Copied".
+        flashLabel(paaBtn, 'No questions found');
+        return;
+      }
       copyText(globalThis.SBWSerp.paaToText(questions), paaBtn);
     });
     toolbarEl.appendChild(paaBtn);
