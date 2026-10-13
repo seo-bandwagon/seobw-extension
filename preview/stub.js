@@ -300,7 +300,10 @@ const LINK_CHECK_FIXTURE = [
   { url: 'https://oldpartner-site.example/referral', text: 'Referral partner', rel: null, internal: false, status: 0, error: 'timeout' },
   { url: 'https://defunct-directory.example/listing', text: 'Old directory', rel: null, internal: false, status: 0, error: 'network' },
   { url: 'https://northsidedental.com/blog/flossing-tips', text: 'Flossing Tips', rel: null, internal: true, status: 200 },
-  { url: 'https://facebook.com/northsidedental', text: 'Facebook', rel: 'nofollow', internal: false, status: 403 }
+  { url: 'https://facebook.com/northsidedental', text: 'Facebook', rel: 'nofollow', internal: false, status: 403 },
+  // #46: Chrome won't let an extension fetch the Web Store; the worker
+  // records it without a request.
+  { url: 'https://chromewebstore.google.com/detail/northside-dental-app/abc', text: 'Get our app', rel: null, internal: false, status: 0, error: 'uncheckable' }
 ];
 
 // Indexability panel (Task 2, src/popup/indexability.js, src/lib/redirect-chain.js):
@@ -411,23 +414,36 @@ window.chrome = {
       const messageListeners = [];
       const disconnectListeners = [];
       let disconnected = false;
+      let streaming = false;
+      const emit = (m) => { if (!disconnected) messageListeners.forEach(fn => fn(m)); };
+      const fixtureResults = () => LINK_CHECK_FIXTURE.map((r, i) => Object.assign({ finalUrl: null, ms: 90 + i * 15 }, r));
       const port = {
         name: opts && opts.name,
+        // The worker's #47 protocol: 'attach' answers with the tab's run
+        // ({ type: 'state', run }), 'start' streams 'progress' then 'done',
+        // 'cancel' answers 'cancelled'. `link-check-reattach` is a popup
+        // reopened after its check finished: attach returns the done run.
         postMessage(msg) {
-          if (disconnected || !msg || msg.type !== 'start' || port.name !== 'link-check') return;
-          const total = LINK_CHECK_FIXTURE.length;
+          if (disconnected || !msg || port.name !== 'link-check') return;
+          if (msg.type === 'attach') {
+            const run = PREVIEW_STATE === 'link-check-reattach'
+              ? { tabId: msg.tabId, url: msg.url, status: 'done', done: LINK_CHECK_FIXTURE.length, total: LINK_CHECK_FIXTURE.length, results: fixtureResults() }
+              : null;
+            setTimeout(() => emit({ type: 'state', run }), 10);
+            return;
+          }
+          if (msg.type === 'cancel') { streaming = false; setTimeout(() => emit({ type: 'cancelled' }), 10); return; }
+          if (msg.type !== 'start' || streaming) return;
+          streaming = true;
+          const all = fixtureResults();
+          const total = all.length;
           const results = [];
-          let i = 0;
+          emit({ type: 'state', run: { tabId: msg.tabId, url: msg.url, status: 'running', done: 0, total } });
           const tick = () => {
-            if (disconnected) return;
-            if (i >= total) {
-              messageListeners.forEach(fn => fn({ type: 'done', results }));
-              return;
-            }
-            const result = Object.assign({ finalUrl: null, ms: 90 + i * 15 }, LINK_CHECK_FIXTURE[i]);
-            results.push(result);
-            i += 1;
-            messageListeners.forEach(fn => fn({ type: 'progress', done: i, total, result }));
+            if (disconnected || !streaming) return;
+            if (results.length >= total) { emit({ type: 'done', results }); return; }
+            results.push(all[results.length]);
+            emit({ type: 'progress', done: results.length, total });
             setTimeout(tick, 35);
           };
           setTimeout(tick, 35);
@@ -874,7 +890,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua', 'schema-mixed', 'credits'];
+    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'link-check-reattach', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua', 'schema-mixed', 'credits'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();

@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js');
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -419,34 +419,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// --- Broken-link checker: long-lived port, one per popup session (Task 1) ---
+// --- Broken-link checker: one run per tab, outliving the popup (#47) ---
 //
-// The popup opens a `link-check` port and posts { type: 'start', links }.
-// This never runs on its own — no auto-run on install or on analyze — and
+// The popup opens a `link-check` port and posts:
+//   { type: 'attach', tabId, url }        what's there for this page?
+//   { type: 'start',  tabId, url, links } a new check (a click on "Check N links")
+//   { type: 'cancel', tabId }             the Cancel button
+// and gets { type: 'state', run } (run is null when nothing exists for the
+// page), then 'progress' / 'done' / 'cancelled' / 'error'. Runs live in
+// SBWLinkCheckRuns (src/lib/link-check-runs.js), keyed by tab: closing the
+// popup only detaches it; the run goes on and is mirrored to
+// chrome.storage.session. Until 1.7.6 a port disconnect aborted the run.
+//
+// This never runs on its own: no auto-run on install or on analyze. It
 // never requests the <all_urls> permission itself (SBWPerms.requestAllUrls()
 // only ever runs from the popup's own click handler, a user gesture). If the
-// permission isn't already granted when 'start' arrives, this replies with
-// an error and does nothing else.
+// permission isn't granted when 'start' arrives, it replies with an error and
+// does nothing else.
 const LINK_CHECK_TIMEOUT_MS = 10000;
-const LINK_CHECK_PER_HOST = 2;
-const LINK_CHECK_GLOBAL = 6;
+// #52: 2 per host / 6 overall made the internal links (most of a page) run
+// two at a time. Still polite to one host, and the overall cap is unchanged
+// in spirit.
+const LINK_CHECK_PER_HOST = 4;
+const LINK_CHECK_GLOBAL = 10;
 
 // One HEAD probe (retried once as GET on a 405/501 or a thrown non-abort
-// error). `controller` is owned by the caller so a port disconnect can abort
-// it from outside. Never sends cookies, never caches, always drains/cancels
-// the body — nothing here reads response content. Result shape matches what
+// error). `controller` is owned by the caller, so Cancel or a closed tab can
+// abort it from outside. #52: each attempt has its own timeout; until 1.7.6
+// one timer covered HEAD and the GET retry together, so a slow HEAD left the
+// GET almost no time. Never sends cookies, never caches, always cancels the
+// body — nothing here reads response content. Result shape matches what
 // src/lib/link-check.js's classify()/resultRows() expect: status 0 on any
-// failure, with `error` set to 'timeout' (the AbortController fired) or
-// 'network' (anything else — DNS, refused connection, opaque CORS, etc).
+// failure, with `error` set to 'timeout' or 'network' (anything else — DNS,
+// refused connection, opaque CORS, etc).
 async function probeLink(url, controller) {
   const start = Date.now();
-  const timer = setTimeout(() => controller.abort(), LINK_CHECK_TIMEOUT_MS);
-  const baseInit = { redirect: 'follow', credentials: 'omit', cache: 'no-store', signal: controller.signal };
+  const baseInit = { redirect: 'follow', credentials: 'omit', cache: 'no-store' };
 
   async function attempt(method) {
-    const res = await fetch(url, Object.assign({ method }, baseInit));
-    if (res.body) { try { res.body.cancel(); } catch (e) { /* already drained */ } }
-    return res;
+    const attemptController = new AbortController();
+    const onOuterAbort = () => attemptController.abort();
+    controller.signal.addEventListener('abort', onOuterAbort);
+    const timer = setTimeout(() => attemptController.abort(), LINK_CHECK_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, Object.assign({ method, signal: attemptController.signal }, baseInit));
+      if (res.body) { try { res.body.cancel(); } catch (e) { /* already drained */ } }
+      return res;
+    } finally {
+      clearTimeout(timer);
+      controller.signal.removeEventListener('abort', onOuterAbort);
+    }
   }
 
   try {
@@ -460,98 +482,53 @@ async function probeLink(url, controller) {
     if (res.status === 405 || res.status === 501) {
       res = await attempt('GET');
     }
-    clearTimeout(timer);
     return { url, status: res.status, finalUrl: res.url, redirected: res.redirected, ms: Date.now() - start };
   } catch (err) {
-    clearTimeout(timer);
     const timedOut = err && err.name === 'AbortError';
     return { url, status: 0, finalUrl: null, redirected: false, ms: Date.now() - start, error: timedOut ? 'timeout' : 'network' };
   }
 }
 
+const linkCheckRuns = SBWLinkCheckRuns.createRunner({
+  probe: probeLink,
+  hasPermission: () => SBWPerms.hasAllUrls(),
+  storage: chrome.storage.session,
+  perHost: LINK_CHECK_PER_HOST,
+  global: LINK_CHECK_GLOBAL
+});
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'link-check') return;
 
-  let cancelled = false;
-  let started = false;
-  let queue = [];
-  let total = 0;
-  let doneCount = 0;
-  const results = [];
-  const inflightByHost = {};
-  const inflightControllers = new Set();
+  let tabId = null;
+  let connected = true;
+  const listener = (msg) => { if (connected) port.postMessage(msg); };
 
   port.onDisconnect.addListener(() => {
-    cancelled = true;
-    inflightControllers.forEach(c => { try { c.abort(); } catch (e) { /* already settled */ } });
-    inflightControllers.clear();
+    // The popup closed. The run keeps going (#47); stop sending to this port.
+    connected = false;
+    if (tabId !== null) linkCheckRuns.detach(tabId, listener);
   });
-
-  function pump() {
-    if (cancelled) return;
-    let next;
-    while ((next = SBWLinkCheck.pickNext(queue, inflightByHost, { perHost: LINK_CHECK_PER_HOST, global: LINK_CHECK_GLOBAL }))) {
-      queue.splice(queue.indexOf(next), 1);
-      runOne(next);
-    }
-    const inflightTotal = Object.values(inflightByHost).reduce((a, b) => a + b, 0);
-    if (!cancelled && SBWLinkCheck.isComplete(doneCount, total, inflightTotal)) {
-      port.postMessage({ type: 'done', results });
-    }
-  }
-
-  async function runOne(item) {
-    const host = SBWLinkCheck.hostKey(item.url);
-    inflightByHost[host] = (inflightByHost[host] || 0) + 1;
-
-    const controller = new AbortController();
-    inflightControllers.add(controller);
-
-    const probe = await probeLink(item.url, controller);
-
-    inflightControllers.delete(controller);
-    inflightByHost[host] -= 1;
-    if (inflightByHost[host] <= 0) delete inflightByHost[host];
-
-    if (cancelled) return;
-
-    const result = Object.assign({}, item, probe);
-    results.push(result);
-    doneCount += 1;
-    port.postMessage({ type: 'progress', done: doneCount, total, result });
-
-    pump();
-  }
 
   port.onMessage.addListener(async (msg) => {
-    if (!msg || msg.type !== 'start') return;
+    if (!msg || typeof msg.tabId !== 'number') return;
+    if (tabId !== null && tabId !== msg.tabId) linkCheckRuns.detach(tabId, listener);
+    tabId = msg.tabId;
 
-    // The popup only ever opens one port per check and posts one 'start' on
-    // it, but a second 'start' on an already-running port (e.g. a stray
-    // double-click before the button re-renders) must not restart the queue
-    // out from under in-flight probes — reject it instead.
-    if (started) {
-      port.postMessage({ type: 'error', code: 'already_started' });
-      return;
+    if (msg.type === 'attach') {
+      const res = await linkCheckRuns.attach({ tabId, url: msg.url }, listener);
+      listener({ type: 'state', run: res.state });
+    } else if (msg.type === 'start') {
+      const res = await linkCheckRuns.start({ tabId, url: msg.url, links: msg.links || [] }, listener);
+      if (res.error) listener({ type: 'error', code: res.error });
+      else listener({ type: 'state', run: res.state });
+    } else if (msg.type === 'cancel') {
+      await linkCheckRuns.cancel(tabId);
     }
-    started = true;
-
-    const allowed = await SBWPerms.hasAllUrls();
-    if (cancelled) return;
-    if (!allowed) {
-      port.postMessage({ type: 'error', code: 'no_permission' });
-      return;
-    }
-
-    const planned = SBWLinkCheck.planChecks(msg.links || []);
-    queue = planned.queue.slice();
-    total = queue.length;
-    doneCount = 0;
-    results.length = 0;
-
-    pump();
   });
 });
+
+chrome.tabs.onRemoved.addListener((tabId) => { linkCheckRuns.tabRemoved(tabId); });
 
 // --- Redirect tracer: webRequest/webNavigation → Indexability panel (Task 2) ---
 //

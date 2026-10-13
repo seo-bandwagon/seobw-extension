@@ -92,12 +92,30 @@
     return null;
   }
 
+  // #46: Chrome never lets an extension fetch the Chrome Web Store (old and
+  // new hosts), so a probe there always failed and read as a broken
+  // NETWORK link, including our own "Install free extension" link. The
+  // worker skips these and records `error: 'uncheckable'`.
+  function isUncheckable(url) {
+    let u;
+    try {
+      u = new URL(url);
+    } catch (e) {
+      return false;
+    }
+    const host = u.hostname.toLowerCase();
+    if (host === 'chromewebstore.google.com') return true;
+    return host === 'chrome.google.com' && /^\/webstore(\/|$)/.test(u.pathname);
+  }
+
   // 2xx/3xx/4xx/5xx by status; a status of 0 (fetch threw/aborted) reads
-  // `error` — 'timeout' for the AbortController timeout, everything else
-  // (DNS failure, connection refused, CORS-opaque, etc.) is 'network'.
+  // `error` — 'timeout' for the AbortController timeout, 'uncheckable' for
+  // a host Chrome won't let us fetch (#46), everything else (DNS failure,
+  // connection refused, CORS-opaque, etc.) is 'network'.
   function classify(result) {
     const status = result && result.status;
     if (status === 0) {
+      if (result.error === 'uncheckable') return 'uncheckable';
       return result.error === 'timeout' ? 'timeout' : 'network';
     }
     if (status >= 200 && status < 300) return 'ok';
@@ -108,7 +126,8 @@
   }
 
   function groupResults(results) {
-    const groups = { ok: [], redirect: [], client: [], server: [], timeout: [], network: [] };
+    // 'uncheckable' is neither OK nor broken: it never counts in `broken`.
+    const groups = { ok: [], redirect: [], client: [], server: [], timeout: [], network: [], uncheckable: [] };
     for (const r of results || []) {
       groups[classify(r)].push(r);
     }
@@ -149,6 +168,7 @@
   return {
     normalizeUrl,
     hostKey,
+    isUncheckable,
     planChecks,
     pickNext,
     classify,

@@ -273,9 +273,10 @@ describe('groupResults', () => {
     { url: 'https://a.example/aa-ok', status: 200 }
   ];
 
-  it('buckets results into the six classes', () => {
+  // 'uncheckable' joined the six in 1.7.6 (#46).
+  it('buckets results into the seven classes', () => {
     const { groups } = SBWLinkCheck.groupResults(results);
-    expect(Object.keys(groups).sort()).toEqual(['client', 'network', 'ok', 'redirect', 'server', 'timeout'].sort());
+    expect(Object.keys(groups).sort()).toEqual(['client', 'network', 'ok', 'redirect', 'server', 'timeout', 'uncheckable'].sort());
     expect(groups.ok).toHaveLength(2);
     expect(groups.redirect).toHaveLength(1);
     expect(groups.client).toHaveLength(1);
@@ -292,7 +293,7 @@ describe('groupResults', () => {
 
   it('provides counts per class', () => {
     const { counts } = SBWLinkCheck.groupResults(results);
-    expect(counts).toEqual({ ok: 2, redirect: 1, client: 1, server: 1, timeout: 1, network: 1 });
+    expect(counts).toEqual({ ok: 2, redirect: 1, client: 1, server: 1, timeout: 1, network: 1, uncheckable: 0 });
   });
 
   it('sums client+server+timeout+network into broken', () => {
@@ -302,7 +303,7 @@ describe('groupResults', () => {
 
   it('handles an empty result set', () => {
     const { groups, counts, broken } = SBWLinkCheck.groupResults([]);
-    expect(counts).toEqual({ ok: 0, redirect: 0, client: 0, server: 0, timeout: 0, network: 0 });
+    expect(counts).toEqual({ ok: 0, redirect: 0, client: 0, server: 0, timeout: 0, network: 0, uncheckable: 0 });
     expect(broken).toBe(0);
     Object.values(groups).forEach(g => expect(g).toEqual([]));
   });
@@ -328,5 +329,31 @@ describe('resultRows', () => {
     ]);
     expect(rows[0].type).toBe('internal');
     expect(rows[1].type).toBe('external');
+  });
+});
+
+/* ---------- #46: hosts Chrome won't let an extension fetch ---------- */
+
+describe('uncheckable links (#46)', () => {
+  it('recognises the Chrome Web Store, old and new', () => {
+    expect(SBWLinkCheck.isUncheckable('https://chromewebstore.google.com/detail/seo-bandwagon/dphmaddiedhkejfhabkfdenfphjljioj?utm_source=x')).toBe(true);
+    expect(SBWLinkCheck.isUncheckable('https://chrome.google.com/webstore/detail/x/abc')).toBe(true);
+    expect(SBWLinkCheck.isUncheckable('https://chrome.google.com/webstore')).toBe(true);
+  });
+
+  it('leaves everything else checkable', () => {
+    expect(SBWLinkCheck.isUncheckable('https://chrome.google.com/extensions')).toBe(false);
+    expect(SBWLinkCheck.isUncheckable('https://www.google.com/chrome/')).toBe(false);
+    expect(SBWLinkCheck.isUncheckable('https://example.com/webstore')).toBe(false);
+    expect(SBWLinkCheck.isUncheckable('not a url')).toBe(false);
+  });
+
+  it('classifies them as uncheckable, never broken', () => {
+    const r = { url: 'https://chromewebstore.google.com/detail/x', status: 0, error: 'uncheckable' };
+    expect(SBWLinkCheck.classify(r)).toBe('uncheckable');
+    const { counts, broken } = SBWLinkCheck.groupResults([r, { url: 'https://a.example/404', status: 404 }]);
+    expect(counts.uncheckable).toBe(1);
+    expect(broken).toBe(1);
+    expect(SBWLinkCheck.resultRows([r])[0]).toMatchObject({ class: 'uncheckable', error: 'uncheckable' });
   });
 });

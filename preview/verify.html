@@ -57,8 +57,13 @@ const CASES = [
   { q: 'popup.html?state=link-check-noperm',
     need: ['.seo-hero', '.lc-perm-card', '#lcAllowBtn'] },
   { q: 'popup.html?state=link-check-results',
-    need: ['.seo-hero', '.lc-chip', '.lc-row', '.lc-group', '#lcHighlightBtn', '#lcExportBtn'],
+    need: ['.seo-hero', '.lc-chip', '.lc-row', '.lc-group', '#lcHighlightBtn', '#lcExportBtn', '#lcRecheckBtn', '.lc-chip-uncheckable', '.lc-group[data-class="uncheckable"] .lc-group-note'],
     click: '#lcCheckBtn' },
+
+  // #47: a popup reopened after its check finished in the worker. No
+  // click: attach returns the done run and the results render straight away.
+  { q: 'popup.html?state=link-check-reattach',
+    need: ['.seo-hero', '.lc-chip', '.lc-row', '#lcRecheckBtn'] },
 
   // task-1-fix-1-brief item 1: the first collectLinks send fails (as if the
   // cached-analysis path never injected the content script — see

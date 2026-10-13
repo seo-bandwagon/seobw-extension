@@ -101,7 +101,8 @@ For each URL below, click the extension icon and confirm the popup shows a grace
 On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 
 - [ ] **Rate us** — the popup footer's RATE US ★ and the options page's "Rate it on the Chrome Web Store" both open the store's reviews tab for SEO Bandwagon. A long page's full-page proof shows "Building the image…" before the proof card
-- [ ] **Link check** — "Check N links" runs only on click. The first time, it asks for the optional site access, and the request can be declined. Result chips (ok / redirect / 4xx / 5xx / timeout / network) add up, and "Export CSV" downloads
+- [ ] **Link check** — "Check N links" runs only on click. The first time, it asks for the optional site access, and the request can be declined. Result chips (ok / redirect / 4xx / 5xx / timeout / network / can't check) add up, and "Export CSV" downloads
+- [ ] **Link check outlives the popup** (#47) — on a page with 100+ links (e.g. a long Wikipedia article), start a check, click the page so the popup closes, wait a moment and reopen: it shows the progress so far or the finished results, not "Check N links". Switch to another tab and back: same. Cancel stops it; "Check again" re-reads the page's links. On seobandwagon.com/seo-chrome-extension the Chrome Web Store links read **Can't check**, not NETWORK (#46).
 - [ ] **Indexability** — shows an indexable / not-indexable verdict, the redirect chain and headers. Tracing `http://` → `https://` for a redirecting URL lists every hop
 - [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status
 - [ ] **Rendering** — raw-HTML vs rendered-DOM comparison loads, and the user-agent switcher changes the result for this tab only

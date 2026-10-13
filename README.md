@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.7.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.7.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -270,7 +270,7 @@ Apart from the fields listed above as stripped, nothing else is trimmed or summa
 
 **On Google search pages the extension sends the bare domain names of the results shown (never your query) to look up their stats; the results list and questions are copied only when you click.** See "SERP overlay" above for the full breakdown — the 10-minute local cache, the "Connect your account" no-retry behaviour, and the location simulator's copy rules.
 
-**Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per URL. This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
+**Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per request (the HEAD and, when needed, a GET retry each get their own). This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. From 1.7.6 a check keeps running in the extension's background worker when the popup closes, and its progress and results are kept in the browser's session storage (`chrome.storage.session`) for that tab until the tab closes, the check is cancelled or re-run, or the browser restarts. Chrome Web Store links are never fetched (Chrome doesn't allow it) and show as "Can't check". Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
 
 **Indexability observes the current tab's own network requests** (Indexability section, 1.6.0+) — the current tab's main-frame redirects, status codes, and a fixed list of response headers (X-Robots-Tag, Cache-Control, Content-Type, Link, and whether HSTS/CSP are present), and only after you've granted the same optional `<all_urls>` permission; it's kept in `chrome.storage.session` and cleared when the tab closes or the browser restarts, and is never sent anywhere. "Trace another URL" opens a background tab to the URL you type, reads the same kind of data from it, and closes it — again nothing leaves your device unless you export the CSV yourself.
 
@@ -327,6 +327,7 @@ extension/               # the only folder that ships (load unpacked from here; 
                              # link-building-ui.js, nap-compare.js, directory-matcher.js, options-logic.js,
                              # gsc-inject.js + gsc-compare.js (Search Console helpers)
                              # perms.js (optional <all_urls> gate), csv.js, link-check.js (broken-link checker),
+                             # link-check-runs.js (per-tab link-check runs that outlive the popup),
                              # redirect-chain.js (redirect/header/indexability logic, worker + popup share it),
                              # hreflang.js (tag validity, duplicates, x-default/self-ref, reciprocity),
                              # html-diff.js (raw-HTML vs rendered-DOM summarize/diff), ua-switch.js

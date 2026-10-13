@@ -9,17 +9,27 @@
 // States: no-permission -> idle -> running -> done (or back to idle via
 // Cancel). The check NEVER auto-runs — every transition into 'running'
 // starts from a real click on "Check N links".
+//
+// #47 (1.7.6): the run belongs to the worker, per tab, not to this popup.
+// Closing the popup (any click away or tab switch closes it) only drops the
+// port; on reopen, mount() attaches again and shows the run's progress or
+// its results. Cancel and "Check again" are the only ways to end one.
 
 (function () {
 
-  const CLASS_LABELS = { ok: 'OK', redirect: 'REDIRECT', client: '4XX', server: '5XX', timeout: 'TIMEOUT', network: 'NETWORK' };
-  const CLASS_ORDER = ['ok', 'redirect', 'client', 'server', 'timeout', 'network'];
+  const CLASS_LABELS = { ok: 'OK', redirect: 'REDIRECT', client: '4XX', server: '5XX', timeout: 'TIMEOUT', network: 'NETWORK', uncheckable: "CAN'T CHECK" };
+  const CLASS_ORDER = ['ok', 'redirect', 'client', 'server', 'timeout', 'network', 'uncheckable'];
+  // #46: Chrome won't let an extension fetch these hosts (the Chrome Web
+  // Store); the row says so rather than looking broken.
+  const CLASS_NOTES = { uncheckable: 'Chrome doesn\'t let extensions open these pages, so they can\'t be checked. They are not counted as broken.' };
   const BROKEN_CLASSES = ['client', 'server', 'timeout', 'network'];
+  const ATTACH_TIMEOUT_MS = 3000;
 
   let sectionEl = null;
   let tab = null;
   let port = null;
   let permsUnsub = null; // unsubscribe for the pending SBWPerms.onAllUrlsGranted() watch, or null
+  let pendingAttach = null; // resolves attach()'s promise on the next { type: 'state' }
 
   // Incremented on every mount() — the async chains started by a given
   // mount (init/loadLinks) capture their own `my` and bail out if `gen` has
@@ -47,7 +57,7 @@
 
   function badgeKindFor(cls) {
     if (cls === 'ok') return 'b-ok';
-    if (cls === 'redirect') return 'b-warn';
+    if (cls === 'redirect' || cls === 'uncheckable') return 'b-warn';
     return 'b-err'; // client / server / timeout / network
   }
 
@@ -76,8 +86,10 @@
     if (!section) return;
 
     tab = getCurrentTab ? getCurrentTab() : null;
+    // Dropping the port only detaches this popup; it never cancels the run.
     if (port) { try { port.disconnect(); } catch (e) { /* already gone */ } }
     port = null;
+    pendingAttach = null;
     if (permsUnsub) { permsUnsub(); permsUnsub = null; }
     const my = ++gen;
     state = 'checking-permission';
@@ -106,7 +118,57 @@
       watchForGrant(my);
       return;
     }
+    // A run for this page may already exist: still going after the popup
+    // was closed, or finished while it was (#47).
+    const run = await attach(my);
+    if (my !== gen) return;
+    if (run && (run.status === 'running' || run.status === 'done')) {
+      showRun(run);
+      return;
+    }
     await loadLinks(my);
+  }
+
+  /* ---------- the worker's run for this tab (#47) ---------- */
+
+  function ensurePort() {
+    if (port) return port;
+    port = chrome.runtime.connect({ name: 'link-check' });
+    port.onMessage.addListener(onPortMessage);
+    port.onDisconnect.addListener(() => {
+      port = null;
+      if (pendingAttach) pendingAttach(null);
+    });
+    return port;
+  }
+
+  // Resolves with the run the worker holds for this tab and page, or null.
+  function attach(my) {
+    if (!tab || typeof tab.id !== 'number') return Promise.resolve(null);
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (run) => {
+        if (settled) return;
+        settled = true;
+        if (pendingAttach === settle) pendingAttach = null;
+        resolve(my === gen ? run : null);
+      };
+      pendingAttach = settle;
+      // A worker that's restarting may never answer; fall back to idle.
+      setTimeout(() => settle(null), ATTACH_TIMEOUT_MS);
+      ensurePort().postMessage({ type: 'attach', tabId: tab.id, url: tab.url });
+    });
+  }
+
+  function showRun(run) {
+    if (run.status === 'done') {
+      results = run.results || [];
+      state = 'done';
+    } else {
+      progress = { done: run.done, total: run.total };
+      state = 'running';
+    }
+    render();
   }
 
   // Re-renders out of the "Allow access" card the moment the permission is
@@ -237,9 +299,10 @@
           <span class="lc-row-url" title="${esc(r.url)}">${esc(truncateMiddle(r.url, 60))}</span>
           <span class="lc-row-anchor">${esc(truncateMiddle(r.text || '', 40))}</span>
         </div>`).join('');
+        const note = CLASS_NOTES[cls] ? `<div class="lc-group-note">${esc(CLASS_NOTES[cls])}</div>` : '';
         return `<div class="lc-group${openClass}" data-class="${cls}">
           <div class="lc-group-head">${esc(CLASS_LABELS[cls])} (${counts[cls]})</div>
-          <div class="lc-group-rows">${rows}</div>
+          ${note}<div class="lc-group-rows">${rows}</div>
         </div>`;
       }).join('');
 
@@ -248,6 +311,7 @@
       <div class="lc-actions">
         <button type="button" class="lc-highlight-btn" id="lcHighlightBtn"${broken === 0 ? ' disabled' : ''}>Highlight broken on page</button>
         <button type="button" class="lc-export-btn" id="lcExportBtn">Export CSV</button>
+        <button type="button" class="lc-recheck-btn" id="lcRecheckBtn">Check again</button>
       </div>`;
   }
 
@@ -260,6 +324,7 @@
     sectionEl.querySelector('#lcCancelBtn')?.addEventListener('click', onCancelClick);
     sectionEl.querySelector('#lcHighlightBtn')?.addEventListener('click', onHighlightClick);
     sectionEl.querySelector('#lcExportBtn')?.addEventListener('click', onExportClick);
+    sectionEl.querySelector('#lcRecheckBtn')?.addEventListener('click', onRecheckClick);
     sectionEl.querySelectorAll('.lc-group-head').forEach(head => {
       head.addEventListener('click', () => head.parentElement.classList.toggle('open'));
     });
@@ -282,39 +347,43 @@
   }
 
   function onCheckClick() {
-    if (!planned || !planned.links.length) return;
+    if (!planned || !planned.links.length || !tab || typeof tab.id !== 'number') return;
     state = 'running';
     progress = { done: 0, total: planned.links.length };
     results = [];
     render();
-
-    port = chrome.runtime.connect({ name: 'link-check' });
-    port.onMessage.addListener(onPortMessage);
-    port.onDisconnect.addListener(() => { port = null; });
-    port.postMessage({ type: 'start', links: planned.links });
+    ensurePort().postMessage({ type: 'start', tabId: tab.id, url: tab.url, links: planned.links });
   }
 
   function onCancelClick() {
-    if (port) { try { port.disconnect(); } catch (e) { /* already gone */ } }
-    port = null;
+    if (tab && typeof tab.id === 'number') ensurePort().postMessage({ type: 'cancel', tabId: tab.id });
     state = 'idle';
     render();
   }
 
+  // Results now stay until the tab closes, so re-checking is a choice:
+  // re-read the page's links, then "Check N links" starts a fresh run.
+  function onRecheckClick() {
+    results = [];
+    loadLinks(gen);
+  }
+
   function onPortMessage(msg) {
     if (!msg || !sectionEl) return;
-    if (msg.type === 'progress') {
+    if (msg.type === 'state') {
+      if (pendingAttach) { const resolve = pendingAttach; pendingAttach = null; resolve(msg.run); return; }
+      if (msg.run && state === 'running') { progress = { done: msg.run.done, total: msg.run.total }; render(); }
+    } else if (msg.type === 'progress') {
+      if (state !== 'running') return;
       progress = { done: msg.done, total: msg.total };
       render();
     } else if (msg.type === 'done') {
       results = msg.results || [];
       state = 'done';
-      if (port) { try { port.disconnect(); } catch (e) { /* already gone */ } }
-      port = null;
       render();
+    } else if (msg.type === 'cancelled') {
+      if (state === 'running') { state = 'idle'; render(); }
     } else if (msg.type === 'error') {
-      if (port) { try { port.disconnect(); } catch (e) { /* already gone */ } }
-      port = null;
       if (msg.code === 'no_permission') {
         state = 'no-permission';
         popup().setSeoStatus?.('Page access was revoked — allow it again to check links', 'error');
