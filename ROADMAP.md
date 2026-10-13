@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,41 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.6 (2026-10-13)
+
+Link check outlives the popup, from the 2026-10-12 test pass. No permission,
+host or content-script change.
+
+- **A check keeps going when the popup closes (#47)**: the action popup
+  closes on any click away or tab switch, and the worker aborted the run on
+  the port's disconnect; reopening showed "Check N links" again with every
+  result gone. Runs now belong to the worker, one per tab
+  (`src/lib/link-check-runs.js`, new): the popup attaches on open and detaches
+  on close, progress is mirrored to `chrome.storage.session` at most every
+  500 ms (each write also keeps the worker from idling out), and a reopened
+  popup shows the progress so far or the finished results. If Chrome stopped
+  the worker mid-run, the next attach resumes the links not yet checked. Only
+  Cancel, "Check again" (new, on the results) or closing the tab ends a run. The
+  port protocol is now `attach` / `start` / `cancel` → `state` / `progress` /
+  `done` / `cancelled` / `error`; `preview/stub.js` speaks it, with a new
+  `link-check-reattach` state. Live: popup closed at 50 of 300 links, the
+  worker's saved run went on 92 → 152 → 297 with no popup open.
+- **Chrome Web Store links read "Can't check" (#46)**: Chrome never lets an
+  extension fetch the Web Store, so every such link failed as a broken
+  NETWORK result (5 on seobandwagon.com/seo-chrome-extension, including our
+  own install link). `SBWLinkCheck.isUncheckable` skips them without a
+  request; they get their own chip and a note, and never count as broken.
+- **Faster (#52)**: 4 requests per host and 10 overall (was 2 and 6), and the
+  GET retry after a failed or refused HEAD gets its own 10 s timeout instead
+  of whatever the HEAD left. Live, 300 links on Wikipedia's SEO article:
+  4.0–5.0 s (1.7.5: 6.0 s warm, 17.1 s cold).
+- Tests: `link-check-runs.test.js` (12) and three `link-check.test.js` cases
+  for #46. Each runner behavior was checked by breaking it on purpose:
+  aborting on detach, skipping resume, and fetching Web Store links each fail
+  the tests meant to catch them.
 
 ---
 
@@ -636,15 +671,15 @@ changelog above.
 - [x] #44 "No results found" instead of empty copies and exports
 - [x] #43 full-page proof survives a page that lands a few px off
 
-**Next patch: link check survives the popup.**
-- [ ] #47 run the check in the service worker keyed by tab + URL, keep it
+**Link check survives the popup: done in 1.7.6.**
+- [x] #47 run the check in the service worker keyed by tab + URL, keep it
       going when the popup closes, persist progress in
       `chrome.storage.session`, reattach on reopen
-- [ ] #46 classify Chrome Web Store links as "can't check", not NETWORK
-- [ ] #52 raise per-host / global concurrency, dedupe `#fragment` variants,
+- [x] #46 classify Chrome Web Store links as "can't check", not NETWORK
+- [x] #52 raise per-host / global concurrency, dedupe `#fragment` variants,
       separate HEAD and GET timeouts
 
-**Patch after that: small correctness fixes.**
+**Next patch: small correctness fixes.**
 - [ ] #50 SERP stats cache (`storage.session` from a content script) and the
       signed-out "no request" guard the 1.6.0 changelog promises
 - [ ] #49 side panel "Page checks →" when the panel is open window-wide
