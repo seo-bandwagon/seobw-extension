@@ -628,7 +628,7 @@ A full runtime test of 1.7.1 (installed build, re-checked against `main` at
 unless marked; the existing maintenance lane below is unchanged. Releases
 are named by order, not number: `npm run bump` rewrites version strings.
 
-**1.7.5: done, on `fix/1.7.5-serp-goto-links` (PR pending).** See its
+**1.7.5: done, on `release/1.7.5` (PR pending).** See its
 changelog above.
 - [x] #41 results behind Google `/goto` redirects (breadcrumb origin; no new permission)
 - [x] #42 Google's own properties (Chrome Web Store, Search Console…) count as results
