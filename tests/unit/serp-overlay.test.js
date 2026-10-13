@@ -378,3 +378,99 @@ describe('issue #41: results linked through Google /goto redirects', () => {
     quickBatchMessages().forEach((m) => expect(m.init.body.domains).toContain('goto-site.example'));
   });
 });
+
+/* ---------- issue #37: Copy PAA / Copy results ---------- */
+
+describe('issue #37: copying from the SERP toolbar', () => {
+  // In a real content script navigator.clipboard.writeText() rejects with
+  // "Write permission denied", so the copy must not depend on it.
+  let copied;
+  function paaDom() {
+    document.body.innerHTML = `<div id="search"><div id="rso">${resultBlock('first.example', 0)}
+      <div data-q="How do widgets work?">How do widgets work?</div>
+      <div data-q="Are widgets safe?">Are widgets safe?</div></div></div>`;
+  }
+  function stubExecCommand(result) {
+    copied = null;
+    document.execCommand = vi.fn((cmd) => {
+      if (cmd !== 'copy') return false;
+      const ta = document.querySelector('textarea[aria-hidden="true"]');
+      if (result) copied = ta && ta.value;
+      return result;
+    });
+  }
+  const button = (label) => Array.from(document.querySelectorAll('.sbw-serp-tools button'))
+    .find((b) => b.textContent.startsWith(label));
+  const flashText = (btn) => btn.querySelector('[data-role="flash"]')?.textContent;
+
+  afterEach(() => { delete document.execCommand; });
+
+  it('copies the PAA questions without the async clipboard API', async () => {
+    stubExecCommand(true);
+    navigator.clipboard.writeText = vi.fn(() => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')));
+    paaDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Copy PAA').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(copied).toBe('How do widgets work?\nAre widgets safe?');
+    expect(flashText(button('Copy PAA'))).toBe('Copied');
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    expect(document.querySelector('textarea[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('copies results the same way', async () => {
+    stubExecCommand(true);
+    paaDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Copy results').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(copied.split('\n')[0]).toMatch(/^Query\tPosition\tURL/);
+    expect(copied).toContain('first.example');
+    expect(flashText(button('Copy results'))).toBe('Copied');
+  });
+
+  it('falls back to the async clipboard API when execCommand refuses', async () => {
+    stubExecCommand(false);
+    navigator.clipboard.writeText = vi.fn(() => Promise.resolve());
+    paaDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Copy PAA').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('How do widgets work?\nAre widgets safe?');
+    expect(flashText(button('Copy PAA'))).toBe('Copied');
+  });
+
+  it('says "Copy failed" and logs why when both ways fail', async () => {
+    stubExecCommand(false);
+    navigator.clipboard.writeText = vi.fn(() => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    paaDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Copy PAA').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(flashText(button('Copy PAA'))).toBe('Copy failed');
+    expect(warn).toHaveBeenCalledWith('[SBW] copy failed:', 'NotAllowedError', 'Write permission denied.');
+    warn.mockRestore();
+  });
+
+  it('gives focus back to whatever had it', async () => {
+    stubExecCommand(true);
+    paaDom();
+    document.body.insertAdjacentHTML('afterbegin', '<input id="q" value="search box">');
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    document.getElementById('q').focus();
+
+    button('Copy PAA').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(document.activeElement.id).toBe('q');
+  });
+});

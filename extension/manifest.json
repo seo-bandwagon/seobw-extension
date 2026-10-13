@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SEO Bandwagon",
   "version": "1.7.5",
-  "version_name": "1.7.5 — SERP results behind Google redirects, and Google's own sites, are read again",
+  "version_name": "1.7.5 — the SERP toolbar reads every result again, and its Copy buttons work",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "permissions": [
     "activeTab",

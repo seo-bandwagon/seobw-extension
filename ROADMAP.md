@@ -67,9 +67,22 @@ permission, host or content-script change so far.
   `/goto`, `/imgres`, `/maps`, `/intl`, the homepage, …) on `google.<tld>`.
   Live, page 1: "seo stats chrome" 0 → 9 of 9 results (with #41), "seo chrome
   extension" 9 of 10, "google search console" 8 of 9.
+- **Copy PAA and Copy results copy again (#37)**: both always flashed "Copy
+  failed". `navigator.clipboard.writeText()` rejects in a content script
+  ("NotAllowedError: Write permission denied"), since the isolated world
+  doesn't inherit the page's clipboard grant, and the error was discarded.
+  `copyText` (`src/overlay/serp-overlay.js`) now copies with
+  `execCommand('copy')` through an off-screen textarea, which needs only the
+  click's user activation, then restores focus and the page's selection; the
+  async API stays as a second try, and a failure is logged. The
+  `clipboardWrite` permission would also have fixed it, but it carries the
+  "Modify data you copy and paste" warning, which disables the extension on
+  update until each user accepts it. Verified live, signed out, with default
+  permissions: Copy PAA 4 → 9 questions after expanding, Copy results the
+  full table. `MANUAL_SMOKE_TEST.md` now says to paste after every Copy.
 - `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
   ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
-  `serp-overlay.test.js` add 15 tests, 13 of which fail on 1.7.4.
+  `serp-overlay.test.js` add 20 tests, 16 of which fail on 1.7.4.
 
 ---
 

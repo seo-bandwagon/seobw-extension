@@ -396,14 +396,62 @@
     }, 1200);
   }
 
+  // Issue #37: navigator.clipboard.writeText() always rejects here
+  // ("NotAllowedError: Write permission denied"). A content script's
+  // isolated world doesn't inherit the page's clipboard grant, and the
+  // `clipboardWrite` permission that would allow it shows users a "Modify
+  // data you copy and paste" warning, which disables the extension on update
+  // until they accept it. execCommand('copy') needs only the click's user
+  // activation, so it goes first; the async API stays as a second try.
   function copyText(text, btn) {
+    if (execCopy(text)) {
+      flashLabel(btn, 'Copied');
+      return;
+    }
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
-      flashLabel(btn, 'Copy unsupported');
+      flashLabel(btn, 'Copy failed');
       return;
     }
     navigator.clipboard.writeText(text)
       .then(() => flashLabel(btn, 'Copied'))
-      .catch(() => flashLabel(btn, 'Copy failed'));
+      .catch((err) => {
+        console.warn('[SBW] copy failed:', err && err.name, err && err.message);
+        flashLabel(btn, 'Copy failed');
+      });
+  }
+
+  // Copies through a throwaway, off-screen textarea, then gives focus and the
+  // page's text selection back, so the click leaves Google's page as it was.
+  function execCopy(text) {
+    if (typeof document.execCommand !== 'function') return false;
+    const previousFocus = document.activeElement;
+    const selection = document.getSelection && document.getSelection();
+    const ranges = [];
+    if (selection) {
+      for (let i = 0; i < selection.rangeCount; i++) ranges.push(selection.getRangeAt(i));
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    let ok = false;
+    try {
+      ta.select();
+      ok = document.execCommand('copy') === true;
+    } catch (e) {
+      ok = false;
+    }
+    ta.remove();
+    if (previousFocus && typeof previousFocus.focus === 'function') {
+      try { previousFocus.focus({ preventScroll: true }); } catch (e) { /* element went away */ }
+    }
+    if (selection) {
+      selection.removeAllRanges();
+      ranges.forEach((r) => selection.addRange(r));
+    }
+    return ok;
   }
 
   // The old name was the date alone, so two exports on one day overwrote each
