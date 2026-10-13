@@ -474,3 +474,102 @@ describe('issue #37: copying from the SERP toolbar', () => {
     expect(document.activeElement.id).toBe('q');
   });
 });
+
+/* ---------- issue #44: say when there is nothing to copy or export ---------- */
+
+describe('issue #44: empty results are reported, not exported', () => {
+  // A result heading the parser can't place: a /goto link whose breadcrumb
+  // isn't a URL. The toolbar still renders (there is an organic h3).
+  function unreadableDom() {
+    document.body.innerHTML = `<div id="search"><div id="rso"><div class="g"><div>
+      <a href="/goto?url=CAESopaque"><h3>Unplaceable result</h3></a>
+      <cite>10+ comments · 3 years ago</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div>
+    </div></div></div></div>`;
+  }
+  const button = (label) => Array.from(document.querySelectorAll('.sbw-serp-tools button'))
+    .find((b) => b.textContent.startsWith(label));
+  const flashText = (btn) => btn.querySelector('[data-role="flash"]')?.textContent;
+  let warn;
+  beforeEach(() => {
+    document.execCommand = vi.fn(() => true);
+    navigator.clipboard.writeText = vi.fn(() => Promise.resolve());
+    URL.createObjectURL = vi.fn(() => 'blob:stub');
+    URL.revokeObjectURL = vi.fn();
+    // jsdom can't follow the download link's click; the blob URL is the signal
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    delete document.__sbwWarnedUnparsed;
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    delete document.execCommand;
+    vi.restoreAllMocks();
+  });
+
+  it('Copy results says "No results found" and copies nothing', async () => {
+    unreadableDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(button('Copy results').textContent).toBe('Copy results (0)');
+
+    button('Copy results').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(flashText(button('Copy results'))).toBe('No results found');
+    expect(document.execCommand).not.toHaveBeenCalled();
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it('Export CSV says "No results found" and downloads nothing', async () => {
+    unreadableDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Export CSV').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(flashText(button('Export CSV'))).toBe('No results found');
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('Copy PAA with no questions leaves the clipboard alone', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Copy PAA').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(flashText(button('Copy PAA'))).toBe('No questions found');
+    expect(document.execCommand).not.toHaveBeenCalled();
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it('still exports when there are results', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+
+    button('Export CSV').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(flashText(button('Export CSV'))).toBeUndefined();
+  });
+
+  it('warns once in the console when a page with result headings yields no rows', async () => {
+    unreadableDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    // a later DOM change triggers a rescan; the warning must not repeat
+    document.querySelector('#rso').insertAdjacentHTML('beforeend', '<div>more</div>');
+    await vi.advanceTimersByTimeAsync(600);
+
+    const ours = warn.mock.calls.filter((c) => String(c[0]).includes('SERP overlay read 0 results'));
+    expect(ours.length).toBe(1);
+    expect(ours[0][0]).toContain('1 result headings (1 Google redirect links)');
+  });
+
+  it('does not warn on a page it reads fine', async () => {
+    freshDom(['first.example', 'second.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('read 0 results'))).toBe(false);
+  });
+});

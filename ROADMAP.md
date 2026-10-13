@@ -80,9 +80,17 @@ permission, host or content-script change so far.
   update until each user accepts it. Verified live, signed out, with default
   permissions: Copy PAA 4 → 9 questions after expanding, Copy results the
   full table. `MANUAL_SMOKE_TEST.md` now says to paste after every Copy.
+- **Empty results are reported, not exported (#44)**: with 0 rows, "Copy
+  results" flashed "Copied" over a header-only table and "Export CSV"
+  downloaded a header-only file, which is how #41 went unnoticed; "Copy PAA"
+  with no questions copied an empty string, wiping the clipboard. Now the
+  buttons flash "No results found" / "No questions found" and touch neither
+  the clipboard nor Downloads. A page that has result headings but yields no
+  rows logs one console warning per page (heading and redirect-link counts),
+  flagged on the document so a re-injected script stays quiet.
 - `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
   ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
-  `serp-overlay.test.js` add 20 tests, 16 of which fail on 1.7.4.
+  `serp-overlay.test.js` add 26 tests, 20 of which fail on 1.7.4.
 
 ---
 
