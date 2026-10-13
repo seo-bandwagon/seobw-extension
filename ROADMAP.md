@@ -621,6 +621,67 @@ and export, location simulator) were the v1.6 candidates and all closed in
 
 ---
 
+## Work plan — fixes from the 2026-10-12 test pass
+
+A full runtime test of 1.7.1 (installed build, re-checked against `main` at
+1.7.4) filed #41–#56 and diagnosed #37. Every item is still a 1.7.x patch
+unless marked; the existing maintenance lane below is unchanged. Releases
+are named by order, not number: `npm run bump` rewrites version strings.
+
+**1.7.5: done, on `fix/1.7.5-serp-goto-links` (PR pending).** See its
+changelog above.
+- [x] #41 results behind Google `/goto` redirects (breadcrumb origin; no new permission)
+- [x] #42 Google's own properties (Chrome Web Store, Search Console…) count as results
+- [x] #37 Copy PAA / Copy results copy (no `clipboardWrite`, on purpose)
+- [x] #44 "No results found" instead of empty copies and exports
+- [x] #43 full-page proof survives a page that lands a few px off
+
+**Next patch: link check survives the popup.**
+- [ ] #47 run the check in the service worker keyed by tab + URL, keep it
+      going when the popup closes, persist progress in
+      `chrome.storage.session`, reattach on reopen
+- [ ] #46 classify Chrome Web Store links as "can't check", not NETWORK
+- [ ] #52 raise per-host / global concurrency, dedupe `#fragment` variants,
+      separate HEAD and GET timeouts
+
+**Patch after that: small correctness fixes.**
+- [ ] #50 SERP stats cache (`storage.session` from a content script) and the
+      signed-out "no request" guard the 1.6.0 changelog promises
+- [ ] #49 side panel "Page checks →" when the panel is open window-wide
+- [ ] #45 (part) an approximate absolute-position column; drop the dead `num`
+      param from `buildSearchUrl`
+- [ ] #56 popup text on a SERP reflects what the overlay actually read
+- [ ] #54 flash label leaves stale `textContent`
+- [ ] #55 export filenames: page number, path slug, seconds
+
+**Then: full-page proof off the popup (patch, larger).**
+- [ ] #48 move the scroll-and-stitch loop out of the popup (service worker
+      or offscreen document) so a click away doesn't kill it
+- [ ] #51 JPEG/WebP proofs and an up-front time estimate (with #48)
+
+**Feature candidates (next minor):** see "v1.7 — feature candidates" below,
+which now lists *Capture top N* (#45).
+
+**Open decisions**
+- #53 toolbar placement: the 1.6.0 changelog chose "after the results" on
+  purpose; revisit only with the owner.
+- #41 full destination URLs: resolving `/goto` tokens needs
+  `https://www.google.com/*` host access in the service worker. Check the
+  install-warning impact before choosing it; 1.7.5 reports the origin.
+- #36 canary: production's capture endpoint stopped returning the expected
+  401 on 2026-10-05. Website side, not the extension.
+
+**Test debt**
+- [ ] Pin Node for local runs (`.nvmrc` / `engines` = 20, as CI). On Node 25+,
+      `theme-mode.test.js` fails because Node's own global `localStorage`
+      shadows jsdom's.
+- [ ] An e2e check of the SERP Copy buttons **without** pre-granted clipboard
+      permissions (granting them is how #37 hid).
+- [ ] Refresh the real-SERP fixtures when Google's markup moves; the
+      overlay's new console warning (#44) is the signal.
+- [ ] The 63-item static review from the same pass (S1–S63) is not filed;
+      only runtime-confirmed findings became issues.
+
 ## Maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
@@ -651,6 +712,11 @@ patch.
   tab, shown only with an API key connected and data collection on. Needs a new
   site endpoint (`POST /api/v1/keywords`, scope `keywords:write`) and a
   data-use disclosure change; planned 2026-09-10, not started.
+- **Capture top N / page depth (#45)** — Google ignores `&num=100`, so
+  ranking checks need paging: a SERP action that walks `start=0,10,…` up to N
+  pages, dedupes by URL, and exports one table with an absolute position.
+  Needs the 1.7.5 parser fixes (#41, #42); complements the rank-tracker row
+  action above.
 - **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
   CitationForge backend (SEOquake gets this from Semrush)
 - **Citation remediation flow** — the `FIX ON THIS SITE` concept from the design
