@@ -1,16 +1,19 @@
-# Chrome Web Store listing text — next submission: v1.7.4
+# Chrome Web Store listing text — next submission: v1.7.7
 
 The listing text for the next store submission, kept current with `main`
-(it was `CWS-LISTING-1.6.1.md`). 1.7.4 is 1.7.3, never submitted, plus the
-welcome page on first install and the uninstall survey; 1.7.3 is 1.7.2 with the
-short description corrected: it named "fixes", and the extension lists the
-issues it finds without fix text (`lib/content-analysis.js`,
-`calculateSEOScore`). Submit 1.7.4 only once
-`https://seobandwagon.com/seo-chrome-extension/welcome` and `/uninstalled`
-answer 200. Nothing since 1.6.0 adds a permission, host permission
-or content-script match; the `activeTab` and `scripting` justifications below
-also describe the full-page proof screenshot (1.7.0). Paste each section into
-the matching Chrome Web Store Developer Dashboard field when submitting.
+(it was `CWS-LISTING-1.6.1.md`). The store serves 1.7.1 (listing and Google's
+update server, read 2026-10-13); 1.7.2 to 1.7.6 were merged but never
+submitted, so 1.7.7 carries all of them, and section 6 covers everything since
+1.7.1. 1.7.4's condition is met: `https://seobandwagon.com/seo-chrome-extension/welcome`
+and `/uninstalled` answer 200 (2026-10-13). The manifest's permissions, host
+permissions, optional host permissions and content-script matches are
+identical to 1.7.1's (compared 2026-10-13); only the short description changed
+(1.7.3). The `activeTab` and `scripting` justifications below also describe
+the full-page proof screenshot (1.7.0). No data-use answer changes: 1.7.7
+sends less, not more. Section 5's "a signed-out user … sends nothing at all"
+holds from 1.7.7 on; until then the results overlay still sent result domains
+signed out (seobw-extension #50). Paste each section into the matching Chrome
+Web Store Developer Dashboard field when submitting.
 
 The detailed description is the text inside the fence in section 2 and
 nothing after it: the live description read on 2026-10-06 ran on past
@@ -287,18 +290,21 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.7.4 (release notes, ≤ 10 lines)
+## 6. What's new in 1.7.7 (release notes, ≤ 10 lines)
 
-1.7.2 and 1.7.3 were never submitted, so these cover everything since 1.7.1.
+1.7.2 to 1.7.6 were never submitted, so these cover everything since 1.7.1.
 
 ```
-- A short welcome page opens once, when you first install.
-- If you remove the extension, a one-question page asks why.
-- New "Rate us" link in the popup and on the options page.
-- Full-page proof screenshots now show "Building the image…" while a long
-  page saves, and Cancel works right up to the end.
-- A page that stops responding ends the capture with a clear message.
-- Clearer labels on very long pages.
+- The Google results overlay reads every result again, Google's own pages
+  included, and Copy results and Copy PAA put the text on your clipboard.
+- Signed out, the results overlay sends nothing.
+- Link Check keeps going when the popup closes; Chrome Web Store links read
+  "Can't check" instead of broken.
+- Full-page proof screenshots no longer fail on pages that shift while they
+  scroll, show "Building the image…", and Cancel works to the end.
+- The side panel's Page checks opens again; export file names no longer clash.
+- A welcome page on first install, a one-question page if you remove the
+  extension, and a "Rate us" link.
 ```
 
 ---
@@ -331,7 +337,8 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   reloads under that User-Agent; switch back to Default to remove it.
 - **Google results overlay**: search anything on google.com. Signed out (no
   API key configured), each result's stats bar shows "Connect your account"
-  and does not retry.
+  and no request is made (from 1.7.7). Copy results and Copy PAA (at the end
+  of the results) put the rows or questions on the clipboard.
 - An API key (free to create at seobandwagon.com) is only needed to see real
   stats numbers in the overlay and to sync captures/citations/link-building
   data — every feature above works fully signed out.
