@@ -72,15 +72,19 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready | `extension/src/icons/icon128.png` |
-| Screenshot 1 — popup, Analysis tab with score and issues | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-1-analysis-1280x800.png` |
-| Screenshot 2 — Link Check results grouped by outcome | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-2-link-check-1280x800.png` |
-| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-3-indexability-1280x800.png` |
-| Screenshot 4 — Google results overlay stats bar | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-4-serp-overlay-1280x800.png` |
-| Screenshot 5 — Page-checks panel in Night and Day | 1280×800 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/screenshot-5-night-day-1280x800.png` |
-| Small Promo Tile | 440×280 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/promo-tile-440x280.png` |
-| Marquee Promo Tile | 1400×560 | ✅ Ready 2026-09-24 | `store-assets/1.6.1/promo-marquee-1400x560.png` |
+| Screenshot 1 — popup, Analysis tab with score and issues | 1280×800 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/screenshot-1-analysis-1280x800.png` |
+| Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/screenshot-2-link-check-1280x800.png` |
+| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/screenshot-3-indexability-1280x800.png` |
+| Screenshot 4 — Google results overlay and its Copy / Export toolbar | 1280×800 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/screenshot-4-serp-overlay-1280x800.png` |
+| Screenshot 5 — Page-checks panel in Night and Day | 1280×800 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/screenshot-5-night-day-1280x800.png` |
+| Small Promo Tile | 440×280 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/promo-tile-440x280.png` |
+| Marquee Promo Tile | 1400×560 | ✅ Ready 2026-10-13 (1.7.7) | `store-assets/1.7.7/promo-marquee-1400x560.png` |
 
 ### Screenshot Notes
+
+1.7.7 set: `store-assets/1.7.7/` (README there says how each was made and
+how to re-shoot; the 1.6.1 set stays for history). Upload all five with the
+1.7.7 package, replacing the 1.6.1 ones.
 
 Take them from the unpacked build at `extension/` on a real public page,
 Night appearance for 1–4 and a Night/Day pair for 5. Show the extension in
