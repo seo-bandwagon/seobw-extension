@@ -872,10 +872,15 @@ function setFoot(text) {
 // Swap this tab's panel to the themed page-checks panel (src/panel/). Both
 // panels ship; setOptions changes the path for this tab only, and the themed
 // panel's own footer link swaps back. No manifest default is touched.
+// #49: setOptions alone doesn't replace a panel that is open for the whole
+// window (how the worker's openSidePanel opens it), so nothing happened.
+// Opening it for the tab afterwards, as panel.js's openPanel() does, shows it.
 document.getElementById('spPageChecks').addEventListener('click', async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await chrome.sidePanel.setOptions({ tabId: tab && tab.id, path: 'src/panel/panel.html', enabled: true });
+    if (!tab) return;
+    await chrome.sidePanel.setOptions({ tabId: tab.id, path: 'src/panel/panel.html', enabled: true });
+    await chrome.sidePanel.open({ tabId: tab.id });
   } catch (e) {
     console.warn('[SBW] could not open the page-checks panel', e);
   }

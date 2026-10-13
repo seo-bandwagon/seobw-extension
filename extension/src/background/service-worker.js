@@ -1,6 +1,13 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js');
+
+// SERP overlay domain stats (#50): cache in chrome.storage.session, and no
+// request at all without an API key (SBW.quickBatch enforces that).
+const serpStats = SBWSerpStats.createSerpStats({
+  quickBatch: (domains) => SBW.quickBatch(domains),
+  storage: chrome.storage.session
+});
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -413,8 +420,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // Generic bridge: content scripts (no chrome.storage/fetch access of their
   // own in isolated-world contexts) route SBW API calls through here.
-  if (request.action === 'sbwFetch') {
-    SBW.sbwFetch(request.path, request.init).then(sendResponse);
+  // #50: the SERP overlay's only call. It sends bare domains; the cache and
+  // the "no key, no request" rule live here (src/lib/serp-stats.js). This
+  // replaced a generic `sbwFetch` bridge that let the overlay skip that rule.
+  if (request.action === 'serpStats') {
+    serpStats.lookup(request.domains).then(sendResponse);
     return true;
   }
 });

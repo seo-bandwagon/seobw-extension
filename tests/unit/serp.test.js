@@ -394,13 +394,14 @@ describe('buildSearchUrl', () => {
     expect(url).toBe('https://www.google.com/search?q=plumbers+near+me');
   });
 
-  it('includes gl/hl/uule/num when provided', () => {
+  it('includes gl/hl/uule when provided, and never num (#45)', () => {
     const url = SBWSerp.buildSearchUrl({ q: 'x', gl: 'us', hl: 'en', uule: 'ABC', num: 20 });
     const parsed = new URL(url);
     expect(parsed.searchParams.get('gl')).toBe('us');
     expect(parsed.searchParams.get('hl')).toBe('en');
     expect(parsed.searchParams.get('uule')).toBe('ABC');
-    expect(parsed.searchParams.get('num')).toBe('20');
+    // Google ignores &num= (tested 2026-10-13); it is no longer emitted.
+    expect(parsed.searchParams.has('num')).toBe(false);
   });
 
   it('adds pws=0 only when personalization-off is requested', () => {
@@ -416,13 +417,6 @@ describe('buildSearchUrl', () => {
   });
 
   // Fix round 1, item 12
-  it('clamps num to the 1-100 range', () => {
-    const tooHigh = new URL(SBWSerp.buildSearchUrl({ q: 'x', num: 500 }));
-    expect(tooHigh.searchParams.get('num')).toBe('100');
-    const tooLow = new URL(SBWSerp.buildSearchUrl({ q: 'x', num: -5 }));
-    expect(tooLow.searchParams.get('num')).toBe('1');
-  });
-
   it('treats pws: 0 (the number zero) as "personalization off" too, not as falsy/omit', () => {
     const url = new URL(SBWSerp.buildSearchUrl({ q: 'x', pws: 0 }));
     expect(url.searchParams.get('pws')).toBe('0');
@@ -807,5 +801,30 @@ describe('resolving Google redirect links (issue #41)', () => {
   it('still dedupes the same /goto link', () => {
     const one = block('/goto?url=CAESsame', '<cite>https://example.com › blog</cite>');
     expect(parse(one + one).length).toBe(1);
+  });
+});
+
+/* ---------- #45: approximate absolute position ---------- */
+
+describe('absolute position (approx.) column (#45)', () => {
+  const rows = [{ position: 1, url: 'https://a.example/', domain: 'a.example', title: 'A' },
+                { position: 2, url: 'https://b.example/', domain: 'b.example', title: 'B' }];
+
+  it('is Google\'s start offset plus the position on the page', () => {
+    const ctx = SBWSerp.searchContext({ search: '?q=x&start=20' });
+    expect(ctx.start).toBe(20);
+    expect(ctx.page).toBe(3);
+    expect(SBWSerp.absolutePosition(rows[1], ctx)).toBe(22);
+    expect(SBWSerp.absolutePosition(rows[0], SBWSerp.searchContext({ search: '?q=x' }))).toBe(1);
+  });
+
+  it('is the last CSV column, so existing column positions don\'t move', () => {
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x&start=10' }));
+    const [header, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
+    const cols = header.split(',');
+    expect(cols.at(-1)).toBe('Absolute position (approx.)');
+    expect(cols.slice(0, 3)).toEqual(['Query', 'Position', 'URL']);
+    expect(first.split(',').at(-1)).toBe('11');
+    expect(second.split(',').at(-1)).toBe('12');
   });
 });

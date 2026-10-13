@@ -123,6 +123,30 @@ async function initDataToggle() {
 }
 initDataToggle();
 
+/* ---------- Google results page (#56) ---------- */
+
+// Until 1.7.7 the popup always said "the SEO Bandwagon bar is shown under
+// each result", even when the overlay had read nothing (as on the /goto pages
+// of #41). Now it asks the overlay (serp-overlay.js 'serpStatus') and says
+// what the page actually yielded, and where the toolbar is.
+function describeSerp(tabId) {
+  chrome.tabs.sendMessage(tabId, { action: 'serpStatus' }, (status) => {
+    void chrome.runtime.lastError; // no overlay on this page: keep the neutral line
+    const el = document.getElementById('serpNoticeText');
+    if (!el || !status || typeof status.rows !== 'number') return;
+    if (status.rows > 0) {
+      const n = status.rows;
+      el.textContent = `Found ${n} result${n === 1 ? '' : 's'} on this page, each with an SEO Bandwagon bar under it. ` +
+        'Copy results, Export CSV and Copy PAA are below the last result.';
+    } else if (status.headings > 0) {
+      el.textContent = "Couldn't read the results on this page. Google may have changed its layout; " +
+        'please let us know at seobandwagon.com.';
+    } else {
+      el.textContent = 'No web results to read on this page (an Images, Videos or News tab, or no results).';
+    }
+  });
+}
+
 /* ---------- analysis bootstrap ---------- */
 
 chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
@@ -133,8 +157,9 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     document.getElementById('content').innerHTML = `
       <div class="empty sbw-serp-notice">
         <div class="empty-title">SEARCH RESULTS PAGE</div>
-        <div class="empty-sub">This is a search results page — the SEO Bandwagon bar is shown under each result.</div>
+        <div class="empty-sub" id="serpNoticeText">This is a search results page.</div>
       </div>`;
+    describeSerp(tab.id);
     // Task 7, item E: the review strip's visibility is a pure function of
     // storage (analyses/prompted), never of what this popup open did or
     // didn't analyze — a SERP-page open still shows it if a prior analysis
@@ -681,7 +706,9 @@ function exportAsJson(data) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `seo-${new URL(data.url).hostname}-${new Date().toISOString().slice(0, 10)}.json`;
+  // #55: same name scheme as the CSV exports, so two pages on one site (or
+  // two exports of one page in a day) no longer collide.
+  a.download = SBWCsv.csvFilename('seo', data.url, undefined, 'json');
   a.click();
   URL.revokeObjectURL(url);
   setSeoStatus('Exported', 'success');

@@ -17,16 +17,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 await import('../../extension/src/lib/serp.js');
 
 let sentMessages;
-let sessionStore;
 let sendMessageImpl;
 
+// #50: the overlay asks the worker for stats with { action: 'serpStats',
+// domains }; the worker owns the cache and the API call.
 function isQuickBatch(msg) {
-  return !!msg && msg.action === 'sbwFetch' && msg.path === '/domain/quick-batch';
+  return !!msg && msg.action === 'serpStats';
 }
 
 function defaultSendMessageImpl(msg, cb) {
   if (isQuickBatch(msg)) {
-    const domains = msg.init.body.domains;
+    const domains = msg.domains;
     const results = {};
     domains.forEach((d) => { results[d] = { avgScore: 70, sampleSize: 2, schemaPercentage: 40, age: '1 year' }; });
     setTimeout(() => cb({ ok: true, status: 200, code: 'ok', data: { results, invalid: [] } }), 10);
@@ -37,7 +38,6 @@ function defaultSendMessageImpl(msg, cb) {
 
 function installChromeStub() {
   sentMessages = [];
-  sessionStore = new Map();
   sendMessageImpl = defaultSendMessageImpl;
 
   window.chrome = {
@@ -48,23 +48,13 @@ function installChromeStub() {
       },
       getURL: (p) => p
     },
+    // A real content script may not use chrome.storage.session ("Access to
+    // storage is not allowed from this context"). Until 1.7.6 this stub
+    // allowed it, which is how the overlay's never-working cache (#50) passed.
     storage: {
       session: {
-        get(keys, cb) {
-          const out = {};
-          if (keys === null || keys === undefined) {
-            sessionStore.forEach((v, k) => { out[k] = v; });
-          } else if (typeof keys === 'string') {
-            out[keys] = sessionStore.get(keys);
-          } else if (Array.isArray(keys)) {
-            keys.forEach((k) => { out[k] = sessionStore.get(k); });
-          }
-          cb(out);
-        },
-        set(obj, cb) {
-          Object.keys(obj).forEach((k) => sessionStore.set(k, obj[k]));
-          if (cb) cb();
-        }
+        get: vi.fn(() => { throw new Error('Access to storage is not allowed from this context.'); }),
+        set: vi.fn(() => { throw new Error('Access to storage is not allowed from this context.'); })
       }
     }
   };
@@ -135,8 +125,8 @@ describe('privacy: quick-batch payloads', () => {
     const msgs = quickBatchMessages();
     expect(msgs.length).toBeGreaterThan(0);
     msgs.forEach((msg) => {
-      expect(Array.isArray(msg.init.body.domains)).toBe(true);
-      msg.init.body.domains.forEach((d) => {
+      expect(Array.isArray(msg.domains)).toBe(true);
+      msg.domains.forEach((d) => {
         expect(d).not.toMatch(/\s/);
         expect(d).not.toMatch(/^https?:/);
       });
@@ -150,14 +140,20 @@ describe('privacy: quick-batch payloads', () => {
     expect(raw).toContain('beta.example');
   });
 
-  it('caches resolved stats under a per-domain key, never a query/hostname key', async () => {
+  it('never touches chrome.storage from the content script (#50)', async () => {
     freshDom(['first.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
+    expect(window.chrome.storage.session.get).not.toHaveBeenCalled();
+    expect(window.chrome.storage.session.set).not.toHaveBeenCalled();
+    expect(statTextFor('first.example')).toMatch(/^Score /);
+  });
 
-    const keys = Array.from(sessionStore.keys());
-    expect(keys).toContain('sbwSerpStat::first.example');
-    keys.forEach((k) => expect(k).not.toMatch(/plumbers|austin|search/));
+  it('sends the worker nothing but the domains', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    quickBatchMessages().forEach((m) => expect(Object.keys(m).sort()).toEqual(['action', 'domains']));
   });
 });
 
@@ -170,7 +166,7 @@ describe('fix round 1, item 4: pending-row queue', () => {
       if (isQuickBatch(msg)) {
         setTimeout(() => {
           const results = {};
-          msg.init.body.domains.forEach((d) => { results[d] = { avgScore: 55, sampleSize: 1 }; });
+          msg.domains.forEach((d) => { results[d] = { avgScore: 55, sampleSize: 1 }; });
           cb({ ok: true, status: 200, code: 'ok', data: { results, invalid: [] } });
         }, 1500);
         return;
@@ -181,7 +177,7 @@ describe('fix round 1, item 4: pending-row queue', () => {
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(0);
     expect(quickBatchMessages().length).toBe(1);
-    expect(quickBatchMessages()[0].init.body.domains).toEqual(['first.example']);
+    expect(quickBatchMessages()[0].domains).toEqual(['first.example']);
 
     // Append a new result while the first request is still in flight.
     document.querySelector('#search').insertAdjacentHTML('beforeend', resultBlock('second.example', 2));
@@ -196,7 +192,7 @@ describe('fix round 1, item 4: pending-row queue', () => {
     // must drain the queued row into a second request.
     await vi.advanceTimersByTimeAsync(1000);
     expect(quickBatchMessages().length).toBe(2);
-    expect(quickBatchMessages()[1].init.body.domains).toEqual(['second.example']);
+    expect(quickBatchMessages()[1].domains).toEqual(['second.example']);
 
     // Let the second request resolve.
     await vi.advanceTimersByTimeAsync(1500);
@@ -213,7 +209,7 @@ describe('fix round 1, item 5: per-domain cache', () => {
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     expect(quickBatchMessages().length).toBe(1);
-    expect(quickBatchMessages()[0].init.body.domains).toEqual(['first.example']);
+    expect(quickBatchMessages()[0].domains).toEqual(['first.example']);
 
     // A second block reusing the already-resolved domain, plus one new
     // domain — only the new domain should ever go out.
@@ -223,7 +219,7 @@ describe('fix round 1, item 5: per-domain cache', () => {
     await vi.advanceTimersByTimeAsync(600);
     const msgs = quickBatchMessages();
     expect(msgs.length).toBe(2);
-    expect(msgs[1].init.body.domains).toEqual(['second.example']);
+    expect(msgs[1].domains).toEqual(['second.example']);
   });
 });
 
@@ -242,7 +238,7 @@ describe('fix round 1, item 6: chunked batches', () => {
 
     const msgs = quickBatchMessages();
     expect(msgs.length).toBe(2);
-    const sizes = msgs.map((m) => m.init.body.domains.length).sort((a, b) => a - b);
+    const sizes = msgs.map((m) => m.domains.length).sort((a, b) => a - b);
     expect(sizes).toEqual([5, 20]);
 
     domains.forEach((d) => {
@@ -375,7 +371,7 @@ describe('issue #41: results linked through Google /goto redirects', () => {
     expect(barFor('goto-site.example')).toBeTruthy();
     const link = barFor('goto-site.example').querySelector('.sbw-serp-analyze');
     expect(link.getAttribute('href')).toMatch(/\/goto\?url=CAESopaque$/);
-    quickBatchMessages().forEach((m) => expect(m.init.body.domains).toContain('goto-site.example'));
+    quickBatchMessages().forEach((m) => expect(m.domains).toContain('goto-site.example'));
   });
 });
 
@@ -571,5 +567,66 @@ describe('issue #44: empty results are reported, not exported', () => {
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     expect(warn.mock.calls.some((c) => String(c[0]).includes('read 0 results'))).toBe(false);
+  });
+});
+
+/* ---------- 1.7.7: #54 flash text, #55 SERP filename, #45 TSV column, #56 status ---------- */
+
+describe('1.7.7 SERP toolbar fixes', () => {
+  const button = (label) => Array.from(document.querySelectorAll('.sbw-serp-tools button'))
+    .find((b) => b.textContent.startsWith(label));
+  let copied;
+  beforeEach(() => {
+    copied = null;
+    document.execCommand = vi.fn(() => { copied = document.querySelector('textarea[aria-hidden="true"]').value; return true; });
+  });
+  afterEach(() => { delete document.execCommand; vi.restoreAllMocks(); });
+
+  it('#54: once the flash ends, the button\'s text is only its label', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    button('Copy results').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(button('Copy results').querySelector('[data-role="flash"]').textContent).toBe('Copied');
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(button('Copy results').textContent).toBe('Copy results (1)');
+  });
+
+  it('#55: the SERP CSV is named with the page number and the time to the second', async () => {
+    window.history.pushState({}, '', '/search?q=seo+stats+chrome&start=20');
+    URL.createObjectURL = vi.fn(() => 'blob:stub');
+    URL.revokeObjectURL = vi.fn();
+    let name = null;
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () { name = this.download; });
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    button('Export CSV').click();
+    expect(name).toMatch(/^serp-seo-stats-chrome-p3-\d{4}-\d{2}-\d{2}-\d{6}\.csv$/);
+  });
+
+  it('#45: Copy results carries the approximate absolute position, last', async () => {
+    window.history.pushState({}, '', '/search?q=x&start=10');
+    freshDom(['first.example', 'second.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    button('Copy results').click();
+    const [header, r1, r2] = copied.split('\n');
+    expect(header.split('\t').at(-1)).toBe('Absolute position (approx.)');
+    expect([r1.split('\t').at(-1), r2.split('\t').at(-1)]).toEqual(['11', '12']);
+  });
+
+  it('#56: answers the popup with what the page actually yielded', async () => {
+    let handler = null;
+    window.chrome.runtime.onMessage = { addListener: (fn) => { handler = fn; } };
+    document.body.innerHTML = `<div id="search"><div id="rso">${resultBlock('first.example', 0)}
+      <div data-q="Is it good?">Is it good?</div></div></div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    let reply = null;
+    handler({ action: 'serpStatus' }, {}, (r) => { reply = r; });
+    expect(reply).toEqual({ rows: 1, headings: 1, questions: 1 });
+    expect(handler({ action: 'somethingElse' }, {}, () => {})).toBeUndefined();
   });
 });
