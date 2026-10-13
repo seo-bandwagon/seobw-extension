@@ -44,7 +44,7 @@ recorded voice.
 | # | Time | On screen (capture) | Caption (lower third) | Voiceover |
 |---|---|---|---|---|
 | 1 | 0:00–0:05 | Title card on the brand frame (as in `store-assets/1.7.7` tiles), the seobandwagon.com page dimmed behind | SEO BANDWAGON · ON-PAGE SEO IN ONE CLICK | Every page has something holding it back. Here's how to find it in one click. |
-| 2 | 0:05–0:16 | A seobandwagon.com page; cursor clicks the toolbar icon; popup opens on the score; scroll the issues; click a heading in the outline and it highlights on the page | Score, issues and every check behind them | Click the SEO Bandwagon icon and you get a score, the issues it found, and every check behind them: headings, links, images, speed and more. |
+| 2 | 0:05–0:16 | A seobandwagon.com page; cursor clicks the toolbar icon; popup opens on the score; scroll the issues; open HEADINGS and click "Highlight headings" so they're marked on the page | Score, issues and every check behind them | Click the SEO Bandwagon icon and you get a score, the issues it found, and every check behind them: headings, links, images, speed and more. |
 | 3 | 0:16–0:27 | Same page; LINK CHECK → "Check N links" → counts climb → "Highlight broken on page" shows the broken link outlined on the page; click away (popup closes), reopen: results still there | Every link checked. Keeps going if you close the popup | Check every link on the page. Broken ones light up where they sit, and the check keeps running even if you close the popup. |
 | 4 | 0:27–0:37 | INDEXABILITY verdict and redirect chain (http:// address), then RENDERING "Compare raw HTML with rendered DOM" summary | Indexable? Redirects? What scripts changed? | See whether search engines may index a page, the redirects that led there, and what changed after scripts ran. |
 | 5 | 0:37–0:45 | STRUCTURED DATA: items listed by type, "Eligible for" line, one item's properties | Structured data, checked by type | Structured data is checked against what each type needs, so you know which rich results a page qualifies for. |
@@ -90,6 +90,23 @@ the same mic as the existing tour so the two can sit on one page. Name files
   control, no synthetic keystrokes into other windows), so each take is
   repeatable; the cursor is drawn in edit (`ffmpeg` overlay) where a real one
   would sit.
+- **Rough cut (silent, scenes 1–6, 8, 9): headless capture instead.** So the
+  rough cut could be shot without taking over the owner's screen,
+  `capture/record.mjs` drives the real build in headless Chromium at 1.5×
+  device scale and records the page and the real action popup as timestamped
+  CDP screencast frames, plus a log of clicks, addresses and popup open/close.
+  `capture/build.mjs` resamples the frames to 30 fps, draws a browser toolbar
+  (tab, address, the extension icon) above the page, places the popup under
+  the icon, marks clicks with a ring, adds the caption and the voiceover line
+  as a subtitle, fits each scene to its slot and renders the cards. Scene 6
+  pastes into `capture/sheet.html`, a local blank sheet; the final cut uses a
+  real spreadsheet. Scene 7 waits for the test account. The final cut can
+  switch to the real-window recording above, with the owner present.
+  ```bash
+  # from a directory where puppeteer-core resolves (the harness)
+  OUT=/tmp/shoot EXT=/path/to/unpacked-build node record.mjs [s2-analysis ...]
+  SHOOT=/tmp/shoot OUT=/tmp/cut REPO=/path/to/seobw-extension node build.mjs
+  ```
 - **Cards** (scenes 1 and 9) use the `store-assets/1.7.7/capture/compose.mjs`
   frame and fonts, rendered at 1920×1080.
 - **Edit**: `ffmpeg` concat of scene clips, each trimmed to its voice line;
