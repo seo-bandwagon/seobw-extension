@@ -102,7 +102,7 @@ SERP overlay and full-page proof fixes from the 2026-10-12 test pass
   at the adjusted frame; Wikipedia still captures as before.
 - `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
   ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
-  `serp-overlay.test.js` add 26 tests, 20 of which fail on 1.7.4.
+  `serp-overlay.test.js` add 27 tests, 20 of which fail on 1.7.4; `fullpage-capture.test.js` adds 7 for #43, 3 of which fail on 1.7.4 (1008 tests in all, 974 on 1.7.4).
 
 ---
 
