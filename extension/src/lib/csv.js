@@ -60,16 +60,28 @@
   // Hostname-less URLs (file://, chrome://newtab-like blanks, or anything
   // that fails to parse) fall back to 'page' rather than leaking a
   // near-empty or 'unknown' filename.
-  function csvFilename(prefix, url, date) {
+  // #55: host + date alone collided — two pages on one site, or two exports
+  // of one page on the same day, got the same name. The path (slugged, up to
+  // 40 chars) and the UTC time now go in too:
+  // links-www.example.com-blog-post-2026-09-05-120000.csv
+  function csvFilename(prefix, url, date, ext) {
     const d = date || new Date();
     let hostname = 'page';
+    let slug = '';
     try {
-      hostname = new URL(url).hostname || 'page';
+      const u = new URL(url);
+      hostname = u.hostname || 'page';
+      if (u.hostname) {
+        let path = u.pathname;
+        try { path = decodeURIComponent(path); } catch (e) { /* malformed escape: slug it as-is */ }
+        slug = path.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+      }
     } catch (e) {
       hostname = 'page';
     }
-    const ymd = d.toISOString().slice(0, 10);
-    return `${prefix}-${hostname}-${ymd}.csv`;
+    const iso = d.toISOString();
+    const stamp = iso.slice(0, 10) + '-' + iso.slice(11, 19).replace(/:/g, '');
+    return `${prefix}-${hostname}${slug ? '-' + slug : ''}-${stamp}.${ext || 'csv'}`;
   }
 
   return {

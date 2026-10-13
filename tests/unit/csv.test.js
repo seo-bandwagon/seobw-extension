@@ -134,26 +134,49 @@ describe('toCsv — formula injection guard', () => {
 });
 
 describe('csvFilename', () => {
-  it('builds prefix-hostname-date.csv', () => {
-    const d = new Date('2026-09-05T12:00:00Z');
+  // #55 (1.7.7): host + date alone collided; the path slug and UTC time
+  // were added.
+  it('builds prefix-hostname-path-date-time.csv', () => {
+    const d = new Date('2026-09-05T12:03:09Z');
     const name = SBWCsv.csvFilename('links', 'https://www.example.com/page', d);
-    expect(name).toBe('links-www.example.com-2026-09-05.csv');
+    expect(name).toBe('links-www.example.com-page-2026-09-05-120309.csv');
+  });
+
+  it('slugs a deep path, caps it at 40 characters, and leaves the root out', () => {
+    const d = new Date('2026-09-05T12:00:00Z');
+    expect(SBWCsv.csvFilename('links', 'https://example.com/', d)).toBe('links-example.com-2026-09-05-120000.csv');
+    expect(SBWCsv.csvFilename('links', 'https://example.com/Blog/2026/My Post!?x=1', d))
+      .toBe('links-example.com-blog-2026-my-post-2026-09-05-120000.csv');
+    const long = SBWCsv.csvFilename('links', 'https://example.com/' + 'a/'.repeat(40), d);
+    expect(long.split('-2026-09-05')[0].length).toBeLessThanOrEqual('links-example.com-'.length + 40);
+  });
+
+  it('two pages on one site, or two exports a second apart, no longer collide', () => {
+    const d = new Date('2026-09-05T12:00:00Z');
+    expect(SBWCsv.csvFilename('links', 'https://example.com/a', d)).not.toBe(SBWCsv.csvFilename('links', 'https://example.com/b', d));
+    expect(SBWCsv.csvFilename('links', 'https://example.com/a', d))
+      .not.toBe(SBWCsv.csvFilename('links', 'https://example.com/a', new Date('2026-09-05T12:00:01Z')));
+  });
+
+  it('takes another extension for the analysis JSON', () => {
+    const d = new Date('2026-09-05T12:00:00Z');
+    expect(SBWCsv.csvFilename('seo', 'https://example.com/x', d, 'json')).toBe('seo-example.com-x-2026-09-05-120000.json');
   });
 
   it('defaults the date to now when omitted', () => {
     const name = SBWCsv.csvFilename('links', 'https://example.com/');
-    expect(name).toMatch(/^links-example\.com-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(name).toMatch(/^links-example\.com-\d{4}-\d{2}-\d{2}-\d{6}\.csv$/);
   });
 
   it('falls back to "page" for a file:// URL (empty hostname)', () => {
     const d = new Date('2026-09-05T12:00:00Z');
     const name = SBWCsv.csvFilename('links', 'file:///Users/dana/report.html', d);
-    expect(name).toBe('links-page-2026-09-05.csv');
+    expect(name).toBe('links-page-2026-09-05-120000.csv');
   });
 
   it('falls back to "page" when the URL fails to parse', () => {
     const d = new Date('2026-09-05T12:00:00Z');
     const name = SBWCsv.csvFilename('links', 'not a url at all', d);
-    expect(name).toBe('links-page-2026-09-05.csv');
+    expect(name).toBe('links-page-2026-09-05-120000.csv');
   });
 });

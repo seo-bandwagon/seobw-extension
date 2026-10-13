@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.7.6",
-  "version_name": "1.7.6 — a link check keeps going when the popup closes, and Chrome Web Store links aren't counted as broken",
+  "version": "1.7.7",
+  "version_name": "1.7.7 — signed out, the results overlay sends nothing, and Page checks opens again",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "permissions": [
     "activeTab",

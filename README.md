@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.7.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.7.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -151,16 +151,18 @@ or restyled.
   **Copy PAA (N)** (People-also-ask questions, to clipboard), and the
   location simulator.
 
-**What's sent:** only the bare domain names of the results currently shown
-(deduped, looked up in successive batches of up to 20 per request — never
-truncated, just spread across further requests when there are more than
-20) go to `POST /api/domain/quick-batch` — never the search query, never a
-title or snippet. Each domain's response is cached in `chrome.storage.session`
-for 10 minutes, keyed by domain, so a domain already looked up isn't
-re-requested even when it reappears in a later batch of results. If no
-account is connected (or the key is rejected), each bar shows "Connect your
-account" once and doesn't retry; a bar shows "Unavailable" if the lookup
-itself failed to reach the worker. Extracted results and PAA questions never
+**What's sent:** with an account connected, only the bare domain names of
+the results currently shown (deduped, looked up in successive batches of up
+to 20 per request — never truncated, just spread across further requests
+when there are more than 20) go to `POST /api/domain/quick-batch` — never the
+search query, never a title or snippet. **Signed out (no API key), nothing is
+sent:** each bar shows "Connect your account" without a request (until 1.7.7
+the domains were POSTed anyway and answered 401). The overlay hands the
+domains to the extension's background worker, which caches each domain's
+response in `chrome.storage.session` for 10 minutes (shared by every tab,
+cleared when the browser restarts); a domain already looked up on the page
+isn't asked for again. A bar shows "Unavailable" if the lookup itself failed
+to reach the worker. Extracted results and PAA questions never
 leave the browser at all — Copy/Export only ever touch your clipboard or a
 local file download.
 

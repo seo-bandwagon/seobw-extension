@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,51 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.7.7 (2026-10-13)
+
+Small correctness fixes from the 2026-10-12 test pass. No permission, host or
+content-script change.
+
+- **Signed out, the results overlay sends nothing; its stats cache works
+  (#50)**: the overlay cached domain stats in `chrome.storage.session` from
+  the content script, which Chrome refuses ("Access to storage is not allowed
+  from this context", once per bar), so every read missed and every results
+  page re-asked every domain. It also reached the API through a generic
+  `sbwFetch` bridge that skipped the "no key, no request" rule, so a
+  signed-out user's result domains were POSTed to `/domain/quick-batch`
+  anyway and answered 401, contrary to `docs/CWS-LISTING.md` §5. The overlay
+  now sends `{ action: 'serpStats', domains }` to the worker and keeps a
+  per-page map; the worker (`src/lib/serp-stats.js`, new) caches per domain
+  for 10 minutes in session storage and calls `SBW.quickBatch`, which returns
+  `no_key` without a request. The `sbwFetch` bridge is gone (the overlay was
+  its only caller). Live, signed out: 1.7.6 POSTed and logged 9 storage
+  errors on one page; 1.7.7 sends nothing and logs none. Bars still read
+  "Connect your account".
+- **Side panel "Page checks →" opens (#49)**: `setOptions` alone doesn't
+  replace a panel open for the whole window, so the click did nothing; it
+  now also calls `sidePanel.open({ tabId })`, as `panel.js`'s `openPanel()`
+  does. Live: the page-checks panel opens ("13 of 14 passed").
+- **The popup on a results page says what the overlay read (#56)**: it asks
+  the overlay (`serpStatus`) and shows "Found N results…" with where the
+  toolbar is, or "Couldn't read the results on this page", instead of always
+  promising a bar under each result.
+- **Approximate absolute position (#45, the patch-sized part)**: results
+  exports gain an "Absolute position (approx.)" column, last so existing
+  columns don't move: Google's `start` offset plus the position on the page.
+  `buildSearchUrl` no longer emits `num`, which Google ignores.
+- **Flash text cleared (#54)**: a Copy button's text no longer reads "Copy
+  PAA (9)Copied" after the flash ends.
+- **Export names no longer collide (#55)**: `SBWCsv.csvFilename` (links,
+  hreflang, redirects, render diff, structured data, headings, images) adds
+  the page's path slug and the UTC time to the second; the analysis JSON uses
+  it too; SERP CSVs add `-p<page>` and seconds.
+- Tests: `serp-stats.test.js` (8, including the real `SBW.quickBatch` with no
+  key: no fetch); the overlay test stub now refuses `chrome.storage.session`
+  like a real content script (the permissive stub is how #50 passed); 19 of
+  the updated overlay, parser and CSV tests fail on 1.7.6.
 
 ---
 
@@ -606,8 +651,9 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
   Link Building mode (outlets / pitches / results), CSV export. `src/sidepanel/`.
 - **SERP overlay** — stats bar under each organic result on Google's own
-  results pages, results/PAA export (19 columns: description, date, rating,
-  site name, breadcrumb and the search's context), location simulator. `src/overlay/serp-overlay.js`,
+  results pages, results/PAA export (20 columns: description, date, rating,
+  site name, breadcrumb, the search's context and, from 1.7.7, an approximate
+  absolute position), location simulator. `src/overlay/serp-overlay.js`,
   `src/lib/serp.js`.
 - **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
   (Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine,
@@ -679,17 +725,17 @@ changelog above.
 - [x] #52 raise per-host / global concurrency, dedupe `#fragment` variants,
       separate HEAD and GET timeouts
 
-**Next patch: small correctness fixes.**
-- [ ] #50 SERP stats cache (`storage.session` from a content script) and the
+**Small correctness fixes: done in 1.7.7.**
+- [x] #50 SERP stats cache (`storage.session` from a content script) and the
       signed-out "no request" guard the 1.6.0 changelog promises
-- [ ] #49 side panel "Page checks →" when the panel is open window-wide
-- [ ] #45 (part) an approximate absolute-position column; drop the dead `num`
+- [x] #49 side panel "Page checks →" when the panel is open window-wide
+- [x] #45 (part) an approximate absolute-position column; drop the dead `num`
       param from `buildSearchUrl`
-- [ ] #56 popup text on a SERP reflects what the overlay actually read
-- [ ] #54 flash label leaves stale `textContent`
-- [ ] #55 export filenames: page number, path slug, seconds
+- [x] #56 popup text on a SERP reflects what the overlay actually read
+- [x] #54 flash label leaves stale `textContent`
+- [x] #55 export filenames: page number, path slug, seconds
 
-**Then: full-page proof off the popup (patch, larger).**
+**Next patch: full-page proof off the popup (larger).**
 - [ ] #48 move the scroll-and-stitch loop out of the popup (service worker
       or offscreen document) so a click away doesn't kill it
 - [ ] #51 JPEG/WebP proofs and an up-front time estimate (with #48)

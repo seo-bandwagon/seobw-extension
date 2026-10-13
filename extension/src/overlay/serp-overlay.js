@@ -13,11 +13,11 @@
 // This is an isolated-world content script: it has no fetch/chrome.storage
 // access of its own beyond what chrome.* itself exposes to a content
 // script, and per the ledger it must never call fetch() directly anyway —
-// every third-party-shaped request goes through the worker bridge
-// (service-worker.js's `request.action === 'sbwFetch'` handler, which is
-// backed by src/lib/api.js's real sbwFetch/quickBatch). Only bare domains
-// (SBWSerp.bareDomain output) ever go into that request body — never the
-// query text, never a title or snippet. Result rows and PAA questions never
+// every third-party-shaped request goes through the worker (its 'serpStats'
+// handler, src/lib/serp-stats.js, backed by src/lib/api.js's quickBatch,
+// which sends nothing without an API key). Only bare domains
+// (SBWSerp.bareDomain output) ever go into that message — never the query
+// text, never a title or snippet. Result rows and PAA questions never
 // leave the browser at all: "Copy results"/"Export CSV"/"Copy PAA" write to
 // the clipboard or a local file download, nothing else.
 //
@@ -34,7 +34,6 @@
   // file (manifest content_scripts order), do nothing rather than throw.
   if (!globalThis.SBWSerp) return;
 
-  const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes, per the ledger
   const MAX_BATCH = 20; // quick-batch's own per-request cap
   const DEBOUNCE_MS = 500;
   const PENDING_TEXT = '—'; // em dash — "not looked up yet"
@@ -74,54 +73,21 @@
     }
   }
 
-  function statCacheKey(domain) {
-    return 'sbwSerpStat::' + domain;
-  }
+  // #50: domains resolved on this page load, so a row that reappears (or a
+  // rescan) never asks again. The cross-page cache lives in the worker
+  // (src/lib/serp-stats.js): a content script may not use
+  // chrome.storage.session, which is why the old cache here never worked.
+  const resolvedStats = new Map(); // domain -> quick stat (may be null)
 
-  // Resolves the cached `quick` value (which may legitimately be `null` —
-  // "server has no data for this domain") when a fresh cache entry exists,
-  // or `undefined` when nothing usable is cached (missing or stale) and a
-  // lookup is needed.
-  function getCachedStat(domain) {
+  // The only network-shaped call this script makes, and it isn't one: it
+  // sends bare domains to the worker, which owns the cache, the API key
+  // check and the fetch (service-worker.js 'serpStats' -> SBWSerpStats).
+  function requestStats(domains) {
     return new Promise((resolve) => {
-      const key = statCacheKey(domain);
-      try {
-        chrome.storage.session.get(key, (result) => {
-          const entry = result && result[key];
-          if (entry && typeof entry.at === 'number' && (Date.now() - entry.at) < CACHE_TTL_MS) {
-            resolve(entry.stat);
-          } else {
-            resolve(undefined);
-          }
-        });
-      } catch (e) {
-        resolve(undefined);
-      }
-    });
-  }
-
-  // Writes every domain in `domainStatMap` (value may be `null`) as its own
-  // `sbwSerpStat::<domain>` entry in one storage.session.set call.
-  function setCachedStats(domainStatMap) {
-    const obj = {};
-    Object.keys(domainStatMap).forEach((domain) => {
-      obj[statCacheKey(domain)] = { at: Date.now(), stat: domainStatMap[domain] };
-    });
-    try {
-      chrome.storage.session.set(obj);
-    } catch (e) { /* storage unavailable — stats just won't be cached this run */ }
-  }
-
-  // The only network-shaped call this script ever makes, and it isn't even
-  // a call — it's a message to the worker, which owns the real fetch (see
-  // service-worker.js's 'sbwFetch' bridge -> SBW.sbwFetch, src/lib/api.js).
-  function requestQuickBatch(domains) {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({
-        action: 'sbwFetch',
-        path: '/domain/quick-batch',
-        init: { method: 'POST', body: { domains } }
-      }, (reply) => resolve(reply || { ok: false, code: 'network' }));
+      chrome.runtime.sendMessage({ action: 'serpStats', domains }, (reply) => {
+        void chrome.runtime.lastError;
+        resolve(reply || { ok: false, code: 'network' });
+      });
     });
   }
 
@@ -295,9 +261,8 @@
 
       const stillNeeded = [];
       for (const row of rowsThisPass) {
-        const cached = await getCachedStat(row.domain);
-        if (cached !== undefined) {
-          if (row._statEl) renderStat(row._statEl, cached);
+        if (resolvedStats.has(row.domain)) {
+          if (row._statEl) renderStat(row._statEl, resolvedStats.get(row.domain));
         } else {
           stillNeeded.push(row);
         }
@@ -320,7 +285,7 @@
       // `finally`, below) — they stay at PENDING_TEXT until then.
       if (rowsForLater.length) pendingRows.push(...rowsForLater);
 
-      const reply = await requestQuickBatch(chunk);
+      const reply = await requestStats(chunk);
       if (!reply || reply.ok === false) {
         const code = reply && reply.code;
         if (code === 'no_key' || code === 'unauthorized') {
@@ -333,11 +298,9 @@
 
       const payload = reply.data || { results: {}, invalid: [] };
       const results = payload.results || {};
-      const toCache = {};
       chunk.forEach((domain) => {
-        toCache[domain] = Object.prototype.hasOwnProperty.call(results, domain) ? results[domain] : null;
+        resolvedStats.set(domain, Object.prototype.hasOwnProperty.call(results, domain) ? results[domain] : null);
       });
-      setCachedStats(toCache);
       rowsInChunk.forEach((row) => {
         const has = Object.prototype.hasOwnProperty.call(results, row.domain);
         renderStat(row._statEl, has ? results[row.domain] : null);
@@ -364,7 +327,7 @@
     const lines = [
       ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet', 'Site name', 'Display URL',
         'Breadcrumb', 'Date', 'Rating', 'Captured', 'Country', 'Language', 'Location', 'Page',
-        'Result stats', 'Related searches', 'People also ask'].join('\t')
+        'Result stats', 'Related searches', 'People also ask', 'Absolute position (approx.)'].join('\t')
     ];
     rows.forEach((row) => {
       lines.push(
@@ -372,7 +335,8 @@
           ctx.query, row.position, row.url, row.domain, row.title, row.snippet,
           row.siteName, row.displayUrl, row.breadcrumb, row.date, row.rating,
           ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page,
-          ctx.resultStats, ctx.relatedSearches, ctx.paa
+          ctx.resultStats, ctx.relatedSearches, ctx.paa,
+          globalThis.SBWSerp.absolutePosition(row, ctx)
         ].map(clean).join('\t')
       );
     });
@@ -408,6 +372,9 @@
     flashEl.textContent = text;
     btn._sbwFlashTimer = setTimeout(() => {
       flashEl.style.display = 'none';
+      // #54: a hidden flash left "Copied" in the button's textContent
+      // ("Copy PAA (9)Copied"), which tests, agents and screen readers read.
+      flashEl.textContent = '';
       holder.style.display = '';
     }, 1200);
   }
@@ -472,22 +439,26 @@
 
   // The old name was the date alone, so two exports on one day overwrote each
   // other and neither said which search it came from.
-  function csvFilename(query) {
+  // #55: per-minute stamps collided when exporting pages 1–5 of one search
+  // ("… (1).csv", "… (2).csv"), and the page number was only inside the file.
+  // serp-seo-stats-chrome-p3-2026-10-12-191305.csv
+  function csvFilename(query, page) {
     const slug = String(query || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 60);
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-    return 'serp-' + (slug || 'results') + '-' + stamp + '.csv';
+    const iso = new Date().toISOString();
+    const stamp = iso.slice(0, 10) + '-' + iso.slice(11, 19).replace(/:/g, '');
+    return 'serp-' + (slug || 'results') + '-p' + (page || 1) + '-' + stamp + '.csv';
   }
 
-  function downloadCsv(csvText, query) {
+  function downloadCsv(csvText, query, page) {
     const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = csvFilename(query);
+    a.download = csvFilename(query, page);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -654,7 +625,7 @@
         return;
       }
       const ctx = globalThis.SBWSerp.searchContext(window.location, document);
-      downloadCsv(globalThis.SBWSerp.resultsToCsv(rows, ctx), ctx.query);
+      downloadCsv(globalThis.SBWSerp.resultsToCsv(rows, ctx), ctx.query, ctx.page);
     });
     toolbarEl.appendChild(exportBtn);
 
@@ -710,6 +681,20 @@
   function init() {
     processResults();
     startObserver();
+  }
+
+  // #56: the popup asks what this page actually yielded, instead of
+  // promising bars it can't see.
+  if (chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (!msg || msg.action !== 'serpStatus') return;
+      const root = document.querySelector('#rso') || document.querySelector('#search');
+      sendResponse({
+        rows: globalThis.SBWSerp.parseResults(document).length,
+        headings: root ? root.querySelectorAll('h3').length : 0,
+        questions: globalThis.SBWSerp.parsePaa(document).length
+      });
+    });
   }
 
   if (document.readyState === 'loading') {

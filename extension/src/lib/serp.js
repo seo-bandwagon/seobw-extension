@@ -554,6 +554,9 @@
       language: params.get('hl') || '',
       location: params.get('uule') || '',
       page: Number.isFinite(start) && start > 0 ? Math.floor(start / 10) + 1 : 1,
+      // Google's own result offset for this page (`start=`), so a row's
+      // position can be read as an approximate overall rank (#45).
+      start: Number.isFinite(start) && start > 0 ? start : 0,
       capturedAt: new Date().toISOString(),
       resultStats: '',
       relatedSearches: '',
@@ -593,8 +596,18 @@
     ['Page', 'page'],
     ['Result stats', 'resultStats'],
     ['Related searches', 'relatedSearches'],
-    ['People also ask', 'paa']
+    ['People also ask', 'paa'],
+    // #45: Google ignores &num=, so depth means paging, and Position restarts
+    // at 1 on every page. Google's offset plus Position is the overall rank,
+    // approximately: Google's pages don't always hold exactly 10 organic
+    // results. Appended last so existing column positions don't move.
+    ['Absolute position (approx.)', 'absolutePosition']
   ];
+
+  function absolutePosition(row, ctx) {
+    const pos = Number(row && row.position);
+    return Number.isFinite(pos) && pos > 0 ? (Number(ctx && ctx.start) || 0) + pos : '';
+  }
 
   function resultsToCsv(rows, context) {
     const ctx = context || {};
@@ -604,7 +617,8 @@
       lines.push(
         RESULT_CSV_COLUMNS.map((c) => {
           const key = c[1];
-          const value = row && key in row ? row[key] : ctx[key];
+          const value = key === 'absolutePosition' ? absolutePosition(row, ctx)
+            : row && key in row ? row[key] : ctx[key];
           return csvCell(value === undefined || value === null ? '' : value);
         }).join(',')
       );
@@ -665,12 +679,9 @@
     if (o.hl) url.searchParams.set('hl', o.hl);
     if (o.uule) url.searchParams.set('uule', o.uule);
     if (o.pws === true || o.pws === 0 || o.pws === '0') url.searchParams.set('pws', '0');
-    if (o.num) {
-      // Fix round 1, item 12: clamp to Google's accepted 1-100 range rather
-      // than passing an out-of-range value straight through.
-      const n = Math.max(1, Math.min(100, Math.round(Number(o.num)) || 1));
-      url.searchParams.set('num', String(n));
-    }
+    // `num` is gone (#45): Google ignores it, so &num=100 still returns 10
+    // results (tested 2026-10-13: num=50/100 pages were byte-for-byte the
+    // default). Depth means paging with `start`.
     return url.toString();
   }
 
@@ -783,6 +794,7 @@
     buildSearchUrl,
     PRESET_LOCATIONS,
     guardCell,
+    absolutePosition,
     FORMULA_PREFIX_RE
   };
 });
