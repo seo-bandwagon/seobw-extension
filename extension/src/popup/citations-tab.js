@@ -9,9 +9,7 @@ let cfTab = null;          // current chrome tab
 let cfResult = null;       // { kind: 'loading'|'nap'|'proof'|'alert', ... }
 let cfRecent = [];         // recent citations for the idle panel
 let cfProofUrl = null;     // blob: URL of the current full-page proof; revoked when the result changes
-let cfShotAbort = null;    // AbortController of a running full-page capture
-let cfShotRun = null;      // promise of the running full-page capture; settles after the page is restored
-let cfShotSeq = 0;         // bumped by each capture request, so a request that waited on a stop can tell it was superseded
+let cfProofPort = null;    // `fullpage-proof` port to the worker, which runs the capture (#48)
 
 const CF_STORE_KEY = 'cfSelectedBusiness';
 
@@ -277,6 +275,7 @@ async function renderMain(el) {
   document.getElementById('cfDash').addEventListener('click', openDashboard);
 
   renderResult();
+  proofPost({ type: 'attach', tabId: cfTab.id, url: cfTab.url });
   loadSidecarData();
 }
 
@@ -318,7 +317,7 @@ function renderResult() {
   if (!cfResult) { renderIdle(zone); return; }
 
   switch (cfResult.kind) {
-    case 'loading': renderLoading(zone, cfResult.label, cfResult.onCancel); break;
+    case 'loading': renderLoading(zone, cfResult.label, cfResult.onCancel, cfResult.note); break;
     case 'nap': renderNap(zone, cfResult); break;
     case 'proof': renderProof(zone, cfResult); break;
     case 'alert': renderAlert(zone, cfResult); break;
@@ -354,9 +353,10 @@ function renderIdle(zone) {
   </div>`;
 }
 
-function renderLoading(zone, label, onCancel) {
+function renderLoading(zone, label, onCancel, note) {
   zone.innerHTML = `<div class="cf-card loading-card">
     <div class="load-label">${esc(label || 'Working…')}</div>
+    ${note ? `<div class="load-note">${esc(note)}</div>` : ''}
     <div class="skeleton"><i style="width:62%"></i><i style="width:88%"></i><i style="width:44%"></i></div>
     ${onCancel ? '<button class="proof-chip bare" id="cfLoadCancel">CANCEL</button>' : ''}
   </div>`;
@@ -419,7 +419,7 @@ function renderProof(zone, r) {
       <div class="proof-meta">
         <div class="proof-meta-text">${esc(cfDir ? cfDir.name : 'Untracked site')} · ${esc(cfBiz.name)}<br><span>${esc(new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></div>
         <div class="proof-chips">
-          <a class="proof-chip" id="cfShotDownload" href="${esc(r.href)}" download="${esc(SBWCitations.screenshotFilename(cfTab.url))}">DOWNLOAD PNG</a>
+          <a class="proof-chip" id="cfShotDownload" href="${esc(r.href)}" download="${esc(SBWCitations.screenshotFilename(cfTab.url, new Date(), r.ext || 'png'))}">DOWNLOAD ${esc((r.ext || 'png').toUpperCase())}</a>
           <button class="proof-chip bare" id="cfShotClose">✕</button>
         </div>
       </div>
@@ -428,8 +428,13 @@ function renderProof(zone, r) {
 
   document.getElementById('cfShotDownload').addEventListener('click', () => {
     if (cfResult) cfResult.downloaded = true;
+    if (r.fromRun) proofPost({ type: 'downloaded', tabId: cfTab.id });
   });
-  document.getElementById('cfShotClose').addEventListener('click', () => { cfResult = null; renderResult(); });
+  document.getElementById('cfShotClose').addEventListener('click', () => {
+    if (r.fromRun) proofPost({ type: 'cancel', tabId: cfTab.id });
+    cfResult = null;
+    renderResult();
+  });
 }
 
 /* ---------- actions ---------- */
@@ -469,79 +474,99 @@ async function runNapCheck() {
   renderResult();
 }
 
-// Abort a running full-page capture and wait until it has put the page back.
-async function stopFullPageShot() {
-  if (cfShotAbort) { cfShotAbort.abort(); cfShotAbort = null; }
-  // Wait even when another request already aborted it: the page is only back
-  // once the run has settled.
-  try { await cfShotRun; } catch (_) { /* its own catch already handled the UI */ }
+// Full-page proof (#48): the worker scrolls, captures and builds the image
+// (src/lib/fullpage-runs.js), so closing the popup doesn't stop it. The popup
+// starts it, attaches when it opens, and shows what the worker reports. The
+// finished image is read from the proof store (src/lib/proof-store.js).
+function proofPost(msg) {
+  if (!cfProofPort) {
+    cfProofPort = chrome.runtime.connect({ name: 'fullpage-proof' });
+    cfProofPort.onMessage.addListener(onProofMessage);
+    cfProofPort.onDisconnect.addListener(() => { cfProofPort = null; });
+  }
+  cfProofPort.postMessage(msg);
 }
 
-// Full-page proof: scroll and stitch in the popup (src/popup/fullpage-capture.js).
-async function runScreenshot() {
-  const seq = ++cfShotSeq;
-  await stopFullPageShot();
-  if (seq !== cfShotSeq) return;   // a newer capture request took over while we waited
-  const controller = new AbortController();
-  cfShotAbort = controller;
-  const tab = cfTab;
+function proofRunning() {
+  return !!(cfResult && cfResult.fromRun && cfResult.kind === 'loading');
+}
 
-  const showProgress = label => {
-    if (cfShotAbort !== controller) return;
-    cfResult = { kind: 'loading', label, onCancel: () => controller.abort() };
-    renderResult();
-  };
-  showProgress('Measuring the page…');
+function proofProgressLabel(run) {
+  if (run.phase === 'encoding') return 'Building the image…';
+  if (run.phase !== 'capturing' || !run.total) return 'Measuring the page…';
+  const secs = run.msLeft != null ? Math.max(1, Math.round(run.msLeft / 1000)) : null;
+  return `Capturing ${run.frame} of ${run.total}${secs ? ` · about ${secs} s left` : ''}`;
+}
 
-  let run = null;
-  try {
-    cfShotRun = SBWFullPageCapture.captureFullPage({
-      tabId: tab.id,
-      windowId: tab.windowId,
-      inject: () => chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/content/page-scroller.js'] }),
-      send: msg => chrome.tabs.sendMessage(tab.id, msg),
-      capture: windowId => chrome.tabs.captureVisibleTab(windowId, { format: 'png' }),
-      getActiveTabId: async windowId => {
-        const [active] = await chrome.tabs.query({ active: true, windowId });
-        return active ? active.id : null;
-      },
-      draw: SBWFullPageCapture.canvasDrawer(document),
-      onProgress: (n, total) => showProgress(`Capturing ${n} of ${total}…`),
-      onEncoding: () => showProgress('Building the image…'),
-      signal: controller.signal
-    });
-    run = cfShotRun;
-    const shot = await run;
-    if (cfShotAbort !== controller) return;
-    cfProofUrl = URL.createObjectURL(shot.blob);
-    cfResult = {
-      kind: 'proof',
-      href: cfProofUrl,
-      label: SBWFullPage.describeProof(shot, fmtBytes(shot.blob.size)),
-      downloaded: false
-    };
-    renderResult();
-  } catch (e) {
-    if (cfShotAbort !== controller) return;
-    if (e.code === 'cancelled') { cfResult = null; renderResult(); return; }
-    cfResult = {
-      kind: 'alert', tone: 'error', title: 'CAPTURE FAILED',
-      body: e.message || 'Chrome blocked the capture on this page.',
-      retryVisible: e.code === 'canvas-failed' || e.code === 'capture-failed'
-    };
-    renderResult();
-  } finally {
-    if (cfShotAbort === controller) cfShotAbort = null;
-    if (cfShotRun === run) cfShotRun = null;
+async function onProofMessage(msg) {
+  if (!msg) return;
+  if (msg.type === 'cancelled') {
+    if (cfResult && cfResult.fromRun) { cfResult = null; renderResult(); }
+    return;
   }
+  const run = msg.run;
+  if (!run || !cfTab || run.tabId !== cfTab.id) return;
+
+  if (run.status === 'running') {
+    cfResult = {
+      kind: 'loading', fromRun: true,
+      label: proofProgressLabel(run),
+      note: 'Keeps going if you close the popup. Stay on this tab until it’s done.',
+      onCancel: () => proofPost({ type: 'cancel', tabId: cfTab.id })
+    };
+    renderResult();
+    return;
+  }
+
+  if (run.status === 'error') {
+    cfResult = {
+      kind: 'alert', tone: 'error', title: 'CAPTURE FAILED', fromRun: true,
+      body: (run.error && run.error.message) || 'Chrome blocked the capture on this page.',
+      retryVisible: !!run.error && (run.error.code === 'canvas-failed' || run.error.code === 'capture-failed')
+    };
+    renderResult();
+    // Shown now, so the worker needn't keep it for the next popup.
+    proofPost({ type: 'cancel', tabId: cfTab.id });
+    return;
+  }
+
+  if (run.status === 'done' && run.result) {
+    let blob = null;
+    try { blob = await SBWProofStore.get(run.result.key); } catch (_) { blob = null; }
+    if (!blob) {
+      cfResult = { kind: 'alert', tone: 'error', title: 'CAPTURE FAILED', fromRun: true, body: 'The finished image could not be read back. Try again.', retryVisible: true };
+      renderResult();
+      proofPost({ type: 'cancel', tabId: cfTab.id });
+      return;
+    }
+    if (cfProofUrl) URL.revokeObjectURL(cfProofUrl);
+    cfProofUrl = URL.createObjectURL(blob);
+    cfResult = {
+      kind: 'proof', fromRun: true,
+      href: cfProofUrl,
+      ext: /jpeg/.test(run.result.type) ? 'jpg' : 'png',
+      label: SBWFullPage.describeProof(run.result, fmtBytes(run.result.bytes)),
+      downloaded: !!run.downloaded
+    };
+    renderResult();
+  }
+}
+
+function runScreenshot() {
+  cfResult = { kind: 'loading', fromRun: true, label: 'Measuring the page…', onCancel: () => proofPost({ type: 'cancel', tabId: cfTab.id }) };
+  renderResult();
+  proofPost({ type: 'start', tabId: cfTab.id, windowId: cfTab.windowId, url: cfTab.url });
 }
 
 // Visible area only: the pre-1.7 one-frame capture through the service
 // worker's captureScreenshot action.
 async function runVisibleShot() {
-  const seq = ++cfShotSeq;
-  await stopFullPageShot();
-  if (seq !== cfShotSeq) return;
+  if (proofRunning()) {
+    // A full-page capture is scrolling this page: stop it, and give the page
+    // a moment to be put back before taking the visible area.
+    proofPost({ type: 'cancel', tabId: cfTab.id });
+    await new Promise(r => setTimeout(r, 400));
+  }
   cfResult = { kind: 'loading', label: 'Capturing proof…' };
   renderResult();
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.7.7",
-  "version_name": "1.7.7 — signed out, the results overlay sends nothing, and Page checks opens again",
+  "version": "1.7.8",
+  "version_name": "1.7.8 — full-page proof keeps going when the popup closes, as a smaller JPEG with a time estimate",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "permissions": [
     "activeTab",

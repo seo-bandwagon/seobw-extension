@@ -7,7 +7,10 @@
 // restored on every exit: success, error or cancel.
 //
 // Every Chrome call and the canvas are passed in, so tests run the loop with
-// fakes and a virtual clock. canvasDrawer() is the real canvas the popup uses.
+// fakes and a virtual clock. offscreenDrawer() is the real canvas.
+//
+// Since 1.7.8 the loop runs in the service worker (src/lib/fullpage-runs.js,
+// #48), not the popup, so it survives the popup closing.
 //
 // Dual-export pattern (see src/lib/sync-state.js).
 
@@ -26,7 +29,7 @@
   const RATE_LIMIT_WAIT_MS = 1000;
   const RATE_LIMIT_RE = /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND/;
   // A page whose helper died (a tab left open across an extension update)
-  // never answers; without a limit the popup would wait forever.
+  // never answers; without a limit the capture would wait forever.
   const MESSAGE_TIMEOUT_MS = 6000;
 
   const MESSAGES = {
@@ -71,7 +74,7 @@
       plan = globalThis.SBWFullPage.planCapture,
       now = () => Date.now(),
       sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
-      onProgress = () => {},
+      onProgress = () => {},   // (frame, total, msLeft): msLeft is an estimate for the frames left
       onEncoding = () => {},
       signal = null
     } = opts;
@@ -114,6 +117,8 @@
       } catch (_) { /* the helper's watchdog restores the page */ }
     }
 
+    // #64: also before each scroll. A background tab runs no animation
+    // frames, so a scroll there could only end in the page's timeout.
     async function beforeCapture() {
       checkCancelled();
       if ((await getActiveTabId(windowId)) !== tabId) throw captureError('tab-changed');
@@ -152,10 +157,15 @@
       const viewportPx = Math.round(metrics.viewportHeight * ratio);
 
       let lastShot = -Infinity;
+      const loopStart = now();
       for (let i = 0; i < p.frames.length; i++) {
         const planned = p.frames[i];
-        checkCancelled();
-        onProgress(i + 1, p.frames.length);
+        await beforeCapture();
+        // #51: Chrome's two-captures-a-second limit sets the pace, so frames
+        // left × the gap is a fair first estimate; once frames are done, their
+        // real average takes over (a slow page scrolls slower).
+        const perFrame = i > 0 ? Math.max(MIN_GAP_MS, (now() - loopStart) / i) : MIN_GAP_MS;
+        onProgress(i + 1, p.frames.length, Math.round((p.frames.length - i) * perFrame));
         const scrollReply = await ask({ action: 'fpScrollTo', y: planned.scrollY });
         if (!scrollReply || typeof scrollReply.scrollY !== 'number') throw captureError('capture-failed', 'The page was reset during capture.');
         const frame = adjustFrame(planned, scrollReply.scrollY, ratio, viewportPx, i === p.frames.length - 1);
@@ -176,7 +186,7 @@
       // Cancel during the last frame should not return a result.
       checkCancelled();
 
-      // Give the page back before the (slow) PNG encode.
+      // Give the page back before the (slow) encode.
       await restore();
 
       onEncoding();
@@ -199,50 +209,53 @@
     }
   }
 
-  function loadImage(doc, src) {
-    return new Promise((resolve, reject) => {
-      const img = new doc.defaultView.Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('A captured frame did not decode.'));
-      img.src = src;
-    });
-  }
-
-  // The popup's real canvas. begin() throws when Chrome won't allocate the
-  // size; drawImage clamps to what the frame actually has (rounding can leave
-  // a frame 1px short), and a scrollbar on the right is cropped by width.
-  function canvasDrawer(doc) {
+  // The canvas, in the service worker: OffscreenCanvas, with frames decoded
+  // by createImageBitmap (no DOM there). begin() throws when Chrome won't
+  // allocate the size; drawImage clamps to what the frame actually has
+  // (rounding can leave a frame 1px short), and a scrollbar on the right is
+  // cropped by width.
+  //
+  // #51: JPEG by default. A full-page PNG of a long page ran to 4 MB+; at
+  // quality 0.85 the same proof is several times smaller and still reads
+  // cleanly. The white fill under the frames means nothing needs alpha.
+  function offscreenDrawer({ type = 'image/jpeg', quality = 0.85 } = {}) {
     let canvas = null;
     let ctx = null;
     return {
+      type,
       begin(width, height) {
-        canvas = doc.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        canvas = new OffscreenCanvas(width, height);
         ctx = canvas.getContext('2d');
         if (!ctx || canvas.width !== width || canvas.height !== height) throw new Error('canvas unavailable');
-        // White underneath, so a rounding seam is white rather than transparent.
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, width, height);
       },
       async frame(dataUrl, f) {
-        const img = await loadImage(doc, dataUrl);
-        const w = Math.min(img.naturalWidth, canvas.width);
-        const h = Math.min(f.srcH, img.naturalHeight - f.srcY);
-        if (h > 0) ctx.drawImage(img, 0, f.srcY, w, h, 0, f.destY, w, h);
+        let img;
+        try {
+          img = await createImageBitmap(await (await fetch(dataUrl)).blob());
+        } catch (_) {
+          throw new Error('A captured frame did not decode.');
+        }
+        try {
+          const w = Math.min(img.width, canvas.width);
+          const h = Math.min(f.srcH, img.height - f.srcY);
+          if (h > 0) ctx.drawImage(img, 0, f.srcY, w, h, 0, f.destY, w, h);
+        } finally {
+          img.close();
+        }
       },
-      finish() {
-        return new Promise((resolve, reject) => {
-          canvas.toBlob(b => {
-            // Free the backing store (it can be ~100 MP) before anything else runs.
-            canvas.width = 0;
-            canvas.height = 0;
-            if (b) resolve(b); else reject(new Error('PNG encode failed'));
-          }, 'image/png');
-        });
+      async finish() {
+        try {
+          return await canvas.convertToBlob({ type, quality });
+        } finally {
+          // Free the backing store (it can be ~100 MP) before anything else runs.
+          canvas.width = 0;
+          canvas.height = 0;
+        }
       }
     };
   }
 
-  return { captureFullPage, canvasDrawer, MIN_GAP_MS, MESSAGE_TIMEOUT_MS };
+  return { captureFullPage, offscreenDrawer, MIN_GAP_MS, MESSAGE_TIMEOUT_MS };
 });
