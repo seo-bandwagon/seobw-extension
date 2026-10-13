@@ -40,10 +40,10 @@ Semantic-ish, three digits, driven by what the user would notice:
 
 ---
 
-## Changelog — v1.7.5 (in progress)
+## Changelog — v1.7.5 (2026-10-12)
 
-SERP overlay fixes from the 2026-10-12 test pass (issues #41–#56). No
-permission, host or content-script change so far.
+SERP overlay and full-page proof fixes from the 2026-10-12 test pass
+(issues #41–#56). No permission, host or content-script change.
 
 - **Results linked through Google's redirects (#41)**: on signed-out results
   pages Google links its own properties directly and every other site through
@@ -88,6 +88,18 @@ permission, host or content-script change so far.
   the clipboard nor Downloads. A page that has result headings but yields no
   rows logs one console warning per page (heading and redirect-link counts),
   flagged on the document so a re-injected script stays quiet.
+- **Full-page proof survives a page that shifts a few px (#43)**: the loop
+  threw away the whole capture when a scroll landed more than 1px from the
+  plan. After `fpHideFixed` takes a sticky header or fixed bar out of the
+  layout a page can get a few px shorter, so the last scroll falls short:
+  seobandwagon.com/seo-chrome-extension (asked 13429, got 13425, 18 frames
+  lost) and the seobandwagon.com home page both failed every time. The loop
+  (`src/popup/fullpage-capture.js`, `adjustFrame`) now reads each frame's rows
+  from where the window actually is when they're on screen. On the last frame
+  up to a quarter screen of rows that no longer exist stays white at the
+  bottom; a frame whose rows would leave a gap mid-image still fails with the
+  same message. Both pages now capture (1366×14242, 1366×10436), with no seam
+  at the adjusted frame; Wikipedia still captures as before.
 - `tests/fixtures/serp-google-goto-links.html` is a real signed-out page
   ("seo stats chrome", 2026-10-12); `tests/unit/serp.test.js` and
   `serp-overlay.test.js` add 26 tests, 20 of which fail on 1.7.4.
