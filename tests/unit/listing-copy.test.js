@@ -1,9 +1,16 @@
 // Chrome Web Store listing copy — keyword-spam rules (violation "Yellow
 // Argon", 2026-09-24). The 1.6.0 draft was removed because the detailed
 // description named fifteen structured-data types in one sentence. Google's
-// spam FAQ: no lists of keywords without added value, and no single keyword
-// more than five times. This test reads the paste-ready block from the
-// listing doc and the manifest's short description.
+// spam FAQ (developer.chrome.com/docs/webstore/spam-faq, read 2026-10-13):
+// keywords relevant and in context; more than five of one keyword "may result
+// in increased scrutiny" but is allowed when appropriate; the primary-purpose
+// word not more than five times (their example: "puzzle" for a puzzle
+// extension); no list of more than five sites or brands. Until 2026-10-13
+// this test capped EVERY word at five, which only a ~2,500-character
+// description can meet; the field allows 16,000. Now: search and purpose
+// keywords at most five, any other word only guarded against stuffing.
+// This test reads the paste-ready block from the listing doc and the
+// manifest's short description.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,6 +24,25 @@ const short = JSON.parse(readFileSync(path.join(REPO, 'extension/manifest.json')
 const STOP = new Set(('the a an of and to in on for it its is you your with as or at by that this ' +
   'each any can be are from what when how no not all one if into without until they them where ' +
   'seo bandwagon').split(' '));
+
+// Words someone would type into the store's search to find a tool like this,
+// and the purpose word. Each at most five times, per Google's FAQ.
+const SEARCH_KEYWORDS = ['seo', 'google', 'search', 'rank', 'ranking', 'keyword', 'audit', 'checker',
+  'optimization', 'serp', 'backlink', 'chrome', 'extension', 'tool'];
+const MAX_KEYWORD = 5;
+// Ordinary words ("page", "link", "result") recur in any long, plain
+// description; this only catches stuffing.
+const MAX_OTHER_WORD = 25;
+const MAX_DESCRIPTION_CHARS = 16000;
+
+function searchKeywordCounts(text) {
+  const counts = new Map();
+  for (const raw of text.toLowerCase().match(/[a-z]+/g) || []) {
+    const w = raw.replace(/s$/, '');
+    if (SEARCH_KEYWORDS.includes(w)) counts.set(w, (counts.get(w) || 0) + 1);
+  }
+  return counts;
+}
 
 // Singular and plural count as one keyword ("link" / "links").
 function keywordCounts(text) {
@@ -45,9 +71,18 @@ describe('store listing copy', () => {
     expect(detailed.length).toBeGreaterThan(500);
   });
 
+  it("detailed description: within the store's 16,000 characters", () => {
+    expect(detailed.trim().length).toBeLessThanOrEqual(MAX_DESCRIPTION_CHARS);
+  });
+
   for (const [name, text] of [['detailed description', detailed], ['short description', short]]) {
-    it(`${name}: no keyword more than five times`, () => {
-      const over = [...keywordCounts(text)].filter(([, n]) => n > 5);
+    it(`${name}: no search or purpose keyword more than five times`, () => {
+      const over = [...searchKeywordCounts(text)].filter(([, n]) => n > MAX_KEYWORD);
+      expect(over).toEqual([]);
+    });
+
+    it(`${name}: no other word repeated to the point of stuffing`, () => {
+      const over = [...keywordCounts(text)].filter(([, n]) => n > MAX_OTHER_WORD);
       expect(over).toEqual([]);
     });
 
@@ -76,7 +111,9 @@ describe('store listing copy', () => {
     expect(longestList(removed)).toBeGreaterThanOrEqual(5);
   });
 
-  it('the keyword counter catches unnatural repetition', () => {
-    expect([...keywordCounts('page page pages page page page')].some(([, n]) => n > 5)).toBe(true);
+  it('the keyword counters catch unnatural repetition', () => {
+    expect([...searchKeywordCounts('SEO tool, SEO checker, SEO audit, free SEO, best SEO, SEO extension')]
+      .some(([, n]) => n > MAX_KEYWORD)).toBe(true);
+    expect([...keywordCounts('page '.repeat(MAX_OTHER_WORD + 1))].some(([, n]) => n > MAX_OTHER_WORD)).toBe(true);
   });
 });

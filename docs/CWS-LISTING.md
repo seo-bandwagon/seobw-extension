@@ -44,73 +44,82 @@ Check the on-page SEO of any page in one click: a score and the issues it finds,
 
 Rewritten 2026-09-24 after the Chrome Web Store removed the 1.6.0 draft for
 keyword spam (violation Yellow Argon). The notice cited one string: fifteen
-structured-data type names in a row. Google's rules for this field
-(developer.chrome.com/docs/webstore/spam-faq and /troubleshooting):
+structured-data type names in a row. Expanded 2026-10-13 from about 2,500 to
+about 8,200 characters (the field allows 16,000) to describe each feature
+properly, still in plain sentences. Google's rules for this field
+(developer.chrome.com/docs/webstore/spam-faq, read 2026-10-13):
 
-- no lists of sites, brands or keywords without substantial added value
-- no single keyword more than five times
-- keywords used in context, in clear sentences
+- keywords relevant to the extension's purpose, in context, not repeated
+  unnaturally; "more than 5 instances of a single keyword may result in
+  increased scrutiny … but will be allowed if its use is considered
+  appropriate and relevant"
+- the extension's primary purpose word not more than five times (their
+  example: a puzzle extension and the word "puzzle"); ours is "SEO"
+- no list of more than five supported sites or brands
+- nothing not directly relevant to the extension
 
-`tests/unit/listing-copy.test.js` enforces the second rule and a list
-detector on the block below. Examples go in a sentence, two at most.
+`tests/unit/listing-copy.test.js` holds the block below to those: search and
+purpose keywords at most five times, no other word repeated to the point of
+stuffing, no list of five or more bare terms, and the 16,000-character limit.
+Examples go in a sentence, two or three at most. Every claim is checked
+against the shipped build; the privacy section follows the code
+(`isDataCollectionEnabled`: sending is on by default once an account is
+connected, and the description said otherwise until 2026-10-13).
 
 ```
-SEO Bandwagon reviews the on-page SEO of the site you have open, right in
-your browser. One click gives you the findings, and no account is needed.
+SEO Bandwagon reviews the on-page SEO of the site you have open, right in your browser. Click the toolbar icon and the findings open in a popup, with no account and no setup. It is built for people who look after websites: owners checking their own pages, freelancers and agencies auditing a client before a call, developers confirming a release did not break anything, and local businesses keeping their directory listings straight.
+
+The analysis runs in the tab in front of you. The checks that need to look at other websites ask for that access the first time you use them, and you can say no.
 
 ON-PAGE ANALYSIS
-A score from 0 to 100, four sub-scores and the issues it found, such as a
-missing H1 or a title that runs too long, with the letter grade on the
-toolbar icon. You also see a preview of how the listing could look on Google,
-loading and layout speed as your browser measured it, the heading outline,
-links and images, and the technology behind the site.
+Open the popup anywhere for a score from 0 to 100, a letter grade and four sub-scores covering meta tags, content, links and technical setup. Beneath the score is the list of issues it found, such as a missing H1 or a title that runs too long, so you know what to look at first. The grade also appears on the toolbar icon, so you can tell how it did without opening anything.
 
-LINK CHECK
-On request, tests every link, groups them by status code and highlights the
-broken ones where they sit.
+The analysis goes well past the headline number. You get a preview of how the listing could look in results, with the title and meta description measured against the length that usually fits. The heading outline shows every H1 to H6 in order, and clicking a heading highlights it on the page. Links are split into internal and external and marked when they carry nofollow, sponsored or user-generated attributes. Images without alt text are counted and can be highlighted where they sit. The content view gives the word count, reading level and the phrases used most often, which helps you see what the text is really about. A technical view checks the canonical tag and robots directives, and flags insecure resources on a secure page along with images that only load as you scroll. Loading and layout speed are reported as your own browser measured them, using the Core Web Vitals that Google publishes, so the numbers reflect a real visit rather than a lab estimate. The extension also names the technology behind the site, such as the content management system or the analytics in use.
+
+BROKEN LINK CHECK
+On request, the extension tests every link on the page, up to 300, and groups them by what happened to each request, so working links, redirects and each kind of failure are kept apart. Broken ones can be highlighted right where they appear, and the full list exports to a spreadsheet file. A check keeps running in the background if the popup closes or you switch tabs, and opening the popup again shows its progress or the finished results. Each address is requested without your cookies. Links to the Chrome Web Store are marked as ones Chrome does not let extensions open, instead of being counted as broken.
 
 INDEXABILITY
-Shows the redirects that led to the URL and whether search engines may index
-it, with a plain yes or no. You can trace another address without leaving.
+Shows how the address you are on was reached: every redirect hop, its status code and whether a script moved you along, with loops flagged. Response headers that matter for crawling, such as X-Robots-Tag and the canonical link header, sit next to the robots meta tag and canonical on the page itself, and together they produce a plain yes or no on whether search engines may index it. You can trace a different address too: type it in and the extension follows its redirects in a background tab and reports the same way.
 
 HREFLANG
-Finds mistakes in language and region tags and, when you ask, confirms that
-each alternate version links back.
+For multilingual sites, every language and region annotation on the page is checked: whether each code is written correctly, whether two tags claim the same language, whether the page points to itself and whether an x-default exists. On request it fetches the alternate versions, up to 50, and confirms each one links back. Missing return links are a common reason these annotations get ignored.
 
 RENDERING
-Compares the HTML the server sent with what your browser displayed, so you
-can spot what scripts changed. You can also reload the tab the way a crawler
-requests it.
+Compares the HTML the server sent with what your browser displayed after scripts ran, field by field, from the title and meta description through to the heading, link and image counts and the length of the text. A summary tells you whether the page is static, hydrated or built by JavaScript, which matters when crawlers may not run your scripts. The View as option reloads the current tab with the user agent of a crawler or a phone, for testing server-side rendering and cloaking on your own sites. It changes only that tab and switches off when you choose Default or close it.
 
 STRUCTURED DATA
-Reads the structured data on the page and tells you what is missing before
-Google can use it. A local business without a phone number, or a product
-without an offer, is flagged with the exact field to add, and complete items
-show the rich result they qualify for.
+Reads the JSON-LD, Microdata and RDFa on the page, including nested items, and compares each item with the properties its type requires and recommends. A local business without a phone number, or a product without an offer, is flagged with the exact field to add. Complete items show the rich result they qualify for, limited to rich results that currently appear, and types whose rich result has been retired are still validated as markup with a note saying so. Each item's data can be copied for a closer look.
 
-SEARCH RESULTS OVERLAY
-Adds a small stats bar under each organic listing on Google and a toolbar to
-copy or export what you see. Exports stay on your computer, and only domain
-names are looked up, never your query.
+RESULTS PAGE OVERLAY
+On Google's results pages, a small bar under each organic listing names its domain and, with an account connected, shows what we know about that site. Signed out, nothing is sent. A toolbar below the results copies the listings to your clipboard as a table or exports them to a spreadsheet. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
 
 SEARCH CONSOLE HELPERS
-In a performance report, opens any query on Google in one click and, when
-you compare two date ranges, puts the percent change beside each number.
+Inside Search Console's performance report, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
 
-PANELS AND APPEARANCE
-A side panel keeps the findings open while you work. Choose Night, Day or
-Auto; two matching Chrome themes are available separately.
+LOCAL CITATIONS
+With a free account, the Citations tab helps you keep business listings consistent. It recognizes 40 common directories, reads the name, address and phone number on the listing you have open, and scores how closely they match your own business record. It can save a screenshot of the whole listing as proof, stitched from the top of the page to the bottom and kept on your computer, and file the citation to your account in one click.
 
-EXPORTS AND TOOLS
-Headings, links, images and the results of the five checks above export as
-CSV files you save yourself, and the whole analysis as one JSON file. A
-right-click menu opens the current URL in common testing and archive tools.
+LINK BUILDING
+Also with an account, a side panel lists your outreach prospects, your draft and approved pitches, and the placements you have won, and you can add the tab you are reading as a new prospect.
 
-OPTIONAL ACCOUNT
-Connect a free SEO Bandwagon account to keep your analyses, review local
-business listings and manage outreach. While reviewing a listing you can save
-a screenshot of the whole page as proof, kept on your computer. Nothing is sent until you connect and
-turn on sending in Settings.
+SIDE PANELS
+A side panel keeps the page checks open while you work, with pass, warning and fail counts for the page in the current tab. A second view holds your citations and link building work.
+
+EXPORTS AND SHORTCUTS
+Headings, links, images and the results of each check export as spreadsheet files you save yourself, and the whole analysis can be saved as one JSON file. File names include the page and the time, so one export never replaces another. A right-click menu opens the current address in tools you already use, including Search Console's URL inspection, PageSpeed Insights and the Wayback Machine, and can count the words and characters in any text you select.
+
+APPEARANCE
+Choose Night, Day or Auto, which follows your system setting. Two matching Chrome themes are available separately.
+
+PRIVACY
+No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the results page overlay looks up the domains shown, never your query, and the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
+
+GETTING STARTED
+1. Add the extension and pin it to the toolbar.
+2. Open any page and click the icon.
+3. Expand a section for detail, or run a check from it.
+Connecting an account is optional and takes one click from your dashboard.
 ```
 
 **Privacy policy**: https://seobandwagon.com/privacy
