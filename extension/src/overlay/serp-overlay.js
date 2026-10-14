@@ -319,30 +319,6 @@
   // TSV's own column/row delimiters — guarding first matters, since a
   // guard-triggering leading tab or CR would otherwise be collapsed away by
   // the whitespace cleanup before ever being seen.
-  // Same columns as the CSV, so a paste into a sheet and a saved file agree.
-  // The snippet used to be dropped here too, even though parseResults had it.
-  function rowsToTsv(rows, context) {
-    const ctx = context || {};
-    const clean = (v) => globalThis.SBWSerp.guardCell(v).replace(/[\t\r\n]+/g, ' ').trim();
-    const lines = [
-      ['Query', 'Position', 'URL', 'Domain', 'Title', 'Snippet', 'Site name', 'Display URL',
-        'Breadcrumb', 'Date', 'Rating', 'Captured', 'Country', 'Language', 'Location', 'Page',
-        'Result stats', 'Related searches', 'People also ask', 'Absolute position (approx.)'].join('\t')
-    ];
-    rows.forEach((row) => {
-      lines.push(
-        [
-          ctx.query, row.position, row.url, row.domain, row.title, row.snippet,
-          row.siteName, row.displayUrl, row.breadcrumb, row.date, row.rating,
-          ctx.capturedAt, ctx.country, ctx.language, ctx.location, ctx.page,
-          ctx.resultStats, ctx.relatedSearches, ctx.paa,
-          globalThis.SBWSerp.absolutePosition(row, ctx)
-        ].map(clean).join('\t')
-      );
-    });
-    return lines.join('\n');
-  }
-
   // Fix round 1, item 9: flashing a Copy button used to overwrite its
   // entire textContent, which permanently destroyed the
   // `[data-role="copy-count"]`/`[data-role="paa-count"]` child span the
@@ -584,6 +560,148 @@
     return wrap;
   }
 
+  // ---------- collect pages (#45) ----------
+  //
+  // Google ignores &num=, so a top 50 is five pages. A person adds each page
+  // here and moves on with Google's own Next link; nothing walks pages by
+  // itself (a human in the loop: Google's terms rule out automated scraping).
+  // The worker keeps what was added in session storage and combines it
+  // (src/lib/serp-collect.js): one list, deduped by URL, with an absolute
+  // position. Nothing is sent anywhere.
+  let collected = { rows: [], summary: null, line: '' };
+
+  function collectAsk(op, extra) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(Object.assign({ action: 'serpCollect', op, search: window.location.search, withRows: true }, extra || {}), (reply) => {
+          if (chrome.runtime.lastError || !reply) { resolve({ error: 'unavailable' }); return; }
+          resolve(reply);
+        });
+      } catch (e) {
+        resolve({ error: 'unavailable' }); // extension reloaded under this page
+      }
+    });
+  }
+
+  function showCollected(reply) {
+    if (!reply || reply.error === 'unavailable' || reply.error === 'no-query') return;
+    collected = { rows: reply.rows || [], summary: reply.summary, line: reply.line || '' };
+    if (!toolbarEl) return;
+    const line = toolbarEl.querySelector('[data-role="collect-line"]');
+    if (line) line.textContent = collected.line;
+    const n = toolbarEl.querySelector('[data-role="collect-count"]');
+    if (n) n.textContent = String(collected.rows.length);
+    const has = collected.rows.length > 0;
+    toolbarEl.querySelectorAll('[data-collect-needs-rows]').forEach((el) => { el.disabled = !has; });
+  }
+
+  function collectButton(label, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sbw-btn';
+    btn.textContent = label;
+    btn.addEventListener('click', () => onClick(btn));
+    return btn;
+  }
+
+  // The Web tab as Google links it on this page (udm=web today); never built
+  // by hand, so it follows whatever Google uses. Looked up on the click: the
+  // Web tab sits in the tab row's "More" menu, filled in after load.
+  function onWebOnlyPage() {
+    return (new URLSearchParams(window.location.search).get('udm') || '').toLowerCase() === 'web';
+  }
+
+  function webOnlyLink() {
+    const a = [...document.querySelectorAll('a[href*="udm="]')].find((x) => {
+      try { return new URL(x.href, location.href).searchParams.get('udm') === 'web'; } catch (e) { return false; }
+    });
+    return a ? a.href : null;
+  }
+
+  function buildCollectControl() {
+    const ctx = globalThis.SBWSerp.searchContext(window.location, document);
+    const wrap = document.createElement('div');
+    wrap.className = 'sbw-serp-collect';
+
+    const label = document.createElement('span');
+    label.className = 'sbw-serp-location-label';
+    label.textContent = 'Collect pages:';
+    wrap.appendChild(label);
+
+    wrap.appendChild(collectButton(`Add page ${ctx.page}`, async (btn) => {
+      const rows = globalThis.SBWSerp.parseResults(document);
+      if (!rows.length) { flashLabel(btn, 'No results found'); return; }
+      const now = globalThis.SBWSerp.searchContext(window.location, document);
+      const reply = await collectAsk('add', {
+        page: {
+          start: now.start,
+          rows: rows.map((r) => Object.assign({}, r)),
+          context: { capturedAt: now.capturedAt, resultStats: now.resultStats, relatedSearches: now.relatedSearches, paa: now.paa }
+        }
+      });
+      if (reply.error === 'full') { flashLabel(btn, "10 pages is the limit"); return; }
+      if (reply.error) { flashLabel(btn, 'Could not add'); return; }
+      showCollected(reply);
+      flashLabel(btn, reply.added === 'replaced' ? `Added again: ${reply.moved} changed` : 'Added');
+    }));
+
+    const next = document.querySelector('#pnnext');
+    if (next && next.href) {
+      const a = document.createElement('a');
+      a.className = 'sbw-btn sbw-link';
+      a.href = next.href;
+      a.textContent = 'Next page →';
+      wrap.appendChild(a);
+    }
+    if (!onWebOnlyPage()) {
+      const web = collectButton('Web results only', (btn) => {
+        const href = webOnlyLink();
+        if (!href) { flashLabel(btn, 'No Web tab on this page'); return; }
+        window.location.assign(href);
+      });
+      web.title = "Google's Web tab: organic results without AI Overviews, videos and other features. Pages collected there are kept separately.";
+      wrap.appendChild(web);
+    }
+
+    const copyAll = collectButton('', (btn) => {
+      if (!collected.rows.length) { flashLabel(btn, 'Nothing added yet'); return; }
+      copyText(globalThis.SBWSerp.resultsToTsv(collected.rows, globalThis.SBWSerp.searchContext(window.location, document)), btn);
+    });
+    copyAll.appendChild(document.createTextNode('Copy collected ('));
+    const count = document.createElement('span');
+    count.setAttribute('data-role', 'collect-count');
+    count.textContent = '0';
+    copyAll.appendChild(count);
+    copyAll.appendChild(document.createTextNode(')'));
+    copyAll.setAttribute('data-collect-needs-rows', '');
+    wrap.appendChild(copyAll);
+
+    const exportAll = collectButton('Export collected CSV', (btn) => {
+      if (!collected.rows.length) { flashLabel(btn, 'Nothing added yet'); return; }
+      const base = globalThis.SBWSerp.searchContext(window.location, document);
+      const pages = (collected.summary && collected.summary.pages || []).map((p) => p.page);
+      downloadCsv(globalThis.SBWSerp.resultsToCsv(collected.rows, base), base.query, pages.length ? pages[0] + '-' + pages[pages.length - 1] : base.page);
+    });
+    exportAll.setAttribute('data-collect-needs-rows', '');
+    wrap.appendChild(exportAll);
+
+    const clear = collectButton('Clear', async (btn) => {
+      showCollected(await collectAsk('clear'));
+      flashLabel(btn, 'Cleared');
+    });
+    clear.setAttribute('data-collect-needs-rows', '');
+    wrap.appendChild(clear);
+
+    const line = document.createElement('span');
+    line.className = 'sbw-serp-collect-line';
+    line.setAttribute('data-role', 'collect-line');
+    wrap.appendChild(line);
+
+    // What was added before, for this search: read only, nothing fetched.
+    collectAsk('get').then(showCollected);
+    return wrap;
+  }
+
   function renderToolbar() {
     if (toolbarEl) return; // one per page
     const container = resultsContainer();
@@ -610,7 +728,8 @@
         flashLabel(copyBtn, 'No results found');
         return;
       }
-      copyText(rowsToTsv(rows, globalThis.SBWSerp.searchContext(window.location, document)), copyBtn);
+      // Same columns as the CSV (SBWSerp.resultsToTsv), so a paste and a file agree.
+      copyText(globalThis.SBWSerp.resultsToTsv(rows, globalThis.SBWSerp.searchContext(window.location, document)), copyBtn);
     });
     toolbarEl.appendChild(copyBtn);
 
@@ -650,6 +769,7 @@
     toolbarEl.appendChild(paaBtn);
 
     toolbarEl.appendChild(buildLocationControl());
+    toolbarEl.appendChild(buildCollectControl());
 
     // "appended after the results container, not before"
     container.insertAdjacentElement('afterend', toolbarEl);

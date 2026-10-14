@@ -99,6 +99,34 @@
   border-color: #F53796;
 }
 
+/* ---------- collect pages (#45) ---------- */
+
+.sbw-serp-collect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  padding-top: 8px;
+  border-top: 1px solid rgba(245, 245, 245, 0.2);
+}
+
+.sbw-link {
+  text-decoration: none;
+  display: inline-block;
+}
+
+.sbw-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sbw-serp-collect-line {
+  flex-basis: 100%;
+  color: rgba(245, 245, 245, 0.7);
+  font-size: 11px;
+}
+
 /* ---------- location simulator ---------- */
 
 .sbw-serp-location {

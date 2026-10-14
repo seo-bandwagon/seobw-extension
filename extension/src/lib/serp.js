@@ -612,12 +612,32 @@
     // at 1 on every page. Google's offset plus Position is the overall rank,
     // approximately: Google's pages don't always hold exactly 10 organic
     // results. Appended last so existing column positions don't move.
-    ['Absolute position (approx.)', 'absolutePosition']
+    ['Absolute position (approx.)', 'absolutePosition'],
+    // 1.8.0 (#45): the exact overall rank, counted across the pages a person
+    // added (src/lib/serp-collect.js), with repeats from earlier pages left
+    // out. On page 1 alone it's the position; blank where it can't be known
+    // (a later page on its own, or after a page that wasn't added).
+    ['Absolute position', 'absoluteExact'],
+    ['Collection notes', 'notes']
   ];
 
+  // A collected row carries its own page's `start`; a single page uses ctx's.
   function absolutePosition(row, ctx) {
     const pos = Number(row && row.position);
-    return Number.isFinite(pos) && pos > 0 ? (Number(ctx && ctx.start) || 0) + pos : '';
+    const start = row && row.start !== undefined ? Number(row.start) : Number(ctx && ctx.start);
+    return Number.isFinite(pos) && pos > 0 ? (start || 0) + pos : '';
+  }
+
+  function exactPosition(row, ctx) {
+    if (row && row.absoluteExact !== undefined) return row.absoluteExact;
+    return (Number(ctx && ctx.start) || 0) === 0 && Number(row && row.position) > 0 ? Number(row.position) : '';
+  }
+
+  function cellValue(row, ctx, key) {
+    if (key === 'absolutePosition') return absolutePosition(row, ctx);
+    if (key === 'absoluteExact') return exactPosition(row, ctx);
+    const value = row && key in row ? row[key] : ctx[key];
+    return value === undefined || value === null ? '' : value;
   }
 
   function resultsToCsv(rows, context) {
@@ -625,16 +645,21 @@
     const header = RESULT_CSV_COLUMNS.map((c) => csvCell(c[0])).join(',');
     const lines = [header];
     (rows || []).forEach((row) => {
-      lines.push(
-        RESULT_CSV_COLUMNS.map((c) => {
-          const key = c[1];
-          const value = key === 'absolutePosition' ? absolutePosition(row, ctx)
-            : row && key in row ? row[key] : ctx[key];
-          return csvCell(value === undefined || value === null ? '' : value);
-        }).join(',')
-      );
+      lines.push(RESULT_CSV_COLUMNS.map((c) => csvCell(cellValue(row, ctx, c[1]))).join(','));
     });
     return CSV_BOM + lines.join('\r\n') + '\r\n';
+  }
+
+  // The same columns as a tab-separated block for pasting into a sheet. Cells
+  // are formula-guarded and lose tabs and line breaks, which would split them.
+  function resultsToTsv(rows, context) {
+    const ctx = context || {};
+    const clean = (v) => guardCell(v).replace(/[\t\r\n]+/g, ' ').trim();
+    const lines = [RESULT_CSV_COLUMNS.map((c) => c[0]).join('\t')];
+    (rows || []).forEach((row) => {
+      lines.push(RESULT_CSV_COLUMNS.map((c) => clean(cellValue(row, ctx, c[1]))).join('\t'));
+    });
+    return lines.join('\n');
   }
 
   function paaToText(questions) {
@@ -797,6 +822,7 @@
     parseResults,
     parsePaa,
     resultsToCsv,
+    resultsToTsv,
     searchContext,
     parseRelatedSearches,
     splitDatePrefix,
