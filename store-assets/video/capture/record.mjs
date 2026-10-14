@@ -1,4 +1,4 @@
-// Records the demo video's screen scenes (STORYBOARD.md scenes 2-6 and 8)
+// Records the demo video's screen scenes (STORYBOARD.md scenes 2-6, 6b and 8)
 // from the real extension in headless Chromium: the page and the real action
 // popup are captured as timestamped frames through CDP screencast, and every
 // click, URL change and popup open/close is logged, so build.mjs can composite
@@ -178,6 +178,47 @@ await shoot('s6-google', 'https://www.google.com/search?q=best+crm+for+nonprofit
   sc.mark('click', { on: 'page', x: 120, y: 130 });
   await page.evaluate((t) => window.pasteRows(t), results); await sleep(2200);
   await page.evaluate((t) => window.pasteList(t), paa); await sleep(2400);
+});
+
+// 6b (1.8.0, #45): add pages 1-3 by click, the way a person does, then paste
+// the collected list. Each page is a click on "Add page N" and Google's own
+// "Next page →"; nothing walks pages by itself.
+await shoot('s6b-collect', 'https://www.google.com/search?q=best+crm+for+nonprofits&gl=us&hl=en&pws=0', async (sc, page) => {
+  if (/unusual traffic|\/sorry\//i.test(await page.evaluate(() => document.body.innerText + location.href))) throw new Error('Google bot wall');
+  await browser.defaultBrowserContext().overridePermissions('https://www.google.com', ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write']);
+  const control = async (label) => {
+    const h = await page.evaluateHandle((l) => [...document.querySelectorAll('.sbw-serp-collect button, .sbw-serp-collect a')].find((x) => x.textContent.startsWith(l)), label);
+    const el = h.asElement(); if (!el) throw new Error('no control ' + label);
+    return el;
+  };
+  const press = async (label) => {
+    const el = await control(label);
+    const bb = await el.boundingBox();
+    sc.mark('click', { on: 'page', x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 }); await sleep(250);
+    await el.click();
+  };
+  for (let n = 1; n <= 3; n++) {
+    await page.waitForSelector('.sbw-serp-bar'); await sleep(n === 1 ? 1800 : 1000);
+    const y = await page.evaluate(() => document.querySelector('.sbw-serp-collect').getBoundingClientRect().top + scrollY);
+    await smoothScroll(page, Math.max(0, y - 420), n === 1 ? 1600 : 900); await sleep(500);
+    await press(`Add page ${n}`); await sleep(1500);
+    if (n < 3) {
+      const nav = page.waitForNavigation({ waitUntil: 'load' });
+      await press('Next page →'); await nav;
+      sc.mark('url', { url: page.url(), title: await page.title() });
+    }
+  }
+  await sleep(800);
+  await press('Copy collected'); await sleep(700);
+  const tsv = await page.evaluate(() => navigator.clipboard.readText());
+  console.log(`  collected ${tsv.split('\n').length - 1} rows`);
+  const sheet = fs.readFileSync(new URL('./sheet.html', import.meta.url), 'utf8');
+  await page.goto('data:text/html;charset=utf-8,' + encodeURIComponent(sheet)); await sleep(500);
+  sc.mark('url', { url: 'Untitled spreadsheet', title: 'Untitled spreadsheet' });
+  await sleep(900);
+  sc.mark('click', { on: 'page', x: 120, y: 130 });
+  await page.evaluate((t) => window.pasteColumns(t, ['Absolute position', 'Page', 'Position', 'Domain', 'Title']), tsv); await sleep(2600);
+  await smoothScroll(page, 260, 1200); await sleep(1400);
 });
 
 await shoot('s8-privacy', 'https://seobandwagon.com/seo-chrome-extension', async (sc, page) => {
