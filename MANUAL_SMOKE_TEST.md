@@ -56,7 +56,7 @@ Needs an API key saved in Options and data collection on. Without them, captures
 - In the popup, click **History** (or open `chrome://extensions` → the extension's "history" link)
 - Verify:
   - [ ] The capture from step 1 appears in the list
-  - [ ] Searching for "local seo" returns it
+  - [ ] Searching for "local seo" returns it (words match the URL, host or title, whatever the separator), and a search with no matches says "No captures match …", not "No captures yet" (#62)
   - [ ] Clicking it opens the capture detail
 
 ### 4. Service-worker console is clean
@@ -93,7 +93,8 @@ For each URL below, click the extension icon and confirm the popup shows a grace
 
 - [ ] `chrome://newtab` — extension action disabled or shows a "not supported" message
 - [ ] `about:blank`
-- [ ] A PDF rendered in Chrome (any public PDF URL)
+- [ ] A PDF rendered in Chrome (any public PDF URL): "NOT A WEB PAGE · This tab shows a PDF", no score (#63)
+- [ ] An XML sitemap (e.g. `https://seobandwagon.com/sitemap.xml`) and a raw SVG file: "NOT A WEB PAGE" naming it, never stuck on "Analyzing page…" (#89)
 - [ ] A page with a very long title (e.g. some Wikipedia article pages)
 
 ### 8. 1.6.x and 1.7 surfaces
@@ -104,13 +105,15 @@ On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 - [ ] **Link check** — "Check N links" runs only on click. The first time, it asks for the optional site access, and the request can be declined. Result chips (ok / redirect / 4xx / 5xx / timeout / network / can't check) add up, and "Export CSV" downloads
 - [ ] **Link check outlives the popup** (#47) — on a page with 100+ links (e.g. a long Wikipedia article), start a check, click the page so the popup closes, wait a moment and reopen: it shows the progress so far or the finished results, not "Check N links". Switch to another tab and back: same. Cancel stops it; "Check again" re-reads the page's links. On seobandwagon.com/seo-chrome-extension the Chrome Web Store links read **Can't check**, not NETWORK (#46).
 - [ ] **Indexability** — shows an indexable / not-indexable verdict, the redirect chain and headers. Tracing `http://` → `https://` for a redirecting URL lists every hop
-- [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status
+- [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status; the page's own entries read SELF (#91), and the same page opened with `?utm_source=x` reads the same, with Indexability still INDEXABLE (#92)
 - [ ] **Rendering** — raw-HTML vs rendered-DOM comparison loads, and the user-agent switcher changes the result for this tab only
 - [ ] **Structured data** — JSON-LD / Microdata / RDFa items listed with rich-result eligibility
 - [ ] **Right-click menu** — "SEO Bandwagon tools" opens the chosen tool for this page
 - [ ] **SERP overlay** — `https://www.google.com/search?q=local+seo`: the stats bar shows, and "Copy results", "Export CSV" and "Copy PAA" work. **Paste after each Copy** (into a text editor): the questions / the result rows must be there, since a "Copied" flash alone isn't proof (#37). Repeat in a signed-out (guest) window, where Google links results through `/goto?url=` (#41), and on `seo stats chrome`, where Chrome Web Store listings must appear as results (#42). The CSV includes description, site name and breadcrumb. The location simulator changes the results
 - [ ] **SERP overlay signed out sends nothing** (#50) — with no API key, open a results page with DevTools on the extension's service worker (chrome://extensions → Inspect views): no request to `seobandwagon.com`, no "Access to storage" errors in the page console, and each bar reads "Connect your account". Open the popup there: it says "Found N results…" (#56). Export CSV: the file name ends `-p1-<date>-<hhmmss>.csv` and the last column is "Absolute position (approx.)" (#45, #55).
 - [ ] **Side panel Page checks** (#49) — open the side panel (e.g. from the popup), click "Page checks →": the page-checks panel replaces it for that tab; its Citations link goes back.
+- [ ] **Human in the loop** (S53, S55) — with Page checks open, reload the page and follow a link: the panel says "Click "Scan this page" to check it." and History gains no capture; "Scan this page" scans. Without "access to all sites", a tab whose toolbar icon wasn't clicked offers "Allow access to analyze other tabs" (Chrome's prompt) and reads nothing until allowed.
+- [ ] **Analyze linked page** (S29) — right-click a link → Analyze linked page: without "access to all sites", the popup on the new tab reads "NO ACCESS TO THIS TAB YET" with the Allow button (not "CAN'T READ THIS PAGE"); allowing it analyzes the page.
 - [ ] **Search Console** (Performance report, on a property you own): row icons ("open in Google", "open in private window") appear on the **Queries** tab only, and disappear when you switch to Pages. With "Compare" dates on, each metric card and changed cell gets a % badge, and nothing else changes
 - [ ] **Appearance** — Auto / Night / Day in Settings changes the popup, both side panels and Settings together
 - [ ] **Welcome tab** (fresh profile, first load of the unpacked `extension/`) — exactly one tab opens at `https://seobandwagon.com/seo-chrome-extension/welcome?ref=install&utm_source=chrome_extension&utm_medium=extension&utm_campaign=install`, and the page answers (not a 404). Reloading the extension at `chrome://extensions` (an update) opens nothing

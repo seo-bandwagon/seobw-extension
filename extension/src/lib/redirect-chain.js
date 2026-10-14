@@ -217,10 +217,21 @@
   // https://www.example.com/page/ and http://example.com/page compare
   // equal — a canonical differing only in those is not "pointing
   // elsewhere" in any way a site owner would recognize.
+  // #92: query parameters that only say how a visitor arrived. A page opened
+  // from a newsletter or an ad carries them, and the page it is stays the same
+  // page: comparisons drop them. Kept identical to TRACKING_PARAMS in
+  // src/lib/hreflang.js (a test checks).
+  const TRACKING_PARAMS = /^(utm_[a-z_]+|gclid|gclsrc|dclid|gbraid|wbraid|fbclid|msclkid|yclid|twclid|ttclid|li_fat_id|igshid|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|srsltid)$/i;
+
+  function dropTrackingParams(u) {
+    [...u.searchParams.keys()].forEach(k => { if (TRACKING_PARAMS.test(k)) u.searchParams.delete(k); });
+  }
+
   function normalizeUrlForCompare(url) {
     if (!url) return null;
     try {
       const u = new URL(url);
+      dropTrackingParams(u);
       const host = u.hostname.replace(/^www\./, '');
       const path = u.pathname.replace(/\/+$/, '') || '/';
       return `${host}${path}${u.search}`;
@@ -279,6 +290,7 @@
     parseLinkHeader,
     chainSummary,
     indexability,
-    normalizeUrlForCompare
+    normalizeUrlForCompare,
+    TRACKING_PARAMS
   };
 });

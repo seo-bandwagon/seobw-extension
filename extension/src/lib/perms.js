@@ -38,7 +38,7 @@
   // User-Agent switcher, which rewrites a header on the current tab's own
   // requests using this same grant. Frozen after this — later features
   // reuse this string verbatim.
-  const ALL_URLS_REASON = 'To check links, hreflang alternates and redirects, and to compare a page\'s raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page.';
+  const ALL_URLS_REASON = 'To check links, hreflang alternates and redirects, and to compare a page\'s raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The same access lets the side panel and "Analyze linked page" read a tab you ask them to scan without clicking the toolbar icon on it first; nothing is read until you click. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page.';
 
   function hasAllUrls() {
     return chrome.permissions.contains({ origins: ['<all_urls>'] });

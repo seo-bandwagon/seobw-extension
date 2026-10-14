@@ -193,10 +193,18 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     }
 
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/content/analyzer.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/lib/analysis-errors.js', 'src/content/analyzer.js'] });
     } catch (e) { /* already injected */ }
 
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
+    // #63/#89: a PDF, an SVG or a sitemap, or an analysis that threw. Nothing
+    // to score, cache or save.
+    const problem = globalThis.SBWAnalysisErrors.describe(response);
+    if (problem) {
+      showCantAnalyze(problem.title, problem.body);
+      globalThis.SBWReviewUI?.renderFromStorage();
+      return;
+    }
     pageData = response;
     renderResults(response);
     // Started before autoSaveCapture/syncCapture so the popup's own
@@ -220,17 +228,37 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     }
   } catch (err) {
     console.error('Analysis error:', err);
-    document.getElementById('content').innerHTML = `
-      <div class="empty">
-        <div class="empty-glyph">⌸</div>
-        <div class="empty-title">CAN'T READ THIS PAGE</div>
-        <div class="empty-sub">Chrome blocks analysis on internal pages. Try refreshing, then click again.</div>
-      </div>`;
+    // S29: a web page the extension has no access to, e.g. the tab "Analyze
+    // linked page" opened (the toolbar click's activeTab grant isn't there).
+    // Ask only from a click; nothing is read until the person allows it.
+    if (tab && /^https?:/i.test(tab.url || '') && globalThis.SBWPerms && !(await SBWPerms.hasAllUrls().catch(() => true))) {
+      showCantAnalyze('NO ACCESS TO THIS TAB YET', 'Click the SEO Bandwagon icon while on this tab, or allow the extension to analyze other tabs.');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lc-allow-btn';
+      btn.id = 'popupAllowBtn';
+      btn.textContent = 'Allow access to analyze other tabs';
+      btn.addEventListener('click', async () => {
+        if (await SBWPerms.requestAllUrls().catch(() => false)) location.reload();
+      });
+      document.querySelector('#content .empty').append(btn);
+    } else {
+      showCantAnalyze("CAN'T READ THIS PAGE", 'Chrome blocks analysis on internal pages. Try refreshing, then click again.');
+    }
     // Never gated on this run's outcome (ruling, Task 7 item E) — an error
     // page still shows the strip if a prior analysis already qualified.
     globalThis.SBWReviewUI?.renderFromStorage();
   }
 });
+
+function showCantAnalyze(title, body) {
+  document.getElementById('content').innerHTML = `
+    <div class="empty">
+      <div class="empty-glyph">⌸</div>
+      <div class="empty-title">${esc(title)}</div>
+      <div class="empty-sub">${esc(body)}</div>
+    </div>`;
+}
 
 /* ---------- sub-scores derived from real analyzer data ---------- */
 

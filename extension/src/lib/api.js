@@ -470,6 +470,33 @@
   // thrown; the freshly-minted key is still returned so a caller that goes
   // on to call syncCapture(key) doesn't also need a null check — that sync
   // will just no-op against a key storage never actually wrote.
+  // Leaves ~2 MB of the 10 MB local quota for everything else.
+  const CAPTURE_BYTES_BUDGET = 8 * 1024 * 1024;
+  const CAPTURE_MAX_COUNT = 500;
+
+  // Keys of the oldest captures to remove so a new record of `newBytes`
+  // fits. `items` is all of chrome.storage.local; sizes are measured the way
+  // Chrome counts them (key + JSON of the value).
+  function capturesToPrune(items, newBytes) {
+    let total = newBytes;
+    const captures = [];
+    for (const [k, v] of Object.entries(items)) {
+      const bytes = k.length + JSON.stringify(v === undefined ? null : v).length;
+      total += bytes;
+      if (k.startsWith('capture_')) captures.push({ k, bytes, ts: parseInt(k.slice(8), 10) || 0 });
+    }
+    captures.sort((a, b) => a.ts - b.ts); // oldest first
+    const out = [];
+    let count = captures.length + 1;
+    for (const c of captures) {
+      if (total <= CAPTURE_BYTES_BUDGET && count <= CAPTURE_MAX_COUNT) break;
+      out.push(c.k);
+      total -= c.bytes;
+      count -= 1;
+    }
+    return out;
+  }
+
   async function autoSaveLocal(data) {
     const key = `capture_${Date.now()}`;
 
@@ -481,17 +508,15 @@
 
       if (!recentCapture) {
         const record = Object.assign({}, data, { sync: SBWSync.initialSync() });
+        // #90: room is made before writing. A capture is 17-77 KB (35 KB on
+        // average across real pages), so chrome.storage.local's 10 MB quota
+        // filled at about 290, under the old 500-capture cap, and from then
+        // on every save failed. The oldest captures go until the new one fits
+        // in CAPTURE_BYTES_BUDGET and at most CAPTURE_MAX_COUNT remain,
+        // counting the new one.
+        const stale = capturesToPrune(items, key.length + JSON.stringify(record).length);
+        if (stale.length) await chrome.storage.local.remove(stale);
         await chrome.storage.local.set({ [key]: record });
-      }
-
-      // Cleanup: keep only last 500 captures
-      const captureKeys = Object.keys(items)
-        .filter(k => k.startsWith('capture_'))
-        .sort()
-        .reverse();
-
-      if (captureKeys.length > 500) {
-        await chrome.storage.local.remove(captureKeys.slice(500));
       }
 
       // Return the storage key holding this capture — the just-created one,
@@ -518,7 +543,10 @@
     lb,
     ct,
     CtError,
-    autoSaveLocal
+    autoSaveLocal,
+    capturesToPrune,
+    CAPTURE_BYTES_BUDGET,
+    CAPTURE_MAX_COUNT
   };
 });
 

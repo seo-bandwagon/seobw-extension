@@ -828,3 +828,24 @@ describe('absolute position (approx.) column (#45)', () => {
     expect(second.split(',').at(-1)).toBe('12');
   });
 });
+
+describe('ads are matched by whole-word aria-labels (#94)', () => {
+  const result = (domain) => `<div class="g"><div><a href="https://${domain}/x"><h3>A result on ${domain}</h3></a><cite>${domain}</cite></div></div>`;
+
+  it('keeps results under a container labelled "Downloads", "Threads" or "Leads"', () => {
+    const doc = parseFragment(`
+      <div aria-label="Downloads">${result('one.example')}</div>
+      <div aria-label="Threads">${result('two.example')}</div>
+      <div aria-label="Leads and more">${result('three.example')}</div>`);
+    expect(SBWSerp.parseResults(doc).map(r => r.domain)).toEqual(['one.example', 'two.example', 'three.example']);
+  });
+
+  it('still drops results under "Ads", "Sponsored" and "Sponsored results"', () => {
+    const doc = parseFragment(`
+      <div aria-label="Ads">${result('ad1.example')}</div>
+      <div aria-label="Sponsored results">${result('ad2.example')}</div>
+      <section aria-label="Downloads"><div aria-label="sponsored">${result('ad3.example')}</div></section>
+      ${result('organic.example')}`);
+    expect(SBWSerp.parseResults(doc).map(r => r.domain)).toEqual(['organic.example']);
+  });
+});

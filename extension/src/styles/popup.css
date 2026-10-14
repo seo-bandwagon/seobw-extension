@@ -773,6 +773,8 @@ body {
 .lc-cancel-btn:hover { border-color: var(--pink); color: var(--ink); background: var(--surface-2); }
 .lc-check-btn { margin: 12px 14px 14px; width: calc(100% - 28px); }
 .lc-allow-btn { width: 100%; margin: 0; }
+/* S29: the popup on a tab it can't read yet (popup.js). */
+.empty .lc-allow-btn { margin-top: 14px; }
 
 .lc-progress {
   padding: 12px 14px 6px;

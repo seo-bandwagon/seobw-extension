@@ -321,3 +321,21 @@ describe('normalizeUrlForCompare', () => {
     expect(SBWRedirects.normalizeUrlForCompare(undefined)).toBeNull();
   });
 });
+
+describe('canonical compare ignores tracking parameters (#92)', () => {
+  it('a page opened with ?utm_… whose canonical is the clean URL stays indexable', () => {
+    const r = SBWRedirects.indexability({ pageUrl: 'https://example.com/en?utm_source=newsletter&fbclid=x', canonicalDom: 'https://example.com/en', finalStatus: 200 });
+    expect(r.indexable).toBe(true);
+    expect(r.canonicalMatches).toBe(true);
+  });
+
+  it('a canonical to a different query string still differs', () => {
+    const r = SBWRedirects.indexability({ pageUrl: 'https://example.com/list?page=2', canonicalDom: 'https://example.com/list', finalStatus: 200 });
+    expect(r.canonicalMatches).toBe(false);
+  });
+
+  it('uses the same tracking-parameter list as hreflang.js', async () => {
+    await import('../../extension/src/lib/hreflang.js');
+    expect(String(SBWRedirects.TRACKING_PARAMS)).toBe(String(globalThis.SBWHreflang.TRACKING_PARAMS));
+  });
+});

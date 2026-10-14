@@ -93,6 +93,8 @@ body.page-panel {
   white-space: nowrap;
 }
 .pn-empty { color: var(--paper-70); border-bottom: none; }
+/* S53: asks for access from a click; nothing is read until then. */
+.pn-empty .pn-allow { margin-top: 10px; }
 
 .pn-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .pn-tags a {

@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.7.8** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.7.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -62,6 +62,12 @@ back from its own. Both panels ship; `chrome.sidePanel.setOptions` switches the
 path for that tab only, so `side_panel.default_path` in the manifest is
 untouched. Everything it shows comes through `src/lib/sbw-data.js`, the one
 bridge from a themed surface to the product — see `docs/API-INVENTORY.md`.
+From 1.7.9 it reads a page only when you ask: opening the panel scans the tab
+it opens on, and after that a tab switch or a page load shows a result
+already taken for that page or waits for **Scan this page**. It can read a
+tab after you've clicked the toolbar icon there; for other tabs it offers
+"Allow access to analyze other tabs", Chrome's prompt for the optional
+access to all sites.
 
 Two matching **Chrome themes** — SEO Bandwagon Neon Night and Neon Day — ship as
 separate Web Store items from their own repo, [seo-bandwagon/seobw-themes](https://github.com/seo-bandwagon/seobw-themes) (a theme is images and

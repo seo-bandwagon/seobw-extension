@@ -17,6 +17,36 @@
   }
 })(function () {
 
+  // #87: an element's words as a reader sees them. textContent joins the
+  // text either side of a <br> or between two blocks ("SEO that<br>actually
+  // works" read "SEO thatactually works"), and innerText only does better on
+  // an element that's laid out, which a detached clone isn't. A <br> and the
+  // edges of block elements become spaces; script, style and template text
+  // is left out; whitespace is collapsed.
+  const BLOCK_TAGS = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|CAPTION|DD|DETAILS|DIALOG|DIV|DL|DT|FIELDSET|FIGCAPTION|FIGURE|FOOTER|FORM|H[1-6]|HEADER|HGROUP|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|SUMMARY|TABLE|TBODY|TD|TFOOT|TH|THEAD|TR|UL|OPTION)$/;
+  const SKIP_TAGS = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/;
+
+  function visibleText(el) {
+    if (!el) return '';
+    const parts = [];
+    (function walk(node) {
+      for (let c = node.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 3) {
+          parts.push(c.nodeValue);
+        } else if (c.nodeType === 1) {
+          const tag = c.tagName.toUpperCase();
+          if (tag === 'BR') { parts.push(' '); continue; }
+          if (SKIP_TAGS.test(tag)) continue;
+          const block = BLOCK_TAGS.test(tag);
+          if (block) parts.push(' ');
+          walk(c);
+          if (block) parts.push(' ');
+        }
+      }
+    })(el);
+    return parts.join('').replace(/\s+/g, ' ').trim();
+  }
+
   function extractMeta(doc) {
     doc = doc || document;
     const getMeta = function (name) {
@@ -88,7 +118,7 @@
     nodes.forEach(function (el) {
       if (outline.length >= OUTLINE_CAP) return;
 
-      const text = (el.textContent || '').trim();
+      const text = visibleText(el);
       if (!text) return;
 
       const tag = el.tagName ? el.tagName.toLowerCase() : '';
@@ -131,7 +161,7 @@
     for (let i = 1; i <= 6; i++) {
       const els = doc.querySelectorAll('h' + i);
       els.forEach(function (el) {
-        const text = el.textContent.trim();
+        const text = visibleText(el);
         if (text) headings['h' + i].push(text);
       });
     }
@@ -181,7 +211,7 @@
 
     links.forEach(function (link) {
       const href = link.href;
-      const text = link.textContent.trim();
+      const text = visibleText(link);
       const rel = link.getAttribute('rel') || '';
 
       // Counted (and captured into nofollowAnchors) regardless of whether
@@ -339,7 +369,7 @@
   function getMainContent(doc) {
     doc = doc || document;
     const main = doc.querySelector('main, article, [role="main"]');
-    if (main) return main.innerText !== undefined ? main.innerText : main.textContent;
+    if (main) return main.innerText !== undefined ? main.innerText : visibleText(main); // laid out: innerText is right (#87)
 
     if (!doc.body) return '';
     const body = doc.body.cloneNode(true);
@@ -348,7 +378,9 @@
       body.querySelectorAll(sel).forEach(function (el) { el.remove(); });
     });
 
-    return body.innerText !== undefined ? body.innerText : body.textContent;
+    // A detached clone isn't laid out, so innerText would read it like
+    // textContent, joining words across <br> and blocks (#87).
+    return visibleText(body);
   }
 
   return {
@@ -358,6 +390,7 @@
     extractImages: extractImages,
     extractTechnical: extractTechnical,
     getMainContent: getMainContent,
+    visibleText: visibleText,
     relTokens: relTokens,
     isNofollowFamily: isNofollowFamily,
     OUTLINE_CAP: OUTLINE_CAP,

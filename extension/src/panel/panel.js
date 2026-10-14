@@ -39,13 +39,21 @@ function renderChecks(rows, totals) {
   }
 }
 
-function renderEmpty(message) {
+function renderEmpty(message, action) {
   $('pnChecksHead').textContent = 'On-page checks';
   const ul = $('pnChecks');
   ul.textContent = '';
   const li = document.createElement('li');
   li.className = 'pn-empty';
   li.textContent = message;
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn-primary pn-allow';
+    b.textContent = action.label;
+    b.addEventListener('click', action.onClick);
+    li.append(document.createElement('br'), b);
+  }
   ul.append(li);
 }
 
@@ -105,7 +113,13 @@ async function runDrain() {
 
 /* ---------------------------------- paint --------------------------------- */
 
-async function paint(tab) {
+// A person starts every scan (human in the loop). Until 1.7.9 the panel
+// analyzed, saved and (signed in) synced every page as you switched tabs or
+// it finished loading: once "access to all sites" was granted that read every
+// page browsed. Now a tab switch or a load only shows a result already taken
+// for the page (the popup's, say); anything else waits for "Scan this page".
+// Opening the panel is a click, so it scans the tab it opened on.
+async function paint(tab, { scan = false } = {}) {
   if (!tab || !isAnalyzable(tab.url)) {
     $('pnHost').textContent = '—';
     renderTools('');
@@ -116,11 +130,32 @@ async function paint(tab) {
   $('pnHost').textContent = hostOf(tab.url);
   renderTools(tab.url);
   renderDirectory(tab.url);
+  if (!scan) {
+    const cached = await chrome.runtime.sendMessage({ action: 'getCachedAnalysis', tabId: tab.id, url: tab.url }).catch(() => null);
+    if (cached && cached.hit) renderChecks(pageChecks(cached.data), checkTotals(cached.data));
+    else renderEmpty('Click "Scan this page" to check it.');
+    return;
+  }
+  renderEmpty('Reading the page…');
   try {
     const { data } = await analyzeTab(tab);
     renderChecks(pageChecks(data), checkTotals(data));
-  } catch {
-    renderEmpty('Chrome blocked analysis on this page. Reload it, then re-scan.');
+  } catch (e) {
+    if (e && e.problem) { renderEmpty(e.problem.body); return; }
+    // S53: Chrome gives a side panel no access of its own; it can read the
+    // tab where the toolbar icon was clicked, or any tab once the optional
+    // "access to all sites" is granted, which only a click here asks for.
+    if (!(await globalThis.SBWPerms.hasAllUrls())) {
+      renderEmpty('The extension can only read a tab after you click its toolbar icon there, or after you allow it to analyze other tabs. Nothing is read until you click Scan.', {
+        label: 'Allow access to analyze other tabs',
+        onClick: async () => {
+          const granted = await globalThis.SBWPerms.requestAllUrls().catch(() => false);
+          if (granted) paint(tab, { scan: true });
+        }
+      });
+      return;
+    }
+    renderEmpty('Chrome blocked analysis on this page. Reload it, then scan again.');
   }
 }
 
@@ -138,17 +173,16 @@ async function activeTab() {
   runDrain();
 
   let tab = await activeTab();
-  paint(tab);
+  paint(tab, { scan: true }); // the panel was just opened with a click
 
   $('pnRescan').addEventListener('click', async () => {
     tab = await activeTab();
-    renderEmpty('Reading the page…');
-    paint(tab);
+    paint(tab, { scan: true });
   });
   $('pnCitations').addEventListener('click', () => openPanel('citations', tab && tab.id));
   $('pnOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
 
-  /* Follow the user: the panel stays open across tab switches and reloads. */
+  /* Follow the user across tab switches and reloads, without scanning (see paint). */
   chrome.tabs.onActivated.addListener(async () => { tab = await activeTab(); paint(tab); });
   chrome.tabs.onUpdated.addListener((id, info) => {
     if (tab && id === tab.id && info.status === 'complete') paint(tab);

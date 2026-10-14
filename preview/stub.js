@@ -653,7 +653,6 @@ function handleMessage(msg) {
       return PREVIEW_STATE === 'nap-perfect' ? FX.napPerfect : FX.napDrift;
     case 'getCachedAnalysis': return { hit: true, data: SEO_FIXTURE };
     case 'storeAnalysis': return { ok: true };
-    case 'openSidePanel': return { ok: true };
     // src/content/analyzer.js's collectLinks() reply, consumed by
     // src/popup/link-check.js's idle state ("Check N links").
     case 'collectLinks':
