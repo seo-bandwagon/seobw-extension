@@ -93,6 +93,26 @@
     return { valid: false, xDefault: false };
   }
 
+  // #92: query parameters that only say how a visitor arrived. A page opened
+  // from a newsletter or an ad carries them, and the page it is stays the same
+  // page: comparisons drop them. Kept identical to TRACKING_PARAMS in
+  // src/lib/redirect-chain.js (a test checks).
+  const TRACKING_PARAMS = /^(utm_[a-z_]+|gclid|gclsrc|dclid|gbraid|wbraid|fbclid|msclkid|yclid|twclid|ttclid|li_fat_id|igshid|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|srsltid)$/i;
+
+  function dropTrackingParams(u) {
+    [...u.searchParams.keys()].forEach(k => { if (TRACKING_PARAMS.test(k)) u.searchParams.delete(k); });
+  }
+
+  // normalizeUrl() without tracking parameters: what "the same page" means
+  // when comparing the page with its own and its alternates' entries.
+  function comparableUrl(href, base) {
+    const n = normalizeUrl(href, base);
+    if (!n) return null;
+    const u = new URL(n);
+    dropTrackingParams(u);
+    return u.toString();
+  }
+
   // Absolute URL with the fragment stripped; null if `href` can't be
   // resolved (against `base`, when given — a relative href with no base is
   // unparsable, matching new URL()'s own behavior).
@@ -118,7 +138,7 @@
   // entries: [{ lang, href }] → { entries: [{ lang, url, valid, issues }], issues }
   function validateSet(entries, pageUrl) {
     const list = Array.isArray(entries) ? entries : [];
-    const pageNorm = normalizeUrl(pageUrl);
+    const pageNorm = comparableUrl(pageUrl);
     const pageProtocol = protocolOf(pageUrl);
 
     // Set-level chip text is built alongside each entry's own issues below —
@@ -170,7 +190,7 @@
     if (nonEmpty && !outEntries.some(e => e.xDefault)) {
       setIssues.push('Missing x-default hreflang');
     }
-    if (nonEmpty && !outEntries.some(e => e.url && pageNorm && e.url === pageNorm)) {
+    if (nonEmpty && !outEntries.some(e => e.url && pageNorm && comparableUrl(e.url) === pageNorm)) {
       setIssues.push('Missing self-referencing hreflang');
     }
 
@@ -205,6 +225,13 @@
       entries: outEntries.map(({ xDefault, ...rest }) => rest),
       issues: setIssues
     };
+  }
+
+  function decodeEntities(s) {
+    if (!s) return s;
+    return s.replace(/&(amp|quot|apos|lt|gt|#38|#x26);/gi, (m, e) => ({
+      amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', '#38': '&', '#x26': '&'
+    })[e.toLowerCase()]);
   }
 
   // Pulls attr="value" / attr='value' / attr=value out of one <link ...> tag
@@ -274,7 +301,8 @@
       if (!rel || !rel.toLowerCase().split(/\s+/).includes('alternate')) continue;
       const hreflang = getAttr(tag, 'hreflang');
       if (!hreflang) continue;
-      const href = getAttr(tag, 'href');
+      // #92: raw HTML carries `&` in an href as `&amp;`.
+      const href = decodeEntities(getAttr(tag, 'href'));
       if (!href) continue;
       const url = normalizeUrl(href, effectiveBase);
       entries.push({ lang: hreflang, href, url });
@@ -293,13 +321,21 @@
   // when its own declared set (HTML <link> tags + Link header entries)
   // contains a URL matching this page; 'no' otherwise.
   function reciprocity(pageUrl, pageEntries, fetched) {
-    const pageNorm = normalizeUrl(pageUrl);
+    const pageNorm = comparableUrl(pageUrl);
     const map = fetched && typeof fetched.get === 'function' ? fetched : new Map();
     const results = [];
-    let checked = 0, ok = 0, missing = 0, unreachable = 0;
+    let checked = 0, ok = 0, missing = 0, unreachable = 0, self = 0;
 
     (Array.isArray(pageEntries) ? pageEntries : []).forEach(entry => {
       if (!entry || !entry.url) return;
+      // #91: the page's own entry (its self-reference, often x-default too)
+      // isn't fetched, so it has no record; it's the page itself, not an
+      // unreachable alternate.
+      if (pageNorm && comparableUrl(entry.url) === pageNorm) {
+        self++;
+        results.push({ lang: entry.lang, url: entry.url, status: null, returnTag: 'self', selfRefOnAlternate: true });
+        return;
+      }
       checked++;
       const rec = map.get(entry.url);
 
@@ -335,8 +371,9 @@
           if (e.href !== undefined) return e.url || normalizeUrl(e.href, base);
           return normalizeUrl(e.url, base);
         })
-        .filter(Boolean);
-      const alternateNorm = normalizeUrl(base);
+        .filter(Boolean)
+        .map(u => comparableUrl(u));
+      const alternateNorm = comparableUrl(base);
       const hasReturn = pageNorm ? urls.some(u => u === pageNorm) : false;
       const selfRefOnAlternate = alternateNorm ? urls.some(u => u === alternateNorm) : false;
 
@@ -350,12 +387,14 @@
       });
     });
 
-    return { entries: results, summary: { checked, ok, missing, unreachable } };
+    return { entries: results, summary: { checked, ok, missing, unreachable, self } };
   }
 
   return {
     parseLangTag,
     normalizeUrl,
+    comparableUrl,
+    TRACKING_PARAMS,
     validateSet,
     extractHreflangFromHtml,
     reciprocity

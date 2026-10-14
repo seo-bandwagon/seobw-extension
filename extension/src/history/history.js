@@ -100,11 +100,14 @@ async function includeLegacyInSync() {
   }
 }
 
-function renderCaptures(captures) {
+function renderCaptures(captures, query) {
   const list = document.getElementById('captureList');
 
   if (captures.length === 0) {
-    list.innerHTML = '<div class="empty-state">No captures yet. Analyze some pages!</div>';
+    // #62: an empty search result isn't an empty history.
+    list.innerHTML = query && allCaptures.length
+      ? `<div class="empty-state">No captures match “${esc(query)}”.</div>`
+      : '<div class="empty-state">No captures yet. Analyze some pages!</div>';
     return;
   }
 
@@ -137,9 +140,8 @@ function showModal(capture) {
 
 // Search
 document.getElementById('search').addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase();
-  const filtered = allCaptures.filter(c => c.url.toLowerCase().includes(query));
-  renderCaptures(filtered);
+  const query = e.target.value.trim();
+  renderCaptures(SBWHistorySearch.filter(allCaptures, query), query);
 });
 
 // Export URLs only (for crawlers)

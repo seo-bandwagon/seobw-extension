@@ -329,7 +329,7 @@ describe('reciprocity', () => {
     expect(byLang.es.returnTag).toBe('no');
     expect(byLang.de.returnTag).toBe('unreachable');
 
-    expect(result.summary).toEqual({ checked: 3, ok: 1, missing: 1, unreachable: 1 });
+    expect(result.summary).toEqual({ checked: 3, ok: 1, missing: 1, unreachable: 1, self: 0 });
   });
 
   it('treats a Link-header alternate entry as satisfying the return tag too', () => {
@@ -370,5 +370,38 @@ describe('reciprocity', () => {
     ]);
     const result = SBWHreflang.reciprocity(pageUrl2, entries, fetched);
     expect(result.entries[0].returnTag).toBe('yes');
+  });
+});
+
+describe('the page itself and tracking parameters (#91, #92)', () => {
+  const pair = [
+    { lang: 'en', url: 'https://example.com/en' },
+    { lang: 'es', url: 'https://example.com/es' },
+    { lang: 'x-default', url: 'https://example.com/en' }
+  ];
+  const fetched = new Map([['https://example.com/es', { status: 200, finalUrl: 'https://example.com/es', entries: [{ lang: 'en', href: 'https://example.com/en', url: 'https://example.com/en' }] }]]);
+
+  it('marks the page\'s own entries SELF, not unreachable (#91)', () => {
+    const r = SBWHreflang.reciprocity('https://example.com/en', pair, fetched);
+    expect(r.entries.map(e => e.returnTag)).toEqual(['self', 'yes', 'self']);
+    expect(r.summary).toEqual({ checked: 1, ok: 1, missing: 0, unreachable: 0, self: 2 });
+  });
+
+  it('opened from a tracking link, the page still finds itself and its return tags (#92)', () => {
+    const page = 'https://example.com/en?utm_source=newsletter&utm_medium=email&gclid=abc';
+    const r = SBWHreflang.reciprocity(page, pair, fetched);
+    expect(r.entries.map(e => e.returnTag)).toEqual(['self', 'yes', 'self']);
+    const v = SBWHreflang.validateSet(pair.map(e => ({ lang: e.lang, href: e.url })), page);
+    expect(v.issues).not.toContain('Missing self-referencing hreflang');
+  });
+
+  it('a real query string is still a different page', () => {
+    expect(SBWHreflang.comparableUrl('https://example.com/en?page=2')).not.toBe(SBWHreflang.comparableUrl('https://example.com/en'));
+    expect(SBWHreflang.comparableUrl('https://example.com/en?page=2&utm_source=x')).toBe('https://example.com/en?page=2');
+  });
+
+  it('decodes &amp; in raw-HTML hrefs', () => {
+    const html = '<head><link rel="alternate" hreflang="de" href="https://example.com/p?lang=de&amp;region=at"></head>';
+    expect(SBWHreflang.extractHreflangFromHtml(html, 'https://example.com/')[0].url).toBe('https://example.com/p?lang=de&region=at');
   });
 });

@@ -119,8 +119,8 @@ async function paint(tab) {
   try {
     const { data } = await analyzeTab(tab);
     renderChecks(pageChecks(data), checkTotals(data));
-  } catch {
-    renderEmpty('Chrome blocked analysis on this page. Reload it, then re-scan.');
+  } catch (e) {
+    renderEmpty(e && e.problem ? e.problem.body : 'Chrome blocked analysis on this page. Reload it, then re-scan.');
   }
 }
 

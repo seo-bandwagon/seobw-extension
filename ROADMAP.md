@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.8** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -39,6 +39,61 @@ Semantic-ish, three digits, driven by what the user would notice:
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
 
 ---
+
+## Changelog — v1.7.9 (2026-10-14)
+
+Fixes from the 2026-10-12 static review (S1–S63), each confirmed at runtime
+on 1.7.8 before it was fixed (`harness/verify179.mjs`, `verify-idle.mjs`,
+local fixture pages). No permission, host or content-script change.
+
+- **Non-HTML tabs say what they are; a failed analysis says so (#89, #63;
+  S32)**: on a raw SVG the analysis threw (no `document.body`) and
+  `analyzePage().then(sendResponse)` had no `.catch`, so the popup sat on
+  "Analyzing page…" for good; a PDF was scored as a page (25, "Missing
+  title"). The analyzer now answers `{ error: 'not-html', kind }` for a PDF,
+  SVG, image, XML (sitemaps, feeds), JSON or text tab and `{ error:
+  'analysis-failed' }` when it throws; the popup and the page-checks panel
+  show "NOT A WEB PAGE · This tab shows a PDF…" or "COULDN'T FINISH THE
+  ANALYSIS" (`src/lib/analysis-errors.js`, new, injected with the analyzer in
+  all four lists). The listener also stopped returning `true` for messages it
+  doesn't answer.
+- **Tracking links (#92; S43)**: a correct page opened as
+  `/en?utm_source=…` read **NOT INDEXABLE** ("canonical points to another
+  URL"), "Missing self-referencing hreflang", and NO RETURN on every
+  alternate, because the comparisons used the raw URL. `utm_*`, `gclid`,
+  `fbclid`, `msclkid`, `srsltid` and similar are dropped before comparing
+  (`TRACKING_PARAMS`, the same list in `hreflang.js` and `redirect-chain.js`;
+  a test keeps them equal). Other query strings still count. Raw-HTML
+  hreflang hrefs decode `&amp;`.
+- **The page's own hreflang entries read SELF (#91; S42)**, not UNREACHABLE
+  (they were never fetched, so had no record).
+- **"View as" shows the switched analysis (#93; S44)**: the 5-minute tab cache
+  was cleared only on a URL change, and the UA switch reloads the same URL.
+  It's now cleared on any reload and by the switch itself.
+- **Visible text (#87)**: headings, the outline, link anchors, keyword density,
+  n-grams and word counts read `textContent`, which joins the text either side
+  of a `<br>` or two blocks ("SEO thatactually works" on seobandwagon.com).
+  `visibleText()` in `lib/dom-extraction.js` treats `<br>` and block edges as
+  spaces.
+- **Local captures make room by size (#90; S36)**: measured 17–77 KB per
+  capture (35 KB average), so `chrome.storage.local`'s 10 MB filled at ~290,
+  under the 500 cap, and every save after that failed with only a
+  `console.error`. `autoSaveLocal` now removes the oldest captures before
+  writing until the new one fits in 8 MB and at most 500 remain.
+- **History search (#62)**: every typed word must appear in the URL, host or
+  title, with spaces, hyphens, underscores, dots and slashes alike ("local
+  seo" finds `/local-seo`); an empty result says "No captures match …".
+- **Ads by whole-word label (#94; S5)**: `[aria-label*="Ads" i]` also matched
+  "Downloads", "Threads", "Leads"; the label must now contain "Ads" or
+  "Sponsored" as a word.
+- **Test debt**: `.nvmrc` and `engines` pin Node 20–24 (on 25+ Node's own
+  `localStorage` shadows jsdom's and `theme-mode.test.js` fails).
+
+Checked and **not** confirmed, so not changed: S41 (a redirect hop missed when
+a navigation wakes the worker: the hop was captured after a 32 s idle stop)
+and S40 (a long hreflang check outliving the worker: 40 alternates at 9 s
+each, 180 s, worker alive throughout and all 40 answered). S29/S53/S34 need a
+decision on asking for site access from the side panel and the context menu.
 
 ## Changelog — v1.7.8 (2026-10-13)
 
@@ -780,6 +835,18 @@ changelog above.
 - [x] #51 JPEG/WebP proofs and an up-front time estimate (with #48)
 - [x] #64 a tab switch mid-capture says so, at once
 
+**Verified static-review fixes: done in 1.7.9.**
+- [x] #89 / #63 non-HTML tabs and a failed analysis (S32)
+- [x] #92 tracking parameters in hreflang and canonical compares (S43)
+- [x] #91 the page's own hreflang entries (S42)
+- [x] #93 "View as" shows the switched analysis (S44)
+- [x] #87 visible text across `<br>` and blocks
+- [x] #90 local captures make room by size (S36)
+- [x] #62 History search
+- [x] #94 ads by whole-word label (S5)
+- Not confirmed at runtime, left as is: S40, S41. Needs a decision: S29,
+  S53, S34 (asking for site access from the side panel / context menu).
+
 **Feature candidates (next minor):** see "v1.7 — feature candidates" below,
 which now lists *Capture top N* (#45).
 
@@ -793,15 +860,16 @@ which now lists *Capture top N* (#45).
   401 on 2026-10-05. Website side, not the extension.
 
 **Test debt**
-- [ ] Pin Node for local runs (`.nvmrc` / `engines` = 20, as CI). On Node 25+,
+- [x] Pin Node for local runs (`.nvmrc` / `engines` = 20, as CI). On Node 25+,
       `theme-mode.test.js` fails because Node's own global `localStorage`
       shadows jsdom's.
 - [ ] An e2e check of the SERP Copy buttons **without** pre-granted clipboard
       permissions (granting them is how #37 hid).
 - [ ] Refresh the real-SERP fixtures when Google's markup moves; the
       overlay's new console warning (#44) is the signal.
-- [ ] The 63-item static review from the same pass (S1–S63) is not filed;
-      only runtime-confirmed findings became issues.
+- [x] The 63-item static review from the same pass (S1–S63): the items
+      still open were checked at runtime for 1.7.9; confirmed ones became
+      #89–#94 and were fixed.
 
 ## Maintenance lane (patch bumps)
 

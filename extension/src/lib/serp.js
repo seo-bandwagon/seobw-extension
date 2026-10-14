@@ -75,13 +75,24 @@
   // ads), and an aria-label*="Sponsored" match alongside the existing
   // "Ads" one — some ad surfaces label themselves "Sponsored" rather than
   // "Ads".
+  //
+  // #94: the aria-label matches used to be CSS substring matches, so an
+  // ancestor labelled "Downloads", "Threads" or "Leads" made every result in
+  // it an ad. The selector now only finds candidates; the label must contain
+  // "Ads" or "Sponsored" as a whole word (AD_LABEL_RE).
   const AD_CONTAINER_SELECTOR = '[data-text-ad], #tads, #tadsb, #bottomads, ' +
-    '[aria-label*="Ads" i], [aria-label*="Sponsored" i], ' +
     '.commercial-unit-desktop-top, .commercial-unit-desktop-rhs, ' +
     '.cu-container, [data-pla]';
+  const AD_LABEL_CANDIDATES = '[aria-label*="ads" i], [aria-label*="sponsored" i]';
+  const AD_LABEL_RE = /\b(ads|sponsored)\b/i;
 
   function isAd(el) {
-    return !!(el && el.closest && el.closest(AD_CONTAINER_SELECTOR));
+    if (!el || !el.closest) return false;
+    if (el.closest(AD_CONTAINER_SELECTOR)) return true;
+    for (let a = el.closest(AD_LABEL_CANDIDATES); a; a = a.parentElement && a.parentElement.closest(AD_LABEL_CANDIDATES)) {
+      if (AD_LABEL_RE.test(a.getAttribute('aria-label') || '')) return true;
+    }
+    return false;
   }
 
   // Fix round 1, item 3: a block whose own leading text (first 20 chars,

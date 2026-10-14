@@ -220,3 +220,29 @@ describe('extractImages — lazy/data-src semantics (item 10)', () => {
     expect(list[0].height).toBe('150');
   });
 });
+
+describe('visible text keeps words apart across <br> and blocks (#87)', () => {
+  it('reads "SEO that<br>actually works" as three words', () => {
+    const doc = parseFragment('<h1>SEO that<br/><span>actually works</span></h1><h2>One<div>Two</div></h2>');
+    const h = extractHeadings(doc);
+    expect(h.h1).toEqual(['SEO that actually works']);
+    expect(h.h2).toEqual(['One Two']);
+    expect(h.outline[0].text).toBe('SEO that actually works');
+  });
+
+  it('keeps inline markup inside a word joined, and leaves out scripts', () => {
+    const { visibleText } = extraction;
+    const doc = parseFragment('<p id="p">Bold<b>ly</b> go<script>x()</script><style>p{}</style>  now</p>');
+    expect(visibleText(doc.getElementById('p'))).toBe('Boldly go now');
+  });
+
+  it('separates link text across a <br>', () => {
+    const doc = parseFragment('<a href="https://example.com/a">Read<br>more</a>');
+    expect(extractLinks(doc).list[0].anchor).toBe('Read more');
+  });
+
+  it('counts main-content words across blocks', () => {
+    const doc = parseFragment('<main><p>alpha</p><p>beta</p></main>');
+    expect(extraction.getMainContent(doc)).toBe('alpha beta');
+  });
+});

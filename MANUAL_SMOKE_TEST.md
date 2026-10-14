@@ -56,7 +56,7 @@ Needs an API key saved in Options and data collection on. Without them, captures
 - In the popup, click **History** (or open `chrome://extensions` → the extension's "history" link)
 - Verify:
   - [ ] The capture from step 1 appears in the list
-  - [ ] Searching for "local seo" returns it
+  - [ ] Searching for "local seo" returns it (words match the URL, host or title, whatever the separator), and a search with no matches says "No captures match …", not "No captures yet" (#62)
   - [ ] Clicking it opens the capture detail
 
 ### 4. Service-worker console is clean
@@ -93,7 +93,8 @@ For each URL below, click the extension icon and confirm the popup shows a grace
 
 - [ ] `chrome://newtab` — extension action disabled or shows a "not supported" message
 - [ ] `about:blank`
-- [ ] A PDF rendered in Chrome (any public PDF URL)
+- [ ] A PDF rendered in Chrome (any public PDF URL): "NOT A WEB PAGE · This tab shows a PDF", no score (#63)
+- [ ] An XML sitemap (e.g. `https://seobandwagon.com/sitemap.xml`) and a raw SVG file: "NOT A WEB PAGE" naming it, never stuck on "Analyzing page…" (#89)
 - [ ] A page with a very long title (e.g. some Wikipedia article pages)
 
 ### 8. 1.6.x and 1.7 surfaces
@@ -104,7 +105,7 @@ On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 - [ ] **Link check** — "Check N links" runs only on click. The first time, it asks for the optional site access, and the request can be declined. Result chips (ok / redirect / 4xx / 5xx / timeout / network / can't check) add up, and "Export CSV" downloads
 - [ ] **Link check outlives the popup** (#47) — on a page with 100+ links (e.g. a long Wikipedia article), start a check, click the page so the popup closes, wait a moment and reopen: it shows the progress so far or the finished results, not "Check N links". Switch to another tab and back: same. Cancel stops it; "Check again" re-reads the page's links. On seobandwagon.com/seo-chrome-extension the Chrome Web Store links read **Can't check**, not NETWORK (#46).
 - [ ] **Indexability** — shows an indexable / not-indexable verdict, the redirect chain and headers. Tracing `http://` → `https://` for a redirecting URL lists every hop
-- [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status
+- [ ] **Hreflang** — on a page with hreflang tags (e.g. a multi-language site), the alternates list shows return-tag status; the page's own entries read SELF (#91), and the same page opened with `?utm_source=x` reads the same, with Indexability still INDEXABLE (#92)
 - [ ] **Rendering** — raw-HTML vs rendered-DOM comparison loads, and the user-agent switcher changes the result for this tab only
 - [ ] **Structured data** — JSON-LD / Microdata / RDFa items listed with rich-result eligibility
 - [ ] **Right-click menu** — "SEO Bandwagon tools" opens the chosen tool for this page

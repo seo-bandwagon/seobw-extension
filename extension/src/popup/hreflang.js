@@ -89,13 +89,14 @@
     const hf = pageData && pageData.hreflang;
     if (!hf) return [];
     const pageUrl = (pageData && pageData.url) || (tab && tab.url);
-    const pageNorm = (pageUrl && globalThis.SBWHreflang) ? SBWHreflang.normalizeUrl(pageUrl) : null;
+    // comparableUrl: a page opened with ?utm_… is still the page (#92).
+    const pageNorm = (pageUrl && globalThis.SBWHreflang) ? SBWHreflang.comparableUrl(pageUrl) : null;
     const seen = new Set();
     const urls = [];
     (hf.entries || []).forEach(e => {
       if (!e || !e.url) return;
       if (seen.has(e.url)) return;
-      if (pageNorm && e.url === pageNorm) return;
+      if (pageNorm && SBWHreflang.comparableUrl(e.url) === pageNorm) return;
       seen.add(e.url);
       urls.push(e.url);
     });
@@ -240,6 +241,8 @@
   }
 
   function renderReturnBadge(rec) {
+    // #91: the page's own entry, which needs no return tag.
+    if (rec.returnTag === 'self') return '<span class="hf-return good"><span class="badge-mono b-ok">SELF</span></span>';
     const semantic = rec.returnTag === 'yes' ? 'good' : rec.returnTag === 'no' ? 'bad' : 'warn';
     const cls = rec.returnTag === 'yes' ? 'b-ok' : rec.returnTag === 'no' ? 'b-err' : 'b-warn';
     const label = rec.returnTag === 'yes' ? 'RETURN OK' : rec.returnTag === 'no' ? 'NO RETURN' : 'UNREACHABLE';

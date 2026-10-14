@@ -34,6 +34,7 @@ export const ANALYZER_FILES = [
   'src/lib/link-check.js',
   'src/lib/hreflang.js',
   'src/lib/structured-data.js',
+  'src/lib/analysis-errors.js',
   'src/content/analyzer.js',
 ];
 
@@ -178,6 +179,9 @@ export async function analyzeTab(tab, { save = true } = {}) {
 
   const data = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
   if (!data) throw new Error('No analysis returned');
+  // #63/#89: not a web page, or the analysis threw. `problem` carries the words.
+  const problem = globalThis.SBWAnalysisErrors?.describe(data);
+  if (problem) throw Object.assign(new Error(problem.body), { problem });
 
   chrome.runtime.sendMessage({ action: 'storeAnalysis', tabId: tab.id, url: tab.url, data });
   if (data.seoScore) {

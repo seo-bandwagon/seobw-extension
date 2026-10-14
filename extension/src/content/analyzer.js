@@ -30,14 +30,26 @@ const {
   extractLinks,
   extractImages,
   extractTechnical,
-  getMainContent
+  getMainContent,
+  visibleText
 } = self.SEOBWExtraction;
 
 let counterEl = null; // For character counter
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyze') {
-    analyzePage().then(results => sendResponse(results));
+    // #63/#89: a PDF, an SVG or a sitemap isn't a page to score, and a throw
+    // must still answer, or the popup waits on "Analyzing page…" for good.
+    const kind = self.SBWAnalysisErrors.nonHtmlKind(document.contentType);
+    if (kind) {
+      sendResponse({ error: 'not-html', kind, contentType: document.contentType });
+      return false;
+    }
+    analyzePage().then(sendResponse, (e) => {
+      console.error('SEO Bandwagon: analysis failed', e);
+      sendResponse({ error: 'analysis-failed', message: String((e && e.message) || e) });
+    });
+    return true; // answers asynchronously
   } else if (request.action === 'highlight') {
     highlightElement(request.type, request);
     sendResponse({ success: true });
@@ -47,7 +59,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'collectLinks') {
     sendResponse(collectLinks());
   }
-  return true;
+  // Every other action is answered synchronously above, or is someone
+  // else's: returning true here held their message channels open (#89).
+  return false;
 });
 
 function countText(text) {
@@ -239,7 +253,7 @@ function collectLinks() {
   document.querySelectorAll('a[href]').forEach(el => {
     const norm = SBWLinkCheck.normalizeUrl(el.getAttribute('href') ? el.href : null);
     if (!norm || seen.has(norm)) return;
-    const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const text = visibleText(el).slice(0, 120);
     const rel = el.getAttribute('rel');
     const internal = SBWLinkCheck.hostKey(norm) === currentHost;
     seen.set(norm, { url: norm, text, rel, internal });
@@ -843,7 +857,7 @@ function analyzeMediaTypes() {
 
   // PDF links
   document.querySelectorAll('a[href$=".pdf"], a[href*=".pdf?"]').forEach(el => {
-    pdfs.push({ href: el.getAttribute('href').substring(0, 100), text: (el.textContent || '').trim().substring(0, 60) });
+    pdfs.push({ href: el.getAttribute('href').substring(0, 100), text: visibleText(el).substring(0, 60) });
   });
 
   return {
@@ -856,11 +870,11 @@ function analyzeMediaTypes() {
 function analyzeKeywordDensity() {
   const title = document.title || '';
   const h1 = document.querySelector('h1');
-  const h1Text = h1 ? h1.textContent.trim() : '';
+  const h1Text = h1 ? visibleText(h1) : '';
 
   const bodyClone = document.body.cloneNode(true);
   bodyClone.querySelectorAll('script, style, noscript, svg').forEach(el => el.remove());
-  const bodyText = (bodyClone.textContent || '').toLowerCase();
+  const bodyText = visibleText(bodyClone).toLowerCase();
   const bodyWords = bodyText.match(/[a-z0-9]+(?:['-][a-z0-9]+)*/g) || [];
   const totalWords = bodyWords.length;
 
@@ -896,7 +910,7 @@ function analyzeTocNavigation() {
     const target = document.getElementById(targetId);
     if (target) {
       jumpLinks.push({
-        text: (a.textContent || '').trim().substring(0, 60),
+        text: visibleText(a).substring(0, 60),
         targetTag: target.tagName.toLowerCase(),
         targetId,
       });
@@ -921,7 +935,7 @@ function analyzeTocNavigation() {
 function analyzeNgrams() {
   const bodyClone = document.body.cloneNode(true);
   bodyClone.querySelectorAll('script, style, noscript, svg, [hidden], [aria-hidden="true"]').forEach(el => el.remove());
-  const text = (bodyClone.textContent || '').toLowerCase();
+  const text = visibleText(bodyClone).toLowerCase();
 
   // Tokenize: letters, numbers, hyphens within words
   const words = text.match(/[a-z0-9](?:[a-z0-9'-]*[a-z0-9])?/g) || [];

@@ -554,3 +554,39 @@ describe('SBW.markLegacyPending', () => {
     expect(stamped).toBe(0);
   });
 });
+
+describe('autoSaveLocal makes room by bytes (#90)', () => {
+  const big = n => ({ url: 'https://example.com/' + n, blob: 'x'.repeat(40 * 1024) });
+
+  it('removes the oldest captures until the new one fits the byte budget', () => {
+    const items = {};
+    for (let i = 0; i < 210; i++) items['capture_' + (1000 + i)] = big(i); // ~8.2 MB
+    items.cfSelectedBusiness = 'b1';
+    const out = SBW.capturesToPrune(items, 40 * 1024);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out[0]).toBe('capture_1000');
+    expect(out).not.toContain('cfSelectedBusiness');
+    const left = Object.entries(items).filter(([k]) => !out.includes(k));
+    const bytes = left.reduce((a, [k, v]) => a + k.length + JSON.stringify(v).length, 40 * 1024);
+    expect(bytes).toBeLessThanOrEqual(SBW.CAPTURE_BYTES_BUDGET);
+  });
+
+  it('keeps at most 500 captures, counting the new one', () => {
+    const items = {};
+    for (let i = 0; i < 500; i++) items['capture_' + (1000 + i)] = { url: 'u' + i };
+    expect(SBW.capturesToPrune(items, 100)).toEqual(['capture_1000']);
+  });
+
+  it('removes nothing while there is room', () => {
+    expect(SBW.capturesToPrune({ capture_1: { url: 'a' } }, 100)).toEqual([]);
+  });
+
+  it('prunes before writing, so a save near the quota still lands', async () => {
+    const store = {};
+    for (let i = 0; i < 210; i++) store['capture_' + (1000 + i)] = big(i);
+    globalThis.chrome = mockChrome({ localStore: store });
+    const key = await SBW.autoSaveLocal({ url: 'https://example.com/new' });
+    expect(store[key]).toBeDefined();
+    expect(store.capture_1000).toBeUndefined();
+  });
+});

@@ -154,9 +154,11 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-// Clear cache when tab navigates to a new URL
+// Clear cache when the tab navigates to a new URL or reloads. #93: a reload
+// keeps the URL, so until 1.7.9 "View as" (which reloads the tab with
+// another user agent) and a plain reload both reopened on the old analysis.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.url) {
+  if (changeInfo.url || changeInfo.status === 'loading') {
     delete tabCache[tabId];
   }
 });
@@ -183,7 +185,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
     try {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/content/analyzer.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/lib/analysis-errors.js', 'src/content/analyzer.js'] });
       } catch (e) { /* already injected */ }
 
       const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });
@@ -1212,6 +1214,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // reload call (a slow DNR round-trip, a fast user) — chrome.tabs.reload
       // rejects for a tabId that no longer exists, and that must not surface
       // as an unhandled promise rejection in the worker.
+      delete tabCache[tabId]; // #93: the next analysis must see the new user agent
       chrome.tabs.reload(tabId).catch(() => {});
       sendResponse({ ok: true, presetId: appliedPresetId });
     })();
