@@ -55,18 +55,6 @@
     </div>`;
   }
 
-  // Raw variant — only for a call site that intentionally passes pre-built
-  // markup (e.g. an inline chip/badge) rather than plain text. Nothing in
-  // this file currently needs it; kept alongside dataRow() so a future row
-  // that does can reach for the right one instead of losing the escaping
-  // dataRow() now does by default.
-  function dataRowHtml(label, value, cls) {
-    return `<div class="data-row">
-      <span class="data-label">${esc(label)}</span>
-      <span class="data-value${cls ? ' ' + cls : ''}">${value}</span>
-    </div>`;
-  }
-
   function truncateMiddle(s, max) {
     if (!s) return '';
     if (s.length <= max) return s;

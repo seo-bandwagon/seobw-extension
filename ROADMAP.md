@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.8.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.8.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -39,6 +39,26 @@ Semantic-ish, three digits, driven by what the user would notice:
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
 
 ---
+
+## Changelog — v1.8.1 (2026-10-14)
+
+A lighter package. No permission, host, content-script or behaviour change.
+
+- **Comments stay out of the store zip**: about 29% of the shipped code was
+  comments (241 KB of 824 KB in 1.8.0), and every user downloads every byte.
+  `npm run zip` now runs `scripts/build-zip.mjs` (new): JavaScript and CSS go
+  through esbuild's parser with no minification, so names, line structure and
+  formatting stay readable for store review and only comments (and quote
+  style) change; HTML comments are removed; the manifest, icons and fonts
+  are copied byte for byte. The zip is 222 KB, down from 327 KB (858 KB →
+  629 KB unpacked). The source keeps its comments; `KEEP_COMMENTS=1` packages
+  it as is. esbuild is a dev dependency only. A test builds the package and
+  checks its file list, that comments are gone, that code that looks like a
+  comment (URLs, regular expressions) survives, and that binary files are
+  untouched. Live checks on the stripped package matched 1.8.0 throughout.
+- **Dead code**: the worker's `getLocalCaptures` message handler (nothing has
+  sent it since History reads storage itself) and the popup's unused
+  `dataRowHtml` helper are removed.
 
 ## Changelog — v1.8.0 (2026-10-14)
 

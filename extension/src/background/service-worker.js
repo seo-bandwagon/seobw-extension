@@ -368,17 +368,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (request.action === 'getLocalCaptures') {
-    chrome.storage.local.get(null, (items) => {
-      const captures = Object.entries(items)
-        .filter(([k]) => k.startsWith('capture_'))
-        .map(([k, v]) => ({ key: k, ...v }))
-        .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
-      sendResponse(captures);
-    });
-    return true;
-  }
-  
   if (request.action === 'updateBadge') {
     const { score, grade } = request;
     const colors = { 'A': '#06d6a0', 'B': '#4cc9f0', 'C': '#ffd166', 'D': '#f77f00', 'F': '#ef476f' };

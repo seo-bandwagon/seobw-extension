@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.8.0",
-  "version_name": "1.8.0 — collect Google results pages by click into one list with exact overall positions",
+  "version": "1.8.1",
+  "version_name": "1.8.1 — a third smaller download: the package leaves out code comments",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "permissions": [
     "activeTab",

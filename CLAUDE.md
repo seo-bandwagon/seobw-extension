@@ -29,6 +29,7 @@ for working in the repo.
 ```bash
 npm test                 # vitest, all unit + integration
 npm run test:e2e         # Playwright canary, needs a display
+npm run zip              # the store zip, comments left out (scripts/build-zip.mjs)
 npm run check:zip        # builds the store zip and checks every referenced file is in it
 npm run bump -- patch    # or minor / x.y.z
 ```
