@@ -19,3 +19,7 @@ _*/
 # store packages are build output (npm run zip), never committed
 *.zip
 
+
+# Store screenshots, promo tiles, the video storyboard, capture scripts and
+# rendered video live in store-assets/ on disk only, never in git (CLAUDE.md).
+store-assets/

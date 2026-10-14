@@ -55,7 +55,8 @@ before submitting it.
 
 ## Assets
 
-`store-assets/1.6.1/` in this repo (named for the version they were captured on):
+`store-assets/1.6.1/` in the project folder (on disk only, not in git; named
+for the version they were captured on; the current set is `store-assets/1.8.0/`):
 - `screenshot-1-analysis-1280x800.png` … `screenshot-5-night-day-1280x800.png`
 - `promo-tile-440x280.png`, `promo-marquee-1400x560.png`
 - Logo: `extension/src/icons/icon128.png`, or the pink "SB" mark from the tiles
