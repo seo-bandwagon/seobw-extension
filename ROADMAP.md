@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.7.8** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -39,6 +39,45 @@ Semantic-ish, three digits, driven by what the user would notice:
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
 
 ---
+
+## Changelog — v1.7.8 (2026-10-13)
+
+Full-page proof off the popup, from the 2026-10-12 test pass and the 1.7.7
+smoke test. No permission, host or content-script change.
+
+- **A capture outlives the popup (#48)**: `runScreenshot()` drove the scroll
+  loop, the canvas and the finished blob from the action popup, which closes
+  on any click away or tab switch. A long page (10–20 s) was lost, and so was
+  a proof not yet downloaded. The loop (`src/lib/fullpage-capture.js`, moved
+  from `src/popup/`) now runs in the service worker with an `OffscreenCanvas`
+  drawer; `src/lib/fullpage-runs.js` (new) keeps one capture per tab the way
+  `link-check-runs.js` keeps link checks, mirrors its state to
+  `chrome.storage.session`, and stores the finished image in IndexedDB
+  (`src/lib/proof-store.js`, new: a Blob of several MB doesn't fit session
+  storage). The Citations tab talks to it over a `fullpage-proof` port and
+  reattaches when reopened. A capture Chrome stops mid-run is reported as
+  interrupted (the page's watchdog has already restored it). Cancel, the ✕ on
+  a result, a new capture or closing the tab removes it; proofs are cleared
+  on browser start and on update. Live (headless Chromium, popup closed 2.5 s
+  into the capture): seobandwagon.com/ and a Wikipedia article both finished,
+  the page was scrolled back, and the reopened popup read the image.
+- **Smaller proofs, with a time estimate (#51)**: full-page proofs are JPEG at
+  quality 0.85 (white under every frame, so nothing needs alpha): 1.6 MB →
+  1.06 MB for seobandwagon.com/ (1366×10436) and 4.36 MB → 2.6 MB for the
+  Wikipedia article (1366×11327), with text still crisp. Less than the 5–10×
+  hoped for: these pages are mostly text and gradients. WebP was ruled out:
+  it can't encode images taller than 16,383 px, and proofs go to 32,766. The
+  progress line adds the time left ("Capturing 3 of 14 · about 6 s left"),
+  first at the 550 ms capture pace, then from the frames' real average (live:
+  7.7 s estimated, 7.9 s taken). The popup says the capture keeps going if
+  it closes. The download is `citation-<host>-<date>.jpg`; the visible-area
+  proof stays PNG.
+- **Switching tabs says so at once (#64)**: Chrome runs no animation frames in
+  a background tab, so the page helper's two `requestAnimationFrame` waits
+  never ended, and the capture stopped 6 s later with "The page stopped
+  responding". Each wait is now capped at 100 ms, and the loop checks the
+  active tab before every scroll as well as before every capture. Live: the
+  error is recorded as soon as the tab changes, with the right message.
 
 ## Changelog — v1.7.7 (2026-10-13)
 
@@ -736,9 +775,10 @@ changelog above.
 - [x] #55 export filenames: page number, path slug, seconds
 
 **Next patch: full-page proof off the popup (larger).**
-- [ ] #48 move the scroll-and-stitch loop out of the popup (service worker
+- [x] #48 move the scroll-and-stitch loop out of the popup (service worker
       or offscreen document) so a click away doesn't kill it
-- [ ] #51 JPEG/WebP proofs and an up-front time estimate (with #48)
+- [x] #51 JPEG/WebP proofs and an up-front time estimate (with #48)
+- [x] #64 a tab switch mid-capture says so, at once
 
 **Feature candidates (next minor):** see "v1.7 — feature candidates" below,
 which now lists *Capture top N* (#45).

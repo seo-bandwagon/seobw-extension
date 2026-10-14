@@ -1,13 +1,14 @@
 // SEO Bandwagon — page helper for full-page proof screenshots
 //
-// Injected on demand by the popup (src/popup/fullpage-capture.js), the same
-// way src/content/nap-extractor.js is. The popup drives it one message at a
+// Injected on demand by the service worker's capture loop
+// (src/lib/fullpage-capture.js), the same way src/content/nap-extractor.js
+// is. The loop drives it one message at a
 // time: measure, scroll to each frame, hide fixed/sticky elements after the
 // first frame (so a sticky header appears once, at the top), then restore.
 //
 // Every inline style it touches is saved with its priority and put back
-// exactly. If the popup closes mid-capture, no fpRestore ever arrives, so a
-// watchdog restores the page 5 s after the last message.
+// exactly. If the capture dies without an fpRestore (the extension was
+// reloaded, say), a watchdog restores the page 5 s after the last message.
 
 (function () {
   // Guard against double-injection
@@ -16,6 +17,10 @@
 
   const WATCHDOG_MS = 5000;
   const SETTLE_MS = 150;
+  // #64: Chrome runs no animation frames in a background tab, so a bare rAF
+  // wait there never ends and the capture reported a dead page. A frame
+  // normally comes in ~16 ms; this only caps the wait.
+  const FRAME_WAIT_MS = 100;
 
   let saved = null; // { x, y, styles: [{ el, prop, value, priority }] }
   let watchdog = null;
@@ -70,8 +75,8 @@
 
   function nextFrame() {
     return new Promise(resolve => {
-      if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => resolve());
-      else setTimeout(resolve, 16);
+      const timer = setTimeout(resolve, typeof window.requestAnimationFrame === 'function' ? FRAME_WAIT_MS : 16);
+      if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => { clearTimeout(timer); resolve(); });
     });
   }
 

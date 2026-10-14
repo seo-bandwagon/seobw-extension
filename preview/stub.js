@@ -417,6 +417,33 @@ window.chrome = {
       let streaming = false;
       const emit = (m) => { if (!disconnected) messageListeners.forEach(fn => fn(m)); };
       const fixtureResults = () => LINK_CHECK_FIXTURE.map((r, i) => Object.assign({ finalUrl: null, ms: 90 + i * 15 }, r));
+      // The worker's #48 full-page proof protocol: 'attach' answers with
+      // nothing, 'start' reports three frames, puts SHOT in the real proof
+      // store (IndexedDB works in the preview page) and answers 'done'.
+      let proofTimer = null;
+      const proofPort = (msg) => {
+        if (msg.type === 'attach') { setTimeout(() => emit({ type: 'state', run: null }), 10); return; }
+        if (msg.type === 'cancel') { clearTimeout(proofTimer); setTimeout(() => emit({ type: 'cancelled' }), 10); return; }
+        if (msg.type !== 'start') return;
+        const base = { tabId: msg.tabId, url: msg.url, status: 'running', result: null, error: null, downloaded: false };
+        let frame = 0;
+        const tick = async () => {
+          if (disconnected) return;
+          if (frame < 3) {
+            frame++;
+            emit({ type: 'progress', run: Object.assign({}, base, { phase: 'capturing', frame, total: 3, msLeft: (4 - frame) * 550 }) });
+            proofTimer = setTimeout(tick, 120);
+            return;
+          }
+          const blob = await (await fetch(SHOT)).blob();
+          await SBWProofStore.put('proof::' + msg.tabId, blob);
+          emit({ type: 'done', run: Object.assign({}, base, { status: 'done', phase: null, result: {
+            key: 'proof::' + msg.tabId, type: 'image/jpeg', bytes: 612000, width: 1280, height: 1800,
+            mode: 'fullpage', reason: null, pageHeight: 1800, capturedCssHeight: 1800, truncated: false } }) });
+        };
+        emit({ type: 'state', run: Object.assign({}, base, { phase: 'measuring', frame: 0, total: 0, msLeft: null }) });
+        proofTimer = setTimeout(tick, 60);
+      };
       const port = {
         name: opts && opts.name,
         // The worker's #47 protocol: 'attach' answers with the tab's run
@@ -424,7 +451,9 @@ window.chrome = {
         // 'cancel' answers 'cancelled'. `link-check-reattach` is a popup
         // reopened after its check finished: attach returns the done run.
         postMessage(msg) {
-          if (disconnected || !msg || port.name !== 'link-check') return;
+          if (disconnected || !msg) return;
+          if (port.name === 'fullpage-proof') { proofPort(msg); return; }
+          if (port.name !== 'link-check') return;
           if (msg.type === 'attach') {
             const run = PREVIEW_STATE === 'link-check-reattach'
               ? { tabId: msg.tabId, url: msg.url, status: 'done', done: LINK_CHECK_FIXTURE.length, total: LINK_CHECK_FIXTURE.length, results: fixtureResults() }
@@ -550,7 +579,7 @@ window.chrome = {
       return new Promise(resolve => setTimeout(() => { if (cb) cb(r); resolve(r); }, 0));
     },
     create(o) { console.log('[preview] would open', o.url); },
-    // The popup's full-page proof calls this promise-style (no callback).
+    // Promise-style: the popup's full-page proof until 1.7.8 (#48 moved it to the worker).
     captureVisibleTab(_, __, cb) {
       if (cb) { cb(SHOT); return; }
       return new Promise(resolve => setTimeout(() => resolve(SHOT_FRAME), 0));
@@ -917,7 +946,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cfShotVisible')?.click();
         break;
       case 'proof-capturing':
-        cfShowResult({ kind: 'loading', label: 'Capturing 3 of 9…', onCancel() {} });
+        cfShowResult({ kind: 'loading', fromRun: true, label: 'Capturing 3 of 9 · about 4 s left', note: 'Keeps going if you close the popup. Stay on this tab until it’s done.', onCancel() {} });
         break;
       case 'proof-truncated':
         cfShowResult({ kind: 'proof', href: SHOT, downloaded: false, label: SBWFullPage.describeProof(

@@ -1,7 +1,7 @@
 // Unit tests for the page helper injected for full-page proof
 // (src/content/page-scroller.js): measuring, scrolling, hiding fixed and
 // sticky elements, restoring every inline style exactly, and the watchdog
-// that puts the page back if the popup closes mid-capture.
+// that puts the page back if a capture dies without restoring it.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -89,6 +89,21 @@ describe('page-scroller', () => {
     await vi.advanceTimersByTimeAsync(200);
     expect(await reply).toEqual({ scrollY: 720 });
     expect(window.scrollTo).toHaveBeenCalledWith(0, 720);
+  });
+
+  it('still answers a scroll in a background tab, where animation frames never run (#64)', async () => {
+    const raf = window.requestAnimationFrame;
+    window.requestAnimationFrame = vi.fn(); // never calls back, as in a hidden tab
+    try {
+      await call('fpPrepare');
+      const reply = call('fpScrollTo', { y: 720 });
+      // Two capped frame waits (100 ms each) and the 150 ms settle.
+      await vi.advanceTimersByTimeAsync(360);
+      expect(await reply).toEqual({ scrollY: 720 });
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2);
+    } finally {
+      window.requestAnimationFrame = raf;
+    }
   });
 
   it('hides only visible fixed and sticky elements', async () => {

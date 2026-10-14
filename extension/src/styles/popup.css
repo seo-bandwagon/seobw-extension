@@ -262,6 +262,13 @@ body {
   color: var(--accent-text);
   margin-bottom: 11px;
 }
+/* Full-page proof (#48): the capture runs in the worker; says the popup can close. */
+.load-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--paper-70);
+  margin: -5px 0 11px;
+}
 
 /* Empty state */
 .empty {

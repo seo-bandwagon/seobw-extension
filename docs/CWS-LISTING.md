@@ -283,8 +283,11 @@ with the reasoning behind each:
   to analyze (title, meta tags, headings, links, images, structured-data type
   and property names, technical facts).
 
-Proof screenshots are saved to the user's own device as a PNG download; the
-extension never uploads them.
+Proof screenshots are saved to the user's own device as a download (JPEG for
+a full page from 1.7.8, PNG for the visible area); the extension never uploads
+them. Until it's downloaded or dismissed, a finished full-page proof is kept
+in the extension's own IndexedDB for that tab, and removed when the tab
+closes or the browser restarts.
 
 A user with the data-collection setting off sends nothing but the bare-domain
 overlay lookup described above; a signed-out user (no API key configured)

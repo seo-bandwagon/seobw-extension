@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js');
 
 // SERP overlay domain stats (#50): cache in chrome.storage.session, and no
 // request at all without an API key (SBW.quickBatch enforces that).
@@ -539,6 +539,79 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => { linkCheckRuns.tabRemoved(tabId); });
+
+// --- Full-page proof: one capture per tab, outliving the popup (#48) ---
+//
+// The Citations tab opens a `fullpage-proof` port and posts:
+//   { type: 'attach', tabId, url }            what's there for this page?
+//   { type: 'start', tabId, windowId, url }   the SCREENSHOT tile
+//   { type: 'cancel', tabId }                 Cancel, or ✕ on a result
+//   { type: 'downloaded', tabId }             the download link was clicked
+// and gets { type: 'state', run } (null when nothing exists for the page),
+// then 'progress' / 'done' / 'error' / 'cancelled'. Runs live in
+// SBWFullPageRuns (src/lib/fullpage-runs.js); the finished image in
+// SBWProofStore (src/lib/proof-store.js). Until 1.7.8 the loop ran in the
+// popup and died with it.
+//
+// Captures use the tab's activeTab grant from the popup's toolbar click, the
+// same grant the popup's own capture used; nothing here asks for more.
+const fullPageRuns = SBWFullPageRuns.createRunner({
+  capture: ({ tabId, windowId, signal, onProgress, onEncoding }) => SBWFullPageCapture.captureFullPage({
+    tabId,
+    windowId,
+    inject: () => chrome.scripting.executeScript({ target: { tabId }, files: ['src/content/page-scroller.js'] }),
+    send: msg => chrome.tabs.sendMessage(tabId, msg),
+    capture: wid => chrome.tabs.captureVisibleTab(wid, { format: 'png' }),
+    getActiveTabId: async wid => {
+      const [active] = await chrome.tabs.query({ active: true, windowId: wid });
+      return active ? active.id : null;
+    },
+    draw: SBWFullPageCapture.offscreenDrawer(),
+    onProgress,
+    onEncoding,
+    signal
+  }),
+  proofs: SBWProofStore,
+  storage: chrome.storage.session
+});
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'fullpage-proof') return;
+
+  let tabId = null;
+  let connected = true;
+  const listener = (msg) => { if (connected) port.postMessage(msg); };
+
+  port.onDisconnect.addListener(() => {
+    // The popup closed. The capture keeps going (#48); stop sending to this port.
+    connected = false;
+    if (tabId !== null) fullPageRuns.detach(tabId, listener);
+  });
+
+  port.onMessage.addListener(async (msg) => {
+    if (!msg || typeof msg.tabId !== 'number') return;
+    if (tabId !== null && tabId !== msg.tabId) fullPageRuns.detach(tabId, listener);
+    tabId = msg.tabId;
+
+    if (msg.type === 'attach') {
+      const res = await fullPageRuns.attach({ tabId, url: msg.url }, listener);
+      listener({ type: 'state', run: res.state });
+    } else if (msg.type === 'start') {
+      const res = await fullPageRuns.start({ tabId, windowId: msg.windowId, url: msg.url }, listener);
+      listener({ type: 'state', run: res.state });
+    } else if (msg.type === 'cancel') {
+      await fullPageRuns.cancel(tabId);
+    } else if (msg.type === 'downloaded') {
+      await fullPageRuns.markDownloaded(tabId);
+    }
+  });
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => { fullPageRuns.tabRemoved(tabId); });
+// chrome.storage.session starts empty with the browser and after an update,
+// so no proof left in IndexedDB can be reached again: clear them.
+chrome.runtime.onStartup.addListener(() => { SBWProofStore.clear().catch(() => {}); });
+chrome.runtime.onInstalled.addListener(() => { SBWProofStore.clear().catch(() => {}); });
 
 // --- Redirect tracer: webRequest/webNavigation → Indexability panel (Task 2) ---
 //

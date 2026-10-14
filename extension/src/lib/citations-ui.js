@@ -161,7 +161,9 @@
   // Screenshot download
   // ============================================
 
-  function screenshotFilename(url, now = new Date()) {
+  // `ext` is 'jpg' for a full-page proof since 1.7.8 (#51), 'png' for the
+  // visible area.
+  function screenshotFilename(url, now = new Date(), ext = 'png') {
     let host = 'page';
     try {
       host = new URL(url).hostname.replace(/^www\./, '') || 'page';
@@ -169,7 +171,7 @@
       host = 'page';
     }
     const dateStr = now.toISOString().slice(0, 10);
-    return `citation-${host}-${dateStr}.png`;
+    return `citation-${host}-${dateStr}.${ext}`;
   }
 
   return {

@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.7.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.7.8** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -268,7 +268,7 @@ Apart from the fields listed above as stripped, nothing else is trimmed or summa
 
 **Upgrading from before 1.5.0?** Captures saved by an older version are never auto-uploaded on upgrade — they're marked "skipped" locally, and stay that way until you click "Include them in sync" on the History page, which is the only thing that opts them into the normal sync/retry flow described below.
 
-**Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot, whether full page or visible area, is never part of that payload — it only ever saves to your device.
+**Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot, whether full page or visible area, is never part of that payload — it only ever saves to your device. From 1.7.8 a full-page proof is built in the extension's background worker, so closing the popup doesn't stop it, and the finished image (a JPEG) is kept in the extension's own browser storage (IndexedDB) for that tab until you dismiss it, take another, close the tab or restart the browser.
 
 **On Google search pages the extension sends the bare domain names of the results shown (never your query) to look up their stats; the results list and questions are copied only when you click.** See "SERP overlay" above for the full breakdown — the 10-minute local cache, the "Connect your account" no-retry behaviour, and the location simulator's copy rules.
 
@@ -338,7 +338,10 @@ extension/               # the only folder that ships (load unpacked from here; 
                              # (attribution data for the popup's About & credits panel), tool-links.js
                              # (context-menu/TOOLS-row URL builder), review-prompt.js (one-time
                              # review-prompt state machine), fullpage-plan.js (full-page capture frame
-                             # planner, caps and the proof label)
+                             # planner, caps and the proof label), fullpage-capture.js (the full-page
+                             # screenshot loop: rate limit, Cancel, restore; runs in the worker),
+                             # fullpage-runs.js (one capture per tab, outliving the popup),
+                             # proof-store.js (finished proofs in IndexedDB)
     options/                # Settings page (API key, Advanced endpoint, dashboard links)
     overlay/                # SERP overlay content script (see "SERP overlay" above)
     popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
@@ -348,7 +351,6 @@ extension/               # the only folder that ships (load unpacked from here; 
                              # + structured-data.js (Structured Data section — item/problem list, "Eligible
                              # for", CSV export, and the footer's About & credits panel)
                              # + tools.js (TOOLS row under the header) + review.js (the review-prompt strip)
-                             # + fullpage-capture.js (the full-page screenshot loop: rate limit, Cancel, restore)
     sidepanel/              # Side panel: Citations mode + Link Building mode
     styles/                 # popup.css (shared across popup/side panel/history/options)
     icons/

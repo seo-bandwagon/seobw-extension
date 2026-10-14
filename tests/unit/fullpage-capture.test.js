@@ -1,11 +1,11 @@
-// Unit tests for the full-page capture loop (src/popup/fullpage-capture.js).
+// Unit tests for the full-page capture loop (src/lib/fullpage-capture.js).
 // Every Chrome call and the canvas are fakes, and time is a virtual clock, so
 // the tests check order, spacing, retries and cleanup without a browser.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 await import('../../extension/src/lib/fullpage-plan.js');
-await import('../../extension/src/popup/fullpage-capture.js');
+await import('../../extension/src/lib/fullpage-capture.js');
 const { captureFullPage, MIN_GAP_MS, MESSAGE_TIMEOUT_MS } = globalThis.SBWFullPageCapture;
 
 const METRICS = { scrollHeight: 2000, viewportWidth: 1280, viewportHeight: 720, dpr: 1, innerScroll: false };
@@ -98,7 +98,8 @@ describe('captureFullPage', () => {
   });
 
   it('stops when the user switches tabs', async () => {
-    const ids = [7, 9];
+    // Checked before the first scroll and before the first capture: then gone.
+    const ids = [7, 7, 9];
     const h = harness({ getActiveTabId: async () => ids.shift() });
     await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'tab-changed' });
     expect(h.log).toContain('fpRestore');
@@ -189,6 +190,28 @@ describe('captureFullPage', () => {
     expect(h.log.filter(e => e === 'capture')).toHaveLength(1);
     expect(h.log).toContain('fpRestore');
     expect(h.log).not.toContain('finish');
+  });
+
+  it('checks the active tab before each scroll, so a switch never waits on a background tab (#64)', async () => {
+    const h = harness();
+    let checks = 0;
+    // Front for frame 1's scroll and capture; gone before frame 2's scroll.
+    h.deps.getActiveTabId = async () => (++checks <= 2 ? 7 : 9);
+    await expect(captureFullPage(h.deps)).rejects.toMatchObject({ code: 'tab-changed', message: 'You switched tabs, so the capture stopped.' });
+    expect(h.log.filter(e => e.startsWith('fpScrollTo'))).toEqual(['fpScrollTo:0']);
+    expect(h.log).toContain('fpRestore');
+  });
+
+  it('estimates the time left with each frame (#51)', async () => {
+    const h = harness();
+    const seen = [];
+    h.deps.onProgress = (n, total, msLeft) => seen.push([n, total, msLeft]);
+    await captureFullPage(h.deps);
+    // Frame 1: three frames at the 550 ms capture pace. Later frames use the
+    // measured average, never faster than the pace.
+    expect(seen[0]).toEqual([1, 3, 3 * MIN_GAP_MS]);
+    expect(seen.map(x => x[2])).toEqual([...seen.map(x => x[2])].sort((a, b) => b - a));
+    expect(seen[2][2]).toBeGreaterThanOrEqual(MIN_GAP_MS);
   });
 
   it('checks the active tab after the spacing wait, right before capturing', async () => {
