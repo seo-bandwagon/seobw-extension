@@ -17,7 +17,7 @@ A release passes a person three times:
    the store keeps serving the previous version.
 
 The API changes the package only. Listing text (`docs/CWS-LISTING.md`), screenshots
-and promo tiles (`store-assets/`) and the privacy answers are still entered in the
+and promo tiles (`store-assets/` in the project folder, not in git) and the privacy answers are still entered in the
 Developer Dashboard by hand, before step 2 if they changed.
 
 Why two workflows: this repository is private on GitHub's Free plan, which has no

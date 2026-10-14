@@ -17,6 +17,12 @@ for working in the repo.
 - `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — the
   Playwright canary (weekly + every push to `main`, files an issue on failure).
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only.
+- `store-assets/` — **on disk only, never in git** (it's in `.gitignore`).
+  Store screenshots and promo tiles go in `store-assets/<version>/` (with the
+  capture scripts and a README in that folder), the demo video's storyboard,
+  capture scripts and rendered cuts in `store-assets/video/`. Put every new
+  store image or video there, at the project root where the owner looks for
+  them; never commit them, and never leave them in a test or temp folder.
 
 ## Commands
 

@@ -82,7 +82,8 @@ English
 
 ### Screenshot Notes
 
-1.8.0 set: `store-assets/1.8.0/` (README there says how each was made and
+1.8.0 set: `store-assets/1.8.0/` in the project folder (on disk only, not in
+git; README there says how each was made and
 how to re-shoot; the 1.7.7 and 1.6.1 sets stay for history). Upload all five
 and both tiles with the 1.8.0 package, replacing whatever the listing shows.
 
