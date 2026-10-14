@@ -13,6 +13,7 @@
   td.hit{animation:fill .35s ease-out both}
   @keyframes fill{from{background:#d2e3fc}to{background:#fff}}
   .wide td.c:nth-child(4){width:300px} .wide td.c:nth-child(6){width:340px}
+  .cols td.c:nth-child(2){width:130px} .cols td.c:nth-child(3),.cols td.c:nth-child(4){width:70px} .cols td.c:nth-child(5){width:220px} .cols td.c:nth-child(6){width:560px}
 </style></head><body>
 <div class="bar"><b>Untitled spreadsheet</b></div>
 <table id="t"></table>
@@ -27,6 +28,20 @@
     tsv.split('\n').filter(Boolean).forEach((line, r) => line.split('\t').slice(0, COLS.length).forEach((v, c) => {
       const td = cell(r, c); if (!td) return; td.textContent = v; td.classList.add('hit'); td.style.animationDelay = (r * 40) + 'ms';
     }));
+  };
+  // A collected list (1.8.0): only the named columns, in that order.
+  window.pasteColumns = (tsv, names) => {
+    const lines = tsv.split('\n').filter(Boolean);
+    const head = lines[0].split('\t');
+    const idx = names.map(n => head.indexOf(n));
+    document.body.classList.add('cols');
+    lines.forEach((line, r) => {
+      const cells = line.split('\t');
+      idx.forEach((i, c) => {
+        const td = cell(r, c); if (!td || i < 0) return;
+        td.textContent = cells[i]; td.classList.add('hit'); td.style.animationDelay = (r * 30) + 'ms';
+      });
+    });
   };
   // Copy PAA is one question per line: two rows below the table, in column A
   window.pasteList = (text) => {

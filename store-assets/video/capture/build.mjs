@@ -27,6 +27,7 @@ const SCENES = [
   { id: 's4-indexability', slot: 10, caption: 'Indexable? Redirects? What scripts changed?', vo: 'See whether search engines may index a page, the redirects that led there, and what changed after scripts ran.' },
   { id: 's5-structured-data', slot: 8, caption: 'Structured data, checked by type', vo: 'Structured data is checked against what each type needs, so you know which rich results a page qualifies for.' },
   { id: 's6-google', slot: 12, caption: 'On Google itself: copy or export the results', vo: 'On Google itself, each result gets a bar, and one click copies the results or the People Also Ask questions, or exports them to a spreadsheet.' },
+  { id: 's6b-collect', slot: 11, caption: 'Collect pages: one list, exact positions', vo: "Google shows ten results a page. Add each page with a click, and they become one list, repeats removed, with every result's overall position." },
   { id: 's8-privacy', slot: 6, caption: 'Free. No account needed for the checks', vo: 'No account is needed for the checks, and signed out, nothing is sent.' },
   { id: 's9', card: 'end', slot: 5, caption: 'FREE ON THE CHROME WEB STORE', vo: 'SEO Bandwagon. Free on the Chrome Web Store.' },
 ];

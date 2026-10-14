@@ -49,14 +49,15 @@ recorded voice.
 | 4 | 0:27–0:37 | INDEXABILITY verdict and redirect chain (http:// address), then RENDERING "Compare raw HTML with rendered DOM" summary | Indexable? Redirects? What scripts changed? | See whether search engines may index a page, the redirects that led there, and what changed after scripts ran. |
 | 5 | 0:37–0:45 | STRUCTURED DATA: items listed by type, "Eligible for" line, one item's properties | Structured data, checked by type | Structured data is checked against what each type needs, so you know which rich results a page qualifies for. |
 | 6 | 0:45–0:57 | Google results (neutral query, e.g. "best crm for nonprofits", signed out): bars under results; scroll to the toolbar; Copy results → paste into a blank spreadsheet; Copy PAA → paste the questions | On Google itself: copy or export the results | On Google itself, each result gets a bar, and one click copies the results or the People Also Ask questions, or exports them to a spreadsheet. |
-| 7 | 0:57–1:07 | **Needs the test account and a test business.** A directory listing for the test business; Citations tab: NAP match score; SCREENSHOT runs the full-page proof; the finished proof card | Local citations, with full-page proof | With a free account, check a business listing against your own details, and save a full-page screenshot as proof. |
-| 8 | 1:07–1:13 | Popup footer / options page with the "Help improve SEO insights" box; then back to the score | Free. No account needed for the checks | No account is needed for the checks, and signed out, nothing is sent. |
-| 9 | 1:13–1:18 | End card: logo, "Free on the Chrome Web Store", seobandwagon.com/seo-chrome-extension | FREE ON THE CHROME WEB STORE | SEO Bandwagon. Free on the Chrome Web Store. |
+| 6b | 0:57–1:08 | **1.8.0.** Same search: scroll to the toolbar; "Add page 1" ("Added"), Google's own "Next page →", page 2 added, then page 3 ("Pages 1, 2, 3 added: 23 results · 3 repeats from earlier pages left out"); "Copy collected" → paste into the blank spreadsheet: Absolute position 1…N, page, position, domain, title. Every page is a click: nothing walks pages by itself | Collect pages: one list, exact positions | Google shows ten results a page. Add each page with a click, and they become one list, repeats removed, with every result's overall position. |
+| 7 | 1:08–1:18 | **Needs the test account and a test business.** A directory listing for the test business; Citations tab: NAP match score; SCREENSHOT runs the full-page proof; the finished proof card | Local citations, with full-page proof | With a free account, check a business listing against your own details, and save a full-page screenshot as proof. |
+| 8 | 1:18–1:24 | Popup footer / options page with the "Help improve SEO insights" box; then back to the score | Free. No account needed for the checks | No account is needed for the checks, and signed out, nothing is sent. |
+| 9 | 1:24–1:29 | End card: logo, "Free on the Chrome Web Store", seobandwagon.com/seo-chrome-extension | FREE ON THE CHROME WEB STORE | SEO Bandwagon. Free on the Chrome Web Store. |
 
 ### Voiceover script (for recording)
 
 Read at a relaxed pace; leave a beat between scenes (the cut absorbs it).
-168 words, about 70 s of speech at 2.4 words a second.
+192 words, about 80 s of speech at 2.4 words a second (6b added for 1.8.0).
 
 > 1. Every page has something holding it back. Here's how to find it in one click.
 >
@@ -70,6 +71,8 @@ Read at a relaxed pace; leave a beat between scenes (the cut absorbs it).
 >
 > 6. On Google itself, each result gets a bar, and one click copies the results or the People Also Ask questions, or exports them to a spreadsheet.
 >
+> 6b. Google shows ten results a page. Add each page with a click, and they become one list, repeats removed, with every result's overall position.
+>
 > 7. With a free account, check a business listing against your own details, and save a full-page screenshot as proof.
 >
 > 8. No account is needed for the checks, and signed out, nothing is sent.
@@ -78,7 +81,8 @@ Read at a relaxed pace; leave a beat between scenes (the cut absorbs it).
 
 Recording tips: one take per numbered line (easier to re-time), a quiet room,
 the same mic as the existing tour so the two can sit on one page. Name files
-`vo-01.wav` … `vo-09.wav`.
+`vo-01.wav` … `vo-09.wav`, plus `vo-06b.wav` for scene 6b (added for 1.8.0, so
+the other numbers stay put).
 
 ## How the footage is made
 
@@ -90,7 +94,7 @@ the same mic as the existing tour so the two can sit on one page. Name files
   control, no synthetic keystrokes into other windows), so each take is
   repeatable; the cursor is drawn in edit (`ffmpeg` overlay) where a real one
   would sit.
-- **Rough cut (silent, scenes 1–6, 8, 9): headless capture instead.** So the
+- **Rough cut (silent, scenes 1–6, 6b, 8, 9; re-shot on 1.8.0, 2026-10-14): headless capture instead.** So the
   rough cut could be shot without taking over the owner's screen,
   `capture/record.mjs` drives the real build in headless Chromium at 1.5×
   device scale and records the page and the real action popup as timestamped
