@@ -407,6 +407,8 @@ npm run check:zip  # same, plus: fails if any file manifest.json or one of the f
 npm run bump -- patch   # or minor / x.y.z — see ROADMAP.md's versioning policy
 ```
 
+Releases go through two hand-started workflows: **Release** (tests, zip, GitHub release) and **Submit to Chrome Web Store** (upload and a staged submission, which waits for someone to press Publish after review). Steps and the one-time Google setup: [`docs/RELEASING.md`](docs/RELEASING.md).
+
 Bump the version first with `npm run bump` (see `ROADMAP.md`'s versioning policy); CI fails a pull request that changes `extension/` without a bump. Unzip and inspect the package before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/` and `src/` and nothing else (no `preview/`, `tests/`, `node_modules/`, docs or README). Listing text for the submission is in `docs/CWS-LISTING.md`; store-facing metadata in `CHROMEWEBSTORE.md`.
 
 ## API contract

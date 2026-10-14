@@ -1,0 +1,77 @@
+name: Submit to Chrome Web Store
+
+# Uploads a released zip (made by release.yml) to the Chrome Web Store and
+# submits it for review as a STAGED publish: once Google approves it, it waits
+# in the Developer Dashboard until someone presses Publish. So a release
+# passes a person twice: starting this run (the approval) and pressing Publish.
+#
+# The repo is private on GitHub's Free plan, which has no environment
+# approval gates; this run being separate and started by hand is the gate.
+# Google trusts only this file, on main, in this repo (Workload Identity
+# Federation, docs/RELEASING.md): no Google key is stored anywhere.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to submit, e.g. 1.8.0 (its GitHub release v1.8.0 must exist)
+        required: true
+      mode:
+        description: submit = upload and submit (staged); upload = upload only; check = sign in and show the status, change nothing
+        type: choice
+        options: [submit, upload, check]
+        default: submit
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: chrome-web-store
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: ${{ inputs.mode }} v${{ inputs.version }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: scripts
+
+      - name: Release zip v${{ inputs.version }}
+        if: inputs.mode != 'check'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::Version must look like 1.8.0"; exit 1; fi
+          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "seo-bw-extension-$VERSION.zip"
+          unzip -p "seo-bw-extension-$VERSION.zip" manifest.json | node -e "
+            const v = JSON.parse(require('fs').readFileSync(0, 'utf8')).version;
+            if (v !== process.env.VERSION) { console.error('::error::The zip is version ' + v); process.exit(1); }"
+
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 900s
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: ${{ inputs.mode == 'check' && 'Status' || 'Upload and submit (staged publish)' }}
+        env:
+          CWS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_ITEM_ID: ${{ vars.CWS_ITEM_ID }}
+          ZIP: seo-bw-extension-${{ inputs.version }}.zip
+          EXPECT_VERSION: ${{ inputs.version }}
+          MODE: ${{ inputs.mode }}
+        run: node scripts/cws-publish.mjs
