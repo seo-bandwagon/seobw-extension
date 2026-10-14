@@ -26,6 +26,12 @@ environment approval gates. A separate run that only the owner starts is the gat
 
 ## One-time setup (owner, about 15 minutes)
 
+**Done 2026-10-14:** project `seobw-cws-release` (organization seobandwagon.com),
+service account `cws-release@seobw-cws-release.iam.gserviceaccount.com` (added in
+the Developer Dashboard), provider `seobw-store-submit`, and the four repository
+variables. A *check* run read "Published now: PUBLISHED (1.7.7)". The steps below
+are for redoing it.
+
 No Google key is created or stored anywhere. GitHub proves to Google that the
 run is `store-submit.yml` on `main` in this repository (Workload Identity
 Federation), and Google gives the run a token for that service account that
@@ -36,13 +42,15 @@ Store publisher (2-step verification on). Replace `PROJECT_ID` with a new or
 existing Google Cloud project ID.
 
 ```bash
-PROJECT_ID=seobw-release
+PROJECT_ID=seobw-cws-release
 REPO=seo-bandwagon/seobw-extension
 
 # 1. Project and APIs
 gcloud projects create "$PROJECT_ID"            # skip if it exists
-gcloud services enable chromewebstore.googleapis.com iamcredentials.googleapis.com \
-  sts.googleapis.com --project "$PROJECT_ID"
+# iam.googleapis.com too: without it, creating the identity pool below fails
+# with a misleading "Permission 'iam.workloadIdentityPools.create' denied".
+gcloud services enable chromewebstore.googleapis.com iam.googleapis.com \
+  iamcredentials.googleapis.com sts.googleapis.com --project "$PROJECT_ID"
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 
 # 2. The service account the run acts as (no roles needed in Google Cloud)
