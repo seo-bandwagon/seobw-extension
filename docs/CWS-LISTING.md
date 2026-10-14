@@ -195,14 +195,18 @@ a local development server. Never requested otherwise.
 **`optional_host_permissions`: `<all_urls>` (optional, requested on first
 use)** — never requested at install. Requested only when you click "Allow
 access to check other sites" in the Link Check, Indexability, Hreflang, or
-Rendering section. The consent text shown at request time, verbatim
+Rendering section, or "Allow access to analyze other tabs" in the side
+panel's Page checks or the popup opened by "Analyze linked page". The
+consent text shown at request time, verbatim
 (`ALL_URLS_REASON` in `src/lib/perms.js`):
 
 > To check links, hreflang alternates and redirects, and to compare a page's
 > raw HTML with what your browser rendered, the extension has to look at
 > pages on other sites from your browser: it fetches them without cookies,
 > and when you ask it to trace a URL it opens that URL in a background tab
-> like any normal visit. The "View as" option uses the same access to change
+> like any normal visit. The same access lets the side panel and "Analyze
+> linked page" read a tab you ask them to scan without clicking the toolbar
+> icon on it first; nothing is read until you click. The "View as" option uses the same access to change
 > the User-Agent header on requests from the current tab only, until you
 > switch it off or close the tab. Nothing it sees on those sites is sent to
 > SEO Bandwagon. You can revoke this at any time from the extensions page.

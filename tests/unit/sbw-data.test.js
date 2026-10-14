@@ -343,11 +343,11 @@ describe('tools, directory and panel', () => {
     });
   });
 
-  it('openPanel falls back to the worker when the direct call is refused', async () => {
+  it('openPanel reports a refused open, with no worker fallback (S34: it could not work)', async () => {
     const stub = chromeStub();
     stub.sidePanel.setOptions = vi.fn(async () => { throw new Error('no gesture'); });
     globalThis.chrome = stub.api;
     expect(await D.openPanel('checks', 12)).toBe(false);
-    expect(stub.messages).toContainEqual({ action: 'openSidePanel' });
+    expect(stub.messages).not.toContainEqual({ action: 'openSidePanel' });
   });
 });

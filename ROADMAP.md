@@ -88,12 +88,26 @@ local fixture pages). No permission, host or content-script change.
   "Sponsored" as a word.
 - **Test debt**: `.nvmrc` and `engines` pin Node 20–24 (on 25+ Node's own
   `localStorage` shadows jsdom's and `theme-mode.test.js` fails).
+- **A person starts every scan (S55, S53, S29, S34)**: owner's rule, 2026-10-14
+  — Google's terms rule out automated scraping, so nothing reads a page
+  without a click. The side panel's Page checks analyzed, saved and (signed
+  in) synced every page on each tab switch and page load; once "access to all
+  sites" was granted that was every page browsed. It now shows a result
+  already taken for the page or waits for "Scan this page"; opening the panel
+  (a click) still scans the tab it opened on. Live: with access, a reload and
+  a navigation added no capture; the click added one. Where the extension has
+  no access to a tab (the panel on a tab whose icon wasn't clicked, S53; the
+  tab "Analyze linked page" opens, S29) the panel and the popup offer "Allow
+  access to analyze other tabs", which requests the existing optional
+  `<all_urls>` from that click; the consent text (`ALL_URLS_REASON`) and the
+  listing say so. The worker's `openSidePanel` fallback, which could never
+  open anything, is gone (S34); the context menu's `openPopup()` calls catch
+  their rejection.
 
 Checked and **not** confirmed, so not changed: S41 (a redirect hop missed when
 a navigation wakes the worker: the hop was captured after a 32 s idle stop)
 and S40 (a long hreflang check outliving the worker: 40 alternates at 9 s
-each, 180 s, worker alive throughout and all 40 answered). S29/S53/S34 need a
-decision on asking for site access from the side panel and the context menu.
+each, 180 s, worker alive throughout and all 40 answered).
 
 ## Changelog — v1.7.8 (2026-10-13)
 
@@ -844,8 +858,9 @@ changelog above.
 - [x] #90 local captures make room by size (S36)
 - [x] #62 History search
 - [x] #94 ads by whole-word label (S5)
-- Not confirmed at runtime, left as is: S40, S41. Needs a decision: S29,
-  S53, S34 (asking for site access from the side panel / context menu).
+- [x] S29 / S53 / S34 / S55: ask for access from a click; the side panel
+      scans only on a click (owner's decision 2026-10-14: a human in the loop)
+- Not confirmed at runtime, left as is: S40, S41.
 
 **Feature candidates (next minor):** see "v1.7 — feature candidates" below,
 which now lists *Capture top N* (#45).

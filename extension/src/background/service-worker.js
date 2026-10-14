@@ -172,13 +172,16 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'analyze-page') {
-    chrome.action.openPopup();
+    chrome.action.openPopup().catch(() => {});
   } else if (info.menuItemId === 'analyze-link') {
+    // The new tab has no activeTab grant (that went to the tab the menu was
+    // used on), so unless "access to all sites" is granted the popup offers
+    // the button that asks for it (popup.js, S29).
     chrome.tabs.create({ url: info.linkUrl }, (newTab) => {
       chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
         if (tabId === newTab.id && changeInfo.status === 'complete') {
           chrome.tabs.onUpdated.removeListener(listener);
-          setTimeout(() => { chrome.action.openPopup(); }, 500);
+          setTimeout(() => { chrome.action.openPopup().catch(() => {}); }, 500);
         }
       });
     });
@@ -409,14 +412,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse(result || { error: 'No NAP data found' });
       });
     }).catch(err => sendResponse({ error: err.message }));
-    return true;
-  }
-
-  if (request.action === 'openSidePanel') {
-    if (chrome.sidePanel) {
-      chrome.sidePanel.open({ windowId: sender.tab?.windowId });
-    }
-    sendResponse({ ok: true });
     return true;
   }
 

@@ -8,7 +8,7 @@
  *   src/lib/capture-strip.js  SBWCaptureStrip  what is safe to persist / sync
  *   src/lib/tool-links.js     SBWToolLinks     GSC / PSI / Rich Results / Wayback
  *   src/background/…          getCachedAnalysis · storeAnalysis · updateBadge ·
- *                             checkDirectory · openSidePanel
+ *                             checkDirectory
  *
  * Those are classic scripts that attach to globalThis, so every page loads them
  * with plain <script src> before this module. This file adds no storage key of
@@ -353,7 +353,9 @@ export async function openPanel(which, tabId) {
     await chrome.sidePanel.open({ tabId });
     return true;
   } catch {
-    chrome.runtime.sendMessage({ action: 'openSidePanel' });
+    // S34: this used to fall back to the worker's openSidePanel action, which
+    // can't work (no user gesture there, and no window from an extension
+    // page's sender). The 1.7.7 smoke test confirmed the path above opens.
     return false;
   }
 }

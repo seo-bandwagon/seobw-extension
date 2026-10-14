@@ -228,7 +228,23 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     }
   } catch (err) {
     console.error('Analysis error:', err);
-    showCantAnalyze("CAN'T READ THIS PAGE", 'Chrome blocks analysis on internal pages. Try refreshing, then click again.');
+    // S29: a web page the extension has no access to, e.g. the tab "Analyze
+    // linked page" opened (the toolbar click's activeTab grant isn't there).
+    // Ask only from a click; nothing is read until the person allows it.
+    if (tab && /^https?:/i.test(tab.url || '') && globalThis.SBWPerms && !(await SBWPerms.hasAllUrls().catch(() => true))) {
+      showCantAnalyze('NO ACCESS TO THIS TAB YET', 'Click the SEO Bandwagon icon while on this tab, or allow the extension to analyze other tabs.');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lc-allow-btn';
+      btn.id = 'popupAllowBtn';
+      btn.textContent = 'Allow access to analyze other tabs';
+      btn.addEventListener('click', async () => {
+        if (await SBWPerms.requestAllUrls().catch(() => false)) location.reload();
+      });
+      document.querySelector('#content .empty').append(btn);
+    } else {
+      showCantAnalyze("CAN'T READ THIS PAGE", 'Chrome blocks analysis on internal pages. Try refreshing, then click again.');
+    }
     // Never gated on this run's outcome (ruling, Task 7 item E) — an error
     // page still shows the strip if a prior analysis already qualified.
     globalThis.SBWReviewUI?.renderFromStorage();
