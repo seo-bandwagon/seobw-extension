@@ -16,7 +16,9 @@ for working in the repo.
   (`THEME_IDS` in `src/lib/theme-mode.js`).
 - `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — the
   Playwright canary (weekly + every push to `main`, files an issue on failure).
-- `scripts/` — version bump and zip checks. `docs/archive/` — history only.
+- `scripts/` — version bump and zip checks. `docs/archive/` — history only:
+  just the two files `ROADMAP.md` links to. Don't add planning or spec docs
+  to the repo; they go where findings go (below).
 - `store-assets/` — **on disk only, never in git** (it's in `.gitignore`).
   Store screenshots and promo tiles go in `store-assets/<version>/` (with the
   capture scripts and a README in that folder), the demo video's storyboard,
@@ -67,4 +69,7 @@ changelog section. Full rules: ROADMAP.md → "Versioning policy", README.md →
 ## Findings
 
 SEO Bandwagon findings, decisions and measurements go to the Obsidian vault
-(see the global CLAUDE.md), not into this repo's docs.
+(see the global CLAUDE.md) when working on the Mac, where the vault is. On the
+Linux dev laptop the vault isn't reachable, so they go to GitHub instead:
+issues for bugs and decisions, PR descriptions for measurements, and
+`ROADMAP.md` for what changed. Never into new files under `docs/`.
