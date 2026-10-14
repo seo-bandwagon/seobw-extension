@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js');
 
 // SERP overlay domain stats (#50): cache in chrome.storage.session, and no
 // request at all without an API key (SBW.quickBatch enforces that).
@@ -424,6 +424,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     serpStats.lookup(request.domains).then(sendResponse);
     return true;
   }
+
+  // #45: Google result pages a person added, one click per page, from the
+  // overlay's "Add this page". Session storage only (cleared with the
+  // browser); nothing is sent. Content scripts can't use session storage
+  // themselves (#50), so the overlay asks here.
+  if (request.action === 'serpCollect') {
+    serpCollectHandle(request).then(sendResponse, (e) => sendResponse({ error: String((e && e.message) || e) }));
+    return true;
+  }
 });
 
 // --- Broken-link checker: one run per tab, outliving the popup (#47) ---
@@ -536,6 +545,50 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => { linkCheckRuns.tabRemoved(tabId); });
+
+// --- Google result pages, collected by click (#45) ---
+const SERP_COLLECT_PREFIX = 'serpCollect::';
+const SERP_COLLECT_KEEP = 20; // searches kept per browser session
+
+async function serpCollectHandle(req) {
+  const key = SBWSerpCollect.collectionKey(req.search);
+  if (!key) return { error: 'no-query' };
+  const storeKey = SERP_COLLECT_PREFIX + key;
+  const got = await chrome.storage.session.get(storeKey);
+  let collection = got[storeKey] || SBWSerpCollect.emptyCollection(key);
+  let result = {};
+
+  if (req.op === 'add') {
+    result = SBWSerpCollect.addPage(collection, req.page);
+    if (!result.error) {
+      collection = result.collection;
+      await chrome.storage.session.set({ [storeKey]: collection });
+      await pruneSerpCollections(storeKey);
+    }
+  } else if (req.op === 'remove') {
+    collection = SBWSerpCollect.removePage(collection, Number(req.start) || 0);
+    await chrome.storage.session.set({ [storeKey]: collection });
+  } else if (req.op === 'clear') {
+    await chrome.storage.session.remove(storeKey);
+    collection = SBWSerpCollect.emptyCollection(key);
+  }
+
+  const combined = SBWSerpCollect.combine(collection);
+  return {
+    added: result.added, moved: result.moved, error: result.error,
+    summary: combined.summary,
+    line: SBWSerpCollect.describe(combined.summary),
+    rows: req.withRows ? combined.rows : undefined
+  };
+}
+
+async function pruneSerpCollections(keep) {
+  const all = await chrome.storage.session.get(null);
+  const entries = Object.entries(all).filter(([k]) => k.startsWith(SERP_COLLECT_PREFIX) && k !== keep)
+    .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
+  const stale = entries.slice(SERP_COLLECT_KEEP - 1).map(([k]) => k);
+  if (stale.length) await chrome.storage.session.remove(stale);
+}
 
 // --- Full-page proof: one capture per tab, outliving the popup (#48) ---
 //

@@ -92,7 +92,7 @@ STRUCTURED DATA
 Reads the JSON-LD, Microdata and RDFa on the page, including nested items, and compares each item with the properties its type requires and recommends. A local business without a phone number, or a product without an offer, is flagged with the exact field to add. Complete items show the rich result they qualify for, limited to rich results that currently appear, and types whose rich result has been retired are still validated as markup with a note saying so. Each item's data can be copied for a closer look.
 
 RESULTS PAGE OVERLAY
-On Google's results pages, a small bar under each organic listing names its domain and, with an account connected, shows what we know about that site. Signed out, nothing is sent. A toolbar below the results copies the listings to your clipboard as a table or exports them to a spreadsheet. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
+On Google's results pages, a small bar under each organic listing names its domain and, with an account connected, shows what we know about that site. Signed out, nothing is sent. A toolbar below the results copies the listings to your clipboard as a table or exports them to a spreadsheet. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Results pages can also be collected one at a time: add each page with a click, move on with the next-page link, and the pages you added become one list with repeats removed and an exact overall position for every listing, ready to copy or export. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
 
 SEARCH CONSOLE HELPERS
 Inside Search Console's performance report, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
@@ -306,9 +306,24 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.7.7 (release notes, ≤ 10 lines)
+## 6. What's new in 1.8.0 (release notes, ≤ 10 lines)
 
-1.7.2 to 1.7.6 were never submitted, so these cover everything since 1.7.1.
+```
+- Collect results pages: add each page with a click and get one list with
+  repeats removed and an exact overall position, to copy or export.
+- Full-page proof keeps going when the popup closes, as a smaller JPEG with
+  a time estimate.
+- PDFs, images and sitemaps say what they are instead of being scored.
+- Hreflang and indexability ignore tracking links (utm and the like).
+- The side panel reads a page only when you click Scan; it can ask for access
+  to other tabs from that click.
+- History search matches words in the address and the title.
+```
+
+If 1.7.7 was never submitted, its notes below still apply; keep the two
+blocks within the store's limit by dropping the oldest lines first.
+
+1.7.7 (1.7.2 to 1.7.6 were never submitted, so these cover everything since 1.7.1):
 
 ```
 - The Google results overlay reads every result again, Google's own pages

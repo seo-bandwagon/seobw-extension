@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.7.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.8.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -156,6 +156,17 @@ or restyled.
 - A toolbar with **Copy results (N)** (TSV to clipboard), **Export CSV**,
   **Copy PAA (N)** (People-also-ask questions, to clipboard), and the
   location simulator.
+- **Collect pages** (1.8.0, #45): Google ignores `&num=`, so a top 50 is five
+  pages. **Add page N** adds the page you're on; **Next page →** is Google's
+  own Next link and **Web results only** Google's own Web tab (`udm=web`).
+  Nothing walks pages by itself: each page is a click (a human in the loop,
+  since Google's terms rule out automated scraping). **Copy collected** and
+  **Export collected CSV** give one list, deduped by URL in page order, with
+  an exact **Absolute position** (blank after a page you didn't add), the
+  page and the position on it, and **Collection notes** (a page skipped, or a
+  result that moved when you added a page again). Up to 10 pages per search;
+  kept in `chrome.storage.session` by the worker (cleared with the browser)
+  and never sent anywhere.
 
 **What's sent:** with an account connected, only the bare domain names of
 the results currently shown (deduped, looked up in successive batches of up

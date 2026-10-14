@@ -132,7 +132,10 @@ describe('privacy: quick-batch payloads', () => {
       });
     });
 
-    const raw = JSON.stringify(sentMessages);
+    // What can reach the network: the serpStats lookups. (#45's serpCollect
+    // messages carry the search to the extension's own worker, which keeps
+    // it in session storage and sends nothing.)
+    const raw = JSON.stringify(sentMessages.filter((m) => m && m.action !== 'serpCollect'));
     expect(raw).not.toContain('confidential');
     expect(raw).not.toContain('search terms');
     expect(raw).not.toContain('Result 1');
@@ -606,15 +609,17 @@ describe('1.7.7 SERP toolbar fixes', () => {
     expect(name).toMatch(/^serp-seo-stats-chrome-p3-\d{4}-\d{2}-\d{2}-\d{6}\.csv$/);
   });
 
-  it('#45: Copy results carries the approximate absolute position, last', async () => {
+  it('#45: Copy results carries the approximate and exact absolute positions, at the end', async () => {
     window.history.pushState({}, '', '/search?q=x&start=10');
     freshDom(['first.example', 'second.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     button('Copy results').click();
     const [header, r1, r2] = copied.split('\n');
-    expect(header.split('\t').at(-1)).toBe('Absolute position (approx.)');
-    expect([r1.split('\t').at(-1), r2.split('\t').at(-1)]).toEqual(['11', '12']);
+    expect(header.split('\t').slice(-3)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes']);
+    expect([r1.split('\t').at(-3), r2.split('\t').at(-3)]).toEqual(['11', '12']);
+    // Page 2 on its own: the exact overall rank can't be known.
+    expect([r1.split('\t').at(-2), r2.split('\t').at(-2)]).toEqual(['', '']);
   });
 
   it('#56: answers the popup with what the page actually yielded', async () => {
@@ -628,5 +633,110 @@ describe('1.7.7 SERP toolbar fixes', () => {
     handler({ action: 'serpStatus' }, {}, (r) => { reply = r; });
     expect(reply).toEqual({ rows: 1, headings: 1, questions: 1 });
     expect(handler({ action: 'somethingElse' }, {}, () => {})).toBeUndefined();
+  });
+});
+
+/* ---------- #45: collect pages, one click per page ---------- */
+
+describe('#45: collecting result pages', () => {
+  const button = (label) => Array.from(document.querySelectorAll('.sbw-serp-tools button'))
+    .find((b) => b.textContent.startsWith(label));
+  let copied;
+
+  // The worker's serpCollect, in memory, using the real combining logic.
+  async function workerStub() {
+    await import('../../extension/src/lib/serp-collect.js');
+    const C = globalThis.SBWSerpCollect;
+    const store = {};
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action !== 'serpCollect') return defaultSendMessageImpl(msg, cb);
+      const key = C.collectionKey(msg.search);
+      let col = store[key] || C.emptyCollection(key);
+      let r = {};
+      if (msg.op === 'add') { r = C.addPage(col, msg.page); if (!r.error) col = store[key] = r.collection; }
+      if (msg.op === 'clear') { delete store[key]; col = C.emptyCollection(key); }
+      const combined = C.combine(col);
+      setTimeout(() => cb({ added: r.added, moved: r.moved, error: r.error, summary: combined.summary, line: C.describe(combined.summary), rows: combined.rows }), 5);
+    };
+    return store;
+  }
+
+  beforeEach(() => {
+    copied = null;
+    document.execCommand = vi.fn(() => {
+      copied = document.querySelector('textarea[aria-hidden="true"]').value;
+      return true;
+    });
+  });
+  afterEach(() => { delete document.execCommand; });
+
+  it('never adds a page by itself: loading the page only reads what was added before', async () => {
+    window.history.pushState({}, '', '/search?q=crm&gl=us');
+    freshDom(['a.example', 'b.example']);
+    await workerStub();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(100);
+    const ops = sentMessages.filter((m) => m.action === 'serpCollect').map((m) => m.op);
+    expect(ops).toEqual(['get']);
+  });
+
+  it('adds the page on a click and copies one combined list with absolute positions', async () => {
+    const store = await workerStub();
+    window.history.pushState({}, '', '/search?q=crm&gl=us');
+    freshDom(['a.example', 'b.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    button('Add page 1').click();
+    await vi.advanceTimersByTimeAsync(50);
+
+    // Page 2, after the person follows Google's Next link.
+    document.querySelectorAll('.sbw-serp-tools').forEach((t) => t.remove());
+    window.history.pushState({}, '', '/search?q=crm&gl=us&start=10');
+    // b.example/page-1 again (Google's pages overlap), then a new result.
+    document.body.innerHTML = `<div id="search">${resultBlock('b.example', 1)}${resultBlock('c.example', 2)}</div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    button('Add page 2').click();
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(Object.keys(store)).toHaveLength(1);
+    expect(document.querySelector('[data-role="collect-line"]').textContent).toMatch(/Pages 1, 2 added: 3 results/);
+    button('Copy collected').click();
+    const lines = copied.split('\n');
+    const cols = lines[0].split('\t');
+    const at = (line, name) => line.split('\t')[cols.indexOf(name)];
+    expect(lines.slice(1).map((l) => [at(l, 'Domain'), at(l, 'Page'), at(l, 'Position'), at(l, 'Absolute position')])).toEqual([
+      ['a.example', '1', '1', '1'], ['b.example', '1', '2', '2'], ['c.example', '2', '2', '3']
+    ]);
+  });
+
+  it('offers Google\'s own Next link, and finds Google\'s Web tab link when clicked', async () => {
+    await workerStub();
+    window.history.pushState({}, '', '/search?q=crm');
+    document.body.innerHTML = `<div id="search">${resultBlock('a.example', 0)}</div>
+      <a id="pnnext" href="/search?q=crm&start=10">Next</a>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const links = [...document.querySelectorAll('.sbw-serp-collect a')].map((a) => [a.textContent, new URL(a.href).search]);
+    expect(links).toEqual([['Next page →', '?q=crm&start=10']]);
+    // Google fills the "More" menu after load; the button looks then.
+    const more = document.createElement('a'); more.href = '/search?q=crm&udm=web'; more.textContent = 'Web';
+    document.body.append(more);
+    const assign = vi.fn();
+    const orig = window.location;
+    delete window.location; window.location = Object.assign(new URL(orig.href), { assign, search: orig.search });
+    try {
+      button('Web results only').click();
+      expect(assign).toHaveBeenCalledWith(expect.stringContaining('udm=web'));
+    } finally { window.location = orig; }
+  });
+
+  it('shows no Web results only button on a Web-only page', async () => {
+    await workerStub();
+    window.history.pushState({}, '', '/search?q=crm&udm=web');
+    freshDom(['a.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(button('Web results only')).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.7.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.8.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -39,6 +39,44 @@ Semantic-ish, three digits, driven by what the user would notice:
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
 
 ---
+
+## Changelog — v1.8.0 (2026-10-14)
+
+The first feature of the 1.8 line: **collect Google results pages (#45)**.
+No permission, host or content-script change.
+
+Google ignores `&num=` (tested 2026-10-13), so checking a keyword's top 50
+means five pages, and every page numbers its results from 1. Pages also
+overlap and reshuffle between loads. The issue proposed a "Capture top N"
+action that walked the pages itself; the owner's rule (2026-10-14) is a
+human in the loop, since Google's terms rule out automated scraping, so
+nothing here loads or walks a page on its own:
+
+- **Add page N** (the overlay's new "Collect pages" row) adds the page you're
+  on. **Next page →** is Google's own Next link (`#pnnext`); **Web results
+  only** looks up Google's own Web tab link when clicked (`udm=web` today;
+  it sits in the tab row's "More" menu, filled in after load) and its pages
+  collect separately.
+- `src/lib/serp-collect.js` (new) keys a collection by query, `gl`, `hl`,
+  `uule` and `udm`, keeps up to 10 pages ordered by Google's offset, and
+  combines them: deduped by URL in page order (a repeat from an earlier page
+  is left out and counted), an exact absolute position while every earlier
+  page was added (blank after a gap, with a note), and, when a page is added
+  again, which results moved and from where (the second pass that shows how
+  stable the page is). The worker keeps collections in
+  `chrome.storage.session` (`serpCollect`, 20 searches per session); a
+  content script can't use session storage itself (#50).
+- **Copy collected** / **Export collected CSV**; the popup on a results page
+  says what's been collected for that search. Every export gains
+  **Absolute position** (on page 1 alone, the position; blank on a later
+  page on its own) and **Collection notes**, after the existing columns. The
+  overlay's Copy results now builds its table from the CSV's own column list
+  (`SBWSerp.resultsToTsv`) instead of a second copy of it.
+- Live, `best crm for nonprofits`, signed out, five pages added by click:
+  47 results parsed, 8 repeats left out, 38–39 unique results with exact
+  positions 1…N. Two runs minutes apart swapped #1 and #2 and held 8 vs 9
+  results on page 1, which is the reshuffling #45 described. The Web tab
+  parsed 10 of 10.
 
 ## Changelog — v1.7.9 (2026-10-14)
 
@@ -862,8 +900,9 @@ changelog above.
       scans only on a click (owner's decision 2026-10-14: a human in the loop)
 - Not confirmed at runtime, left as is: S40, S41.
 
-**Feature candidates (next minor):** see "v1.7 — feature candidates" below,
-which now lists *Capture top N* (#45).
+**Feature candidates (next minor):** see "v1.7 — feature candidates" below.
+1.8.0 took *Capture top N* (#45), built as Collect pages; the next finished
+candidate makes the following minor.
 
 **Open decisions**
 - #53 toolbar placement: the 1.6.0 changelog chose "after the results" on
@@ -916,11 +955,9 @@ patch.
   tab, shown only with an API key connected and data collection on. Needs a new
   site endpoint (`POST /api/v1/keywords`, scope `keywords:write`) and a
   data-use disclosure change; planned 2026-09-10, not started.
-- **Capture top N / page depth (#45)** — Google ignores `&num=100`, so
-  ranking checks need paging: a SERP action that walks `start=0,10,…` up to N
-  pages, dedupes by URL, and exports one table with an absolute position.
-  Needs the 1.7.5 parser fixes (#41, #42); complements the rank-tracker row
-  action above.
+- ~~**Capture top N / page depth (#45)**~~ — done in 1.8.0 as **Collect
+  pages**: a person adds each page by click (no automatic paging), and the
+  pages combine into one table with an exact absolute position.
 - **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
   CitationForge backend (SEOquake gets this from Semrush)
 - **Citation remediation flow** — the `FIX ON THIS SITE` concept from the design

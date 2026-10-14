@@ -129,6 +129,23 @@ initDataToggle();
 // each result", even when the overlay had read nothing (as on the /goto pages
 // of #41). Now it asks the overlay (serp-overlay.js 'serpStatus') and says
 // what the page actually yielded, and where the toolbar is.
+// #45: what's been collected for this search, read from session storage.
+function describeCollection(tab) {
+  let search = '';
+  try { search = new URL(tab.url).search; } catch (e) { return; }
+  chrome.runtime.sendMessage({ action: 'serpCollect', op: 'get', search }, (reply) => {
+    void chrome.runtime.lastError;
+    if (!reply || !reply.summary || !reply.summary.pages.length) return;
+    const notice = document.querySelector('.sbw-serp-notice');
+    if (!notice) return;
+    const line = document.createElement('div');
+    line.className = 'empty-sub';
+    line.id = 'serpCollectText';
+    line.textContent = 'Collected for this search: ' + reply.line + ' Export it with Export collected CSV below the results.';
+    notice.append(line);
+  });
+}
+
 function describeSerp(tabId) {
   chrome.tabs.sendMessage(tabId, { action: 'serpStatus' }, (status) => {
     void chrome.runtime.lastError; // no overlay on this page: keep the neutral line
@@ -137,7 +154,7 @@ function describeSerp(tabId) {
     if (status.rows > 0) {
       const n = status.rows;
       el.textContent = `Found ${n} result${n === 1 ? '' : 's'} on this page, each with an SEO Bandwagon bar under it. ` +
-        'Copy results, Export CSV and Copy PAA are below the last result.';
+        'Copy results, Export CSV, Copy PAA and Collect pages are below the last result.';
     } else if (status.headings > 0) {
       el.textContent = "Couldn't read the results on this page. Google may have changed its layout; " +
         'please let us know at seobandwagon.com.';
@@ -160,6 +177,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
         <div class="empty-sub" id="serpNoticeText">This is a search results page.</div>
       </div>`;
     describeSerp(tab.id);
+    describeCollection(tab);
     // Task 7, item E: the review strip's visibility is a pure function of
     // storage (analyses/prompted), never of what this popup open did or
     // didn't analyze — a SERP-page open still shows it if a prior analysis

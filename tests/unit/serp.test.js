@@ -818,14 +818,20 @@ describe('absolute position (approx.) column (#45)', () => {
     expect(SBWSerp.absolutePosition(rows[0], SBWSerp.searchContext({ search: '?q=x' }))).toBe(1);
   });
 
-  it('is the last CSV column, so existing column positions don\'t move', () => {
+  it('is appended after the earlier columns, so existing column positions don\'t move', () => {
     const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x&start=10' }));
     const [header, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
     const cols = header.split(',');
-    expect(cols.at(-1)).toBe('Absolute position (approx.)');
+    expect(cols.slice(-3)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes']);
     expect(cols.slice(0, 3)).toEqual(['Query', 'Position', 'URL']);
-    expect(first.split(',').at(-1)).toBe('11');
-    expect(second.split(',').at(-1)).toBe('12');
+    expect(first.split(',').at(-3)).toBe('11');
+    expect(second.split(',').at(-3)).toBe('12');
+  });
+
+  it('on page 1 the exact absolute position is the position (#45)', () => {
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x' }));
+    const [, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
+    expect([first.split(',').at(-2), second.split(',').at(-2)]).toEqual(['1', '2']);
   });
 });
 
