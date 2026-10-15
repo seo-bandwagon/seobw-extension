@@ -306,7 +306,13 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.8.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.8.1 (release notes, ≤ 10 lines)
+
+```
+- A smaller download: about a third smaller, with no change in what it does.
+```
+
+1.8.0 (if it wasn't published on its own, use these lines too):
 
 ```
 - Collect results pages: add each page with a click and get one list with

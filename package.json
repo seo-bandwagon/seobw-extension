@@ -1,6 +1,6 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "engines": {
     "node": ">=20 <25"
   },
@@ -10,7 +10,7 @@
     "build": "echo 'No build step needed - load unpacked in Chrome'",
     "bump": "node scripts/bump-version.mjs",
     "check:version-bump": "node scripts/check-version-bump.mjs",
-    "zip": "cd extension && zip -r ../seo-bw-extension.zip manifest.json lib/ src/ -x '*.DS_Store'",
+    "zip": "node scripts/build-zip.mjs",
     "check:zip": "npm run zip && (node scripts/check-zip-manifest.mjs; rc=$?; rm -f seo-bw-extension.zip; exit $rc)",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@vitest/coverage-v8": "^2.1.9",
+    "esbuild": "0.28.2",
     "jsdom": "^25.0.1",
     "vitest": "^2.1.9"
   }
