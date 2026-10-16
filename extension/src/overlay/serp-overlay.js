@@ -165,12 +165,21 @@
 
   // no_key/unauthorized — the common case for a signed-out user (production
   // returns 401 with no key stored). Renders cleanly, once, no retry.
-  function renderNoAccount(statEl) {
+  // The link goes to the site's connect page (`connectUrl`, built by the
+  // worker), never to an extension page: this anchor sits in google.com, and
+  // Chrome blocks a web page's link to options.html ("This page has been
+  // blocked by Chrome") because nothing in the manifest is web-accessible.
+  // Without a usable URL the words stay, unlinked.
+  function renderNoAccount(statEl, connectUrl) {
     statEl.removeAttribute('title');
+    if (typeof connectUrl !== 'string' || !/^https?:\/\//.test(connectUrl)) {
+      statEl.textContent = 'Connect your account';
+      return;
+    }
     statEl.textContent = '';
     const link = document.createElement('a');
     link.className = 'sbw-serp-connect';
-    link.href = chrome.runtime.getURL('src/options/options.html');
+    link.href = connectUrl;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = 'Connect your account';
@@ -289,7 +298,7 @@
       if (!reply || reply.ok === false) {
         const code = reply && reply.code;
         if (code === 'no_key' || code === 'unauthorized') {
-          rowsInChunk.forEach((row) => { if (row._statEl) renderNoAccount(row._statEl); });
+          rowsInChunk.forEach((row) => { if (row._statEl) renderNoAccount(row._statEl, reply.connectUrl); });
         } else {
           rowsInChunk.forEach((row) => { if (row._statEl) renderUnavailable(row._statEl); });
         }

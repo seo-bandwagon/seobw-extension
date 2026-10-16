@@ -46,7 +46,9 @@ function installChromeStub() {
         sentMessages.push(msg);
         sendMessageImpl(msg, cb);
       },
-      getURL: (p) => p
+      // What Chrome really returns. A link to it from google.com is blocked
+      // (ERR_BLOCKED_BY_CLIENT): nothing in the manifest is web-accessible.
+      getURL: (p) => 'chrome-extension://dphmaddiedhkejfhabkfdenfphjljioj/' + p
     },
     // A real content script may not use chrome.storage.session ("Access to
     // storage is not allowed from this context"). Until 1.7.6 this stub
@@ -738,5 +740,51 @@ describe('#45: collecting result pages', () => {
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     expect(button('Web results only')).toBeUndefined();
+  });
+});
+
+/* ---------- 1.8.2: a signed-out user's "Connect your account" ---------- */
+
+// The overlay is a content script, so its links are navigations from
+// google.com. Until 1.8.2 "Connect your account" pointed at the extension's
+// options page, which Chrome blocks from a web page ("This page has been
+// blocked by Chrome"). It now opens the site's connect page, a URL the worker
+// builds and sends back with the no_key/unauthorized reply.
+describe('1.8.2: Connect your account opens the site, not an extension page', () => {
+  const CONNECT = 'https://seobandwagon.com/dashboard/api-keys'
+    + '?utm_source=chrome_extension&utm_medium=extension&utm_campaign=serp_overlay';
+
+  function replyWith(reply) {
+    sendMessageImpl = (msg, cb) => {
+      if (isQuickBatch(msg)) { setTimeout(() => cb(reply), 10); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+  }
+
+  for (const code of ['no_key', 'unauthorized']) {
+    it(`links each bar to the connect page the worker sent (${code})`, async () => {
+      replyWith({ ok: false, status: code === 'no_key' ? 0 : 401, data: null, code, connectUrl: CONNECT });
+      freshDom(['alpha.example', 'beta.example']);
+      await loadOverlay();
+      await vi.advanceTimersByTimeAsync(50);
+
+      for (const domain of ['alpha.example', 'beta.example']) {
+        const link = barFor(domain).querySelector('a.sbw-serp-connect');
+        expect(link).toBeTruthy();
+        expect(link.textContent).toBe('Connect your account');
+        expect(link.href).toBe(CONNECT);
+        expect(link.href).not.toMatch(/^chrome-extension:/);
+        expect(link.target).toBe('_blank');
+      }
+    });
+  }
+
+  it('shows the words without a link when the reply carries no usable URL', async () => {
+    replyWith({ ok: false, status: 0, data: null, code: 'no_key', connectUrl: 'chrome-extension://x/src/options/options.html' });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(statTextFor('alpha.example')).toBe('Connect your account');
+    expect(barFor('alpha.example').querySelector('.sbw-serp-stat a')).toBeNull();
   });
 });

@@ -3,10 +3,17 @@
 importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js');
 
 // SERP overlay domain stats (#50): cache in chrome.storage.session, and no
-// request at all without an API key (SBW.quickBatch enforces that).
+// request at all without an API key (SBW.quickBatch enforces that). Signed
+// out, the overlay's "Connect your account" opens the site's connect page,
+// which signs the user in, mints a key and hands it back through
+// externally_connectable (1.8.2; a content script can't link to options.html).
 const serpStats = SBWSerpStats.createSerpStats({
   quickBatch: (domains) => SBW.quickBatch(domains),
-  storage: chrome.storage.session
+  storage: chrome.storage.session,
+  connectUrl: async () => {
+    const settings = await SBW.getApiSettings();
+    return SBWSiteLinks.siteUrl(settings.apiUrl.replace(/\/api$/, ''), '/dashboard/api-keys', 'serp_overlay');
+  }
 });
 
 // Cache: tabId -> { url, data, timestamp }
