@@ -71,6 +71,36 @@ describe('serp stats lookup (#50)', () => {
     expect(storage.set).not.toHaveBeenCalled();
   });
 
+  // 1.8.2: the overlay's "Connect your account" link. A content script may
+  // not link to an extension page, so the worker sends the site's connect URL.
+  for (const code of ['no_key', 'unauthorized']) {
+    it(`adds the connect URL to a ${code} reply`, async () => {
+      const quickBatch = vi.fn(async () => ({ ok: false, status: 401, data: null, code }));
+      const connectUrl = vi.fn(async () => 'https://seobandwagon.com/dashboard/api-keys?x=1');
+      const stats = createSerpStats({ quickBatch, storage: fakeStorage(), now, connectUrl });
+      expect(await stats.lookup(['a.example'])).toEqual({
+        ok: false, status: 401, data: null, code, connectUrl: 'https://seobandwagon.com/dashboard/api-keys?x=1'
+      });
+    });
+  }
+
+  it('adds no connect URL to any other failure', async () => {
+    const quickBatch = vi.fn(async () => ({ ok: false, status: 0, data: null, code: 'network' }));
+    const connectUrl = vi.fn(async () => 'https://seobandwagon.com/dashboard/api-keys');
+    const stats = createSerpStats({ quickBatch, storage: fakeStorage(), now, connectUrl });
+    expect(await stats.lookup(['a.example'])).not.toHaveProperty('connectUrl');
+    expect(connectUrl).not.toHaveBeenCalled();
+  });
+
+  it('still answers no_key when the connect URL cannot be built', async () => {
+    const quickBatch = vi.fn(async () => ({ ok: false, status: 0, data: null, code: 'no_key' }));
+    const connectUrl = vi.fn(async () => { throw new Error('storage'); });
+    const stats = createSerpStats({ quickBatch, storage: fakeStorage(), now, connectUrl });
+    const res = await stats.lookup(['a.example']);
+    expect(res).toMatchObject({ ok: false, code: 'no_key' });
+    expect(res).not.toHaveProperty('connectUrl');
+  });
+
   it('only ever sends bare hostnames, deduped and capped', async () => {
     const quickBatch = okBatch({});
     const stats = createSerpStats({ quickBatch, storage: fakeStorage(), now });

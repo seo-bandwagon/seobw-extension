@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.8.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.8.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -174,7 +174,10 @@ to 20 per request — never truncated, just spread across further requests
 when there are more than 20) go to `POST /api/domain/quick-batch` — never the
 search query, never a title or snippet. **Signed out (no API key), nothing is
 sent:** each bar shows "Connect your account" without a request (until 1.7.7
-the domains were POSTed anyway and answered 401). The overlay hands the
+the domains were POSTed anyway and answered 401). The link opens
+seobandwagon.com/dashboard/api-keys to sign in and connect in one click
+(until 1.8.2 it pointed at the Options page, which Chrome blocks from a web
+page). The overlay hands the
 domains to the extension's background worker, which caches each domain's
 response in `chrome.storage.session` for 10 minutes (shared by every tab,
 cleared when the browser restarts); a domain already looked up on the page

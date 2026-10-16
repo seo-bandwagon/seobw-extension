@@ -14,6 +14,11 @@
 // serves every tab), then SBW.quickBatch for the rest, which returns
 // `no_key` without a request when no API key is stored.
 //
+// A `no_key` or `unauthorized` reply also carries `connectUrl`, the site's
+// connect page, for the overlay's "Connect your account" link. The overlay
+// is a content script, so its links leave from google.com, and Chrome blocks
+// a web page's link to an extension page such as options.html (1.8.2).
+//
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWSerpStats` when loaded via importScripts, and exports via
 // CommonJS when loaded by Vitest / Node.
@@ -39,10 +44,20 @@
   }
 
   function createSerpStats(deps) {
-    const { quickBatch, storage, now = () => Date.now() } = deps;
+    const { quickBatch, storage, now = () => Date.now(), connectUrl } = deps;
+
+    async function withConnectUrl(reply) {
+      if (!connectUrl || (reply.code !== 'no_key' && reply.code !== 'unauthorized')) return reply;
+      try {
+        return { ...reply, connectUrl: await connectUrl() };
+      } catch (e) {
+        return reply; // the overlay shows the words without a link
+      }
+    }
 
     // -> { ok, status, code, data: { results: { domain: stat|null }, invalid } }
-    // or the failed quick-batch reply ({ ok: false, code: 'no_key' | … }).
+    // or the failed quick-batch reply ({ ok: false, code: 'no_key' | … },
+    // plus connectUrl for no_key and unauthorized).
     async function lookup(domains) {
       const wanted = [];
       const seen = new Set();
@@ -72,7 +87,7 @@
       if (!missing.length) return { ok: true, status: 200, code: 'ok', data: { results, invalid: [] } };
 
       const reply = await quickBatch(missing);
-      if (!reply || reply.ok === false) return reply || { ok: false, status: 0, data: null, code: 'network' };
+      if (!reply || reply.ok === false) return reply ? withConnectUrl(reply) : { ok: false, status: 0, data: null, code: 'network' };
 
       const fetched = (reply.data && reply.data.results) || {};
       const toStore = {};

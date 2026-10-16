@@ -306,7 +306,14 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.8.1 (release notes, ≤ 10 lines)
+## 6. What's new in 1.8.2 (release notes, ≤ 10 lines)
+
+```
+- Signed out on Google, "Connect your account" opens SEO Bandwagon's sign-in
+  and connects in one click, instead of a page Chrome blocked.
+```
+
+1.8.1 (if it wasn't published on its own, use this line too):
 
 ```
 - A smaller download: about a third smaller, with no change in what it does.
@@ -374,7 +381,8 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   reloads under that User-Agent; switch back to Default to remove it.
 - **Google results overlay**: search anything on google.com. Signed out (no
   API key configured), each result's stats bar shows "Connect your account"
-  and no request is made (from 1.7.7). Copy results and Copy PAA (at the end
+  and no request is made (from 1.7.7); the link opens seobandwagon.com's
+  key page to sign in and connect. Copy results and Copy PAA (at the end
   of the results) put the rows or questions on the clipboard.
 - An API key (free to create at seobandwagon.com) is only needed to see real
   stats numbers in the overlay and to sync captures/citations/link-building

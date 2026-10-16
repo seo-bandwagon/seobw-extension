@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.8.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.8.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -39,6 +39,37 @@ Semantic-ish, three digits, driven by what the user would notice:
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
 
 ---
+
+## Changelog — v1.8.2 (2026-10-16)
+
+A fix for signed-out users on Google. No permission, host or content-script
+change; data use unchanged.
+
+- **"Connect your account" no longer opens a blocked page**: signed out (no
+  API key, or a rejected one), each result's bar on a Google results page
+  links "Connect your account". The link pointed at the extension's Options
+  page, `chrome.runtime.getURL('src/options/options.html')`, but the overlay
+  is a content script, so the click is a navigation from google.com to an
+  extension page, which Chrome blocks unless the page is web-accessible.
+  Every click landed on "… is blocked / This page has been blocked by Chrome /
+  ERR_BLOCKED_BY_CLIENT". Users reported it as an error when they log in.
+  The link now opens `seobandwagon.com/dashboard/api-keys` (tagged
+  `utm_campaign=serp_overlay`, a new surface), which signs the user in if
+  needed and connects the extension in one click through
+  `externally_connectable`. The worker builds the URL from the stored API
+  URL, so staging and localhost keep working, and sends it with the
+  overlay's `no_key`/`unauthorized` reply (`src/lib/serp-stats.js`). Without
+  a usable URL the bar shows the words unlinked. Options stays
+  non-web-accessible on purpose: a web-accessible page lets any site detect
+  the extension.
+- **Guard**: `tests/unit/web-page-links.test.js` (new) fails when a content
+  script or an injected file builds a `chrome-extension://` URL, or when the
+  manifest makes anything web-accessible.
+- Live, in Chromium with the unpacked extension and a fixture results page
+  served at a google.com/search URL: 1.8.1's link landed on
+  `chrome-error://chromewebdata/` reading "… is blocked … ERR_BLOCKED_BY_CLIENT";
+  1.8.2's opened the connect page. Production answers that URL, signed out,
+  with a 307 to `/auth/signin` carrying it as `callbackUrl`.
 
 ## Changelog — v1.8.1 (2026-10-14)
 

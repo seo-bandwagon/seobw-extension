@@ -38,7 +38,7 @@ describe('siteUrl', () => {
   });
 
   it('accepts every named surface and refuses an unknown one', () => {
-    for (const surface of ['popup', 'options', 'citations_tab', 'side_panel', 'install', 'uninstall']) {
+    for (const surface of ['popup', 'options', 'citations_tab', 'side_panel', 'serp_overlay', 'install', 'uninstall']) {
       expect(SBWSiteLinks.SURFACES).toContain(surface);
       expect(params(SBWSiteLinks.siteUrl('https://seobandwagon.com', '/', surface)).utm_campaign).toBe(surface);
     }
