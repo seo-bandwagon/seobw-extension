@@ -22,7 +22,7 @@ import analysis from '../../extension/lib/content-analysis.js';
 import extraction from '../../extension/lib/dom-extraction.js';
 import subScores from '../../extension/src/lib/sub-scores.js';
 import { CHECK_DEDUCTIONS, checksFromIssues, scoreDocument } from '../../research/organic-grade/score-core.js';
-import { scorePages } from '../../research/organic-grade/score-run.mjs';
+import { scorePages, scorerLabel } from '../../research/organic-grade/score-run.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXTENSION = resolve(REPO, 'extension');
@@ -454,17 +454,19 @@ describe('scorePages', () => {
     expect(scoresOf(dir)[0].titleText).toBe('Crème brûlée – the “classic” recipe');
   });
 
-  it('writes scorer.json with the extension commit, whether extension/ was dirty, and when', async () => {
+  it('writes scorer.json with the extension commit, whether the scoring code was dirty, and when', async () => {
     const dir = makeRun([fetched(1, RICH.url)], { 'html/1.html': RICH.html });
     const before = Date.now();
     await scorePages(dir, quiet);
 
     const scorer = JSON.parse(readFileSync(join(dir, 'scorer.json'), 'utf8'));
-    expect(Object.keys(scorer).sort()).toEqual(['commit', 'extensionDirty', 'scoredAt']);
+    expect(Object.keys(scorer).sort()).toEqual(['commit', 'dirty', 'extensionDirty', 'scoredAt']);
     expect(scorer.commit).toBe(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim());
     expect(scorer.commit).toMatch(/^[0-9a-f]{40}$/);
-    const porcelain = execFileSync('git', ['status', '--porcelain', '--', 'extension/'], { cwd: REPO, encoding: 'utf8' });
-    expect(scorer.extensionDirty).toBe(porcelain.trim() !== '');
+    const porcelain = (...paths) =>
+      execFileSync('git', ['status', '--porcelain', '--', ...paths], { cwd: REPO, encoding: 'utf8' }).trim() !== '';
+    expect(scorer.extensionDirty).toBe(porcelain('extension/'));
+    expect(scorer.dirty).toBe(porcelain('extension/', 'research/organic-grade/'));
     expect(new Date(scorer.scoredAt).toISOString()).toBe(scorer.scoredAt);
     expect(Date.parse(scorer.scoredAt)).toBeGreaterThanOrEqual(before - 1000);
 
@@ -473,6 +475,31 @@ describe('scorePages', () => {
     writeFileSync(join(dir, 'scorer.json'), '{"commit":"earlier"}\n');
     await scorePages(dir, quiet);
     expect(readFileSync(join(dir, 'scorer.json'), 'utf8')).toBe('{"commit":"earlier"}\n');
+  });
+
+  it('counts an uncommitted change to the research code as dirty, not only one under extension/', () => {
+    // The score path is extension/ (the analyzer) plus research/organic-grade/
+    // (score-core.js, score-run.mjs): a change to either makes scores that the
+    // commit alone does not describe.
+    const asked = [];
+    const fakeGit = (args) => {
+      asked.push(args);
+      if (args[0] === 'rev-parse') return 'a'.repeat(40) + '\n';
+      const paths = args.slice(args.indexOf('--') + 1);
+      return paths.includes('research/organic-grade/') ? ' M research/organic-grade/score-core.js\n' : '';
+    };
+    const label = scorerLabel(fakeGit, new Date('2026-10-17T12:00:00Z'));
+    expect(label).toEqual({
+      commit: 'a'.repeat(40),
+      dirty: true,
+      extensionDirty: false,
+      scoredAt: '2026-10-17T12:00:00.000Z'
+    });
+    expect(asked).toContainEqual(['status', '--porcelain', '--', 'extension/', 'research/organic-grade/']);
+
+    const clean = scorerLabel((args) => (args[0] === 'rev-parse' ? 'b'.repeat(40) : ''), new Date(0));
+    expect(clean.dirty).toBe(false);
+    expect(clean.extensionDirty).toBe(false);
   });
 
   it('picks up after a write that was cut off, scoring that page again', async () => {

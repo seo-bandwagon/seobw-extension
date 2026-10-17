@@ -8,7 +8,8 @@
 // jsdom, scripts not run, so the raw HTML is what is scored, and appends one
 // ScoreRecord per page to scores.ndjson as soon as it is computed. A run that
 // is stopped picks up where it left off: URLs already in scores.ndjson are
-// skipped. scorer.json records which extension code made the scores.
+// skipped. scorer.json records which code made the scores: the commit, and
+// whether extension/ or research/organic-grade/ had uncommitted changes.
 //
 // The HTML files are UTF-8 text (the fetch stage decoded the page and wrote it
 // back as UTF-8), so they are read as UTF-8 and never charset-sniffed.
@@ -85,6 +86,28 @@ function git(args) {
   return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' });
 }
 
+// The code a score comes from: the analyzer under extension/ and the scorer
+// here under research/organic-grade/. Uncommitted changes to either make
+// scores that the commit alone does not describe.
+const SCORING_PATHS = ['extension/', 'research/organic-grade/'];
+
+/**
+ * What scorer.json says about the code that scored a run: the commit; `dirty`,
+ * true when either scoring path (extension/ or research/organic-grade/) has
+ * uncommitted changes; `extensionDirty`, the same for extension/ alone (kept
+ * from the first runs, which wrote only that); and when. `runGit` takes git's
+ * arguments and returns its stdout.
+ */
+export function scorerLabel(runGit = git, now = new Date()) {
+  const changed = (paths) => runGit(['status', '--porcelain', '--', ...paths]).trim() !== '';
+  return {
+    commit: runGit(['rev-parse', 'HEAD']).trim(),
+    dirty: changed(SCORING_PATHS),
+    extensionDirty: changed(['extension/']),
+    scoredAt: now.toISOString()
+  };
+}
+
 // The ScoreRecord for one PageRecord. Never throws.
 function scorePage(runDir, page) {
   let html;
@@ -153,12 +176,7 @@ export async function scorePages(runDir, { log = console.log } = {}) {
   // rewritten when this call scores something: a call with nothing to do must
   // not relabel scores that an earlier commit made.
   if (todo.length > 0 || !existsSync(scorerFile)) {
-    const scorer = {
-      commit: git(['rev-parse', 'HEAD']).trim(),
-      extensionDirty: git(['status', '--porcelain', '--', 'extension/']).trim() !== '',
-      scoredAt: new Date().toISOString()
-    };
-    writeFileSync(scorerFile, JSON.stringify(scorer, null, 2) + '\n');
+    writeFileSync(scorerFile, JSON.stringify(scorerLabel(), null, 2) + '\n');
   }
 
   log(`scoring ${todo.length} pages in ${runDir} (${alreadyScored} already in scores.ndjson)`);
