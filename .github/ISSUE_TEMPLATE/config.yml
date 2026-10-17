@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/seo-bandwagon/seobw-extension/security/advisories/new
+    about: Vulnerabilities go here, not in a public issue. Only the maintainers see the report.

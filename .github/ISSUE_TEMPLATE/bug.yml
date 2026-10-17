@@ -2,6 +2,13 @@ name: Bug report
 description: Something in the extension is broken
 labels: ["type:bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        This repository is public, so anyone can read what you write here.
+        **Never paste your API key** (it starts with `sbw_`), and hide names, email addresses and client details in screenshots and logs.
+        Found a security problem? Don't open an issue: [report it privately](https://github.com/seo-bandwagon/seobw-extension/security/advisories/new).
+        Not sure it's a bug? Use **Question or help** instead.
   - type: textarea
     id: what
     attributes:
@@ -13,12 +20,14 @@ body:
     id: version
     attributes:
       label: Extension version
+      description: Shown at the bottom of the extension's popup, or on chrome://extensions under SEO Bandwagon.
     validations:
       required: true
   - type: input
     id: chrome
     attributes:
       label: Chrome version
+      description: Open chrome://version and copy the first line.
   - type: textarea
     id: logs
     attributes:

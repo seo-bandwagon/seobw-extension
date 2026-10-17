@@ -1,0 +1,40 @@
+name: Question or help
+description: Ask how to do something, or get help when the extension isn't doing what you expect
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repository is public, so anyone can read what you write here.
+        **Never paste your API key** (it starts with `sbw_`), and hide names, email addresses and client details in screenshots.
+        Found a security problem? Don't open an issue: [report it privately](https://github.com/seo-bandwagon/seobw-extension/security/advisories/new).
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+      placeholder: e.g. Connect my account, or export the Google results to a CSV file
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened instead?
+      description: Any message you saw, word for word if you can, and the page you were on.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Shown at the bottom of the extension's popup, or on chrome://extensions under SEO Bandwagon.
+      placeholder: e.g. 1.8.2
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version
+      description: Open chrome://version and copy the first line.
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot (optional)
+      description: Drag an image into this box. Hide anything private first.

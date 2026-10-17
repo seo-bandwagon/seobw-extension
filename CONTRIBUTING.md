@@ -2,6 +2,11 @@
 
 See `README.md` for setup and `CLAUDE.md` for repo layout.
 
+User support runs through the issue forms (Question or help, Bug report,
+Feature request); security reports go through private vulnerability reporting
+(`SECURITY.md`). The repository is public, so issues, pull requests and commit
+messages must not carry API keys, client names or other private data.
+
 - Branches: `feat/`, `fix/`, `chore/`, `docs/`, `release/`.
 - PR titles: Conventional Commits with a scope, phrased as the outcome, e.g.
   `fix(gsc): the row icons stay on the Queries tab`. PRs are squash-merged.
