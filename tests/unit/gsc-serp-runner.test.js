@@ -4,7 +4,7 @@
 // each time, bypassing its own `window.__seoBwGscSerpLoaded` load guard)
 // against the real gsc-inject.js/gsc-compare.js libraries so the mutations
 // it reacts to are the genuine ones those libraries produce.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 await import('../../extension/src/lib/gsc-inject.js');
 await import('../../extension/src/lib/gsc-compare.js');
@@ -125,6 +125,14 @@ describe('gsc-serp runner — mutation-observer self-mutation guard', () => {
     document.querySelectorAll('#seo-bw-gsc-styles').forEach((n) => n.remove());
     setPerformancePath();
     window.chrome = { runtime: { sendMessage: vi.fn() } };
+  });
+
+  // Since Vitest 3, vi.spyOn on a method that is already a spy returns that
+  // same spy, call history included, instead of wrapping it again. A spy left
+  // on SBWGscCompare.apply by one test would count the next test's calls too,
+  // and F2's realApply would be the spy itself, recursing until the stack ran out.
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('settles within 3 animation frames (apply()/injectAll() stop being called again)', async () => {
