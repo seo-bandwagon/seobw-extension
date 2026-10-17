@@ -318,9 +318,11 @@ describe('scorePages', () => {
   });
   const notChecked = (url) => ({ url, outcome: 'not_checked', reason: 'robots.txt', finalUrl: null, htmlFile: null });
 
-  /** A run folder under the OS temp dir: pages.ndjson, and the files named in `files` (path -> text). */
-  function makeRun(pages, files = {}) {
-    const dir = mkdtempSync(join(tmpdir(), 'ogs-score-'));
+  /**
+   * A run folder (a new one under the OS temp dir unless `dir` is given, an
+   * existing empty folder): pages.ndjson, and the files named in `files` (path -> text).
+   */
+  function makeRun(pages, files = {}, dir = mkdtempSync(join(tmpdir(), 'ogs-score-'))) {
     tempRuns.push(dir);
     mkdirSync(join(dir, 'html'));
     for (const [file, text] of Object.entries(files)) writeFileSync(join(dir, file), text);
@@ -487,6 +489,40 @@ describe('scorePages', () => {
 
     expect(await scorePages(dir, quiet)).toEqual({ scored: 1, errors: 0 });
     expect(readFileSync(join(dir, 'scores.ndjson'), 'utf8')).toBe(whole);
+  });
+
+  it('does not read an htmlFile outside the run folder', async () => {
+    // Each of these names a real, scoreable page that sits outside the run
+    // folder; reading one would put its title on the record.
+    const arena = mkdtempSync(join(tmpdir(), 'ogs-score-arena-'));
+    tempRuns.push(arena);
+    const dir = join(arena, 'run');
+    mkdirSync(dir);
+    mkdirSync(join(arena, 'elsewhere'));
+    mkdirSync(join(arena, 'run-evil')); // shares the run folder's name as a prefix
+    writeFileSync(join(arena, 'outside.html'), RICH.html);
+    writeFileSync(join(arena, 'elsewhere/other.html'), RICH.html);
+    writeFileSync(join(arena, 'run-evil/a.html'), RICH.html);
+
+    const escapes = [
+      '../outside.html',
+      'html/../../outside.html',
+      join(arena, 'elsewhere/other.html'),
+      '../run-evil/a.html'
+    ];
+    const pages = escapes.map((htmlFile, i) => fetched(0, `https://escape${i}.example.com/`, { htmlFile }));
+    pages.push(fetched(1, THIN.url));
+    makeRun(pages, { 'html/1.html': THIN.html }, dir);
+
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 1, errors: 4 });
+    const records = scoresOf(dir);
+    escapes.forEach((htmlFile, i) => {
+      expect(records[i].url, htmlFile).toBe(`https://escape${i}.example.com/`);
+      expect(records[i].error, htmlFile).toBe(`htmlFile outside the run folder: ${htmlFile}`);
+      expect(records[i], htmlFile).toMatchObject({ score: null, grade: null, titleText: null, wordCount: null });
+    });
+    // A page inside the folder is scored as before.
+    expect(records[4]).toMatchObject({ url: THIN.url, score: 29, error: null });
   });
 
   it('refuses a run folder that has no pages.ndjson', async () => {

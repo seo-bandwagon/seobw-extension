@@ -16,7 +16,7 @@
 import { appendFileSync, existsSync, readFileSync, realpathSync, truncateSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { TextDecoder } from 'node:util';
 import { JSDOM, VirtualConsole } from 'jsdom';
@@ -87,7 +87,15 @@ function git(args) {
 function scorePage(runDir, page) {
   let html;
   try {
-    html = utf8.decode(readFileSync(join(runDir, page.htmlFile)));
+    // pages.ndjson names the file, so it must stay inside the run folder: a
+    // `..` or an absolute path would otherwise read any file on the disk and
+    // put its <title> on the record. Checked before anything is read; the
+    // trailing separator keeps a sibling like `<runDir>-x/` out.
+    const file = resolve(runDir, page.htmlFile);
+    if (!file.startsWith(resolve(runDir) + sep)) {
+      return errorRecord(page.url, `htmlFile outside the run folder: ${page.htmlFile}`);
+    }
+    html = utf8.decode(readFileSync(file));
   } catch (e) {
     return errorRecord(page.url, `cannot read ${page.htmlFile} (${(e && e.code) || e})`);
   }
