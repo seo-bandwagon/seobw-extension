@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.8.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.8.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,31 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.8.3 (2026-10-17)
+
+A development fix; the store package is the same as 1.8.2's apart from the
+version. No permission, host or content-script change; data use unchanged.
+
+- **An unpacked copy has the store ID**: `extension/manifest.json` carries the
+  store item's public key as `"key"` (owner ruling 2026-10-17), read from the
+  1.7.7 package Google's update server serves; its SHA-256 gives
+  `dphmaddiedhkejfhabkfdenfphjljioj`. Before, Chrome derived an unpacked
+  copy's ID from its folder path (`cmhdcep…` for the main checkout), so
+  `seobandwagon.com/dashboard/api-keys`, which pings the store ID over
+  `externally_connectable`, answered "Extension not detected" to a running
+  copy ("Could not establish connection. Receiving end does not exist."),
+  and settings were lost whenever the extension was loaded from another
+  folder (seen 2026-10-01 and 2026-10-17).
+- **The store package leaves it out**: `scripts/build-zip.mjs`'s
+  `packageManifest` drops the `"key"` line and keeps every other byte of the
+  manifest; it throws if the key is not on a line of its own. `check:zip`
+  fails if the packaged manifest carries `"key"`.
+- An unpacked copy and the store copy can no longer sit in one profile
+  together, and the first load after this starts with empty settings
+  (stored under the old ID). README → "Load unpacked" says so.
 
 ---
 

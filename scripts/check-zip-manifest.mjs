@@ -156,7 +156,15 @@ function main() {
     process.exit(1);
   }
 
-  console.log('check-zip-manifest: OK — every referenced file is present.');
+  // The store assigns the item's ID and reportedly rejects an upload whose
+  // manifest carries "key" (scripts/build-zip.mjs's packageManifest drops it).
+  const packaged = JSON.parse(execFileSync('unzip', ['-p', ZIP, 'manifest.json'], { encoding: 'utf8' }));
+  if ('key' in packaged) {
+    console.error('check-zip-manifest: FAIL — the packaged manifest.json carries "key"; the store package must not.');
+    process.exit(1);
+  }
+
+  console.log('check-zip-manifest: OK — every referenced file is present, and the manifest carries no "key".');
 }
 
 main();

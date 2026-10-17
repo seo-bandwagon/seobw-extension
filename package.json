@@ -1,6 +1,6 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "engines": {
     "node": "^22.22.2 || ^24.15.0"
   },
