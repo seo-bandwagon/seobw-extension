@@ -43,6 +43,14 @@ Citations, Link Building, domain history, and capture sync all need an API key.
 
 A key carries scopes (what it's allowed to do) set when it was created; Options shows the connected account, key name, and scopes once verified.
 
+## Support
+
+Questions, bugs and ideas go to this repository's issues:
+[open an issue](https://github.com/seo-bandwagon/seobw-extension/issues/new/choose)
+and pick **Question or help**, **Bug report** or **Feature request** (a free
+GitHub account is needed). Issues are public, so never paste your API key.
+Security problems are reported privately instead; see [`SECURITY.md`](SECURITY.md).
+
 ## Appearance and the Chrome themes
 
 The popup, side panel and options page render in **Night** (midnight navy) or
