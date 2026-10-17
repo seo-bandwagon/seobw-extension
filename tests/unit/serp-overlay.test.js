@@ -362,6 +362,53 @@ describe('fix round 1, item 16: dropped #sbw-analyze hash', () => {
   });
 });
 
+describe('1.8.4: Analyze opens the result and analyzes it', () => {
+  const click = (el, init = {}) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init }));
+  const analyzeMessages = () => sentMessages.filter((m) => m && m.action === 'analyzeResult');
+
+  it('a plain click asks the worker to open and analyze the result, instead of a bare tab', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const link = document.querySelector('.sbw-serp-analyze');
+    const notCancelled = click(link);
+    expect(notCancelled).toBe(false);
+    expect(analyzeMessages()).toEqual([{ action: 'analyzeResult', url: 'https://first.example/page-0' }]);
+  });
+
+  it('sends the link as Google rendered it, so a /goto result opens through Google', async () => {
+    document.body.innerHTML = `<div id="search"><div id="rso"><div class="g"><div>
+      <a href="/goto?url=CAESopaque"><h3>Goto result</h3></a>
+      <cite>https://goto-site.example › docs</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div>
+    </div></div></div></div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(barFor('goto-site.example').querySelector('.sbw-serp-analyze'));
+    expect(analyzeMessages()).toHaveLength(1);
+    expect(analyzeMessages()[0].url).toMatch(/\/goto\?url=CAESopaque$/);
+  });
+
+  it('leaves Ctrl, Cmd, Shift, Alt and middle clicks to the browser', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const link = document.querySelector('.sbw-serp-analyze');
+    for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
+      expect(click(link, init)).toBe(true);
+    }
+    expect(analyzeMessages()).toEqual([]);
+  });
+
+  it('falls back to opening the link when the extension was reloaded under the page', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    window.chrome.runtime.sendMessage = () => { throw new Error('Extension context invalidated.'); };
+    expect(click(document.querySelector('.sbw-serp-analyze'))).toBe(true);
+  });
+});
+
 /* ---------- issue #41: /goto results ---------- */
 
 describe('issue #41: results linked through Google /goto redirects', () => {

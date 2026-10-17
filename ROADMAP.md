@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.8.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.8.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,30 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.8.4 (2026-10-17)
+
+A fix on Google results pages. No permission, host or content-script change;
+nothing new is sent.
+
+- **Analyze runs the analysis**: each result bar's Analyze link opened the
+  result in a new tab and stopped there; the popup analyzed it only after a
+  separate click on the icon. A plain click now asks the worker to open the
+  result and, once the page it lands on has loaded, opens the popup on it,
+  which analyzes it. Ctrl/Cmd/Shift/Alt and middle clicks stay plain links,
+  and an overlay orphaned by an extension reload falls back to the link.
+- **One flow for both entry points**: `src/lib/analyze-link.js` opens the tab,
+  waits for `complete` on a page that is not Google's redirect (`/goto`,
+  `/url` on a Google host; a signed-out results page links every result
+  through one), opens the popup 500 ms later, and stops waiting after 60 s.
+  The context menu's "Analyze linked page" now uses it too, so a `/goto` link
+  there no longer opens the popup on Google's redirect page.
+- **A person starts every scan** (owner's rule 2026-10-14) still holds: each
+  analysis follows one click on one result. Without "access to all sites"
+  the popup on the new tab offers "Allow access to analyze other tabs"
+  (S29); after that grant, Analyze runs straight through.
 
 ---
 

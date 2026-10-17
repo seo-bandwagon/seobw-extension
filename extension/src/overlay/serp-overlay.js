@@ -119,6 +119,20 @@
     analyzeLink.target = '_blank';
     analyzeLink.rel = 'noopener noreferrer';
     analyzeLink.textContent = 'Analyze';
+    // 1.8.4: a plain click opens the result and analyzes it there (the
+    // worker's SBWAnalyzeLink, the same flow as the context menu's "Analyze
+    // linked page"). Ctrl/Cmd/Shift/Alt and middle clicks stay the browser's.
+    // If the extension was reloaded under this page, sendMessage throws and
+    // the link opens as a plain link.
+    analyzeLink.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      try {
+        chrome.runtime.sendMessage({ action: 'analyzeResult', url: analyzeLink.href }, () => void chrome.runtime.lastError);
+      } catch (err) {
+        return;
+      }
+      e.preventDefault();
+    });
     bar.appendChild(analyzeLink);
 
     return { bar, statEl };

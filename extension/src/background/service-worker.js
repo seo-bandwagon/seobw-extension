@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js');
 
 // SERP overlay domain stats (#50): cache in chrome.storage.session, and no
 // request at all without an API key (SBW.quickBatch enforces that). Signed
@@ -15,6 +15,11 @@ const serpStats = SBWSerpStats.createSerpStats({
     return SBWSiteLinks.siteUrl(settings.apiUrl.replace(/\/api$/, ''), '/dashboard/api-keys', 'serp_overlay');
   }
 });
+
+// Open a link in a new tab and, once the page it lands on has loaded, the
+// popup, which analyzes it: the context menu's "Analyze linked page" and the
+// results overlay's Analyze button (src/lib/analyze-link.js).
+const analyzeLink = SBWAnalyzeLink.createAnalyzeLink({ tabs: chrome.tabs, action: chrome.action });
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
@@ -184,14 +189,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     // The new tab has no activeTab grant (that went to the tab the menu was
     // used on), so unless "access to all sites" is granted the popup offers
     // the button that asks for it (popup.js, S29).
-    chrome.tabs.create({ url: info.linkUrl }, (newTab) => {
-      chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-        if (tabId === newTab.id && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          setTimeout(() => { chrome.action.openPopup().catch(() => {}); }, 500);
-        }
-      });
-    });
+    analyzeLink.open(info.linkUrl).catch(() => {});
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
     try {
       try {
@@ -425,6 +423,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // overlay's "Add this page". Session storage only (cleared with the
   // browser); nothing is sent. Content scripts can't use session storage
   // themselves (#50), so the overlay asks here.
+  // 1.8.4: the overlay's Analyze button, a person's click on one result.
+  // Opens it and analyzes it the way the context menu's "Analyze linked page"
+  // does; only an http(s) URL opens anything.
+  if (request.action === 'analyzeResult') {
+    analyzeLink.open(request.url).then(sendResponse, () => sendResponse({ ok: false, error: 'tab_open_failed' }));
+    return true;
+  }
+
   if (request.action === 'serpCollect') {
     serpCollectHandle(request).then(sendResponse, (e) => sendResponse({ error: String((e && e.message) || e) }));
     return true;

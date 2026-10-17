@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.8.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.8.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -159,8 +159,12 @@ or restyled.
 
 - A `.sbw-serp-bar` under each organic result, showing the domain and its
   SEO Bandwagon stats (score, capture count) once looked up, with a small
-  **Analyze** link that opens the result in a new tab — the popup does the
-  analysis from there, the same as it would for any page you visit directly.
+  **Analyze** link: a click opens the result in a new tab and, once it has
+  loaded, opens the popup, which analyzes it (1.8.4; the same flow as the
+  context menu's "Analyze linked page", `src/lib/analyze-link.js`). Without
+  "access to all sites" the popup on that tab offers "Allow access to analyze
+  other tabs" first. Ctrl/Cmd/Shift and middle clicks open the link as a
+  plain link.
 - A toolbar with **Copy results (N)** (TSV to clipboard), **Export CSV**,
   **Copy PAA (N)** (People-also-ask questions, to clipboard), and the
   location simulator.

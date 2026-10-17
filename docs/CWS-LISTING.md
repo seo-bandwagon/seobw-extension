@@ -306,12 +306,10 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.8.3 (release notes, ≤ 10 lines)
-
-1.8.3 changes nothing users see (it pins the ID of development copies), so
-these are 1.8.2's notes.
+## 6. What's new in 1.8.4 (release notes, ≤ 10 lines)
 
 ```
+- Analyze on a Google result opens the page and analyzes it.
 - Signed out on Google, "Connect your account" opens SEO Bandwagon's sign-in
   and connects in one click, instead of a page Chrome blocked.
 ```
