@@ -5,16 +5,24 @@
 // Google's positions. That only means something if scoreDocument() gives the
 // number the popup gives, so the first test runs the real analyzer.js, the way
 // the popup injects it, and holds the two to the same score, grade and issues.
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+//
+// research/organic-grade/score-run.mjs runs that over a run folder's fetched
+// pages and appends one record per page to scores.ndjson; the last describe
+// block holds it to the run-folder contract (what it scores, what it skips,
+// what it writes, how it resumes) on small temp folders.
+import { describe, it, expect, afterEach } from 'vitest';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
 import analysis from '../../extension/lib/content-analysis.js';
 import extraction from '../../extension/lib/dom-extraction.js';
 import subScores from '../../extension/src/lib/sub-scores.js';
 import { CHECK_DEDUCTIONS, checksFromIssues, scoreDocument } from '../../research/organic-grade/score-core.js';
+import { scorePages } from '../../research/organic-grade/score-run.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXTENSION = resolve(REPO, 'extension');
@@ -292,5 +300,198 @@ describe('checksFromIssues', () => {
 
   it('refuses a label it does not know, rather than leaving the points on', () => {
     expect(() => checksFromIssues(['Slow server'])).toThrow(/Slow server/);
+  });
+});
+
+// ------------------------------------------------------------ score-run.mjs
+
+describe('scorePages', () => {
+  const quiet = { log: () => {} };
+  const tempRuns = [];
+  afterEach(() => {
+    while (tempRuns.length) rmSync(tempRuns.pop(), { recursive: true, force: true });
+  });
+
+  /** A PageRecord for a fetched page whose HTML is at html/<n>.html. */
+  const fetched = (n, url, over = {}) => ({
+    url, outcome: 'fetched', reason: null, finalUrl: url, htmlFile: `html/${n}.html`, ...over
+  });
+  const notChecked = (url) => ({ url, outcome: 'not_checked', reason: 'robots.txt', finalUrl: null, htmlFile: null });
+
+  /** A run folder under the OS temp dir: pages.ndjson, and the files named in `files` (path -> text). */
+  function makeRun(pages, files = {}) {
+    const dir = mkdtempSync(join(tmpdir(), 'ogs-score-'));
+    tempRuns.push(dir);
+    mkdirSync(join(dir, 'html'));
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(dir, file), text);
+    writeFileSync(join(dir, 'pages.ndjson'), pages.map((p) => JSON.stringify(p) + '\n').join(''));
+    return dir;
+  }
+
+  const readLines = (file) => readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  const scoresOf = (dir) => readLines(join(dir, 'scores.ndjson'));
+
+  it('scores only fetched pages and resumes without re-scoring', async () => {
+    const dir = makeRun(
+      [fetched(1, RICH.url), notChecked('https://blocked.example.com/'), fetched(2, THIN.url)],
+      { 'html/1.html': RICH.html, 'html/2.html': THIN.html }
+    );
+
+    // No scores.ndjson yet; the not_checked page is neither scored nor an error.
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 2, errors: 0 });
+    const first = readFileSync(join(dir, 'scores.ndjson'), 'utf8');
+    const records = scoresOf(dir);
+    expect(records.map((r) => r.url)).toEqual([RICH.url, THIN.url]);
+    expect(records.map((r) => r.score)).toEqual([100, 29]);
+    expect(records.map((r) => r.error)).toEqual([null, null]);
+
+    // Run again with the HTML gone: a page scored a second time would now be an
+    // error line, so an unchanged file means nobody was read, let alone re-scored.
+    rmSync(join(dir, 'html'), { recursive: true });
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 0, errors: 0 });
+    expect(readFileSync(join(dir, 'scores.ndjson'), 'utf8')).toBe(first);
+
+    // A page that turns up later is the only one scored; the earlier lines stay.
+    mkdirSync(join(dir, 'html'));
+    writeFileSync(join(dir, 'html/3.html'), NO_TITLE.html);
+    appendFileSync(join(dir, 'pages.ndjson'), JSON.stringify(fetched(3, NO_TITLE.url)) + '\n');
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 1, errors: 0 });
+    const after = readFileSync(join(dir, 'scores.ndjson'), 'utf8');
+    expect(after.startsWith(first)).toBe(true);
+    expect(scoresOf(dir).map((r) => r.url)).toEqual([RICH.url, THIN.url, NO_TITLE.url]);
+  });
+
+  it('skips a fetched record that has no html file, and scores each URL once', async () => {
+    const dir = makeRun(
+      [fetched(1, RICH.url, { htmlFile: null }), fetched(2, THIN.url), fetched(2, THIN.url)],
+      { 'html/2.html': THIN.html }
+    );
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 1, errors: 0 });
+    expect(scoresOf(dir).map((r) => r.url)).toEqual([THIN.url]);
+  });
+
+  it('records a page that throws as an error, not a zero', async () => {
+    // A finalUrl jsdom cannot take makes the JSDOM constructor throw.
+    const dir = makeRun(
+      [fetched(1, RICH.url), fetched(2, 'https://bad.example.com/p', { finalUrl: 'not a url' }), fetched(3, THIN.url)],
+      { 'html/1.html': RICH.html, 'html/2.html': RICH.html, 'html/3.html': THIN.html }
+    );
+
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 2, errors: 1 });
+    const records = scoresOf(dir);
+    // The run went on past it.
+    expect(records.map((r) => r.url)).toEqual([RICH.url, 'https://bad.example.com/p', THIN.url]);
+    expect(records.map((r) => r.score)).toEqual([100, null, 29]);
+
+    const bad = records[1];
+    expect(bad.error).toBeTypeOf('string');
+    expect(bad.error.length).toBeGreaterThan(0);
+    // Every score is null (never 0), with the same keys as a scored record.
+    expect(bad).toMatchObject({ grade: null, issues: [], wordCount: null, titleText: null, titleLength: null });
+    expect(Object.keys(bad.checks)).toEqual(Object.keys(records[0].checks));
+    expect(Object.values(bad.checks).every((v) => v === null)).toBe(true);
+    expect(Object.keys(bad.subScores)).toEqual(Object.keys(records[0].subScores));
+    expect(Object.values(bad.subScores).every((v) => v === null)).toBe(true);
+  });
+
+  it('turns a missing or unreadable html file into an error record, not a crash', async () => {
+    const dir = makeRun(
+      [fetched(1, 'https://gone.example.com/'), fetched(2, 'https://dir.example.com/'), fetched(3, RICH.url)],
+      { 'html/3.html': RICH.html }
+    );
+    mkdirSync(join(dir, 'html/2.html')); // reading a directory fails
+
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 1, errors: 2 });
+    const [gone, unreadable, ok] = scoresOf(dir);
+    expect(gone.url).toBe('https://gone.example.com/');
+    expect(gone.error).toMatch(/html\/1\.html/);
+    expect(gone).toMatchObject({ score: null, grade: null });
+    expect(unreadable.url).toBe('https://dir.example.com/');
+    expect(unreadable.error).toMatch(/html\/2\.html/);
+    expect(unreadable.score).toBeNull();
+    expect(ok.score).toBe(100);
+  });
+
+  it('keeps the result URL on the record and scores a redirected page as it was served (Ruling 17)', async () => {
+    // Three links, all on the final host: two relative, one absolute. Relative
+    // links are internal under either base, so it is the absolute one that
+    // tells the bases apart: internal when the document is at finalUrl, external
+    // when it is at the old URL.
+    const resultUrl = 'https://old-name.example.com/guide';
+    const finalUrl = 'https://www.new-name.example.org/docs/guide/';
+    const html = page({
+      head: '<title>A redirected guide for the organic grade study</title>',
+      body: `<main><h1>Guide</h1><p>
+        <a href="intro">Intro</a> <a href="../faq">FAQ</a>
+        <a href="https://www.new-name.example.org/contact">Contact</a></p></main>`
+    });
+    const dir = makeRun(
+      [fetched(1, resultUrl, { finalUrl }), fetched(2, 'https://old-name.example.com/other', { finalUrl: null })],
+      { 'html/1.html': html, 'html/2.html': html }
+    );
+
+    await scorePages(dir, quiet);
+    const [redirected, unredirected] = scoresOf(dir);
+    // The analysis joins on the result URL, not on where the fetch ended.
+    expect(redirected.url).toBe(resultUrl);
+    expect(redirected.issues).not.toContain('Few internal links');
+    // Control: with no finalUrl the document is at the result URL, and the same
+    // markup has only two internal links.
+    expect(unredirected.url).toBe('https://old-name.example.com/other');
+    expect(unredirected.issues).toContain('Few internal links');
+  });
+
+  it('reads the files as UTF-8 and ignores the charset the page claims', async () => {
+    // The fetch stage already decoded the page and wrote it back as UTF-8, so a
+    // stale <meta charset> must not make it read as Latin-1.
+    const html = `<!doctype html><html><head><meta charset="iso-8859-1">
+      <title>Crème brûlée – the “classic” recipe</title></head>
+      <body><main><h1>Crème brûlée</h1></main></body></html>`;
+    const dir = makeRun([fetched(1, 'https://cafe.example.com/')], { 'html/1.html': html });
+    await scorePages(dir, quiet);
+    expect(scoresOf(dir)[0].titleText).toBe('Crème brûlée – the “classic” recipe');
+  });
+
+  it('writes scorer.json with the extension commit, whether extension/ was dirty, and when', async () => {
+    const dir = makeRun([fetched(1, RICH.url)], { 'html/1.html': RICH.html });
+    const before = Date.now();
+    await scorePages(dir, quiet);
+
+    const scorer = JSON.parse(readFileSync(join(dir, 'scorer.json'), 'utf8'));
+    expect(Object.keys(scorer).sort()).toEqual(['commit', 'extensionDirty', 'scoredAt']);
+    expect(scorer.commit).toBe(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim());
+    expect(scorer.commit).toMatch(/^[0-9a-f]{40}$/);
+    const porcelain = execFileSync('git', ['status', '--porcelain', '--', 'extension/'], { cwd: REPO, encoding: 'utf8' });
+    expect(scorer.extensionDirty).toBe(porcelain.trim() !== '');
+    expect(new Date(scorer.scoredAt).toISOString()).toBe(scorer.scoredAt);
+    expect(Date.parse(scorer.scoredAt)).toBeGreaterThanOrEqual(before - 1000);
+
+    // A run with nothing left to score does not rewrite it: it describes the
+    // code that made the scores in scores.ndjson, not the code that last ran.
+    writeFileSync(join(dir, 'scorer.json'), '{"commit":"earlier"}\n');
+    await scorePages(dir, quiet);
+    expect(readFileSync(join(dir, 'scorer.json'), 'utf8')).toBe('{"commit":"earlier"}\n');
+  });
+
+  it('picks up after a write that was cut off, scoring that page again', async () => {
+    const dir = makeRun(
+      [fetched(1, RICH.url), fetched(2, THIN.url)],
+      { 'html/1.html': RICH.html, 'html/2.html': THIN.html }
+    );
+    await scorePages(dir, quiet);
+    const whole = readFileSync(join(dir, 'scores.ndjson'), 'utf8');
+
+    // Cut the second line off part-way, as a killed process would leave it.
+    const firstLine = whole.slice(0, whole.indexOf('\n') + 1);
+    truncateSync(join(dir, 'scores.ndjson'), Buffer.byteLength(firstLine) + 40);
+
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 1, errors: 0 });
+    expect(readFileSync(join(dir, 'scores.ndjson'), 'utf8')).toBe(whole);
+  });
+
+  it('refuses a run folder that has no pages.ndjson', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ogs-score-'));
+    tempRuns.push(dir);
+    await expect(scorePages(dir, quiet)).rejects.toThrow(/pages\.ndjson/);
   });
 });
