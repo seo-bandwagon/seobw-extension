@@ -19,6 +19,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createSocket } from 'node:dgram';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -115,8 +116,10 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 describe('renderAndScore', () => {
   const servers = [];
+  const udpSockets = [];
   const temps = [];
   afterEach(() => {
+    while (udpSockets.length) udpSockets.pop().close();
     while (servers.length) {
       const server = servers.pop();
       server.closeAllConnections();
@@ -149,6 +152,17 @@ describe('renderAndScore', () => {
         const { port } = server.address();
         done({ server, port, requests, upgrades, connections, base: `http://127.0.0.1:${port}` });
       });
+    });
+  }
+
+  /** A UDP listener on 127.0.0.1; `packets` collects what it receives (a STUN binding request, say). */
+  function listenUdp() {
+    const packets = [];
+    const socket = createSocket('udp4');
+    socket.on('message', (message) => packets.push(message));
+    udpSockets.push(socket);
+    return new Promise((done) => {
+      socket.bind(0, '127.0.0.1', () => done({ port: socket.address().port, packets }));
     });
   }
 
@@ -254,7 +268,9 @@ describe('renderAndScore', () => {
     expect(records).toHaveLength(5);
     for (const record of records) {
       expect(record.error, record.url).toMatch(/^render:not an http\(s\) url/);
-      expect(record, record.url).toMatchObject({ score: null, grade: null, titleText: null });
+      expect(record, record.url).toMatchObject({
+        score: null, grade: null, titleText: null, loadTimedOut: false, status: null, subresourcesRefused: 0, subresourcesFailed: 0
+      });
     }
     expect(records.map((r) => r.url)).toEqual([...odd, 'https://fine.example.com/']);
   });
@@ -343,9 +359,15 @@ describe('renderAndScore', () => {
       expect(record).toMatchObject({ url: pageUrl, error: null });
       expect(record.score).toBeTypeOf('number');
       expect(record.grade).toBeTypeOf('string');
+      expect(Object.keys(record).slice(0, 10)).toEqual(
+        ['url', 'score', 'grade', 'issues', 'checks', 'subScores', 'wordCount', 'titleText', 'titleLength', 'error']
+      );
+      expect(Object.keys(record).slice(10).sort()).toEqual(['loadTimedOut', 'status', 'subresourcesFailed', 'subresourcesRefused']);
       expect(Object.keys(record.checks)).toHaveLength(11);
       expect(Object.keys(record.subScores)).toEqual(['Meta', 'Content', 'Links', 'Tech']);
       expect(record.wordCount).toBeGreaterThan(0);
+      // A complete render, and the image and the POST this aborts on purpose are not failures.
+      expect(record).toMatchObject({ loadTimedOut: false, status: 200, subresourcesRefused: 0, subresourcesFailed: 0 });
     });
 
     it('shuts the browser\'s other ways to the web: WebSockets, a beacon, and a redirect the bridge passes on', async () => {
@@ -383,11 +405,48 @@ describe('renderAndScore', () => {
       expect(bridge.seen.fetches.map((f) => f.url)).not.toContain(`${web.base}/elsewhere`);
     });
 
+    it('sends no UDP to an address a page names: WebRTC and WebTransport are shut', async () => {
+      // ICE gathering sends a STUN request straight to the server's IP address,
+      // which neither route() nor the resolver rule sees. The page asks a
+      // listener on 127.0.0.1 for a binding, and reports which of the APIs it
+      // still has.
+      const udp = await listenUdp();
+      const url = 'http://webrtc.test/page';
+      const bridge = await fakeBridge((u) =>
+        u === url
+          ? ok(
+              `<h1>Peer</h1>
+               <script>
+                 var apis = ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'WebTransport'];
+                 try {
+                   var peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:127.0.0.1:${udp.port}' }] });
+                   peer.createDataChannel('x');
+                   peer.createOffer().then(function (offer) { return peer.setLocalDescription(offer); });
+                 } catch (e) {}
+                 try { new WebTransport('https://127.0.0.1:${udp.port}/wt'); } catch (e) {}
+                 document.title = apis.map(function (name) { return name + '=' + typeof window[name]; }).join(' ');
+               </script>`
+            )
+          : undefined
+      );
+      const dir = makeRun([url]);
+
+      await renderAndScore([url], dir, bridge.base, quiet);
+      await sleep(1500); // gathering on a loopback address is quick; a late packet would still count
+
+      expect(udp.packets).toEqual([]);
+      expect(renderedOf(dir)[0]).toMatchObject({
+        error: null,
+        titleText: 'RTCPeerConnection=undefined webkitRTCPeerConnection=undefined RTCDataChannel=undefined WebTransport=undefined'
+      });
+    });
+
     it('records a refused main document as bridge:<reason> with no scores, and fails only a refused subresource', async () => {
       const refusedRobots = 'http://refused-robots.test/page';
       const refusedNetwork = 'http://refused-network.test/page';
       const upstream451 = 'http://really-451.test/page';
       const blockedScript = 'http://blocked-script.test/page';
+      const brokenScripts = 'http://broken-scripts.test/page';
       const bridge = await fakeBridge((url) => {
         if (url === refusedRobots) return { reason: 'robots', status: 451, body: 'not checked: robots' };
         if (url === refusedNetwork) return { reason: 'network', status: 502, body: 'failed: network' };
@@ -402,14 +461,29 @@ describe('renderAndScore', () => {
         if (url === 'http://blocked-script.test/blocked.js') {
           return { reason: 'crawl-delay', status: 451, body: 'not checked: crawl-delay' };
         }
+        // Five files: one refused for Crawl-delay, one for a failed fetch (502), one the bridge
+        // dropped, one the site itself answers 404, one that is fine.
+        if (url === brokenScripts) {
+          return ok(
+            `<h1>Hello</h1><script src="/refused.js"></script><script src="/failed.js"></script>
+             <script src="/dropped.js"></script><script src="/missing.js"></script><script src="/fine.js"></script>`,
+            '<title>A page with five files, four of them missing</title>'
+          );
+        }
+        if (url === 'http://broken-scripts.test/refused.js') return { reason: 'crawl-delay', status: 451, body: 'x' };
+        if (url === 'http://broken-scripts.test/failed.js') return { reason: 'timeout', status: 502, body: 'x' };
+        if (url === 'http://broken-scripts.test/dropped.js') return { drop: true };
+        if (url === 'http://broken-scripts.test/missing.js') return { status: 404, type: 'text/plain', body: 'gone' };
+        if (url === 'http://broken-scripts.test/fine.js') return { type: 'text/javascript', body: '' };
         return undefined;
       });
-      const dir = makeRun([refusedRobots, refusedNetwork, upstream451, blockedScript]);
+      const pages = [refusedRobots, refusedNetwork, upstream451, blockedScript, brokenScripts];
+      const dir = makeRun(pages);
 
-      await renderAndScore([refusedRobots, refusedNetwork, upstream451, blockedScript], dir, bridge.base, quiet);
+      await renderAndScore(pages, dir, bridge.base, quiet);
 
       const records = renderedOf(dir);
-      expect(records).toHaveLength(4);
+      expect(records).toHaveLength(5);
       for (const [url, reason] of [[refusedRobots, 'robots'], [refusedNetwork, 'network']]) {
         const record = byUrl(records, url);
         expect(record.error).toBe(`bridge:${reason}`);
@@ -417,13 +491,24 @@ describe('renderAndScore', () => {
         expect(record).toMatchObject({ score: null, grade: null, issues: [], wordCount: null, titleText: null, titleLength: null });
         expect(Object.values(record.checks).every((v) => v === null)).toBe(true);
         expect(Object.values(record.subScores).every((v) => v === null)).toBe(true);
+        // Nothing was served, so there is no status.
+        expect(record).toMatchObject({ loadTimedOut: false, status: null, subresourcesRefused: 0, subresourcesFailed: 0 });
       }
       // A real 451 is the page the site served.
-      expect(byUrl(records, upstream451)).toMatchObject({ error: null, titleText: 'Unavailable for legal reasons' });
+      expect(byUrl(records, upstream451)).toMatchObject({ error: null, titleText: 'Unavailable for legal reasons', status: 451 });
       expect(byUrl(records, upstream451).score).toBeTypeOf('number');
-      // A refused script is a script that did not load; the page is still scored.
-      expect(byUrl(records, blockedScript)).toMatchObject({ error: null, titleText: 'Raw title stays, the script was refused' });
+      // A refused script is a script that did not load; the page is still scored, and says so.
+      expect(byUrl(records, blockedScript)).toMatchObject({
+        error: null,
+        titleText: 'Raw title stays, the script was refused',
+        status: 200,
+        loadTimedOut: false,
+        subresourcesRefused: 1,
+        subresourcesFailed: 0
+      });
       expect(byUrl(records, blockedScript).score).toBeTypeOf('number');
+      // 451 and 502 from the bridge are refused, a connection it dropped is failed, and a site's own 404 is neither.
+      expect(byUrl(records, brokenScripts)).toMatchObject({ error: null, status: 200, subresourcesRefused: 2, subresourcesFailed: 1 });
     });
 
     it('opens the final url of a redirected page but keeps the result url on the record (Ruling 17)', async () => {
@@ -459,6 +544,8 @@ describe('renderAndScore', () => {
       const [record] = renderedOf(dir);
       expect(record).toMatchObject({ url, error: null, titleText: 'Title before the stall' });
       expect(record.score).toBeTypeOf('number');
+      // A partial render, marked as one: the document came, the load never finished.
+      expect(record).toMatchObject({ loadTimedOut: true, status: 200, subresourcesRefused: 0, subresourcesFailed: 0 });
     });
 
     it('records a page that never produced a document as an error, not as a score of about:blank', async () => {
@@ -471,7 +558,7 @@ describe('renderAndScore', () => {
       const [record] = renderedOf(dir);
       expect(record.url).toBe(url);
       expect(record.error).toBe('render:timeout');
-      expect(record).toMatchObject({ score: null, grade: null, titleText: null });
+      expect(record).toMatchObject({ score: null, grade: null, titleText: null, loadTimedOut: true, status: null });
     });
 
     it('records a page that is now a download, or a script that never lets go, as an error', async () => {
@@ -516,6 +603,29 @@ describe('renderAndScore', () => {
 
       const [record] = renderedOf(dir);
       expect(record).toMatchObject({ url: stub, error: null, titleText: 'Where the refresh led' });
+    });
+
+    it('records a page that moves on to a refused url as that refusal, not as the browser\'s error page', async () => {
+      const viaRefresh = 'http://refresh-to-refused.test/page';
+      const viaScript = 'http://script-to-refused.test/page';
+      const viaForm = 'http://form-post.test/page';
+      const bridge = await fakeBridge((url) => {
+        if (url === viaRefresh) return ok('<h1>Moving</h1>', '<title>The stub</title><meta http-equiv="refresh" content="0;url=http://refused.test/">');
+        if (url === viaScript) return ok('<h1>Moving</h1><script>location.replace("http://refused.test/");</script>', '<title>The stub</title>');
+        // A form posted to the page itself: the POST is aborted, and the page is left on the browser's error page.
+        if (url === viaForm) return ok('<h1>Posting</h1><form method="post" action="/in"></form><script>document.forms[0].submit();</script>', '<title>The stub</title>');
+        if (url === 'http://refused.test/') return { reason: 'robots', status: 451, body: 'not checked: robots' };
+        return undefined;
+      });
+      const dir = makeRun([viaRefresh, viaScript, viaForm]);
+
+      await renderAndScore([viaRefresh, viaScript, viaForm], dir, bridge.base, quiet);
+
+      const records = renderedOf(dir);
+      for (const url of [viaRefresh, viaScript]) {
+        expect(byUrl(records, url), url).toMatchObject({ error: 'bridge:robots', score: null, grade: null, titleText: null, status: null });
+      }
+      expect(byUrl(records, viaForm)).toMatchObject({ error: 'navigation-failed', score: null, grade: null, titleText: null });
     });
 
     it('leaves the document as it found it, so a page at the Large DOM limit is not pushed over it', async () => {

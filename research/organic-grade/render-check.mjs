@@ -24,10 +24,12 @@
 // not, and is relayed as the page it is. Only GETs go to the bridge. A POST (or
 // any other method) is aborted, and so are images, media and fonts, which the
 // score does not read. context.route() does not see everything a browser can
-// open (a WebSocket handshake never reaches it), so two more doors are shut, each
-// enough alone for what was tried: WebSockets are closed, and name resolution is
-// switched off (--host-resolver-rules), so a request that is not routed fails
-// instead of going out. Service workers are blocked: theirs are not routed.
+// open (a WebSocket handshake never reaches it), so more doors are shut: WebSockets
+// are closed, and name resolution is switched off (--host-resolver-rules), so a
+// request that is not routed fails instead of going out. WebRTC and WebTransport
+// send UDP to an IP address with no lookup, so they are removed from the page and
+// WebRTC's non-proxied UDP is disabled at launch. Service workers are blocked:
+// theirs are not routed.
 //
 // Chromium is Playwright's, or the one OGS_CHROMIUM names (the run uses the
 // copy already installed; nothing here downloads a browser).
@@ -46,6 +48,9 @@ export const LOAD_TIMEOUT_MS = 30_000;
 const MOVES_FOLLOWED = 3; // times a page may move on, by itself, while it is scored
 const PROGRESS_EVERY = 50;
 const IDENTITY_TIMEOUT_MS = 10_000;
+
+// The fields of a record for a url no page was opened for.
+const NOT_OPENED = Object.freeze({ loadTimedOut: false, status: null, subresourcesRefused: 0, subresourcesFailed: 0 });
 
 // Requests that never reach the bridge: the score reads none of them.
 const SKIPPED_RESOURCE_TYPES = new Set(['image', 'media', 'font']);
@@ -151,16 +156,59 @@ function within(promise, ms, what) {
 }
 
 /**
- * Renders `job.target` in a fresh context and returns the ScoreRecord, under
- * `job.url`, the result URL the analysis joins on (Ruling 17); the page opened
- * is the final URL, so the document's own URL is right. Never throws for a page
- * that fails: that is a record with an error. It throws only when the run
- * cannot go on (the bridge or the browser is gone), so that no page is recorded
- * as failed for a fault that is not the page's.
+ * Page side, before the page's own scripts. WebRTC sends UDP straight to the
+ * address of an ICE server, and WebTransport is QUIC: neither is a request
+ * context.route() sees, and the resolver rule does not apply to an IP address
+ * in an ICE server list. None of them is a thing the score reads, so they are
+ * not there. (Together with --webrtc-ip-handling-policy at launch: each alone
+ * stopped a STUN request from the main frame, an iframe and a popup; a worker has
+ * neither API.)
+ */
+function removeUdpApis() {
+  for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'WebTransport']) {
+    try {
+      Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false });
+    } catch (e) {
+      // Already defined as not configurable: nothing more can be done from here.
+    }
+  }
+}
+
+/**
+ * Renders `job.target` in a fresh context and returns the record: a ScoreRecord
+ * under `job.url`, the result URL the analysis joins on (Ruling 17; the page
+ * opened is the final URL, so the document's own URL is right), and the four
+ * fields that say how complete the render was (see `finish`). Never throws for
+ * a page that fails: that is a record with an error. It throws only when the
+ * run cannot go on (the bridge or the browser is gone), so that no page is
+ * recorded as failed for a fault that is not the page's.
  */
 async function renderPage(browser, job, run) {
   const { url, target } = job;
   const fetching = new AbortController();
+
+  // What the page asked for and did not get. `nav` follows the main frame's
+  // navigations (the first document, and any the page makes by itself later);
+  // the last one is the page that is there to be scored.
+  const seen = { loadTimedOut: false, refused: 0, failed: 0 };
+  const nav = { last: null };
+
+  // The fields beyond a ScoreRecord, on every record:
+  //   loadTimedOut         the load did not finish in time (what had rendered was scored)
+  //   status               the main document's HTTP status as the bridge relayed it, else null
+  //   subresourcesRefused  files the bridge would not fetch (451 or 502 with x-ogs-reason: robots.txt, Crawl-delay, a failed fetch)
+  //   subresourcesFailed   files that got no answer at all (the bridge unreachable, or its own error);
+  //                        not the ones this aborts on purpose (images, media, fonts, anything but GET),
+  //                        and not a site's own 404 or 500, which is its answer
+  const finish = (record) => ({
+    ...record,
+    url,
+    loadTimedOut: seen.loadTimedOut,
+    status: nav.last ? nav.last.status : null,
+    subresourcesRefused: seen.refused,
+    subresourcesFailed: seen.failed
+  });
+
   let context;
   try {
     context = await browser.newContext({
@@ -171,35 +219,41 @@ async function renderPage(browser, job, run) {
       // page's Content-Security-Policy does not touch, and a page keeps the
       // policy it would have for a visitor.
     });
-
-    let refusal = null; // the bridge's reason for refusing the main document
-    let bridgeError = null; // the bridge could not be reached for the main document
-    let sawDocument = false;
+    await context.addInitScript(removeUdpApis);
     await context.routeWebSocket(/.*/, (socket) => socket.close()); // route() does not see these
 
     await context.route('**/*', async (route) => {
       const request = route.request();
+      let entry = null; // this request, if it is a navigation of the main frame
       try {
+        if (request.isNavigationRequest() && request.frame().parentFrame() === null) {
+          entry = { refusal: null, bridgeError: null, status: null };
+          nav.last = entry;
+        }
         if (request.method() !== 'GET' || SKIPPED_RESOURCE_TYPES.has(request.resourceType())) {
           await route.abort('blockedbyclient');
           return;
         }
-        const isDocument = !sawDocument && request.isNavigationRequest() && request.frame().parentFrame() === null;
-        if (isDocument) sawDocument = true;
 
         let reply;
         try {
           reply = await bridgeGet(run.bridge, request.url(), request.headers().accept, fetching.signal);
         } catch (e) {
-          if (isDocument && !fetching.signal.aborted) bridgeError = e;
+          if (!fetching.signal.aborted) {
+            if (entry) entry.bridgeError = e;
+            else seen.failed++;
+          }
           await route.abort('failed');
           return;
         }
         if (reply.refusal !== null) {
-          if (isDocument) refusal = reply.refusal;
+          if (entry) entry.refusal = reply.refusal;
+          else if (reply.status === 451 || reply.status === 502) seen.refused++;
+          else seen.failed++;
           await route.abort('blockedbyclient');
           return;
         }
+        if (entry) entry.status = reply.status;
         const headers = {};
         if (reply.contentType !== null) headers['content-type'] = reply.contentType;
         await route.fulfill({ status: reply.status, headers, body: reply.body });
@@ -207,6 +261,14 @@ async function renderPage(browser, job, run) {
         // The page was closed under the request: nothing left to answer.
       }
     });
+
+    // The last navigation of the main frame, if the bridge would not serve it:
+    // `bridge:<reason>`. Throws if the bridge could not be reached.
+    const refusedByBridge = () => {
+      const entry = nav.last;
+      if (entry && entry.bridgeError) throw new Error(`the bridge stopped answering: ${firstLine(entry.bridgeError)}`);
+      return entry && entry.refusal !== null ? `bridge:${entry.refusal}` : null;
+    };
 
     const page = await context.newPage();
     let loadError = null;
@@ -216,16 +278,15 @@ async function renderPage(browser, job, run) {
       loadError = e;
     }
 
-    if (refusal !== null) return errorRecord(url, `bridge:${refusal}`);
-    if (bridgeError !== null) throw new Error(`the bridge stopped answering: ${firstLine(bridgeError)}`);
+    const refused = refusedByBridge();
+    if (refused !== null) return finish(errorRecord(url, refused));
     if (!browser.isConnected()) throw new Error('the browser closed');
     if (loadError) {
       // A load that ran out of time still has whatever rendered. Any other
-      // failure, or no document at all, has nothing to score (and Chromium's
-      // own error page is not a page).
-      if (loadError.name !== 'TimeoutError') return errorRecord(url, `render:${firstLine(loadError)}`);
-      const at = page.url();
-      if (at === 'about:blank' || at.startsWith('chrome-error:')) return errorRecord(url, 'render:timeout');
+      // failure, or no document at all, has nothing to score.
+      if (loadError.name !== 'TimeoutError') return finish(errorRecord(url, `render:${firstLine(loadError)}`));
+      seen.loadTimedOut = true;
+      if (page.url() === 'about:blank') return finish(errorRecord(url, 'render:timeout'));
     }
 
     // The scorer goes in as evaluated source, not as <script> tags: tags would
@@ -241,23 +302,39 @@ async function renderPage(browser, job, run) {
         })
       );
     };
+
+    // What is there to score is where the page ended up. If its last navigation
+    // was refused, or left Chromium's own error page (a POST this aborts, a
+    // request that failed), that is the answer: the error page is not a page.
+    const notAPage = () => {
+      const refusedNow = refusedByBridge();
+      if (refusedNow !== null) return refusedNow;
+      return page.url().startsWith('chrome-error:') ? 'navigation-failed' : null;
+    };
+
     const scoring = (async () => {
       for (let attempt = 1; ; attempt++) {
+        const unscorable = notAPage();
+        if (unscorable !== null) return errorRecord(url, unscorable);
         try {
           return await scoreHere();
         } catch (e) {
           // A meta refresh or a script moved the page on while it was being
           // scored: wait for where it landed, and score that.
           if (attempt === MOVES_FOLLOWED || !/Execution context was destroyed/.test(e.message)) throw e;
-          await page.waitForLoadState('load', { timeout: run.loadTimeoutMs });
+          try {
+            await page.waitForLoadState('load', { timeout: run.loadTimeoutMs });
+          } catch (waiting) {
+            if (waiting.name === 'TimeoutError') seen.loadTimedOut = true;
+            throw waiting;
+          }
         }
       }
     })();
-    const record = await within(scoring, run.loadTimeoutMs, 'scoring');
-    return { ...record, url };
+    return finish(await within(scoring, run.loadTimeoutMs, 'scoring'));
   } catch (e) {
     if (e && /^the (bridge|browser) /.test(e.message)) throw e;
-    if (browser.isConnected()) return errorRecord(url, `render:${firstLine(e)}`);
+    if (browser.isConnected()) return finish(errorRecord(url, `render:${firstLine(e)}`));
     throw new Error('the browser closed');
   } finally {
     fetching.abort(); // a bridge request still queued behind its host goes with the page
@@ -320,9 +397,16 @@ async function launchBrowser() {
   return chromium.launch({
     headless: true,
     executablePath: process.env.OGS_CHROMIUM || undefined,
-    // Whatever the routing missed fails to resolve (even an IP address, as
-    // Chromium maps those too) rather than reaching the web.
-    args: ['--host-resolver-rules=MAP * ~NOTFOUND']
+    args: [
+      // Whatever the routing missed fails to resolve (even an IP address, as
+      // Chromium maps those too) rather than reaching the web.
+      '--host-resolver-rules=MAP * ~NOTFOUND',
+      // WebRTC's UDP goes to an ICE server's address without a lookup: with no
+      // proxy to send it through, it is not sent. (--force-webrtc-ip-handling-policy
+      // takes the same value and did not stop a STUN request in the Chrome for
+      // Testing the run uses; this spelling did.)
+      '--webrtc-ip-handling-policy=disable_non_proxied_udp'
+    ]
   });
 }
 
@@ -335,8 +419,12 @@ async function launchBrowser() {
  * Up to MAX_IN_FLIGHT pages at once, never two of one host. Each gets
  * `loadTimeoutMs` (30 s) to load, and the same to be scored; what rendered by
  * then is scored. A page the bridge refuses is a record with error
- * `bridge:<reason>` and null scores. Throws, with nothing recorded for the page
- * in hand, if the bridge or the browser stops working.
+ * `bridge:<reason>` and null scores, and so is one that moves on, by itself, to
+ * a url the bridge refuses or that fails (`navigation-failed`). Every record
+ * carries four fields beyond a ScoreRecord, to tell a partial render from a
+ * complete one: loadTimedOut, status, subresourcesRefused, subresourcesFailed
+ * (see `renderPage`). Throws, with nothing recorded for the page in hand, if the
+ * bridge or the browser stops working.
  *
  * `log` takes the progress lines.
  */
@@ -371,7 +459,7 @@ export async function renderAndScore(urls, runDir, bridge, { log = console.log, 
     const target = finalUrls.get(url) || url;
     // Only http(s) goes to a browser that is meant to reach nothing but the bridge.
     if (!URL.canParse(target) || !/^https?:$/.test(new URL(target).protocol)) {
-      done(errorRecord(url, `render:not an http(s) url: ${target}`));
+      done({ ...errorRecord(url, `render:not an http(s) url: ${target}`), ...NOT_OPENED });
       continue;
     }
     jobs.push({ url, target, host: hostOf(target) });
