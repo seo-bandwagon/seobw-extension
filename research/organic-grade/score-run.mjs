@@ -32,7 +32,9 @@ const deps = {
 };
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DEFAULT_RUN_DIR = '/Volumes/T7 Storage/claude-scratch/SEOBW-home/organic-grade/run-2026-10';
+// DEFAULT_RUN_DIR, errorRecord, readNdjson and dropUnfinishedLine are exported
+// for render-check.mjs, which keeps rendered.ndjson the same way.
+export const DEFAULT_RUN_DIR = '/Volumes/T7 Storage/claude-scratch/SEOBW-home/organic-grade/run-2026-10';
 const PROGRESS_EVERY = 500;
 
 // Decodes UTF-8 and drops a leading byte order mark, as a browser does.
@@ -40,7 +42,7 @@ const utf8 = new TextDecoder('utf-8');
 
 // The record for a page that could not be scored: the same keys as a scored
 // record, every score null (a zero would read as a very bad page).
-function errorRecord(url, message) {
+export function errorRecord(url, message) {
   const checks = {};
   Object.keys(CHECK_START).forEach((name) => { checks[name] = null; });
   return {
@@ -57,7 +59,7 @@ function errorRecord(url, message) {
   };
 }
 
-function readNdjson(file) {
+export function readNdjson(file) {
   const records = [];
   readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
     if (line.trim() === '') return;
@@ -73,7 +75,7 @@ function readNdjson(file) {
 // Every record is appended as one line ending in a newline, so a file that does
 // not end in one was cut off mid-write. Drop that last line: its page is scored
 // again, and the next append cannot run into it.
-function dropUnfinishedLine(file) {
+export function dropUnfinishedLine(file) {
   const bytes = readFileSync(file);
   if (bytes.length === 0 || bytes[bytes.length - 1] === 0x0a) return;
   truncateSync(file, bytes.lastIndexOf(0x0a) + 1);
