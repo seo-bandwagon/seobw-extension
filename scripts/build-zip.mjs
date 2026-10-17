@@ -7,7 +7,8 @@
 // them: JavaScript and CSS go through esbuild's parser with no minification
 // (names, line structure and formatting stay readable for store reviewers;
 // only comments go and quotes are normalized), and HTML comments are removed.
-// Nothing else changes: same files, same paths, same code.
+// Nothing else changes: same files, same paths, same code, except that
+// manifest.json loses its "key" line (packageManifest below).
 //
 // usage: node scripts/build-zip.mjs [out.zip]     (default: seo-bw-extension.zip)
 //        KEEP_COMMENTS=1 node scripts/build-zip.mjs   (package the source as is)
@@ -35,6 +36,22 @@ export function stripComments(file, text) {
   return null; // copied as is
 }
 
+// manifest.json's "key" is the store item's public key: it gives an unpacked
+// copy the store ID, so seobandwagon.com/dashboard/api-keys (which messages
+// that ID over externally_connectable) can find it, and its settings survive
+// loading from another folder. The store assigns the ID itself and reportedly
+// rejects an upload carrying "key", so the package drops that one line and
+// keeps every other byte. Throws rather than ship a manifest it could not
+// clean (a "key" written as the last property, or not on a line of its own).
+const KEY_LINE = /^[ \t]*"key": "[^"]*",\n/m;
+export function packageManifest(text) {
+  const out = text.replace(KEY_LINE, '');
+  if ('key' in JSON.parse(out)) {
+    throw new Error('manifest.json: "key" must sit on its own line, before the last property');
+  }
+  return out;
+}
+
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
     const p = path.join(dir, d.name);
@@ -57,7 +74,9 @@ export function buildZip(outZip, { keepComments = false } = {}) {
         fs.mkdirSync(path.dirname(to), { recursive: true });
         const buf = fs.readFileSync(f);
         before += buf.length;
-        const stripped = keepComments ? null : stripComments(rel, buf.toString('utf8'));
+        const stripped = rel === 'manifest.json'
+          ? packageManifest(buf.toString('utf8'))
+          : keepComments ? null : stripComments(rel, buf.toString('utf8'));
         const out = stripped === null ? buf : Buffer.from(stripped, 'utf8');
         after += out.length;
         fs.writeFileSync(to, out);

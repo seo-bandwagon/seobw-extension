@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { buildZip, stripComments } from '../../scripts/build-zip.mjs';
+import { createHash } from 'node:crypto';
+import { buildZip, stripComments, packageManifest } from '../../scripts/build-zip.mjs';
 
 let dir, zip, info;
 const read = (p) => execFileSync('unzip', ['-p', zip, p]).toString('utf8');
@@ -38,10 +39,36 @@ describe('store package', () => {
     expect(read('src/styles/fonts.css')).toMatch(/url\(fonts\/space-grotesk-400-700\.woff2\)/);
   });
 
-  it('leaves the manifest, icons and fonts byte for byte', () => {
-    for (const p of ['manifest.json', 'src/icons/icon128.png', 'src/styles/fonts/space-mono-700.woff2']) {
+  it('leaves icons and fonts byte for byte', () => {
+    for (const p of ['src/icons/icon128.png', 'src/styles/fonts/space-mono-700.woff2']) {
       expect(execFileSync('unzip', ['-p', zip, p]).equals(fs.readFileSync(path.join('extension', p)))).toBe(true);
     }
+  });
+
+  // manifest.json's `key` pins an unpacked copy to the store item's ID, so the
+  // site's Connect button (which messages that ID) finds it and its settings
+  // survive loading from another folder. The store assigns the ID itself and
+  // reportedly rejects an upload that carries `key`, so the package leaves
+  // that one line out and keeps every other byte.
+  it('pins an unpacked copy to the store ID', () => {
+    const { key } = JSON.parse(fs.readFileSync('extension/manifest.json', 'utf8'));
+    const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32);
+    const id = [...hex].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
+    expect(id).toBe('dphmaddiedhkejfhabkfdenfphjljioj');
+  });
+
+  it('leaves the key out of the packaged manifest, and the rest of it byte for byte', () => {
+    const source = fs.readFileSync('extension/manifest.json', 'utf8');
+    const packaged = read('manifest.json');
+    expect(JSON.parse(packaged)).not.toHaveProperty('key');
+    expect(packaged).toBe(source.replace(/^[ \t]*"key": "[^"]*",\n/m, ''));
+    const { key, ...rest } = JSON.parse(source);
+    expect(JSON.parse(packaged)).toEqual(rest);
+  });
+
+  it('refuses a manifest whose key it cannot remove cleanly', () => {
+    expect(() => packageManifest('{\n  "name": "x",\n  "key": "abc"\n}\n')).toThrow();
+    expect(packageManifest('{\n  "name": "x"\n}\n')).toBe('{\n  "name": "x"\n}\n');
   });
 
   it('never touches strings or regular expressions that look like comments', () => {

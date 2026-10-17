@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.8.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.8.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -32,7 +32,7 @@ Search "SEO Bandwagon" in the Chrome Web Store, or use the one-click "Connect Ch
 4. Click "Load unpacked" → select the `extension/` folder (the only folder that ships; everything else in this repo is tests, preview pages, docs and scripts)
 5. Pin the extension to your toolbar
 
-**Testing the one-click "Connect Chrome extension" flow on an unpacked build**: the dashboard's connect button targets the published extension's fixed id (`dphmaddiedhkejfhabkfdenfphjljioj`), but Chrome assigns an unpacked load a random id unless `manifest.json` declares a `"key"`. To test the real one-click flow locally, paste the public key from the Chrome Web Store developer dashboard (your item → Package → View public key) into `manifest.json`'s `"key"` field on your own machine — don't invent one, and don't commit it. Otherwise, skip the one-click flow in dev and use manual key paste in Options instead; it exercises the same `SBW.verifyKey()` path.
+**An unpacked copy has the store ID** (`dphmaddiedhkejfhabkfdenfphjljioj`), because `manifest.json` carries the store item's public key as `"key"` (from 1.8.3; owner ruling 2026-10-17). Without it Chrome derives the ID from the folder path, so the dashboard's one-click "Connect Chrome extension" button, which messages the store ID, reported "Extension not detected", and settings were lost when the extension was loaded from another folder. Two consequences: an unpacked copy and the store copy can't be installed in the same profile at once (they are the same item to Chrome), and the first load after this change starts with empty settings, since they were stored under the old path-derived ID; reconnect from the dashboard. `npm run zip` leaves the `"key"` line out of the store package, and `check:zip` fails if it ever gets in. The key is public: it ships inside every published package.
 
 ## Connect your account
 
