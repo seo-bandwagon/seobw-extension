@@ -363,6 +363,19 @@ describe('scorePages', () => {
     expect(scoresOf(dir).map((r) => r.url)).toEqual([RICH.url, THIN.url, NO_TITLE.url]);
   });
 
+  // jsdom frees a closed window only once the event loop turns. A loop that never yielded
+  // kept every page's DOM (about 15 MB each): the 2026-10-18 run ran out of heap at page 141.
+  it('lets the event loop turn after each page, so a closed window is freed', async () => {
+    const dir = makeRun(
+      [fetched(1, RICH.url), fetched(2, THIN.url)],
+      { 'html/1.html': RICH.html, 'html/2.html': THIN.html }
+    );
+    let linesAtFirstTurn = null;
+    setImmediate(() => { linesAtFirstTurn = scoresOf(dir).length; });
+    expect(await scorePages(dir, quiet)).toEqual({ scored: 2, errors: 0 });
+    expect(linesAtFirstTurn).toBe(1);
+  });
+
   it('skips a fetched record that has no html file, and scores each URL once', async () => {
     const dir = makeRun(
       [fetched(1, RICH.url, { htmlFile: null }), fetched(2, THIN.url), fetched(2, THIN.url)],

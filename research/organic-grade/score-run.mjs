@@ -191,6 +191,9 @@ export async function scorePages(runDir, { log = console.log } = {}) {
     if ((scored + errors) % PROGRESS_EVERY === 0) {
       log(`${scored + errors} of ${todo.length} pages done, ${errors} errors`);
     }
+    // jsdom frees a closed window only once the event loop turns: without this
+    // the run keeps every page's DOM (about 15 MB each) and runs out of heap.
+    await new Promise((next) => setImmediate(next));
   }
   return { scored, errors };
 }
