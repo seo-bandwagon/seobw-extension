@@ -746,6 +746,32 @@ function installSbwStubs() {
   const delay = (v, ms = 120) => new Promise(r => setTimeout(() => r(v), ms));
   // Never let the real network-hitting bits fire in a preview.
   SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });
+  // The new tab's account cards (GET /api/extension/progress). `newtab-audits`
+  // answers a summary; `newtab-reconnect` a key from before the scope (403);
+  // anything else a site without the route yet (404), so only local cards show.
+  SBW.progress = () => delay(
+    PREVIEW_STATE === 'newtab-audits'
+      ? { ok: true, status: 200, code: 'ok', data: {
+          generatedAt: '2026-10-18T16:00:00.000Z', windowDays: 7,
+          rankTracking: {
+            trackers: [
+              { id: 't1', domain: 'northsidedental.com', market: 'Austin, Texas · English · desktop', status: 'active', keywords: 42, top3: 3, top10: 9, top100: 30, notRanked: 12, movedUp: 4, movedDown: 2, lastCheckedAt: '2026-10-17T09:00:00.000Z' },
+            ],
+            movers: [
+              { trackerId: 't1', keyword: 'family dentist austin', domain: 'northsidedental.com', from: 14, to: 8, change: 6, since: '2026-10-11' },
+              { trackerId: 't1', keyword: 'emergency dentist austin', domain: 'northsidedental.com', from: 6, to: 12, change: -6, since: '2026-10-11' },
+            ],
+          },
+          clientAudits: [],
+          tasks: [
+            { id: 'rank-drop:t1:emergency dentist austin', kind: 'rank_drop', title: '"emergency dentist austin" left the top 10', detail: 'northsidedental.com: position 6 on 2026-10-11, now 12 (Austin, Texas · English · desktop).', path: '/dashboard/rank-tracker/', trackerId: 't1' },
+            { id: 'repeated-miss:t1', kind: 'repeated_miss', title: '12 keywords on northsidedental.com missed 4 checks running', detail: 'Not found in the top 100 on 4 checks in a row, so they are checked every 28 days instead of every 7.', path: '/dashboard/rank-tracker/', trackerId: 't1' },
+          ],
+        } }
+      : PREVIEW_STATE === 'newtab-reconnect'
+        ? { ok: false, status: 403, code: 'forbidden', data: { error: 'insufficient_scope', required: 'progress' } }
+        : { ok: false, status: 404, code: 'error', data: null }
+  );
   // The same rule storage.sync.apiKey above uses, so the account line on the
   // themed panel agrees with what the rest of the preview is pretending.
   SBW.hasApiKey = () => delay(PREVIEW_STATE !== 'signed-out' && PREVIEW_STATE !== 'key-missing', 0);

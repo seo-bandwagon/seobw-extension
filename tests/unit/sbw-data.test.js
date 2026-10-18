@@ -507,3 +507,76 @@ describe('scanSite', () => {
     expect(await D.scanSite('example.com')).toEqual({ ok: false, error: 'tab_open_failed' });
   });
 });
+
+/* --------------------------- account progress ---------------------------- */
+
+describe('accountProgress', () => {
+  const SUMMARY = { generatedAt: 'x', windowDays: 7, rankTracking: { trackers: [], movers: [] }, clientAudits: [], tasks: [] };
+
+  function connected(progress) {
+    const stub = chromeStub({ sbwKeyStatus: 'valid' });
+    const session = {};
+    stub.api.storage.session = {
+      get: vi.fn(async (k) => ({ [k]: session[k] })),
+      set: vi.fn(async (obj) => Object.assign(session, obj)),
+    };
+    globalThis.chrome = stub.api;
+    globalThis.SBW = sbwStub({
+      progress: vi.fn(progress),
+      getApiSettings: vi.fn(async () => ({ apiKey: 'sbw_x', apiUrl: 'https://seobandwagon.com/api' })),
+    });
+    return { stub, session };
+  }
+
+  it('sends nothing when the account is not connected', async () => {
+    globalThis.SBW = sbwStub({ hasApiKey: vi.fn(async () => false), progress: vi.fn() });
+    expect(await D.accountProgress()).toEqual({ state: 'signed_out' });
+    expect(globalThis.SBW.progress).not.toHaveBeenCalled();
+  });
+
+  it('answers the summary with the site origin, and reuses it for ten minutes', async () => {
+    connected(async () => ({ ok: true, status: 200, code: 'ok', data: SUMMARY }));
+    const first = await D.accountProgress({ now: 1000 });
+    expect(first).toEqual({ state: 'ok', data: SUMMARY, origin: 'https://seobandwagon.com' });
+    await D.accountProgress({ now: 1000 + D.PROGRESS_TTL_MS - 1 });
+    expect(globalThis.SBW.progress).toHaveBeenCalledTimes(1);
+    await D.accountProgress({ now: 1000 + D.PROGRESS_TTL_MS });
+    expect(globalThis.SBW.progress).toHaveBeenCalledTimes(2);
+    await D.accountProgress({ now: 1000 + D.PROGRESS_TTL_MS, force: true });
+    expect(globalThis.SBW.progress).toHaveBeenCalledTimes(3);
+  });
+
+  it('a 403 is a key from before the scope: reconnect', async () => {
+    connected(async () => ({ ok: false, status: 403, code: 'forbidden', data: { error: 'insufficient_scope' } }));
+    expect(await D.accountProgress()).toMatchObject({ state: 'reconnect', origin: 'https://seobandwagon.com' });
+  });
+
+  it('a 404 or a network failure means the route is not there yet: local cards only, and not asked again on the next tab', async () => {
+    connected(async () => ({ ok: false, status: 404, code: 'error', data: null }));
+    expect(await D.accountProgress({ now: 5 })).toEqual({ state: 'unavailable', code: 'error', status: 404 });
+    expect(await D.accountProgress({ now: 6 })).toMatchObject({ state: 'unavailable' });
+    expect(globalThis.SBW.progress).toHaveBeenCalledTimes(1);
+    connected(async () => { throw new Error('offline'); });
+    expect(await D.accountProgress({ now: 100 })).toEqual({ state: 'unavailable', code: 'network', status: 0 });
+  });
+
+  it('retries a network failure after a minute, not ten: a request cut off by navigation must not hide the cards', async () => {
+    connected(async () => ({ ok: false, status: 0, code: 'network', data: null }));
+    await D.accountProgress({ now: 0 });
+    await D.accountProgress({ now: D.PROGRESS_RETRY_MS - 1 });
+    expect(globalThis.SBW.progress).toHaveBeenCalledTimes(1);
+    await D.accountProgress({ now: D.PROGRESS_RETRY_MS });
+    expect(globalThis.SBW.progress).toHaveBeenCalledTimes(2);
+  });
+
+  it('an answer without the summary\'s shape is not trusted', () => {
+    expect(D.progressResult({ ok: true, data: { rankTracking: {} } }, 'o').state).toBe('unavailable');
+  });
+
+  it('progressLink tags a dashboard path for the new tab, and refuses anything else', () => {
+    globalThis.SBWSiteLinks = { siteUrl: (origin, path, surface) => `${origin}${path}#${surface}` };
+    expect(D.progressLink('https://seobandwagon.com', '/dashboard/rank-tracker/')).toBe('https://seobandwagon.com/dashboard/rank-tracker/#new_tab');
+    expect(D.progressLink('https://seobandwagon.com', 'https://evil.example/')).toBeNull();
+    delete globalThis.SBWSiteLinks;
+  });
+});

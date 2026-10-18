@@ -133,7 +133,8 @@
       </div>`).join('');
 
     document.getElementById('g9').innerHTML = [
-      ['newtab-audits', 'Recent audits with a change, latest capture, next fix'],
+      ['newtab-audits', 'Signed in: recent audits, rank tracking, tasks (next fix first)'],
+      ['newtab-reconnect', 'A key from before the progress scope: Reconnect'],
       ['main-known', 'No captures yet: empty state, no next fix']
     ].map(([state, label]) => `
       <div class="cell">

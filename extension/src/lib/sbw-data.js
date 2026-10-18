@@ -396,6 +396,74 @@ export async function accountState() {
   return { state, connected, collecting, email: (user && (user.email || user.name)) || null };
 }
 
+/* ---------------------------- account progress --------------------------- */
+
+/** How long one /extension/progress answer, refusal or 404 is reused. */
+export const PROGRESS_TTL_MS = 10 * 60 * 1000;
+/* A network failure, 5xx or rate limit is retried sooner: a request cut off
+   because the tab moved on must not hide the cards for ten minutes. */
+export const PROGRESS_RETRY_MS = 60 * 1000;
+
+function progressTtl(result) {
+  return result && result.state === 'unavailable' && result.status !== 404 ? PROGRESS_RETRY_MS : PROGRESS_TTL_MS;
+}
+const PROGRESS_CACHE_KEY = 'sbwProgress';
+
+/**
+ * What the route's answer means for the new tab.
+ * - 'ok': `data` is the summary; `origin` is the site the links point at.
+ * - 'reconnect': 403, a key minted before the `progress` scope existed.
+ * - 'unavailable': 404 (the site does not have the route yet), the network,
+ *   a 5xx or a rate limit. The page shows only its local cards, as before.
+ */
+export function progressResult(res, origin) {
+  if (res && res.ok && res.data && res.data.rankTracking && Array.isArray(res.data.tasks)) {
+    return { state: 'ok', data: res.data, origin };
+  }
+  if (res && res.code === 'forbidden') return { state: 'reconnect', origin };
+  return { state: 'unavailable', code: (res && res.code) || 'network', status: (res && res.status) || 0 };
+}
+
+/**
+ * The account's rank tracking and derived tasks, at most one request per
+ * PROGRESS_TTL_MS: the answer, a refusal or a 404 is kept in
+ * chrome.storage.session for that long, so most new tabs send nothing and a
+ * site without the route is not asked again on every tab. A network failure
+ * is kept for PROGRESS_RETRY_MS only. No request at all
+ * unless the account is connected with sync on (accountState 'connected').
+ */
+export async function accountProgress({ now = Date.now(), force = false } = {}) {
+  const SBW = api();
+  if (!SBW || typeof SBW.progress !== 'function') return { state: 'signed_out' };
+  const account = await accountState();
+  if (account.state !== 'connected') return { state: 'signed_out' };
+
+  if (!force) {
+    try {
+      const got = await chrome.storage.session.get(PROGRESS_CACHE_KEY);
+      const entry = got && got[PROGRESS_CACHE_KEY];
+      if (entry && typeof entry.at === 'number' && entry.result && now - entry.at < progressTtl(entry.result)) {
+        return entry.result;
+      }
+    } catch { /* no session storage: ask */ }
+  }
+
+  let origin = 'https://seobandwagon.com';
+  try { origin = (await SBW.getApiSettings()).apiUrl.replace(/\/api$/, ''); } catch { /* default */ }
+  let res;
+  try { res = await SBW.progress(); } catch { res = null; }
+  const result = progressResult(res, origin);
+  try { await chrome.storage.session.set({ [PROGRESS_CACHE_KEY]: { at: now, result } }); } catch { /* best effort */ }
+  return result;
+}
+
+/** A dashboard path from the route, as a tagged link on the account's site. */
+export function progressLink(origin, path) {
+  const L = globalThis.SBWSiteLinks;
+  if (!L || typeof path !== 'string' || !path.startsWith('/')) return null;
+  try { return L.siteUrl(origin, path, 'new_tab'); } catch { return null; }
+}
+
 /** How long a verified key is trusted before another /v1/me round trip. */
 export const VERIFY_TTL_MS = 10 * 60 * 1000;
 

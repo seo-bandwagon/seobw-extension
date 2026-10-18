@@ -28,8 +28,15 @@ chrome_url_overrides newtab entry in manifest.json".
   the page you see when opening a new tab" (measured with
   `chrome.management.getPermissionWarningsByManifest`), so the update disables
   existing installs until accepted. See `CHROMEWEBSTORE.md`.
-- **Account-level progress and tasks** need a website endpoint. It is scoped,
-  not built, in the SEO Bandwagon vault (`03_Wiki/Extension_Progress_Endpoint_Plan.md`).
+- **Account-level progress and tasks:** the owner chose derived tasks the same
+  day ("Option A: derive tasks from rank data and audits, as the endpoint plan
+  recommends. Build the progress endpoint that way."). The site's
+  `GET /api/extension/progress` (scope `progress`) answers tracker summaries,
+  movers, client audits and up to five derived tasks; the new tab's Rank
+  tracking and Tasks cards read it (`accountProgress()`). A 403 shows
+  Reconnect; a 404 or a network failure leaves the local cards only, so this
+  build works before and after the route ships. Plan: the SEO Bandwagon vault,
+  `03_Wiki/Extension_Progress_Endpoint_Plan.md`.
 
 Every endpoint the extension can reach, what calls it today, what the themed
 surfaces would want from it, and what each one returns. Written as Phase 0 of
@@ -143,6 +150,7 @@ site — nothing to build server-side.
 |---|---|---|---|---|---|---|
 | `/extension/dashboard` | GET | key or session, scope `captures` | **nothing — `unused`** | possible new-tab source; local captures are preferred | `{analyses: [full rows, ≤50, own only]}` | **none** |
 | `/extension/stats` | GET | key or session, scope `captures` | **nothing — `unused`** | possible new-tab totals | `{totalAnalyses, avgScore, uniqueDomains, topDomains:[{domain,count,avgScore}]}` | **none** |
+| `/extension/progress` | GET | key or session, scope `progress` (2026-10-18; keys minted before it get **403**) | `progress()` → `accountProgress()` → new tab Rank tracking and Tasks cards, at most once per 10 min (`chrome.storage.session` `sbwProgress`) | **new tab** | `{generatedAt, windowDays, rankTracking:{trackers[], movers[]}, clientAudits[], tasks[≤5]}` · `Cache-Control: private, max-age=300` | `extension:progress` 30/min per account |
 
 Both are unthrottled and both are candidates, but neither is required: the
 design's new tab treats **local captures as the source of truth** and enriches

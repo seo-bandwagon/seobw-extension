@@ -196,6 +196,15 @@
     return sbwFetch(`/domain/${encodeURIComponent(domain)}/quick`);
   }
 
+  // The account's rank tracking summary and derived tasks, for the new tab
+  // page (GET /api/extension/progress, scope `progress`). A key minted before
+  // that scope existed answers 403 ('forbidden'); a site without the route
+  // answers 404 ('error').
+  async function progress(query) {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/extension/progress', { query });
+  }
+
   async function quickBatch(domains) {
     if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/domain/quick-batch', { method: 'POST', body: { domains } });
@@ -536,6 +545,7 @@
     postCapture,
     capturesForUrl,
     quickDomain,
+    progress,
     quickBatch,
     syncCapture,
     drainPendingCaptures,
