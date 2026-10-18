@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-17
+> Last Updated: 2026-10-18
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -58,7 +58,7 @@ Developer Tools
 **Single Purpose**
 
 ```
-SEO Bandwagon analyses the SEO signals of the page you are viewing and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
+SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the user's recent analyses and the first issue found on its new tab page, and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
 ```
 
 **Primary Language**
@@ -116,9 +116,22 @@ per-permission fields.
 | `https://search.google.com/search-console/*` | content_scripts | Queries-tab "open in Google Search" icons and compare-mode percent badges, computed from the table already on the page. Nothing fetched or sent. |
 | `https://www.google.com/search*` + 9 ccTLDs | content_scripts | Results overlay: appends a stats bar and toolbar, never hides or moves anything including ads. Sends only bare result domains to our API, never the query. The CSV and clipboard exports stay entirely on the device and now also carry each result's own snippet plus the search context read from the URL — none of it is transmitted. |
 | `externally_connectable` → `https://seobandwagon.com/*` | manifest key | Lets the dashboard's "Connect Chrome extension" button hand over a freshly minted API key. No other origin can message the extension. |
+| `chrome_url_overrides.newtab` → `src/newtab/newtab.html` | manifest key | 1.9.0. The new tab page lists the user's recent analyses with score changes and the first issue found, all read from `chrome.storage.local`; it sends no request on open and has no web search box. Its scan box opens a typed site in that tab and the popup analyzes it. Owner ruling 2026-10-18, reversing the 2026-09-07 one. |
 
-Not present and deliberately so: `management`, `chrome_url_overrides`,
-`web_accessible_resources`, `identity`, `oauth2`.
+Not present and deliberately so: `management`, `web_accessible_resources`,
+`identity`, `oauth2`. `management` stays declined after the 2026-10-18 ruling:
+the new tab page does not need it.
+
+**1.9.0 adds an install warning, and that disables existing installs.** Measured
+2026-10-18 with `chrome.management.getPermissionWarningsByManifest`: 1.8.4 shows
+two warnings ("Read and change your data on search.google.com,
+seobandwagon.com, and www.google.com", "Read your browsing history"); 1.9.0 adds
+a third, "Replace the page you see when opening a new tab". Chrome's rule
+(developer.chrome.com, permission warnings): when an update adds a warning,
+"the extension will be disabled until the user accepts the new permission".
+Every existing user's copy turns off on the 1.9.0 update until they re-enable
+it, and Chrome also shows its own "Change back to Google?" dialog the first
+time an extension controls the new tab.
 
 The themed page-checks panel added 2026-09-08 needs **no manifest change**: it
 is opened per tab with `chrome.sidePanel.setOptions({ tabId, path })` from the
@@ -219,6 +232,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.9.0 | 2026-10-18 | 1.8.4 plus **a new tab page** (`chrome_url_overrides.newtab`, owner ruling 2026-10-18 reversing the 2026-09-07 one): recent audits with each page's score change since its previous capture, the latest capture's checks, and the next fix (the analyzer's first issue, with fix text built from the page's numbers). Read from the newest 50 local captures; opening a new tab sends no request. The scan box opens a typed site in that tab through the 1.8.4 analyze flow (`analyzeResult` with `sameTab`), and the popup analyzes it. Night, Day and Auto follow the other surfaces, over the Neon 1.0.1 wallpapers as WebP (118 KB together). New install warning, "Replace the page you see when opening a new tab", so the update disables existing installs until accepted (see Permissions Justification). No permission or host added; nothing new is sent. | Not submitted |
 | 1.8.4 | 2026-10-17 | 1.8.3 plus **Analyze on a Google result runs the analysis**: the bar's Analyze link only opened the result in a new tab, and nothing analyzed it until the icon was clicked. A plain click now opens the result and, once the page it lands on has loaded (past Google's `/goto` or `/url` redirect), the popup, which analyzes it; the context menu's "Analyze linked page" uses the same flow (`src/lib/analyze-link.js`). Each analysis starts from that person's click on one result. Without "access to all sites" the popup offers "Allow access to analyze other tabs" (S29). No permission, host or content-script change; nothing new is sent. | Not submitted |
 | 1.8.3 | 2026-10-17 | 1.8.2 plus `"key"` in `extension/manifest.json`: the store item's public key, so an unpacked copy has the store ID and the dashboard's "Connect Chrome extension" button finds it. **Nothing changes in the store package**: `npm run zip` drops the `"key"` line (the store assigns the ID and reportedly rejects an upload carrying it), and `check:zip` fails if it is there. No permission, host, content-script or data-use change. | Not submitted |
 | 1.8.2 | 2026-10-16 (branch `fix/1.8.2-overlay-connect-link`) | 1.8.1 plus a fix for signed-out users on Google results: "Connect your account" under each result linked to the extension's Options page, which Chrome blocks from a web page ("This page has been blocked by Chrome", ERR_BLOCKED_BY_CLIENT). It now opens seobandwagon.com/dashboard/api-keys, which signs the user in and connects the extension in one click. Nothing is made web-accessible. No permission, host or content-script change; no data-use change. | Not submitted |

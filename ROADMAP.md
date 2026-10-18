@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.8.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.9.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,42 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.9.0 (2026-10-18)
+
+A feature: the new tab page. Owner ruling 2026-10-18, verbatim: "Reverse the
+2026-09-07 ruling: port the designed new-tab page into the main extension,
+showing progress and tasks, and scope the API endpoint it needs." The
+2026-09-07 ruling had declined the new-tab override and `management`; the new
+tab page needs only the first, so `management` stays out.
+
+- **What it shows**: up to five recent audits (newest capture per page, with
+  the change since that page's previous capture), the latest capture's score,
+  grade and "N of 14 checks", a local history line, and the **next fix**: the
+  analyzer's first issue on that capture, with fix text built from the page's
+  own numbers and a tool link where one fits. Ported from the Chrome-theme
+  design package's new tab onto the shipped tokens, like the panel was.
+- **No request on open**: `recentAudits()` reads the newest 50 `capture_*`
+  keys (`chrome.storage.local.getKeys()` where Chrome has it), so a new tab
+  opens without reading every stored capture. The design's account history
+  line was not ported: it would send a request on every new tab, and the popup
+  already shows it. Account-level progress and tasks need a website endpoint,
+  scoped but not built.
+- **Scan box**: a typed site opens in the same tab through the 1.8.4
+  analyze flow (`analyzeResult`, now with `sameTab`; `analyze-link.js`
+  `open(url, { tabId })`), and the popup analyzes it. A person's submit starts
+  it. Words that are not an address get "Type a site address", never a search
+  (Chrome Web Store: a new tab page must not change the user's search).
+- **Appearance**: Night, Day and Auto, shared with the popup, panels and
+  options. The page draws the Neon Night and Neon Day 1.0.1 wallpapers
+  (seobw-themes, 3840 × 1080) as WebP, 53 KB and 68 KB, bottom-centred and
+  unscaled the way Chrome places a theme's, because an extension's new tab
+  hides the theme's own wallpaper. A footer link names the matching theme.
+- **Install warning**: 1.9.0 adds "Replace the page you see when opening a new
+  tab", so the update disables existing installs until the user accepts it
+  (CHROMEWEBSTORE.md, Permissions Justification).
 
 ---
 
@@ -1065,6 +1101,9 @@ patch.
 - **Citation delete/undo endpoint** — enables the `Undo` affordance from mockups
 - **Campaign step progress in side panel** — surface the 4-step LangGraph pipeline
   status per running campaign
+- ~~**New tab page**~~ — done in 1.9.0 (owner ruling 2026-10-18, reversing the
+  2026-09-07 decline): recent audits, score changes and the next fix from local
+  captures. Account-level progress and tasks wait on a website endpoint.
 
 ## Non-goals
 

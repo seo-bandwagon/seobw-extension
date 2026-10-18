@@ -1,0 +1,212 @@
+/* SEO Bandwagon — new tab page.
+ *
+ * Layout only. Every colour and face comes from the tokens in
+ * ../styles/popup.css, so the page follows Night / Day / Auto with the popup,
+ * both side panels and the options page (token map: see ../panel/panel.css).
+ *
+ * An extension's new tab replaces Chrome's, so a Neon theme's own wallpaper
+ * never shows behind it. This page draws the same art instead: the Neon Night
+ * and Neon Day 1.0.1 wallpapers (seo-bandwagon/seobw-themes, 3840 x 1080),
+ * re-encoded as WebP, placed the way Chrome places a theme's: bottom centre,
+ * never scaled.
+ */
+
+html, body { height: 100%; }
+
+body.page-newtab {
+  margin: 0;
+  color: var(--ink);
+  background: var(--surface) url('images/wallpaper-night.webp') bottom center no-repeat;
+}
+html[data-theme='light'] body.page-newtab {
+  background-image: url('images/wallpaper-day.webp');
+}
+
+.nt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.nt {
+  min-height: 100vh;
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 40px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ----------------------------------- top ---------------------------------- */
+
+.nt-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.nt-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin: 0 0 8px;
+}
+.nt-wordmark {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 28px;
+  line-height: 1;
+  margin: 0;
+  color: var(--text-strong);
+}
+.nt-top-right { display: flex; align-items: center; gap: 10px; }
+.nt-top-right .sp-appearance { margin-left: 0; }
+
+.nt-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+}
+.nt-badge[data-state='connected'] { background: var(--pink); border-color: var(--pink); color: var(--navy); }
+.nt-badge[data-state='invalid'] { border-color: var(--error); color: var(--error); }
+
+/* ---------------------------------- scan ---------------------------------- */
+
+.nt-scan { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 16px; }
+.nt-scan h1 {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 0.95;
+  margin: 0;
+  text-align: center;
+  color: var(--text-strong);
+}
+.nt-form {
+  width: min(660px, 100%);
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1.5px solid var(--pink-30);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--surface-rgb), 0.82);
+}
+.nt-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 16px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+.nt-form input::placeholder { color: var(--paper-40); }
+.nt-form:focus-within { border-color: var(--pink); }
+.nt-form button {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 26px;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  background: var(--pink);
+  color: var(--navy);
+}
+.nt-form button:hover { background: var(--pink-hover); }
+.nt-scan-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--paper-70);
+  margin: 0;
+  min-height: 1.2em;
+  text-align: center;
+}
+
+/* ---------------------------------- cards --------------------------------- */
+
+.nt-grid {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.nt-card {
+  padding: 16px 22px 18px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--surface-rgb), 0.72);
+  backdrop-filter: blur(14px);
+}
+html[data-theme='light'] .nt-card { background: rgba(255, 255, 255, 0.82); }
+.nt-card-fix { border-color: var(--pink-30); }
+
+.nt-audits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.nt-audits li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nt-domain {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--paper-70);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nt-domain:hover { color: var(--text-strong); text-decoration: underline; }
+.nt-right { display: flex; align-items: baseline; gap: 9px; flex: none; }
+.nt-delta { font-family: var(--font-mono); font-size: 11px; }
+.nt-delta[data-dir='up'] { color: var(--success); }
+.nt-delta[data-dir='down'] { color: var(--error); }
+.nt-score { font-family: var(--font-heading); font-size: 26px; letter-spacing: 1px; line-height: 1; color: var(--accent-text); }
+.nt-empty { font-size: 13px; color: var(--paper-70); }
+
+.nt-ratio { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-family: var(--font-heading); }
+.nt-ratio > span:first-child { font-size: 46px; letter-spacing: 2px; line-height: 0.9; color: var(--accent-text); }
+.nt-ratio-of { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--paper-50); }
+.nt-host { font-family: var(--font-mono); font-size: 12px; color: var(--paper-70); margin: 0; }
+.nt-bar { height: 6px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; margin-top: 14px; }
+.nt-bar > div { height: 100%; width: 0; background: var(--pink); transition: width 0.4s ease; }
+.nt-note { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--paper-50); margin: 12px 0 0; min-height: 1em; }
+
+.nt-card-fix h3 { font-family: var(--font-heading); font-size: 24px; letter-spacing: 1px; font-weight: 400; margin: 0 0 6px; color: var(--text-strong); }
+.nt-fix-body { font-family: var(--font-body); font-size: 14px; line-height: 1.45; margin: 0; color: var(--ink); }
+.nt-minilink {
+  display: inline-block;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------------------------------- footer -------------------------------- */
+
+.nt-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--paper-50);
+}
+.nt-foot a { color: var(--accent-text); text-decoration: none; }
+.nt-foot a:hover { text-decoration: underline; }
+
+@media (max-width: 720px) {
+  .nt { padding: 20px 16px 14px; }
+  .nt-top { flex-direction: column; }
+}

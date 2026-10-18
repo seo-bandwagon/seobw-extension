@@ -271,6 +271,23 @@ if (PREVIEW_STATE === 'capture-legacy') {
   };
 }
 
+// `newtab-audits` (newtab.html preview): three pages, one analyzed twice, so
+// the real recentAudits() shows a change and topFix() a next fix.
+if (PREVIEW_STATE === 'newtab-audits') {
+  const cap = (ms, url, score, issues) => ({
+    url, capturedAt: new Date(ms).toISOString(),
+    seoScore: { score, grade: score >= 70 ? 'C' : 'D', issues },
+    meta: { title: { length: 52 }, description: { length: 41 }, canonical: 'c', openGraph: { title: 't' }, schema: [] },
+    content: { wordCount: 640, readability: { fleschKincaid: 9, level: 'Fairly easy' } },
+    headings: { h1: ['a'] }, links: { internal: { count: 12 }, external: { count: 3 } },
+    images: { total: 9, missingAlt: { count: 4 } }, technical: { domElements: 900 },
+  });
+  store.capture_1755690000000 = cap(1755690000000, 'https://northsidedental.com/austin/', 61, ['Description too short']);
+  store.capture_1755695000000 = cap(1755695000000, 'https://plumbingpros.com/', 77, ['No structured data']);
+  store.capture_1755698000000 = cap(1755698000000, 'https://cafe-luna.com/menu', 58, ['Missing H1']);
+  store.capture_1755700000000 = cap(1755700000000, 'https://northsidedental.com/austin/', 73, ['Description too short', 'Some images missing alt', 'No structured data']);
+}
+
 const sessionStore = {};
 
 // `link-check-reinject` (task-1-fix-1-brief item 1): simulates a cached

@@ -47,6 +47,9 @@
   <h2>History · Sync badges</h2>
   <div class="grid" id="g8"></div>
 
+  <h2>New tab</h2>
+  <div class="grid" id="g9"></div>
+
   <script>
     const groups = {
       g1: [
@@ -127,6 +130,15 @@
       <div class="cell">
         <div class="cap"><b>${state}</b><span>${label}</span></div>
         <iframe src="history.html?state=${state}" width="500" height="320" loading="lazy"></iframe>
+      </div>`).join('');
+
+    document.getElementById('g9').innerHTML = [
+      ['newtab-audits', 'Recent audits with a change, latest capture, next fix'],
+      ['main-known', 'No captures yet: empty state, no next fix']
+    ].map(([state, label]) => `
+      <div class="cell">
+        <div class="cap"><b>${state}</b><span>${label}</span></div>
+        <iframe src="newtab.html?state=${state}" width="1280" height="800" loading="lazy"></iframe>
       </div>`).join('');
   </script>
 </body>

@@ -425,9 +425,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // themselves (#50), so the overlay asks here.
   // 1.8.4: the overlay's Analyze button, a person's click on one result.
   // Opens it and analyzes it the way the context menu's "Analyze linked page"
-  // does; only an http(s) URL opens anything.
+  // does; only an http(s) URL opens anything. 1.9.0: the new tab page's scan
+  // box sends `sameTab`, so the site loads in the new tab itself.
   if (request.action === 'analyzeResult') {
-    analyzeLink.open(request.url).then(sendResponse, () => sendResponse({ ok: false, error: 'tab_open_failed' }));
+    const tabId = request.sameTab && sender.tab ? sender.tab.id : undefined;
+    analyzeLink.open(request.url, { tabId }).then(sendResponse, () => sendResponse({ ok: false, error: 'tab_open_failed' }));
     return true;
   }
 

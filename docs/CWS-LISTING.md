@@ -106,6 +106,9 @@ Also with an account, a side panel lists your outreach prospects, your draft and
 SIDE PANELS
 A side panel keeps the page checks open while you work, with pass, warning and fail counts for the page in the current tab. A second view holds your citations and link building work.
 
+NEW TAB
+Each new tab becomes a summary of your recent work: the sites you analyzed most recently, each with its score and how far it moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. A box takes a site address, opens it in that tab and analyzes it. It is not a search box; it only opens addresses. Everything shown comes from analyses stored on your computer, and opening a new tab sends nothing. The only way back to the standard new tab is to turn the whole add-on off or remove it.
+
 EXPORTS AND SHORTCUTS
 Headings, links, images and the results of each check export as spreadsheet files you save yourself, and the whole analysis can be saved as one JSON file. File names include the page and the time, so one export never replaces another. A right-click menu opens the current address in tools you already use, including Search Console's URL inspection, PageSpeed Insights and the Wayback Machine, and can count the words and characters in any text you select.
 
@@ -253,9 +256,15 @@ extension this way.
 
 ## 4. Single-purpose statement
 
-SEO Bandwagon analyses the SEO signals of the page you are viewing and syncs
-that analysis — and the local-SEO citation and outreach records derived from
-it — to the user's own SEO Bandwagon account.
+SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the
+user's recent analyses and the first issue found on its new tab page, and syncs that
+analysis — and the local-SEO citation and outreach records derived from it — to
+the user's own SEO Bandwagon account.
+
+The new tab page (`chrome_url_overrides.newtab`, 1.9.0) is the same purpose on
+another surface: it reads only the analyses this extension stored, holds no web
+search box (Chrome Web Store quality guidelines: a new tab page must not change
+the user's search experience), and sends no request when it opens.
 
 ---
 
@@ -306,7 +315,15 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.8.4 (release notes, ≤ 10 lines)
+## 6. What's new in 1.9.0 (release notes, ≤ 10 lines)
+
+```
+- A new tab page: your recently analyzed pages with their score changes,
+  the latest analysis, and the first issue it found. It replaces Chrome's new tab.
+- Type a site on the new tab to open it and analyze it there.
+```
+
+1.8.4 (if it wasn't published on its own, use these lines too):
 
 ```
 - Analyze on a Google result opens the page and analyzes it.
@@ -361,6 +378,13 @@ On a first install one tab opens at our welcome page
 nothing. Removing the extension opens a one-question survey page on
 seobandwagon.com. Neither needs a permission or sends anything but the
 extension's version (survey only).
+
+**New tab page (1.9.0)**: open a new tab. The extension's page replaces
+Chrome's (`chrome_url_overrides.newtab`; Chrome shows "Replace the page you see
+when opening a new tab" at install). It lists recent analyses from
+`chrome.storage.local` and sends no request on open. Typing a site address into
+its box and pressing Scan opens that site in the same tab and then the popup,
+which analyzes it; words that are not an address get a note, never a search.
 
 No account is required to exercise every permission-bearing feature below.
 Full-page proof screenshots (Citations tab) need a connected account; they
