@@ -6,10 +6,13 @@
  * in this tab and analyzes it through the worker's analyzeResult flow, the
  * same as the results overlay's Analyze button.
  *
- * Opening a new tab sends no request: every value is read from
- * chrome.storage.local through src/lib/sbw-data.js, and nothing is written
- * here. Account-level progress (rank tracking, tasks) needs a website endpoint
- * that does not exist yet.
+ * With an account connected, two more cards come from the account
+ * (GET /api/extension/progress through accountProgress(), at most one request
+ * every 10 minutes): Rank tracking, and Tasks, which puts the next fix first
+ * and then the tasks the site derives from rank data. A 403 (a key from before
+ * the `progress` scope) shows Reconnect; a 404 or a network failure (the site
+ * does not have the route yet) leaves the page as it is signed out: local
+ * cards only. Signed out, opening a new tab sends nothing.
  *
  * Not a search box (Chrome Web Store policy: a new tab page must not change
  * the user's web search). Typed words that are not a site get a note, never a
@@ -19,6 +22,7 @@
 import { applyTheme, watchThemeChanges, bindControl, listingUrl } from '../lib/theme-sync.js';
 import {
   recentAudits, checkTotals, topFix, localHistoryLine, accountState, shortcutFor, scanSite, hostOf,
+  accountProgress, progressLink,
 } from '../lib/sbw-data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -81,11 +85,113 @@ function renderFix(fix) {
   }
 }
 
-async function paint() {
+/* ------------------------------ account cards ----------------------------- */
+
+const MAX_TRACKERS = 3;
+const MAX_MOVERS = 3;
+const MAX_TASKS = 5;
+
+function li(className, ...children) {
+  const el = document.createElement('li');
+  if (className) el.className = className;
+  el.append(...children);
+  return el;
+}
+
+function span(className, text) {
+  const el = document.createElement('span');
+  el.className = className;
+  el.textContent = text;
+  return el;
+}
+
+function setLink(a, url, text) {
+  a.hidden = !url;
+  if (!url) return;
+  a.href = url;
+  a.textContent = text;
+}
+
+function renderRank(result) {
+  const card = $('ntRankCard');
+  const trackersUl = $('ntTrackers');
+  const moversUl = $('ntMovers');
+  trackersUl.textContent = '';
+  moversUl.textContent = '';
+  $('ntRankNote').textContent = '';
+
+  if (result.state === 'reconnect') {
+    $('ntRankNote').textContent = 'Reconnect your account to see rank tracking and tasks here. Your key was made before this page existed.';
+    setLink($('ntRankLink'), progressLink(result.origin, '/dashboard/api-keys'), 'Reconnect →');
+    card.hidden = false;
+    return;
+  }
+  if (result.state !== 'ok') { card.hidden = true; return; }
+
+  const { trackers, movers } = result.data.rankTracking;
+  const days = result.data.windowDays;
+  for (const t of trackers.slice(0, MAX_TRACKERS)) {
+    const moves = [];
+    if (t.movedUp) moves.push('+' + t.movedUp + ' up');
+    if (t.movedDown) moves.push(t.movedDown + ' down');
+    const line = `${t.top10} of ${t.keywords} in the top 10 · ${t.top3} in the top 3`
+      + (moves.length ? ` · ${moves.join(', ')} in ${days} days` : '');
+    const head = document.createElement('span');
+    head.className = 'nt-tr-head';
+    head.append(span('nt-tr-domain', t.domain), span('nt-tr-market', t.market + (t.status === 'paused' ? ' · paused' : '')));
+    trackersUl.append(li('', head, span('nt-tr-line', line)));
+  }
+  for (const m of movers.slice(0, MAX_MOVERS)) {
+    const change = span('nt-delta', (m.change > 0 ? '+' : '−') + Math.abs(m.change));
+    change.dataset.dir = m.change > 0 ? 'up' : 'down';
+    const right = document.createElement('span');
+    right.className = 'nt-right';
+    right.append(span('nt-mv-pos', m.from + ' → ' + m.to), change);
+    const kw = span('nt-domain', m.keyword);
+    kw.title = m.domain;
+    moversUl.append(li('', kw, right));
+  }
+  if (!trackers.length) $('ntRankNote').textContent = 'No rank trackers on your account yet.';
+  else if (trackers.length > MAX_TRACKERS) $('ntRankNote').textContent = `${trackers.length - MAX_TRACKERS} more in the dashboard.`;
+  setLink($('ntRankLink'), progressLink(result.origin, '/dashboard/rank-tracker/'),
+    trackers.length ? 'Open the rank tracker →' : 'Track keywords →');
+  card.hidden = false;
+}
+
+/* Tasks: the next fix from the latest capture first, then the account's. */
+function renderTasks(result, fix) {
+  const card = $('ntTasksCard');
+  if (result.state !== 'ok') { card.hidden = true; return false; }
+  const ul = $('ntTasks');
+  ul.textContent = '';
+  const items = [];
+  if (fix) items.push({ title: `${fix.title} on ${fix.host}`, detail: fix.body, url: fix.url });
+  for (const t of result.data.tasks) {
+    items.push({ title: t.title, detail: t.detail, url: progressLink(result.origin, t.path) });
+  }
+  for (const item of items.slice(0, MAX_TASKS)) {
+    const title = item.url ? document.createElement('a') : document.createElement('span');
+    title.className = 'nt-task-title';
+    title.textContent = item.title;
+    if (item.url) { title.href = item.url; title.target = '_blank'; title.rel = 'noopener'; }
+    ul.append(li('', title, span('nt-task-detail', item.detail)));
+  }
+  if (!items.length) ul.append(li('nt-empty', document.createTextNode('Nothing to do on your trackers right now.')));
+  card.hidden = false;
+  return true;
+}
+
+async function paint({ force = false } = {}) {
   const rows = await recentAudits(5);
   renderAudits(rows);
   renderLatest(rows[0]);
-  if (rows[0]) renderFix(topFix(rows[0].capture));
+  const fix = rows[0] ? topFix(rows[0].capture) : null;
+  renderFix(fix); // local first: the account cards never hold the page up
+
+  const progress = await accountProgress({ force });
+  renderRank(progress);
+  // With the account's tasks on screen the next fix is their first row.
+  if (renderTasks(progress, fix)) $('ntFixCard').hidden = true;
 }
 
 /* -------------------------------- account --------------------------------- */
@@ -163,6 +269,9 @@ async function onScan(e) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (Object.keys(changes).some((k) => k.startsWith('capture_'))) paint();
-    if (changes.sbwKeyStatus || changes.sbwUser || changes.dataCollection) renderAccount();
+    if (changes.sbwKeyStatus || changes.sbwUser || changes.dataCollection) {
+      renderAccount();
+      paint({ force: true }); // a reconnect brings a key that may now carry the scope
+    }
   });
 })();

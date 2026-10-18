@@ -107,7 +107,7 @@ SIDE PANELS
 A side panel keeps the page checks open while you work, with pass, warning and fail counts for the page in the current tab. A second view holds your citations and link building work.
 
 NEW TAB
-Each new tab becomes a summary of your recent work: the sites you analyzed most recently, each with its score and how far it moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. A box takes a site address, opens it in that tab and analyzes it. It is not a search box; it only opens addresses. Everything shown comes from analyses stored on your computer, and opening a new tab sends nothing. The only way back to the standard new tab is to turn the whole add-on off or remove it.
+Each new tab becomes a summary of your recent work: the sites you analyzed most recently, each with its score and how far it moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. A box takes a site address, opens it in that tab and analyzes it. It is not a search box; it only opens addresses. With an account connected, it also shows your rank tracking, the keywords that moved most and a short list of tasks worked out from it, asked of your account at most every ten minutes. Signed out, it reads only analyses stored on your computer and opening a new tab sends nothing. The only way back to the standard new tab is to turn the whole add-on off or remove it.
 
 EXPORTS AND SHORTCUTS
 Headings, links, images and the results of each check export as spreadsheet files you save yourself, and the whole analysis can be saved as one JSON file. File names include the page and the time, so one export never replaces another. A right-click menu opens the current address in tools you already use, including Search Console's URL inspection, PageSpeed Insights and the Wayback Machine, and can count the words and characters in any text you select.
@@ -315,7 +315,14 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.9.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.9.1 (release notes, ≤ 10 lines)
+
+```
+- Signed in, the new tab shows your rank tracking and a short task list:
+  keywords that left the top 10, checks that keep failing, and the next fix.
+```
+
+1.9.0 (if it wasn't published on its own, use these lines too):
 
 ```
 - A new tab page: your recently analyzed pages with their score changes,
@@ -382,7 +389,10 @@ extension's version (survey only).
 **New tab page (1.9.0)**: open a new tab. The extension's page replaces
 Chrome's (`chrome_url_overrides.newtab`; Chrome shows "Replace the page you see
 when opening a new tab" at install). It lists recent analyses from
-`chrome.storage.local` and sends no request on open. Typing a site address into
+`chrome.storage.local`. Signed out it sends no request; with an account
+connected it reads `GET /api/extension/progress` at most every 10 minutes for
+its Rank tracking and Tasks cards (a key from before that route's scope gets a
+Reconnect link). Typing a site address into
 its box and pressing Scan opens that site in the same tab and then the popup,
 which analyzes it; words that are not an address get a note, never a search.
 

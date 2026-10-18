@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.9.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.9.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,31 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.9.1 (2026-10-18)
+
+The new tab page's account cards. Owner ruling 2026-10-18, verbatim: "Option
+A: derive tasks from rank data and audits, as the endpoint plan recommends.
+Build the progress endpoint that way."
+
+- **Rank tracking** (signed in): per tracker, how many keywords sit in the top
+  10 and the top 3 and how many moved up or down over 7 days, and the biggest
+  movers, from the site's new `GET /api/extension/progress` (scope `progress`).
+- **Tasks** (signed in): the next fix from the latest capture first, then the
+  tasks the site derives from rank data: a keyword that left the top 10,
+  failed or repeatedly missed checks, a tracker with no Search Console
+  property. The separate Next fix card hides while Tasks is on screen.
+- **At most one request every 10 minutes**: `accountProgress()` keeps each
+  answer, refusal or 404 in `chrome.storage.session` (`sbwProgress`); a network
+  failure is retried after a minute, so a request cut off when the tab moves
+  on does not hide the cards for ten. Signed out, or with sync off, nothing is
+  sent.
+- **Works whichever ships first**: a 403 (a key minted before the `progress`
+  scope) shows Reconnect, linking to the api-keys page; a 404 or a network
+  failure (a site without the route) leaves only the local cards, as in 1.9.0.
+- Links go through `siteUrl()` with a new `new_tab` surface.
 
 ---
 

@@ -210,3 +210,20 @@ html[data-theme='light'] .nt-card { background: rgba(255, 255, 255, 0.82); }
   .nt { padding: 20px 16px 14px; }
   .nt-top { flex-direction: column; }
 }
+
+/* ------------------------------ account cards ----------------------------- */
+
+.nt-trackers, .nt-movers, .nt-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.nt-trackers li { display: flex; flex-direction: column; gap: 3px; }
+.nt-tr-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.nt-tr-domain { font-family: var(--font-mono); font-size: 12px; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nt-tr-market { font-family: var(--font-mono); font-size: 10px; color: var(--paper-50); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nt-tr-line { font-family: var(--font-body); font-size: 13px; color: var(--ink); }
+.nt-movers { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); gap: 6px; }
+.nt-movers li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.nt-mv-pos { font-family: var(--font-mono); font-size: 11px; color: var(--paper-70); }
+.nt-tasks li { display: flex; flex-direction: column; gap: 2px; }
+.nt-task-title { font-family: var(--font-body); font-size: 14px; font-weight: 700; color: var(--text-strong); text-decoration: none; }
+a.nt-task-title:hover { text-decoration: underline; }
+.nt-task-detail { font-family: var(--font-body); font-size: 12px; line-height: 1.4; color: var(--paper-70); }
+.nt-trackers:empty, .nt-movers:empty { display: none; }

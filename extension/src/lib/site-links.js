@@ -36,6 +36,7 @@
     'citations_tab',  // the popup's Citations tab
     'side_panel',     // the Citations / Link Building side panel
     'serp_overlay',   // "Connect your account" under a Google result
+    'new_tab',        // the new tab page's account cards
     'install',        // the welcome tab on a first install
     'uninstall'       // the survey Chrome opens after an uninstall
   ]);

@@ -56,6 +56,19 @@
         <p class="nt-note" id="ntHistoryLine"></p>
       </article>
 
+      <article class="nt-card" id="ntRankCard" hidden>
+        <p class="nt-eyebrow">Rank tracking</p>
+        <ul class="nt-trackers" id="ntTrackers"></ul>
+        <ul class="nt-movers" id="ntMovers"></ul>
+        <p class="nt-note" id="ntRankNote"></p>
+        <a href="#" id="ntRankLink" class="nt-minilink" target="_blank" rel="noopener" hidden></a>
+      </article>
+
+      <article class="nt-card nt-card-fix" id="ntTasksCard" hidden>
+        <p class="nt-eyebrow">Tasks</p>
+        <ul class="nt-tasks" id="ntTasks"></ul>
+      </article>
+
       <article class="nt-card nt-card-fix" id="ntFixCard" hidden>
         <p class="nt-eyebrow">Next fix</p>
         <h3 id="ntFixTitle"></h3>
@@ -75,6 +88,7 @@
   <script src="../extension/src/lib/sync-state.js"></script>
   <script src="../extension/src/lib/api.js"></script>
   <script src="../extension/src/lib/tool-links.js"></script>
+  <script src="../extension/src/lib/site-links.js"></script>
   <script src="../extension/src/lib/sub-scores.js"></script>
   <script>installSbwStubs();</script>
   <script type="module" src="../extension/src/newtab/newtab.js"></script>
