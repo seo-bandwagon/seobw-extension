@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { pickRenderSample, renderAndScore } from '../../research/organic-grade/render-check.mjs';
+import { launchOptions, pickRenderSample, renderAndScore } from '../../research/organic-grade/render-check.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLI = join(REPO, 'research/organic-grade/render-check.mjs');
@@ -735,5 +735,30 @@ describe('renderAndScore', () => {
       expect(renderedOf(dir).map((r) => r.url)).toEqual(expected);
       expect(statSync(join(dir, 'rendered.ndjson')).size).toBeGreaterThan(0);
     });
+  });
+});
+
+// In GitHub Actions the rendered check runs beside the bot's signing key, so
+// Chromium's sandbox must be on there (Playwright turns it off by default);
+// the workflow sets OGS_CHROMIUM_SANDBOX=1. Locally it stays as Playwright sets it.
+describe('launchOptions', () => {
+  it('turns on the Chromium sandbox only when OGS_CHROMIUM_SANDBOX is 1', () => {
+    expect(launchOptions({}).chromiumSandbox).toBe(false);
+    expect(launchOptions({ OGS_CHROMIUM_SANDBOX: '0' }).chromiumSandbox).toBe(false);
+    expect(launchOptions({ OGS_CHROMIUM_SANDBOX: '1' }).chromiumSandbox).toBe(true);
+  });
+
+  it('keeps the network shut whatever the sandbox setting', () => {
+    for (const env of [{}, { OGS_CHROMIUM_SANDBOX: '1' }]) {
+      const opts = launchOptions(env);
+      expect(opts.headless).toBe(true);
+      expect(opts.args).toContain('--host-resolver-rules=MAP * ~NOTFOUND');
+      expect(opts.args).toContain('--webrtc-ip-handling-policy=disable_non_proxied_udp');
+    }
+  });
+
+  it('passes OGS_CHROMIUM as the executable, or leaves it to Playwright', () => {
+    expect(launchOptions({ OGS_CHROMIUM: '/x/chrome' }).executablePath).toBe('/x/chrome');
+    expect(launchOptions({}).executablePath).toBeUndefined();
   });
 });
