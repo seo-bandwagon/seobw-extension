@@ -391,12 +391,19 @@ function runPool(jobs, limit, work) {
   });
 }
 
-async function launchBrowser() {
-  // Loaded here, so reading the sample needs no browser library.
-  const { chromium } = await import('@playwright/test');
-  return chromium.launch({
+/**
+ * Chromium's launch options. OGS_CHROMIUM names the browser (else Playwright's
+ * own). OGS_CHROMIUM_SANDBOX=1 turns Chromium's sandbox on: Playwright launches
+ * with --no-sandbox by default, and in GitHub Actions the rendered check runs
+ * beside the bot's signing key (website repo,
+ * .github/workflows/organic-grade-study.yml), so a page's script must not get
+ * past the renderer sandbox there.
+ */
+export function launchOptions(env = process.env) {
+  return {
     headless: true,
-    executablePath: process.env.OGS_CHROMIUM || undefined,
+    executablePath: env.OGS_CHROMIUM || undefined,
+    chromiumSandbox: env.OGS_CHROMIUM_SANDBOX === '1',
     args: [
       // Whatever the routing missed fails to resolve (even an IP address, as
       // Chromium maps those too) rather than reaching the web.
@@ -407,7 +414,13 @@ async function launchBrowser() {
       // Testing the run uses; this spelling did.)
       '--webrtc-ip-handling-policy=disable_non_proxied_udp'
     ]
-  });
+  };
+}
+
+async function launchBrowser() {
+  // Loaded here, so reading the sample needs no browser library.
+  const { chromium } = await import('@playwright/test');
+  return chromium.launch(launchOptions());
 }
 
 /**
