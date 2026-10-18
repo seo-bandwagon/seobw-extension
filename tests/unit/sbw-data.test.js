@@ -5,6 +5,8 @@
 // no number that did not come from the shipped scorer, and a complete render
 // when the API is unreachable.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as D from '../../extension/src/lib/sbw-data.js';
 import SubScores from '../../extension/src/lib/sub-scores.js';
 
@@ -349,5 +351,159 @@ describe('tools, directory and panel', () => {
     globalThis.chrome = stub.api;
     expect(await D.openPanel('checks', 12)).toBe(false);
     expect(stub.messages).not.toContainEqual({ action: 'openSidePanel' });
+  });
+});
+
+/* ------------------------------ the new tab ------------------------------- */
+
+// A stored capture as SBW.autoSaveLocal writes it: the analyzer's response,
+// stripped, under `capture_<ms>`.
+function capture(ms, url, score, extra = {}) {
+  return [`capture_${ms}`, {
+    url,
+    capturedAt: new Date(ms).toISOString(),
+    seoScore: { score, grade: score >= 90 ? 'A' : 'C', issues: [] },
+    ...extra,
+  }];
+}
+
+describe('recentAudits', () => {
+  it('lists the newest capture per URL, newest first, with the change since that URL\'s previous capture', async () => {
+    const stub = chromeStub(Object.fromEntries([
+      capture(1000, 'https://a.example/', 60),
+      capture(2000, 'https://b.example/', 70),
+      capture(3000, 'https://a.example/', 72),
+      capture(4000, 'https://c.example/', 55),
+      ['bwThemeMode', 'dark'], // not a capture: ignored
+    ]));
+    globalThis.chrome = stub.api;
+    const rows = await D.recentAudits(5);
+    expect(rows.map((r) => [r.host, r.score, r.delta, r.captures])).toEqual([
+      ['c.example', 55, null, 1],
+      ['a.example', 72, 12, 2],
+      ['b.example', 70, null, 1],
+    ]);
+    expect(rows[1].at).toBe(3000);
+  });
+
+  it('reads overallScore before seoScore, the rule src/lib/domain-history.js uses', () => {
+    expect(D.captureScore({ overallScore: 81, seoScore: { score: 40 } })).toBe(81);
+    expect(D.captureScore({ seoScore: { score: 40 } })).toBe(40);
+    expect(D.captureScore({})).toBeNull();
+    expect(D.captureScore(null)).toBeNull();
+  });
+
+  it('leaves out a capture with no score rather than showing zero', async () => {
+    const stub = chromeStub(Object.fromEntries([
+      capture(1000, 'https://a.example/', 60),
+      ['capture_2000', { url: 'https://b.example/', capturedAt: new Date(2000).toISOString() }],
+    ]));
+    globalThis.chrome = stub.api;
+    expect((await D.recentAudits(5)).map((r) => r.host)).toEqual(['a.example']);
+  });
+
+  it('reads only the newest RECENT_WINDOW captures when the browser can list keys', async () => {
+    const entries = [];
+    for (let i = 1; i <= D.RECENT_WINDOW + 10; i++) entries.push(capture(i * 1000, `https://s${i}.example/`, 50));
+    const stub = chromeStub(Object.fromEntries(entries));
+    stub.api.storage.local.getKeys = vi.fn(async () => Object.keys(stub.store()));
+    globalThis.chrome = stub.api;
+    const rows = await D.recentAudits(3);
+    expect(rows.map((r) => r.host)).toEqual(['s60.example', 's59.example', 's58.example']);
+    const read = stub.api.storage.local.get.mock.calls.at(-1)[0];
+    expect(read).toHaveLength(D.RECENT_WINDOW);
+    expect(read).not.toContain('capture_1000');
+  });
+
+  it('is empty, not an error, before anything was captured', async () => {
+    globalThis.chrome = chromeStub({}).api;
+    expect(await D.recentAudits()).toEqual([]);
+  });
+});
+
+describe('topFix', () => {
+  const page = {
+    url: 'https://example.com/pricing',
+    meta: { description: { length: 41 } },
+    images: { total: 9, missingAlt: { count: 4 } },
+    seoScore: { score: 64, issues: ['Description too short', 'Some images missing alt'] },
+  };
+
+  it('is the analyzer\'s first issue, with a body built from the page\'s own numbers', () => {
+    const fix = D.topFix(page);
+    expect(fix).toMatchObject({
+      issue: 'Description too short',
+      title: 'Description too short',
+      body: '41 characters. Aim for 120 to 160.',
+      host: 'example.com',
+      of: 2,
+    });
+  });
+
+  it('has fix text for every issue string the analyzer can produce', () => {
+    const src = readFileSync(resolve(__dirname, '../../extension/lib/content-analysis.js'), 'utf8');
+    const issues = [...src.matchAll(/issues\.push\('([^']+)'\)/g)].map((m) => m[1]);
+    expect(issues.length).toBeGreaterThan(10);
+    for (const issue of issues) expect(D.FIX_ISSUES, issue).toContain(issue);
+  });
+
+  it('is null for a clean page, and skips an issue it has no words for', () => {
+    expect(D.topFix({ url: 'https://example.com/', seoScore: { issues: [] } })).toBeNull();
+    expect(D.topFix(null)).toBeNull();
+    const fix = D.topFix({ url: 'https://example.com/', seoScore: { issues: ['Something new', 'Missing H1'] } });
+    expect(fix.issue).toBe('Missing H1');
+  });
+
+  it('links to a tool only when the link builder can make the URL', () => {
+    globalThis.SBWToolLinks = { toolUrl: (kind, { pageUrl }) => `https://tool.example/${kind}?u=${encodeURIComponent(pageUrl)}` };
+    const fix = D.topFix({ url: 'https://example.com/', seoScore: { issues: ['No structured data'] } });
+    expect(fix.url).toBe('https://tool.example/rich-results?u=https%3A%2F%2Fexample.com%2F');
+    expect(fix.label).toBe('Rich Results Test');
+    delete globalThis.SBWToolLinks;
+    expect(D.topFix({ url: 'https://example.com/', seoScore: { issues: ['No structured data'] } }).url).toBeNull();
+  });
+});
+
+describe('localHistoryLine', () => {
+  it('says what the stored captures alone can say', () => {
+    expect(D.localHistoryLine(null)).toBeNull();
+    expect(D.localHistoryLine({ captures: 1, delta: null })).toBe('First capture of this page');
+    expect(D.localHistoryLine({ captures: 2, delta: 12 })).toBe('1 earlier capture · +12 since');
+    expect(D.localHistoryLine({ captures: 4, delta: -3 })).toBe('3 earlier captures · −3 since');
+    expect(D.localHistoryLine({ captures: 3, delta: 0 })).toBe('2 earlier captures · no change');
+  });
+});
+
+describe('scanSite', () => {
+  it('takes a bare domain or a full URL, and never treats words as a search', () => {
+    expect(D.normalizeUrl('example.com')).toBe('https://example.com/');
+    expect(D.normalizeUrl('  http://example.com/a?b=1 ')).toBe('http://example.com/a?b=1');
+    expect(D.normalizeUrl('plumber seattle')).toBeNull();
+    expect(D.normalizeUrl('localhost')).toBeNull();
+    expect(D.normalizeUrl('javascript:alert(1)')).toBeNull();
+    expect(D.normalizeUrl('')).toBeNull();
+  });
+
+  it('asks the worker to open the site in this tab and analyze it, the overlay\'s Analyze flow', async () => {
+    const stub = chromeStub();
+    stub.api.runtime.sendMessage = vi.fn(async () => ({ ok: true, tabId: 7 }));
+    globalThis.chrome = stub.api;
+    expect(await D.scanSite('example.com')).toEqual({ ok: true, tabId: 7 });
+    expect(stub.api.runtime.sendMessage).toHaveBeenCalledWith({ action: 'analyzeResult', url: 'https://example.com/', sameTab: true });
+  });
+
+  it('sends nothing for input that is not a site, or for a Google results page', async () => {
+    const stub = chromeStub();
+    globalThis.chrome = stub.api;
+    expect(await D.scanSite('best plumber near me')).toEqual({ ok: false, error: 'invalid_url' });
+    expect(await D.scanSite('https://www.google.com/search?q=x')).toEqual({ ok: false, error: 'not_analyzable' });
+    expect(stub.messages).toEqual([]);
+  });
+
+  it('reports a sleeping worker instead of throwing', async () => {
+    const stub = chromeStub();
+    stub.api.runtime.sendMessage = vi.fn(async () => { throw new Error('Receiving end does not exist.'); });
+    globalThis.chrome = stub.api;
+    expect(await D.scanSite('example.com')).toEqual({ ok: false, error: 'tab_open_failed' });
   });
 });

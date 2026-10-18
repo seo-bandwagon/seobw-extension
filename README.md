@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.8.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.9.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -76,6 +76,16 @@ already taken for that page or waits for **Scan this page**. It can read a
 tab after you've clicked the toolbar icon there; for other tabs it offers
 "Allow access to analyze other tabs", Chrome's prompt for the optional
 access to all sites.
+
+The **new tab page** (`src/newtab/`, 1.9.0, `chrome_url_overrides.newtab`)
+replaces Chrome's new tab: the recent audits with each page's change in score,
+the latest capture's checks and the next fix (the analyzer's first issue on
+it), read from the newest 50 local captures through `src/lib/sbw-data.js`.
+Opening it sends no request. Its scan box opens a typed site in that tab and
+the popup analyzes it (the 1.8.4 analyze flow). It draws the Neon Night and
+Neon Day wallpapers itself, because an extension's new tab hides the theme's
+own. Adding it added the install warning "Replace the page you see when
+opening a new tab"; see `CHROMEWEBSTORE.md`.
 
 Two matching **Chrome themes** — SEO Bandwagon Neon Night and Neon Day — ship as
 separate Web Store items from their own repo, [seo-bandwagon/seobw-themes](https://github.com/seo-bandwagon/seobw-themes) (a theme is images and

@@ -1,9 +1,10 @@
 // SEO Bandwagon — open a link and analyze it
 //
-// The flow behind the results overlay's Analyze button and the context menu's
-// "Analyze linked page": open the link in a new tab, and once the page it
-// lands on has loaded, open the popup, which analyzes that tab like a click on
-// the icon. A person's click starts each one (owner's rule 2026-10-14, "a
+// The flow behind the results overlay's Analyze button, the context menu's
+// "Analyze linked page" and the new tab page's scan box: open the link in a
+// new tab (or, for the new tab page, in the tab it was asked from), and once
+// the page it lands on has loaded, open the popup, which analyzes that tab
+// like a click on the icon. A person's click starts each one (owner's rule 2026-10-14, "a
 // person starts every scan"); nothing here reads a page by itself.
 //
 // The new tab has no activeTab grant (that comes only from the icon, the
@@ -54,11 +55,14 @@
 
   // `tabs` and `action` are chrome.tabs and chrome.action (stubs in tests).
   function createAnalyzeLink({ tabs, action, setTimer = setTimeout, clearTimer = clearTimeout }) {
-    async function open(url) {
+    // `tabId`: load the link in that tab instead of a new one.
+    async function open(url, { tabId } = {}) {
       if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
         return { ok: false, error: 'invalid_url' };
       }
-      const tab = await tabs.create({ url });
+      const tab = typeof tabId === 'number'
+        ? await tabs.update(tabId, { url })
+        : await tabs.create({ url });
 
       let giveUp = null;
       const listener = (tabId, changeInfo, updated) => {

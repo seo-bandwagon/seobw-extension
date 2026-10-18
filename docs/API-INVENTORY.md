@@ -2,6 +2,34 @@
 
 > Written 2026-09-08 against extension `main` (a4b2c60) and site `main`.
 > Updated the same day, after Phase 1 landed the bridge and the page-checks panel.
+> Updated 2026-10-18: the owner reversed the 2026-09-07 new-tab ruling (below),
+> and 1.9.0 ports the new tab.
+
+## Owner ruling 2026-10-18: the new tab page, reversing 2026-09-07
+
+Verbatim: "Reverse the 2026-09-07 ruling: port the designed new-tab page into
+the main extension, showing progress and tasks, and scope the API endpoint it
+needs." Confirmed by the owner in their own words the same day: "put the new
+tab page into the main SEO Bandwagon extension, including the
+chrome_url_overrides newtab entry in manifest.json".
+
+- **Shipped in 1.9.0:** `chrome_url_overrides.newtab` → `src/newtab/newtab.html`.
+  Progress and tasks from this device's captures: recent audits with each
+  page's change in score, the latest capture's checks, and the next fix (the
+  analyzer's first issue). `recentAudits()`, `topFix()`, `localHistoryLine()`,
+  `normalizeUrl()` and `scanSite()` were added to `src/lib/sbw-data.js`.
+- **Not ported from the design:** `analyzeUrl()` (the scan box uses the 1.8.4
+  `analyzeResult` flow instead, in the same tab) and `domainHistory()` (it would
+  send a request on every new tab; the popup already shows that line).
+- **`management` stays declined.** The 2026-09-07 ruling covered it too, but
+  the new tab page does not need it, and a new permission warning disables every
+  existing install until the user accepts it.
+- **The cost of the override itself:** 1.9.0 adds the install warning "Replace
+  the page you see when opening a new tab" (measured with
+  `chrome.management.getPermissionWarningsByManifest`), so the update disables
+  existing installs until accepted. See `CHROMEWEBSTORE.md`.
+- **Account-level progress and tasks** need a website endpoint. It is scoped,
+  not built, in the SEO Bandwagon vault (`03_Wiki/Extension_Progress_Endpoint_Plan.md`).
 
 Every endpoint the extension can reach, what calls it today, what the themed
 surfaces would want from it, and what each one returns. Written as Phase 0 of
@@ -22,11 +50,11 @@ response before Phase 1 depends on a field. Rows are marked accordingly.
 
 | Assumed | Reality |
 |---|---|
-| `extension/newtab/`, `extension/popup/`, `extension/sidepanel/` themed skins | The new tab was declined and the popup skin would replace a richer popup, so neither was ported. The panel skin shipped as `extension/src/panel/`. |
+| `extension/newtab/`, `extension/popup/`, `extension/sidepanel/` themed skins | The new tab was declined and the popup skin would replace a richer popup, so neither was ported. The panel skin shipped as `extension/src/panel/`. *2026-10-18: the new tab shipped in 1.9.0 as `extension/src/newtab/` (owner ruling above).* |
 | `extension/sbw-data.js`, `extension/theme-sync.js`, `extension/vendor/` | The bridge and the theme seam shipped as `extension/src/lib/sbw-data.js` and `extension/src/lib/theme-sync.js`. `vendor/bandwagon.css` was not ported; the panel uses the shipped tokens. |
 | Any of them can live at the `extension/` root | **No.** `npm run zip` packages only `manifest.json`, `lib/` and `src/`, so a file at the `extension/` root would never reach the store build. Everything went under `src/`. |
 | `src/lib/api.js`, `src/lib/sync-state.js`, `src/lib/domain-history.js` | Present, but at **`extension/src/lib/`** since the folder move (#14). The design's own `<script src="../src/lib/...">` paths already assume this layout and resolve correctly. |
-| `management` permission and `chrome_url_overrides.newtab` are agreed | **Ruled out by the owner on 2026-09-07** when the theme scope was chosen. `extension/manifest.snippet.json` in the design still marks `management` "SHIPPING". |
+| `management` permission and `chrome_url_overrides.newtab` are agreed | **Ruled out by the owner on 2026-09-07** when the theme scope was chosen. `extension/manifest.snippet.json` in the design still marks `management` "SHIPPING". *2026-10-18: reversed for `chrome_url_overrides.newtab` (1.9.0); `management` is still not taken.* |
 | `MANUAL_SMOKE_TEST.md`, `tests/e2e/canary.spec.mjs`, `tests/unit/api.test.js` | All present. |
 
 Everything the design's data bridge depends on inside this repo **does** exist:

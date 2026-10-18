@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>New Tab · SEO Bandwagon</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/theme-mode.js"></script>
+  <link rel="stylesheet" href="../styles/popup.css">
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body class="page-newtab">
+  <main class="nt">
+    <header class="nt-top">
+      <div>
+        <p class="nt-eyebrow">New tab</p>
+        <p class="nt-wordmark">SEO Bandwagon</p>
+      </div>
+      <div class="nt-top-right">
+        <span class="nt-badge" id="ntAccount" data-state="no_key">Signed out</span>
+        <div class="sp-appearance" id="ntAppearance" role="group" aria-label="Appearance" title="Night / Day for the extension's own pages. Auto follows your system setting.">
+          <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+          <button type="button" data-mode="dark" aria-pressed="false">Night</button>
+          <button type="button" data-mode="light" aria-pressed="false">Day</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="nt-scan">
+      <p class="nt-eyebrow">On-page audit</p>
+      <h1>Scan any site from a new tab</h1>
+      <form class="nt-form" id="ntScanForm" autocomplete="off">
+        <label class="nt-sr" for="ntUrl">Site to scan</label>
+        <input id="ntUrl" name="url" type="text" placeholder="example.com" spellcheck="false" inputmode="url">
+        <button type="submit">Scan</button>
+      </form>
+      <p class="nt-scan-note" id="ntScanNote" role="status">Opens the site in this tab and analyzes it, like the toolbar button.</p>
+    </section>
+
+    <section class="nt-grid">
+      <article class="nt-card">
+        <p class="nt-eyebrow">Recent audits</p>
+        <ul class="nt-audits" id="ntAudits">
+          <li class="nt-empty">No captures yet. Scan a site to start the list.</li>
+        </ul>
+      </article>
+
+      <article class="nt-card">
+        <p class="nt-eyebrow">Latest capture</p>
+        <p class="nt-ratio">
+          <span id="ntLatestScore">—</span>
+          <span class="nt-ratio-of" id="ntLatestChecks"></span>
+        </p>
+        <p class="nt-host" id="ntLatestHost">Nothing analyzed yet</p>
+        <div class="nt-bar"><div id="ntLatestBar"></div></div>
+        <p class="nt-note" id="ntHistoryLine"></p>
+      </article>
+
+      <article class="nt-card nt-card-fix" id="ntFixCard" hidden>
+        <p class="nt-eyebrow">Next fix</p>
+        <h3 id="ntFixTitle"></h3>
+        <p class="nt-fix-body" id="ntFixBody"></p>
+        <p class="nt-note" id="ntFixCount"></p>
+        <a href="#" id="ntFixLink" class="nt-minilink" target="_blank" rel="noopener" hidden></a>
+      </article>
+    </section>
+
+    <footer class="nt-foot">
+      <span>Right-click any page → Analyze this page with SEO Bandwagon</span>
+      <span id="ntShortcut"></span>
+      <a href="#" id="ntTheme" target="_blank" rel="noopener" hidden></a>
+    </footer>
+  </main>
+
+  <script src="../lib/sync-state.js"></script>
+  <script src="../lib/api.js"></script>
+  <script src="../lib/tool-links.js"></script>
+  <script src="../lib/sub-scores.js"></script>
+  <script type="module" src="newtab.js"></script>
+</body>
+</html>

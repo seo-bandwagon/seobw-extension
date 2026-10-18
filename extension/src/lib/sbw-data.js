@@ -19,11 +19,14 @@
  * page → sbw-data.js → SBW (src/lib/api.js) → seobandwagon.com, and third-party
  * probes go through the service worker. See docs/API-INVENTORY.md.
  *
- * Scope note: this carries what the themed page-checks panel uses. The design
- * package's bridge also has recentAudits(), topFix(), analyzeUrl() and
- * domainHistory() for its new-tab surface, which was declined (owner ruling,
- * 2026-09-07 — no new-tab override). They are not ported rather than shipped
- * unused; the design package is where to get them if that changes.
+ * Scope note: this carries what the themed page-checks panel and the new tab
+ * page (src/newtab, owner ruling 2026-10-18, reversing the 2026-09-07 one) use.
+ * From the design package's bridge, recentAudits() and topFix() came over for
+ * the new tab. analyzeUrl() did not: the new tab's scan box hands the site to
+ * the worker's analyzeResult flow (src/lib/analyze-link.js), so a scan opens
+ * and analyzes the same way the results overlay's Analyze button does.
+ * domainHistory() did not either: the new tab opens with no request at all,
+ * and the popup already shows the account's history line for a page.
  */
 
 /* Exactly the file list src/popup/popup.js injects before {action:'analyze'} —
@@ -137,6 +140,176 @@ export function pageChecks(data) {
     rows.push(['Reading level', c.readability.level, state(c.readability.fleschKincaid <= 14, true)]);
   }
   return rows.map(([name, note, status]) => ({ name, note, status }));
+}
+
+/* -------------------------------- captures -------------------------------- */
+
+/** A capture's score, by the same rule src/lib/domain-history.js uses. */
+export function captureScore(c) {
+  if (!c) return null;
+  if (typeof c.overallScore === 'number') return c.overallScore;
+  if (c.seoScore && typeof c.seoScore.score === 'number') return c.seoScore.score;
+  return null;
+}
+
+/** When a capture was taken: its `capturedAt`, else the `capture_<ms>` key. */
+export function captureTime(c) {
+  const iso = Date.parse(c && c.capturedAt);
+  if (!Number.isNaN(iso)) return iso;
+  const fromKey = parseInt(String((c && c.key) || '').split('_')[1], 10);
+  return Number.isFinite(fromKey) ? fromKey : 0;
+}
+
+/* A new tab must open instantly, and captures run 17 to 77 KB each (src/lib/
+   api.js, #90), so only the newest are read. A page's change is measured
+   against its previous capture inside this window. */
+export const RECENT_WINDOW = 50;
+
+async function newestCaptures() {
+  const local = chrome.storage.local;
+  const keyTime = (k) => parseInt(k.slice('capture_'.length), 10) || 0;
+  const pick = (keys) => keys.filter((k) => k.startsWith('capture_'))
+    .sort((a, b) => keyTime(b) - keyTime(a))
+    .slice(0, RECENT_WINDOW);
+  if (typeof local.getKeys === 'function') { // Chrome 130+
+    const keys = pick(await local.getKeys());
+    if (!keys.length) return [];
+    const items = await local.get(keys);
+    return keys.map((key) => items[key] && { key, ...items[key] }).filter(Boolean);
+  }
+  const all = await local.get(null);
+  return pick(Object.keys(all)).map((key) => ({ key, ...all[key] }));
+}
+
+/**
+ * The newest capture of each page, newest first, with the change in score
+ * since that page's previous capture (null when there is none in the window).
+ * `[{ url, host, score, grade, delta, at, captures, capture }]`
+ */
+export async function recentAudits(limit = 3) {
+  let list = [];
+  try { list = await newestCaptures(); } catch { return []; }
+  const byUrl = new Map();
+  for (const c of list) {
+    if (!c || !c.url) continue;
+    if (!byUrl.has(c.url)) byUrl.set(c.url, []);
+    byUrl.get(c.url).push(c);
+  }
+  return [...byUrl.values()]
+    .map((caps) => {
+      const sorted = caps.slice().sort((a, b) => captureTime(b) - captureTime(a));
+      const newest = sorted[0];
+      const score = captureScore(newest);
+      const prior = sorted.slice(1).map(captureScore).find((v) => v !== null);
+      return {
+        url: newest.url,
+        host: hostOf(newest.url),
+        score,
+        grade: (newest.seoScore && newest.seoScore.grade) || null,
+        delta: score !== null && prior !== undefined ? score - prior : null,
+        at: captureTime(newest),
+        captures: sorted.length,
+        capture: newest,
+      };
+    })
+    .filter((r) => r.score !== null)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit);
+}
+
+/** What the stored captures alone can say about a page's history. */
+export function localHistoryLine(row) {
+  if (!row) return null;
+  const earlier = row.captures - 1;
+  if (earlier < 1) return 'First capture of this page';
+  const base = earlier + (earlier === 1 ? ' earlier capture' : ' earlier captures');
+  if (row.delta === null || row.delta === undefined) return base;
+  if (row.delta === 0) return base + ' · no change';
+  return `${base} · ${row.delta > 0 ? '+' : '−'}${Math.abs(row.delta)} since`;
+}
+
+/* ---------------------------------- fixes --------------------------------- */
+
+/* One entry per issue string lib/content-analysis.js can push (a test holds
+   the two together). Every body is built from the page's own numbers. */
+const FIXES = {
+  'Missing title': { title: 'No title tag', body: () => 'This page has no title. It is the first line of every search result.', tool: 'gsc' },
+  'Title too short': { title: 'Title too short', body: (d) => `${d.meta.title.length} characters. Aim for 30 to 60.`, tool: 'gsc' },
+  'Title too long': { title: 'Title too long', body: (d) => `${d.meta.title.length} characters. Search results cut off near 60.`, tool: 'gsc' },
+  'Missing meta description': { title: 'No meta description', body: () => 'Google writes its own snippet when you leave this out.', tool: 'gsc' },
+  'Description too short': { title: 'Description too short', body: (d) => `${d.meta.description.length} characters. Aim for 120 to 160.`, tool: 'gsc' },
+  'Description too long': { title: 'Description too long', body: (d) => `${d.meta.description.length} characters. Snippets cut off near 160.`, tool: 'gsc' },
+  'Missing H1': { title: 'No H1 heading', body: () => 'Nothing on the page states what it is about at heading level.', tool: null },
+  'Multiple H1 tags': { title: 'More than one H1', body: (d) => `${d.headings.h1.length} H1 headings on the page. Use one.`, tool: null },
+  'Many images missing alt': { title: 'Images without alt text', body: (d) => `${d.images.missingAlt.count} of ${d.images.total} images have no alt attribute.`, tool: null },
+  'Some images missing alt': { title: 'Images without alt text', body: (d) => `${d.images.missingAlt.count} of ${d.images.total} images have no alt attribute.`, tool: null },
+  'No canonical URL': { title: 'No canonical tag', body: () => 'Nothing tells Google which URL is the original.', tool: 'gsc' },
+  'No structured data': { title: 'No structured data', body: () => 'No JSON-LD, Microdata or RDFa found, so no rich result is possible.', tool: 'rich-results' },
+  'Missing Open Graph': { title: 'No Open Graph tags', body: () => 'Shared links fall back to whatever the platform can guess.', tool: null },
+  'Thin content': { title: 'Thin content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page.`, tool: null },
+  'Light content': { title: 'Light content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page.`, tool: null },
+  'Few internal links': { title: 'Few internal links', body: (d) => `${d.links.internal.count} internal links point from this page to the rest of the site.`, tool: null },
+  'Large DOM': { title: 'Large DOM', body: (d) => `${(d.technical.domElements || 0).toLocaleString()} nodes. Heavy pages render slowly.`, tool: 'pagespeed' },
+  'Hard to read': { title: 'Hard to read', body: (d) => `Reading level ${d.content.readability.level}, grade ${d.content.readability.fleschKincaid}.`, tool: null },
+};
+const TOOL_LABELS = { gsc: 'Open in Search Console', pagespeed: 'PageSpeed Insights', 'rich-results': 'Rich Results Test' };
+
+/** The issue strings that have fix text. */
+export const FIX_ISSUES = Object.freeze(Object.keys(FIXES));
+
+/**
+ * The next fix for a capture: the analyzer's first issue that has fix text, in
+ * the analyzer's own order (not a ranking of ours). `of` is how many issues
+ * the page has. Null for a clean page.
+ */
+export function topFix(data) {
+  const issues = issuesOf(data);
+  const issue = issues.find((i) => FIXES[i]);
+  if (!issue) return null;
+  const spec = FIXES[issue];
+  let body = '';
+  try { body = spec.body(data); } catch { body = ''; }
+  const url = spec.tool ? toolUrl(spec.tool, data.url) : null;
+  return {
+    issue,
+    title: spec.title,
+    body,
+    url,
+    label: url ? TOOL_LABELS[spec.tool] : null,
+    host: hostOf(data.url),
+    of: issues.length,
+  };
+}
+
+/* ---------------------------------- scan ---------------------------------- */
+
+/** A typed site as an http(s) URL, or null. Words are never turned into a search. */
+export function normalizeUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s || /\s/.test(s)) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s);
+    if (!/^https?:$/.test(u.protocol) || !u.hostname.includes('.')) return null;
+    return u.href;
+  } catch { return null; }
+}
+
+/**
+ * Open a typed site in this tab and analyze it there: the worker's
+ * analyzeResult flow, the same one the results overlay's Analyze button uses.
+ * The popup does the analysis (and asks for site access when it has none), so
+ * a person's submit starts the scan and nothing reads a page by itself.
+ */
+export async function scanSite(raw) {
+  const url = normalizeUrl(raw);
+  if (!url) return { ok: false, error: 'invalid_url' };
+  if (!isAnalyzable(url)) return { ok: false, error: 'not_analyzable' };
+  try {
+    return (await chrome.runtime.sendMessage({ action: 'analyzeResult', url, sameTab: true }))
+      || { ok: false, error: 'tab_open_failed' };
+  } catch {
+    return { ok: false, error: 'tab_open_failed' };
+  }
 }
 
 /* --------------------------------- analysis ------------------------------- */

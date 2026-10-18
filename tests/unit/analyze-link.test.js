@@ -10,15 +10,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 await import('../../extension/src/lib/analyze-link.js');
 const SBWAnalyzeLink = globalThis.SBWAnalyzeLink;
 
-let listeners, created, openPopup, open;
+let listeners, created, updated, openPopup, open;
 
 function fakeChrome() {
   listeners = new Set();
   created = [];
+  updated = [];
   openPopup = vi.fn(() => Promise.resolve());
   return {
     tabs: {
       create: vi.fn(async ({ url }) => { const tab = { id: 100 + created.length, url }; created.push(tab); return tab; }),
+      update: vi.fn(async (id, { url }) => { updated.push({ id, url }); return { id, url }; }),
       onUpdated: {
         addListener: (fn) => listeners.add(fn),
         removeListener: (fn) => listeners.delete(fn)
@@ -103,5 +105,22 @@ describe('open(url)', () => {
     }
     expect(created).toEqual([]);
     expect(listeners.size).toBe(0);
+  });
+});
+
+describe('open(url, { tabId })', () => {
+  it('opens the site in the tab it was asked from (the new tab page) and analyzes it there', async () => {
+    const res = await open('https://example.com/', { tabId: 42 });
+    expect(res).toEqual({ ok: true, tabId: 42 });
+    expect(created).toEqual([]);
+    expect(updated).toEqual([{ id: 42, url: 'https://example.com/' }]);
+    loaded(42, 'https://example.com/');
+    await vi.advanceTimersByTimeAsync(SBWAnalyzeLink.POPUP_DELAY_MS);
+    expect(openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses anything that is not http(s), in the same tab too', async () => {
+    expect(await open('chrome://settings', { tabId: 42 })).toEqual({ ok: false, error: 'invalid_url' });
+    expect(updated).toEqual([]);
   });
 });
