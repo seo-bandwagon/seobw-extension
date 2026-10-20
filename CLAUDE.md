@@ -14,8 +14,10 @@ for working in the repo.
 - The two Chrome theme items (Neon Night / Neon Day) are not in this repo: they
   live in seo-bandwagon/seobw-themes. This repo only links to them by store ID
   (`THEME_IDS` in `src/lib/theme-mode.js`).
-- `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — the
-  Playwright canary (weekly + every push to `main`, files an issue on failure).
+- `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — Playwright:
+  the canary against production (weekly + every push to `main`, files an issue
+  on failure) and `serp-collect.spec.mjs`, Collect pages offline against the
+  saved Google pages in `tests/fixtures` (every PR). No test queries Google.
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only:
   just the two files `ROADMAP.md` links to. Don't add planning or spec docs
   to the repo; they go where findings go (below).
@@ -30,7 +32,7 @@ for working in the repo.
 
 ```bash
 npm test                 # vitest, all unit + integration
-npm run test:e2e         # Playwright canary, needs a display
+npm run test:e2e         # Playwright, both e2e specs, needs a display
 npm run zip              # the store zip, comments left out (scripts/build-zip.mjs)
 npm run check:zip        # builds the store zip and checks every referenced file is in it
 npm run bump -- patch    # or minor / x.y.z
