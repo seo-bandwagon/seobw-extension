@@ -414,7 +414,7 @@ npm install
 
 # Run the automated suite
 npm test                 # vitest — unit + integration, ~1s
-npm run test:e2e         # Playwright canary against production, ~15s
+npm run test:e2e         # Playwright: production canary (~15s) + offline Collect pages (~5s)
 
 # Make changes, then reload in chrome://extensions/
 ```
@@ -427,7 +427,8 @@ Three layers of automated test cover this extension, plus a manual dev harness:
 |---|---|---|---|
 | Unit | vitest + JSDOM | `tests/unit/` | Every PR + push |
 | Integration | vitest + JSDOM + fixture HTML | `tests/integration/` | Every PR + push |
-| E2E canary | Playwright + real Chromium + real prod; loads `extension/` and injects popup.js's own file list. With the `SBW_CANARY_KEY` secret (an `sbw_` key with the `captures` scope) it uploads a real capture; without it, it checks the no-key refusal and production's 401 | `tests/e2e/` | Weekly cron + push to main |
+| E2E canary | Playwright + real Chromium + real prod; loads `extension/` and injects popup.js's own file list. With the `SBW_CANARY_KEY` secret (an `sbw_` key with the `captures` scope) it uploads a real capture; without it, it checks the no-key refusal and production's 401 | `tests/e2e/canary.spec.mjs` | Weekly cron + push to main |
+| E2E Collect pages | Playwright + real Chromium, offline; loads `extension/`, answers `www.google.com/search` from the saved pages in `tests/fixtures`, blocks every other request, and clicks the results overlay through Add page 1, Next, Add page 2 (twice), Add page 4 and Export collected CSV. No network, no secrets | `tests/e2e/serp-collect.spec.mjs` | Every PR + push |
 
 CI workflows in `.github/workflows/`. The weekly canary auto-creates a GitHub issue on scheduled failure.
 

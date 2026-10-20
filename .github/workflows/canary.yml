@@ -38,10 +38,12 @@ jobs:
       # from a dedicated account. Set, the canary uploads a real capture;
       # unset, it checks that the extension refuses without a key and that
       # production answers an anonymous capture with 401.
+      # Just the canary: the offline specs run on every PR in test.yml, and a
+      # failure here files an issue about production.
       - name: Run canary under xvfb
         env:
           SBW_CANARY_KEY: ${{ secrets.SBW_CANARY_KEY }}
-        run: xvfb-run --auto-servernum -- npm run test:e2e
+        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/canary.spec.mjs
 
       - name: Upload trace on failure
         if: failure()

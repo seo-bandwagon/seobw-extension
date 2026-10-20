@@ -42,3 +42,36 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: node scripts/check-version-bump.mjs "origin/$BASE_REF"
+
+  e2e-offline:
+    name: E2E (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Full Chromium (not headless-shell) is required for MV3 extensions
+      - name: Install Playwright Chromium + system deps
+        run: npx playwright install --with-deps chromium
+
+      # Only the specs that never leave the runner: Collect pages answers
+      # google.com/search from tests/fixtures and blocks everything else. No
+      # secrets. The production canary stays in canary.yml.
+      - name: Run offline e2e under xvfb
+        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs
+
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-trace-offline
+          path: test-results/
+          retention-days: 7
