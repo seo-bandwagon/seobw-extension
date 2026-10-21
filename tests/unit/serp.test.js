@@ -758,6 +758,48 @@ describe('a real signed-out SERP whose results link through /goto (issue #41)', 
   });
 });
 
+describe('a real SERP with LinkedIn, Instagram and Facebook profiles (1.9.2)', () => {
+  // tests/fixtures/serp-google-social-profiles.html: "seo bandwagon", saved
+  // from Brave on 2026-10-21 and cut down to #rso (scripts, styles, comments,
+  // images and an account email removed). That load was signed in, so its
+  // links are direct. Signed out, the same results link through /goto tokens
+  // (an export at 15:07 UTC that day held only origins), and the profiles show
+  // "LinkedIn · SEO Bandwagon" over "200+ followers" with no URL breadcrumb.
+  const realDoc = ({ goto = false } = {}) => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(path.join(__dirname, '../fixtures/serp-google-social-profiles.html'), 'utf8');
+    const doc = new JSDOM(`<!doctype html><body>${html}</body>`, { url: 'https://www.google.com/search?q=seo+bandwagon' }).window.document;
+    if (goto) {
+      let n = 0;
+      doc.querySelectorAll('#rso a[href^="http"]').forEach((a) => {
+        if (!/(^|\.)google\.[a-z.]+$/.test(new URL(a.href).hostname)) a.setAttribute('href', `/goto?url=CAES${++n}`);
+      });
+    }
+    return doc;
+  };
+
+  it('keeps the profiles in page order when results link through /goto', () => {
+    // 1.9.1 kept 2 of these 5 (seobandwagon.com, yelp.com).
+    const rows = SBWSerp.parseResults(realDoc({ goto: true }));
+    expect(rows.map((r) => [r.position, r.domain])).toEqual([
+      [1, 'seobandwagon.com'],
+      [2, 'linkedin.com'],
+      [3, 'yelp.com'],
+      [4, 'instagram.com'],
+      [5, 'facebook.com']
+    ]);
+    expect(rows.filter((r) => /linkedin|instagram|facebook/.test(r.domain)).every((r) => r.urlResolved === false)).toBe(true);
+  });
+
+  it('keeps them, with their full URLs, when the links are direct', () => {
+    const rows = SBWSerp.parseResults(realDoc());
+    const social = rows.filter((r) => /linkedin|instagram|facebook/.test(r.domain));
+    expect(social.map((r) => r.domain)).toEqual(['linkedin.com', 'instagram.com', 'facebook.com']);
+    expect(social[0].url).toBe('https://www.linkedin.com/company/seo-bandwagon');
+  });
+});
+
 describe('resolving Google redirect links (issue #41)', () => {
   const block = (href, extra = '') => `
     <div class="g"><div>
