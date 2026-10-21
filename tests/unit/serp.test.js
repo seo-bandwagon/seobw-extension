@@ -790,6 +790,40 @@ describe('resolving Google redirect links (issue #41)', () => {
     expect(parse(block('/goto?url=CAESabc', '<cite>10+ comments · 3 years ago</cite>'))).toEqual([]);
   });
 
+  // Signed out, Google shows a social profile as "LinkedIn · SEO Bandwagon"
+  // over "200+ followers", with no URL breadcrumb. Seen live on 2026-10-21 for
+  // "seo bandwagon": LinkedIn second on the page, and missing from the export,
+  // as were Facebook and Instagram, so every later position moved up.
+  it.each([
+    ['LinkedIn · SEO Bandwagon', '200+ followers', 'linkedin.com'],
+    ['Facebook · SEO Bandwagon', '120 followers', 'facebook.com'],
+    ['Instagram · seobandwagon', '40+ followers', 'instagram.com'],
+    ['TikTok · SEO Bandwagon', '1K+ followers', 'tiktok.com'],
+    ['Pinterest · SEO Bandwagon', '20 followers', 'pinterest.com']
+  ])('maps a social profile with no URL breadcrumb by its site name (%s)', (siteName, cite, domain) => {
+    const [row] = parse(block('/goto?url=CAESprofile', `<span class="VuuXrf">${siteName}</span><cite>${cite}</cite>`));
+    expect(row).toBeTruthy();
+    expect(row.domain).toBe(domain);
+    expect(row.url).toBe(`https://${domain}/`);
+    expect(row.urlResolved).toBe(false);
+  });
+
+  it('keeps a social profile in its place, so later results keep their positions', () => {
+    const rows = parse(
+      block('/goto?url=CAESone', '<cite>https://seobandwagon.com</cite>') +
+      block('/goto?url=CAEStwo', '<span class="VuuXrf">LinkedIn · SEO Bandwagon</span><cite>200+ followers</cite>') +
+      block('/goto?url=CAESthree', '<cite>https://www.inc.com › profile › SEO-Bandwagon</cite>'));
+    expect(rows.map((r) => [r.position, r.domain])).toEqual([
+      [1, 'seobandwagon.com'],
+      [2, 'linkedin.com'],
+      [3, 'inc.com']
+    ]);
+  });
+
+  it('still drops a site name that is not one known site', () => {
+    expect(parse(block('/goto?url=CAESabc', '<span class="VuuXrf">Acme Profiles · SEO Bandwagon</span><cite>200+ followers</cite>'))).toEqual([]);
+  });
+
   it('does not merge two different pages on one site known only by origin', () => {
     const rows = parse(
       block('/goto?url=CAESone', '<cite>https://example.com › blog</cite>') +
