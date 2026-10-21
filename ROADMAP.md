@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.9.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.9.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,24 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.9.2 (2026-10-21)
+
+Signed out, Google shows a social profile as "LinkedIn · SEO Bandwagon" over
+"200+ followers": no URL breadcrumb, and a `/goto` link that can't be decoded.
+`resolveResultUrl` placed such a result by its site name only for Reddit,
+YouTube and Quora, so LinkedIn, Facebook and Instagram profiles were dropped
+from the overlay, Copy and both exports, and every later position moved up.
+Seen live on 2026-10-21 for "seo bandwagon" in Brave: page 1 showed LinkedIn
+second, and the export held 4 rows, none of them linkedin.com, facebook.com or
+instagram.com, which paid rank checks of the same search place at 2, 3 and 5.
+
+- **`SITE_NAME_DOMAINS`** adds linkedin, facebook, instagram, tiktok and
+  pinterest, each a name that maps to exactly one site. The row carries the
+  site's origin and `urlResolved: false`, as Reddit's does.
+- A name that is not one known site is still dropped rather than guessed.
 
 ---
 

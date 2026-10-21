@@ -340,12 +340,20 @@
   const CITE_ORIGIN_RE = /^(https?:\/\/[^\s/›…]+)(?:\s|›|\/|$)/;
 
   // Forum and video results often show a site name and "10+ comments · 3
-  // years ago" instead of a URL breadcrumb. Only names that map to exactly
-  // one site belong here.
+  // years ago" instead of a URL breadcrumb, and signed-out social profiles
+  // show "LinkedIn · <name>" over "200+ followers". Without the name these
+  // were dropped and every later position moved up (seen 2026-10-21 on
+  // "seo bandwagon": LinkedIn, Facebook and Instagram all missing). Only names
+  // that map to exactly one site belong here.
   const SITE_NAME_DOMAINS = {
     reddit: 'reddit.com',
     youtube: 'youtube.com',
-    quora: 'quora.com'
+    quora: 'quora.com',
+    linkedin: 'linkedin.com',
+    facebook: 'facebook.com',
+    instagram: 'instagram.com',
+    tiktok: 'tiktok.com',
+    pinterest: 'pinterest.com'
   };
 
   /**
