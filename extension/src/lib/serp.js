@@ -114,8 +114,14 @@
   // (again, belt-and-braces with AD_CONTAINER_SELECTOR above) the shopping/
   // commercial units. An h3 whose block sits inside any of these is
   // rejected outright, regardless of ad-ness.
+  //
+  // 1.9.3: signed in, the AI Overview sits inside #rso as
+  // [data-subtree="aimc"], and its "AI Mode reply for …" h3 has no link of
+  // its own, so it borrowed the answer's first citation and became a result
+  // (tests/fixtures/serp-google-social-profiles.html).
   const REJECTED_CONTAINER_SELECTOR = [
     '[data-attrid*="Overview" i]',
+    '[data-subtree="aimc"]',
     'g-scrolling-carousel',
     '[aria-label*="Top stories" i]',
     '[aria-label*="Videos" i]',
@@ -395,14 +401,36 @@
     return null;
   }
 
+  // Sitelinks (Contact, About Us… under a result) are part of that result,
+  // as DataForSEO counts them too. Signed in they link directly, each with
+  // an h3 and a snippet, in a table that is a sibling of the result's tight
+  // block, so containment alone misses them: seobandwagon.com came back six
+  // times on "seo bandwagon" (2026-10-21). Signed out they link through
+  // /goto with no breadcrumb and were only dropped because they can't be
+  // placed.
+  //
+  // `data-rpos` is an attribute rather than one of Google's obfuscated class
+  // names, and wraps one result with its sitelinks
+  // (tests/fixtures/serp-google-social-profiles.html), so it leads. A page
+  // without it (tests/fixtures/serp-google-commercial-query.html) falls back
+  // to what a sitelink lacks: a URL line and a site name, on the same site as
+  // the result just above. A real second result from that site has both.
+  const RESULT_UNIT_SELECTOR = '[data-rpos]';
+
+  function isSitelink(block, unit, domain, previous) {
+    if (unit || !previous || previous.domain !== domain) return false;
+    const detail = extractResultDetail(block);
+    return !detail.displayUrl && !detail.siteName;
+  }
+
   // DOM-tolerant extraction of organic results from a Google results page
   // root. Candidates are blocks containing a result link (direct, or one of
   // Google's redirects — see resolveResultUrl) with an h3
   // descendant; anything inside an ad container, a non-organic surface
   // (AI Overview/carousels/shopping), or a sponsored-labelled block is
-  // skipped, as is anything nested inside an already-accepted result
-  // (sitelinks). Dedupes by URL. Ignores PAA/video/news carousels — see
-  // parsePaa() for questions.
+  // skipped, as is anything nested inside, or sharing a result unit with, an
+  // already-accepted result (sitelinks). Dedupes by URL. Ignores
+  // PAA/video/news carousels — see parsePaa() for questions.
   function parseResults(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return [];
     const scanRoot = organicScanRoot(root);
@@ -411,6 +439,7 @@
     const rows = [];
     const seenUrls = new Set();
     const acceptedBlocks = [];
+    const acceptedUnits = new Set();
     let position = 0;
 
     scanRoot.querySelectorAll('h3').forEach((h3) => {
@@ -439,15 +468,19 @@
       // whose block is a descendant of (or identical to) a block already
       // accepted, rather than relying on URL dedupe alone.
       if (acceptedBlocks.some((accepted) => accepted.contains(block))) return;
+      const unit = block.closest(RESULT_UNIT_SELECTOR);
+      if (unit && acceptedUnits.has(unit)) return;
 
       const target = resolveResultUrl(anchor, block);
       const domain = target && bareDomain(target.url);
       if (!domain) return;
       if (seenUrls.has(target.key)) return;
       if (!hasQualifyingContent(block)) return;
+      if (isSitelink(block, unit, domain, rows[rows.length - 1])) return;
 
       seenUrls.add(target.key);
       acceptedBlocks.push(block);
+      if (unit) acceptedUnits.add(unit);
 
       position += 1;
       const title = (h3.textContent || '').trim();

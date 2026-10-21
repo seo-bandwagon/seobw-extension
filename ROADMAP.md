@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.9.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.9.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,33 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.9.3 (2026-10-21)
+
+Signed in, Google links results directly instead of through `/goto`, and on
+that layout two things on the "seo bandwagon" page counted as organic results
+(`tests/fixtures/serp-google-social-profiles.html`, saved signed in): the five
+sitelinks under result 1 and the AI Overview's own "AI Mode reply for seo
+bandwagon" heading. `parseResults` returned 11 rows: seobandwagon.com seven
+times, then LinkedIn at 8 instead of 2. Signed out the same blocks link through
+`/goto` with no breadcrumb and were dropped only because they can't be placed,
+so signed-out exports looked right.
+
+- **Sitelinks count as part of their result**, as DataForSEO counts them. They
+  sit in a table beside the result's title block rather than inside it, so the
+  1.0 containment check missed them. Google wraps a result and its sitelinks in
+  one `[data-rpos]` unit, an attribute rather than an obfuscated class, so a
+  second h3 in an accepted result's unit is skipped. Where a page has no
+  `data-rpos` (the 2026-09-16 commercial fixture), a block with no URL line and
+  no site name on the same site as the result just above is a sitelink; a real
+  second result from that site has both and is kept.
+- **The AI Overview is left out.** Signed in, it sits inside `#rso` as
+  `[data-subtree="aimc"]`, and its heading has no link, so it borrowed the
+  answer's first citation. That container joins the rejected surfaces.
+- The commercial, `/goto` and `site:` fixtures return exactly what they did in
+  1.9.2; the commercial page's results are now pinned by a test.
 
 ---
 

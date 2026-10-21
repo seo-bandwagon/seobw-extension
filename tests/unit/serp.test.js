@@ -610,6 +610,14 @@ describe('a real commercial SERP — dates, ratings, PAA, related searches', () 
     return new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
   };
 
+  it('reads every organic result in page order', () => {
+    // Pinned in 1.9.3 so sitelink handling can't merge or drop one.
+    expect(SBWSerp.parseResults(realDoc()).map((r) => r.domain)).toEqual([
+      'reddit.com', 'salesforce.com', 'doublethedonation.com',
+      'givebutter.com', 'kindsight.io', 'virtuous.org'
+    ]);
+  });
+
   it('splits Google\'s date stamp out of the description', () => {
     const rows = SBWSerp.parseResults(realDoc());
     const dated = rows.filter((r) => r.date);
@@ -765,10 +773,10 @@ describe('a real SERP with LinkedIn, Instagram and Facebook profiles (1.9.2)', (
   // links are direct. Signed out, the same results link through /goto tokens
   // (an export at 15:07 UTC that day held only origins), and the profiles show
   // "LinkedIn · SEO Bandwagon" over "200+ followers" with no URL breadcrumb.
-  const realDoc = ({ goto = false } = {}) => {
+  const realDoc = ({ goto = false, rpos = true, fixture = 'serp-google-social-profiles.html' } = {}) => {
     const fs = require('node:fs');
     const path = require('node:path');
-    const html = fs.readFileSync(path.join(__dirname, '../fixtures/serp-google-social-profiles.html'), 'utf8');
+    const html = fs.readFileSync(path.join(__dirname, '../fixtures', fixture), 'utf8');
     const doc = new JSDOM(`<!doctype html><body>${html}</body>`, { url: 'https://www.google.com/search?q=seo+bandwagon' }).window.document;
     if (goto) {
       let n = 0;
@@ -776,8 +784,55 @@ describe('a real SERP with LinkedIn, Instagram and Facebook profiles (1.9.2)', (
         if (!/(^|\.)google\.[a-z.]+$/.test(new URL(a.href).hostname)) a.setAttribute('href', `/goto?url=CAES${++n}`);
       });
     }
+    // The 2026-09-16 commercial page has no data-rpos at all.
+    if (!rpos) doc.querySelectorAll('[data-rpos]').forEach((el) => el.removeAttribute('data-rpos'));
     return doc;
   };
+
+  it('counts the sitelinks under result 1 as part of it when the links are direct (1.9.3)', () => {
+    // 1.9.2 read 11 rows here: seobandwagon.com seven times (five sitelinks
+    // and the AI Overview's heading), so LinkedIn sat at 8 instead of 2.
+    // DataForSEO also counts sitelinks as part of result 1.
+    const rows = SBWSerp.parseResults(realDoc());
+    expect(rows.map((r) => [r.position, r.domain])).toEqual([
+      [1, 'seobandwagon.com'],
+      [2, 'linkedin.com'],
+      [3, 'yelp.com'],
+      [4, 'instagram.com'],
+      [5, 'facebook.com']
+    ]);
+    expect(rows[0].url).toBe('https://seobandwagon.com/');
+  });
+
+  it('still does when Google leaves out data-rpos (1.9.3)', () => {
+    expect(SBWSerp.parseResults(realDoc({ rpos: false })).map((r) => r.domain)).toEqual([
+      'seobandwagon.com', 'linkedin.com', 'yelp.com', 'instagram.com', 'facebook.com'
+    ]);
+  });
+
+  it('leaves out the AI Overview, which sits inside #rso when signed in (1.9.3)', () => {
+    // Its heading has no link, so it borrowed the answer's first citation
+    // (seobandwagon.com/pricing). Moved to another site, that citation can't
+    // pass for a sitelink of result 1.
+    const doc = realDoc();
+    const heading = [...doc.querySelectorAll('#rso h3')].find((h) => /^AI Mode reply/.test(h.textContent));
+    heading.parentElement.querySelectorAll('a[href^="http"]').forEach((a) => a.setAttribute('href', 'https://ontoplist.com/seo-bandwagon'));
+    const rows = SBWSerp.parseResults(doc);
+    expect(rows.find((r) => /AI Mode/.test(r.title))).toBeUndefined();
+    expect(rows.map((r) => r.domain)).toEqual([
+      'seobandwagon.com', 'linkedin.com', 'yelp.com', 'instagram.com', 'facebook.com'
+    ]);
+  });
+
+  it('keeps a real second result on the same site as result 1 (1.9.3)', () => {
+    [true, false].forEach((rpos) => {
+      const rows = SBWSerp.parseResults(realDoc({ rpos, fixture: 'serp-google-site-query.html' }));
+      expect(rows.map((r) => [r.position, r.url])).toEqual([
+        [1, 'https://philanthropy.org/990/nonprofits/religion/'],
+        [2, 'https://philanthropy.org/990/nonprofits/hospitals/']
+      ]);
+    });
+  });
 
   it('keeps the profiles in page order when results link through /goto', () => {
     // 1.9.1 kept 2 of these 5 (seobandwagon.com, yelp.com).
