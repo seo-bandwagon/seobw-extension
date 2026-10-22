@@ -17,10 +17,14 @@ Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-22: Google's update
 server (what Chrome installs from) returns **1.8.0**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-**Submitted by hand in the dashboard on 2026-10-22; which version was uploaded
-was not recorded.** The dashboard's Package tab shows it: mark that Version
-History row Submitted (and the rows before it as included in it). `main` is at
-1.9.3; anything older lacks the two Google-results fixes of 1.9.2 and 1.9.3.
+**Submitted by hand in the dashboard on 2026-10-22: the 1.8.0 package again.**
+A *check* run that day (Submit to Chrome Web Store, run `39856570019`) read
+"Published now: PUBLISHED (1.8.0)" and "Submitted: PENDING_REVIEW (1.8.0)".
+Listing edits made in the dashboard, such as the Support URL change of #77, go
+live only when a review passes, so they wait on this one. 1.9.3 can't be
+submitted until it ends or is cancelled in the dashboard (the API can't cancel
+it). `main` is at 1.9.3; anything older lacks the two Google-results fixes of
+1.9.2 and 1.9.3.
 Not re-checked since
 2026-09-24: the live category was **Productivity › Tools**, not the Developer
 Tools set below (change it in the dashboard with this submission if it still
