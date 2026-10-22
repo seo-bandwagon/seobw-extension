@@ -146,4 +146,4 @@ Notes / observations:
    - Which step failed
    - What you saw vs what you expected
    - A screenshot + the service-worker console output
-3. If the failure looks like the canary caught it too, check the [Actions tab](https://github.com/seo-bandwagon/seo-bw-extension/actions/workflows/canary.yml) — there may already be a `[canary]` auto-issue open.
+3. If the failure looks like the canary caught it too, check the [Actions tab](https://github.com/seo-bandwagon/seobw-extension/actions/workflows/canary.yml) — there may already be a `[canary]` auto-issue open.

@@ -203,7 +203,12 @@ and when. Keep it in step with the table above.
 **Contact Email**: the address on the developer account (owner-held; not
 recorded here).
 
-**Support URL**: https://github.com/seo-bandwagon/seo-bw-extension/issues
+**Support URL**: https://seobandwagon.com/contact
+
+Changed 2026-10-22 (#77): it was this repo's GitHub issues page under its old
+name, `seo-bw-extension`. The repo is private, so store users who clicked
+Support got a 404. Paste the new URL into the dashboard: Store listing tab,
+Additional fields, Support URL.
 
 **Homepage URL**: https://seobandwagon.com
 

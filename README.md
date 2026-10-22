@@ -406,8 +406,8 @@ tests/ preview/ docs/ scripts/   # not shipped
 
 ```bash
 # Clone
-git clone git@github.com:seo-bandwagon/seo-bw-extension.git
-cd seo-bw-extension
+git clone git@github.com:seo-bandwagon/seobw-extension.git
+cd seobw-extension
 
 # Install dev deps (test harness)
 npm install
