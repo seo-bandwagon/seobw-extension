@@ -315,7 +315,21 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.9.1 (release notes, ≤ 10 lines)
+## 6. What's new in 1.9.3 (release notes, ≤ 10 lines)
+
+```
+- Signed in to Google, sitelinks and the AI Overview no longer count as
+  results of their own, so positions in the overlay and exports match Google's.
+```
+
+1.9.2 (if it wasn't published on its own, use this line too):
+
+```
+- Signed out on Google, LinkedIn, Facebook, Instagram, TikTok and Pinterest
+  profiles keep their places in the overlay and the exports.
+```
+
+1.9.1 (if it wasn't published on its own, use these lines too):
 
 ```
 - Signed in, the new tab shows your rank tracking and a short task list:
