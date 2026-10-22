@@ -58,6 +58,16 @@ jobs:
 
       - run: npm ci
 
+      # 2026-10-22: twice in a row this step stalled for the job's whole
+      # 10 minutes on one 7.5 MB font package (fonts-wqy-zenhei) from
+      # azure.archive.ubuntu.com; on 2026-10-21 it took 32 s. A 30 s apt
+      # timeout with retries fails a stalled download fast and moves on to
+      # the next mirror in the runner's mirror list.
+      - name: Make apt give up on a stalled mirror
+        run: |
+          printf '%s\n' 'Acquire::Retries "5";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' \
+            | sudo tee /etc/apt/apt.conf.d/80-retries-timeouts
+
       # Full Chromium (not headless-shell) is required for MV3 extensions
       - name: Install Playwright Chromium + system deps
         run: npx playwright install --with-deps chromium
