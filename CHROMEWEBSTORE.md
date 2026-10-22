@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-18
+> Last Updated: 2026-10-22
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -13,12 +13,15 @@ reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
 items have their own listing text in the seobw-themes repo's `store/LISTING.md`. This file
 summarises both and says where to paste what.
 
-Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-13: the live
-store page shows version 1.7.1, "Updated October 2, 2026", and Google's update
-server (what Chrome installs from) also returns 1.7.1. Check the update server,
+Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-22: Google's update
+server (what Chrome installs from) returns **1.8.0**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-Next submission: **1.7.7** (see Version History). Not re-checked since
+**Submitted by hand in the dashboard on 2026-10-22; which version was uploaded
+was not recorded.** The dashboard's Package tab shows it: mark that Version
+History row Submitted (and the rows before it as included in it). `main` is at
+1.9.3; anything older lacks the two Google-results fixes of 1.9.2 and 1.9.3.
+Not re-checked since
 2026-09-24: the live category was **Productivity › Tools**, not the Developer
 Tools set below (change it in the dashboard with this submission if it still
 is), and the listing had 1 rating (5 stars). The six permission justifications
@@ -86,6 +89,10 @@ English
 git; README there says how each was made and
 how to re-shoot; the 1.7.7 and 1.6.1 sets stay for history). Upload all five
 and both tiles with the 1.8.0 package, replacing whatever the listing shows.
+
+🟡 **Needs a new shot:** the new tab page (1.9.0, with the account cards of
+1.9.1) is in no screenshot. The store allows five, so it replaces one of them
+at the next re-shoot. The 1.9.2 and 1.9.3 fixes change no screen shown.
 
 Take them from the unpacked build at `extension/` on a real public page,
 Night appearance for 1–4 and a Night/Day pair for 5. Show the extension in
