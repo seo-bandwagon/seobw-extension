@@ -346,9 +346,15 @@ export async function analyzeTab(tab, { save = true } = {}) {
   const cached = await chrome.runtime.sendMessage({ action: 'getCachedAnalysis', tabId: tab.id, url: tab.url });
   if (cached && cached.hit) return { data: cached.data, cached: true };
 
+  // #129: a page Chrome never lets an extension script. The panel stops
+  // non-web pages before scanning, so the Chrome Web Store is the one that
+  // reaches here; `problem` carries the words, as for a PDF.
+  const unreadable = globalThis.SBWAnalysisErrors?.unreadablePage(tab.url);
+  if (unreadable) throw Object.assign(new Error(unreadable.body), { problem: unreadable });
+
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ANALYZER_FILES });
-  } catch { /* already injected */ }
+  } catch { /* re-injecting is harmless; a refusal surfaces as the message failing below */ }
 
   const data = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
   if (!data) throw new Error('No analysis returned');

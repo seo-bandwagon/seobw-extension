@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-22
+> Last Updated: 2026-10-23
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -249,6 +249,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | Not submitted |
 | 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-22**, staged publish: run `39858017060` (GitHub release `v1.9.3`, commit `828146d`); the store reads PENDING_REVIEW (1.9.3). Press Publish in the dashboard once approved |
 | 1.9.2 | 2026-10-21 | 1.9.1 plus a fix for signed-out Google results: LinkedIn, Facebook, Instagram, TikTok and Pinterest profiles that show a follower count instead of a URL breadcrumb were dropped from the overlay and the exports, and every later position moved up. They are now placed by their site name, as Reddit, YouTube and Quora already were. No permission, host or content-script change; no data-use change. | Not submitted (folded into 1.9.3) |
 | 1.9.1 | 2026-10-18 | 1.9.0 plus **the new tab's account cards**: signed in, Rank tracking (per tracker, keywords in the top 10 and top 3, moved up and down over 7 days, the biggest movers) and Tasks (the next fix first, then tasks the site derives from rank data) from `GET /api/extension/progress` (scope `progress`), at most one request every 10 minutes (`chrome.storage.session`). A 403 (a key from before the scope) shows Reconnect; a 404 or a network failure shows only the local cards. Signed out or with sync off, nothing is sent. No permission, host or content-script change; the request is a read with the user's own key. | Not submitted (folded into 1.9.3) |
