@@ -21,7 +21,7 @@ Semantic-ish, three digits, driven by what the user would notice:
 - **Every PR that changes what ships bumps the version.** "What ships" is
   anything under `extension/` except Markdown. A fix or small edit bumps the
   patch digit (1.6.0 → 1.6.1); only a feature from the feature list below bumps
-  the minor. Stay on 1.7.x until the next feature from that list lands (1.8.0).
+  the minor. Stay on 1.9.x until the next feature from that list lands (1.10.0).
 - **Bump with `npm run bump -- patch`** (or `minor`, or an explicit `x.y.z`). It
   writes `extension/manifest.json` (`version` and the number leading
   `version_name`), `package.json`, `package-lock.json`, the "Current version"
@@ -1097,15 +1097,24 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.7.0 (Oct 2026)
+## Where we are — v1.9.4 (23 Oct 2026)
 
-- **SEO Analysis tab** — score ring + four sub-scores, issues, page meta with SERP
+Checked against the code at `292686a` (1.9.4), not only the changelogs above.
+Which version the store serves is in `CHROMEWEBSTORE.md`, Version History.
+
+- **SEO Analysis tab** — score ring + four sub-scores (14 checks,
+  `src/lib/sub-scores.js`), issues, page meta with SERP
   preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), headings (with outline export),
   links & images with on-page highlighting and CSV export, nofollow/UGC/sponsored
   surfacing, content stats + n-grams, tech stack detection, technical panel,
-  domain-history strip. `src/content/analyzer.js` (~25 data categories).
+  domain-history strip. `src/content/analyzer.js`. A PDF, SVG, image, feed or
+  text tab says what it is (1.7.9); a page Chrome never lets an extension
+  read says why before anything is tried (1.9.4, `src/lib/analysis-errors.js`).
 - **Link Check** — probes every link on the page, groups results by status,
-  highlights broken ones, exports CSV. `src/popup/link-check.js`, `src/lib/link-check.js`.
+  highlights broken ones, exports CSV. The run belongs to the service worker,
+  so it keeps going when the popup closes (1.7.6); Chrome Web Store links read
+  "Can't check". `src/popup/link-check.js`, `src/lib/link-check.js`,
+  `src/lib/link-check-runs.js`.
 - **Indexability** — redirect chain, response headers, X-Robots-Tag and a
   computed verdict for the current tab or any traced URL. `src/popup/indexability.js`,
   `src/lib/redirect-chain.js`.
@@ -1120,15 +1129,35 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
   auto-detected), client-side NAP extraction (JSON-LD → microdata → heuristic)
   and weighted match scoring, proof screenshot capture (full page by default, with a visible-area
   option; local download only),
-  one-click citation filing against the SEO Bandwagon API.
-  `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`.
+  one-click citation filing against the SEO Bandwagon API. The full-page
+  capture runs in the service worker and survives the popup closing; proofs
+  are JPEG with a time estimate (1.7.8).
+  `src/popup/citations-tab.js`, `src/lib/nap-compare.js`, `src/content/nap-extractor.js`,
+  `src/lib/fullpage-runs.js`.
 - **Side panel** — Citations mode (businesses / campaigns / citations) and
   Link Building mode (outlets / pitches / results), CSV export. `src/sidepanel/`.
 - **SERP overlay** — stats bar under each organic result on Google's own
-  results pages, results/PAA export (20 columns: description, date, rating,
-  site name, breadcrumb, the search's context and, from 1.7.7, an approximate
-  absolute position), location simulator. `src/overlay/serp-overlay.js`,
-  `src/lib/serp.js`.
+  results pages (signed in only; signed out it sends nothing, 1.7.7),
+  results/PAA export (22 columns: description, date, rating,
+  site name, breadcrumb, the search's context, an approximate absolute
+  position, and the two Collect pages columns), location simulator.
+  **Collect pages** (1.8.0): a person adds each results page by click and the
+  pages combine into one deduped list with exact absolute positions.
+  **Analyze** on a result opens it and runs the analysis (1.8.4,
+  `src/lib/analyze-link.js`). Social profiles, signed-in sitelinks and the AI
+  Overview are placed or left out as Google means them (1.9.2, 1.9.3).
+  `src/overlay/serp-overlay.js`, `src/lib/serp.js`, `src/lib/serp-collect.js`.
+- **New tab page** (1.9.0, 1.9.1) — recent audits with each page's score
+  change, the latest capture's checks, the next fix, a scan box, and, signed
+  in, the account's rank tracking summary and derived tasks from
+  `GET /api/extension/progress` (scope `progress`, at most one request every
+  10 minutes). `src/newtab/`.
+- **Onboarding links** (1.7.4) — a first install opens the welcome page on
+  seobandwagon.com; removing the extension opens a one-question survey; every
+  link to the site carries UTM tags (`src/lib/site-links.js`). An update opens
+  nothing yet (1.10.0 below).
+- **Reviews** — a one-time prompt after the fifth analysis (1.6.0) and "Rate
+  us" in the popup footer and on the options page (1.7.2).
 - **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
   (Search Console, PageSpeed Insights, Rich Results Test, Wayback Machine,
   `site:` search, sitemap.xml/robots.txt). `src/lib/tool-links.js`.
@@ -1172,19 +1201,18 @@ composite score — free, no account gate.
 
 **Table-stakes gaps** (broken links, redirects/headers, hreflang, SERP overlay
 and export, location simulator) were the v1.6 candidates and all closed in
-1.6.0. Candidates for the next minor are under "v1.7" below.
+1.6.0. What comes next is under "Feature candidates, still open" below.
 
 ---
 
-## Work plan — fixes from the 2026-10-12 test pass
+## Work plan — fixes from the 2026-10-12 test pass (closed)
 
 A full runtime test of 1.7.1 (installed build, re-checked against `main` at
-1.7.4) filed #41–#56 and diagnosed #37. Every item is still a 1.7.x patch
-unless marked; the existing maintenance lane below is unchanged. Releases
-are named by order, not number: `npm run bump` rewrites version strings.
+1.7.4) filed #41–#56 and diagnosed #37. Every fix it called for shipped,
+1.7.5 to 1.7.9; the list stays as the record. What it left open moved to
+"Still open" below.
 
-**1.7.5: done, on `release/1.7.5` (PR pending).** See its
-changelog above.
+**Done in 1.7.5.**
 - [x] #41 results behind Google `/goto` redirects (breadcrumb origin; no new permission)
 - [x] #42 Google's own properties (Chrome Web Store, Search Console…) count as results
 - [x] #37 Copy PAA / Copy results copy (no `clipboardWrite`, on purpose)
@@ -1209,7 +1237,7 @@ changelog above.
 - [x] #54 flash label leaves stale `textContent`
 - [x] #55 export filenames: page number, path slug, seconds
 
-**Next patch: full-page proof off the popup (larger).**
+**Full-page proof off the popup: done in 1.7.8.**
 - [x] #48 move the scroll-and-stitch loop out of the popup (service worker
       or offscreen document) so a click away doesn't kill it
 - [x] #51 JPEG/WebP proofs and an up-front time estimate (with #48)
@@ -1227,43 +1255,64 @@ changelog above.
 - [x] S29 / S53 / S34 / S55: ask for access from a click; the side panel
       scans only on a click (owner's decision 2026-10-14: a human in the loop)
 - Not confirmed at runtime, left as is: S40, S41.
+- [x] Pin Node for local runs (`.nvmrc` / `engines`), test debt from the pass.
+- [x] The 63-item static review from the same pass (S1–S63): the items
+      still open were checked at runtime for 1.7.9; confirmed ones became
+      #89–#94 and were fixed.
+- [x] #36 canary (production's capture endpoint stopped answering 401 on
+      2026-10-05): website side; closed 2026-10-22.
 
-**Feature candidates (next minor):** see "v1.7 — feature candidates" below.
-1.8.0 took *Capture top N* (#45), built as Collect pages; the next finished
-candidate makes the following minor.
+**Feature candidates:** 1.8.0 took *Capture top N* (#45), built as Collect
+pages, and 1.9.0 took the new tab page. The rest are under "Feature
+candidates, still open" below.
 
-**Open decisions**
+## Still open (checked against `292686a`, 1.9.4)
+
+**Decisions for the owner**
 - #53 toolbar placement: the 1.6.0 changelog chose "after the results" on
   purpose; revisit only with the owner.
 - #41 full destination URLs: resolving `/goto` tokens needs
   `https://www.google.com/*` host access in the service worker. Check the
-  install-warning impact before choosing it; 1.7.5 reports the origin.
-- #36 canary: production's capture endpoint stopped returning the expected
-  401 on 2026-10-05. Website side, not the extension.
+  install-warning impact before choosing it; since 1.7.5 a signed-out row
+  carries the site's origin (`urlResolved: false`).
+
+**Release tooling**
+- [ ] `scripts/cws-publish.mjs` stops a submission only on `PENDING_REVIEW`.
+      A submit run while a version is `STAGED` (approved, waiting for Publish)
+      would upload over the approved package and send the new one back to
+      review. Found 2026-10-23 with 1.9.3 staged and 1.9.4 waiting.
 
 **Test debt**
-- [x] Pin Node for local runs (`.nvmrc` / `engines` = 20, as CI). On Node 25+,
-      `theme-mode.test.js` fails because Node's own global `localStorage`
-      shadows jsdom's.
 - [ ] An e2e check of the SERP Copy buttons **without** pre-granted clipboard
-      permissions (granting them is how #37 hid).
+      permissions (granting them is how #37 hid). `tests/e2e` has none yet.
 - [ ] Refresh the real-SERP fixtures when Google's markup moves; the
-      overlay's new console warning (#44) is the signal.
-- [x] The 63-item static review from the same pass (S1–S63): the items
-      still open were checked at runtime for 1.7.9; confirmed ones became
-      #89–#94 and were fixed.
+      overlay's console warning (#44) is the signal. 1.9.3 added a signed-in
+      fixture (`serp-google-social-profiles.html`).
+- [ ] #74 a test coverage report in CI.
 
 ## Maintenance lane (patch bumps)
 
 Follow-ups from `preview/DESIGN-GAPS.md`; none of these bump the minor:
 
-- [ ] Copy pass on signed-out proof strip and empty states
-- [ ] Keyboard shortcut for Check NAP (extend `commands` in manifest)
+- [ ] Copy pass on signed-out proof strip and empty states. Partly true
+      already: no screen says CitationForge any more, the "Start free" link is
+      gone (signed out, "Create one" opens `/dashboard/api-keys`), and the
+      strip's "40 Directories" matches the 40 entries in
+      `src/lib/directory-matcher.js`. The words themselves have not had the
+      pass.
+- [ ] Keyboard shortcut for Check NAP (extend `commands` in manifest; today it
+      holds only `analyze-current`)
 - [ ] Real directory favicons in the takeover header (cache via
-      `https://www.google.com/s2/favicons`) — cosmetic
-- [ ] Scroll NAP result card into view on completion (partially done)
+      `https://www.google.com/s2/favicons`) — cosmetic; the mark is still the
+      directory's first letter
+- [ ] Scroll NAP result card into view on completion. "Partially done" since
+      1.5.0: `renderResult()` scrolls the result zone with
+      `block: 'nearest'`; what was left undone was never written down, so
+      check it in a real popup before closing it.
 - [ ] Move `lib/content-analysis.js` / `lib/dom-extraction.js` under `src/lib/`
-      (deferred from 1.5.0 — see changelog above)
+      (deferred from 1.5.0 — see changelog above; since #14 they sit in
+      `extension/lib/`). Internal: the injected-file lists in four places
+      change with it.
 
 ## v1.6 — feature candidates (done)
 
@@ -1272,30 +1321,34 @@ simulator), broken-link checker, redirect tracer + headers (Indexability panel),
 and hreflang return-tag validation. See "Changelog — v1.6.0" and "Where we are —
 v1.7.0" above.
 
-## v1.7 — feature candidates
+## v1.7 — feature candidates (done)
 
-1.7.0 shipped the first of these, full-page proof screenshots. The rest are
-candidates for the next minor (1.8.0); until one lands, everything is a 1.7.x
-patch.
+1.7.0 shipped full-page proof screenshots, 1.8.0 *Capture top N* (#45) as
+**Collect pages** (a person adds each page by click, no automatic paging),
+and 1.9.0 the **new tab page** (owner ruling 2026-10-18, reversing the
+2026-09-07 decline), with the account-level progress and tasks in 1.9.1 once
+the site's `GET /api/extension/progress` existed.
 
-- **Search Console row actions, account-backed** — "add this keyword to my rank
-  tracker" on the Queries tab and "send this page to my captures" on the Pages
-  tab, shown only with an API key connected and data collection on. Needs a new
-  site endpoint (`POST /api/v1/keywords`, scope `keywords:write`) and a
-  data-use disclosure change; planned 2026-09-10, not started.
-- ~~**Capture top N / page depth (#45)**~~ — done in 1.8.0 as **Collect
-  pages**: a person adds each page by click (no automatic paging), and the
-  pages combine into one table with an exact absolute position.
-- **Keyword difficulty / volume in SERP overlay** — via DataForSEO through the
-  CitationForge backend (SEOquake gets this from Semrush)
-- **Citation remediation flow** — the `FIX ON THIS SITE` concept from the design
-  mockups: corrected-NAP copy block + deep link to each directory's edit page
-- **Citation delete/undo endpoint** — enables the `Undo` affordance from mockups
-- **Campaign step progress in side panel** — surface the 4-step LangGraph pipeline
+## Feature candidates, still open
+
+Each has an issue. None is started in the code at `292686a`.
+
+- **Search Console row actions, account-backed (#67)** — "add this keyword to
+  my rank tracker" on the Queries tab and "send this page to my captures" on
+  the Pages tab, shown only with an API key connected and data collection on.
+  Needs a site endpoint and a data-use disclosure change. The site's
+  `keywords` scope exists but nothing checks it yet, and there is no
+  `/api/v1/keywords` route; extension keys are minted without `keywords`.
+- **Keyword difficulty / volume in SERP overlay (#68)** — via DataForSEO
+  through the SEO Bandwagon API (the CitationForge backend it once named is
+  retired). SEOquake gets this from Semrush.
+- **Citation remediation flow (#69)** — the `FIX ON THIS SITE` concept from
+  the design mockups: corrected-NAP copy block + deep link to each
+  directory's edit page
+- **Citation delete/undo endpoint (#70)** — enables the `Undo` affordance from
+  mockups
+- **Campaign step progress in side panel (#71)** — surface the 4-step pipeline
   status per running campaign
-- ~~**New tab page**~~ — done in 1.9.0 (owner ruling 2026-10-18, reversing the
-  2026-09-07 decline): recent audits, score changes and the next fix from local
-  captures. Account-level progress and tasks wait on a website endpoint.
 
 ## Non-goals
 
@@ -1310,8 +1363,10 @@ patch.
 
 ## Platform work (tracked elsewhere)
 
-SaaS-side items (GSC OAuth, dashboard rebuild, Search Console data display, site
-health dashboard) live in the main SEO Bandwagon Notion. The old extension
+SaaS-side items (the onboarding page, the fixes list, the endpoints the
+extension calls) are built in the website repo, keepkalm/platform; designs,
+decisions and measurements are in the SEO Bandwagon Obsidian vault (see
+CLAUDE.md → Findings), not in Notion any more. The old extension
 data-capture phases (content/meta/links capture, `/v1/captures` API, Supabase
 tables, `/captures` dashboard) shipped and remain live.
 
