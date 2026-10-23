@@ -84,7 +84,7 @@ English
 | Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-2-link-check-1280x800.png` |
 | Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-3-indexability-1280x800.png` |
 | Screenshot 4 — Google results overlay and Collect pages (page 1 added) | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-4-serp-collect-1280x800.png` |
-| Screenshot 5 — the new tab page in Night and Day | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-5-new-tab-1280x800.png` |
+| Screenshot 5 — the new tab page in Night and Day, signed in | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-5-new-tab-1280x800.png` |
 | Small Promo Tile | 440×280 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-tile-440x280.png` |
 | Marquee Promo Tile | 1400×560 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-marquee-1400x560.png` |
 
@@ -96,10 +96,14 @@ scripts beside it). Captured 2026-10-23 from 1.9.4 (`292686a`). Upload all five
 and both tiles, replacing whatever the listing shows. The 1.8.0 set's files are
 no longer on disk; the 1.6.1 set stays for history.
 
-Screen 5 is the new tab page (1.9.0), signed out: recent audits, the latest
-capture and the next fix, in Night and Day. It replaces the 1.8.0 set's
-Night/Day page-checks panel. The new tab's signed-in account cards (1.9.1) are
-in no screenshot: they need an account with rank-tracking data.
+The set is shot **signed in** (the owner's account, connected through the
+site's own Connect button in a capture profile), so screen 1 shows Domain
+History, screen 4's result bars show domain scores, and screen 5 shows the new
+tab's account cards (1.9.1): rank tracking and tasks, filtered to
+seobandwagon.com's tracker so no client site appears. Screen 5 is the new tab
+page (1.9.0) in Night and Day; it replaces the 1.8.0 set's Night/Day
+page-checks panel. The README beside the set says what was arranged for each
+screen. A signed-out set of the same day is in `store-assets/1.9.4/signed-out/`.
 
 Take them from the unpacked build at `extension/` on a real public page,
 Night appearance for 1–4 and the new tab in Night and Day for 5. Show the extension in
