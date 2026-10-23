@@ -56,8 +56,7 @@ The releases below are in shipping order, and a version number never goes
 back: if one release's website work is late, it and the ones after it wait.
 Within each stage the Google results page comes first, then the account, then
 the popup. Store submissions group them: **A** 1.9.5–1.9.8, **B**
-1.10.0–1.12.0, **C** 1.13.0–1.14.0, **D** 1.15.0–2.0.0 (pending the owner's
-answer on grouping). Every release also updates `CHROMEWEBSTORE.md`,
+1.10.0–1.12.0, **C** 1.13.0–1.14.0, **D** 1.15.0–2.0.0 (owner, 2026-10-23). Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -127,7 +126,7 @@ grant; the coverage report (#74).
 - [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically or on a click
 - [ ] The popup on a results page: the search's features, exports, settings, account state
 - [ ] Exports gain the search's features, AI Overview citations, result type
-- [ ] Your own site highlighted
+- [ ] Your own sites highlighted: every Search Console property the account granted (a local setting until 1.13.0 links the account)
 - [ ] About 20 more Google domains; dates, ratings and ad labels per language; Search Console in other languages (1.8.4's warning names ten Google domains as one host, so this likely adds no warning; measured first)
 
 ### 1.11.0: figures on every result, and the results table
@@ -136,6 +135,8 @@ grant; the coverage report (#74).
 - [ ] The Market Samurai-style table at the panel's place: position, title/URL, result type, query words in title and URL, title length, date, the link figures, domain age, word count, the on-page checklist; cells coloured against the search's median or your pinned page; columns chosen and sortable; same columns in the export
 - [ ] AI Overview sources with the same figures
 - [ ] Plan and the day's allowance shown; at the limit the table says so and links to upgrading
+- [ ] Allowances (owner, 2026-10-23): free accounts with a daily cap, Pro higher, a site-wide monthly ceiling; numbers set in this release's design
+- [ ] Signed out of Google, a row known only by its site gets domain figures and "sign in to Google to see page figures"; no request to Google
 - [ ] Data use: full result URLs sent (today: domains); disclosure, store answers and `/privacy` change
 
 ### 1.12.0: keyword data on Google, into the account (#68)
@@ -148,9 +149,12 @@ grant; the coverage report (#74).
 The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
 the welcome page on minor and major updates; the `status` message; the opt-in
 to record how Google shows the user's own titles; "Check titles" with its
-first-use disclosure. Needs website parts 1 and 2 live.
+first-use disclosure. Needs website parts 1 and 2 live. On the website, the
+onboarding page also sets up Search Console and Analytics for a user who has
+neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 
 ### 1.14.0: your site in the extension (Search Console and Analytics)
+- [ ] One chosen site with a switcher for agencies' other properties
 - [ ] On your own pages: Search Console figures and top searches, Analytics visits, Google's URL Inspection verdict, the page's fixes ordered by impressions and visits
 - [ ] New tab: Search Console trend, top opportunities, fixes list, client audits
 - [ ] Search Console row actions, account-backed (#67)

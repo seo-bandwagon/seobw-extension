@@ -192,6 +192,24 @@ install id, setting or usage leaves with either, so no data-use answer changes.
 
 Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
+### Changes the road to 2.0.0 will make here
+
+ROADMAP.md → "The road to 2.0.0" plans four new data flows. Each one changes
+the table above, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy in the
+release that ships it, and is accepted inside the extension with a specific
+action first; until then none of it is sent:
+
+| Release | What starts leaving the device, and only after the user accepts |
+|---|---|
+| 1.11.0 | Full result URLs on a Google results page (today only bare domains), for the link figures and the results table; signed in only |
+| 1.12.0 | The search text, for keyword volume and difficulty, and from 1.14.0 for the user's own Search Console figures for that search |
+| 1.15.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
+| 1.17.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
+
+No release on that road should add an install warning; any host or
+content-script change is measured with `getPermissionWarningsByManifest`
+first.
+
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality
