@@ -192,6 +192,25 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   // misread as "prior" history for the same URL.
   const analysisStartedAt = Date.now();
 
+  // #129: Chrome's own pages, the new tab, other extensions' pages and the
+  // Chrome Web Store can't be scripted. Say so without trying: a failed
+  // injection left the analyze message with no listener, and Chrome listed
+  // that "Receiving end does not exist" on chrome://extensions as an error.
+  const fileAccess = /^file:/i.test(tab?.url || '')
+    ? await new Promise((resolve) => chrome.extension.isAllowedFileSchemeAccess(resolve))
+    : false;
+  const unreadable = tab && globalThis.SBWAnalysisErrors.unreadablePage(tab.url, { fileAccess });
+  if (unreadable) {
+    showCantAnalyze(unreadable.title, unreadable.body);
+    globalThis.SBWReviewUI?.renderFromStorage();
+    return;
+  }
+
+  // Kept for the log below: a web page that still refuses the analyzer
+  // (an error page, a page Chrome is still loading) is named by this, not
+  // by the "Receiving end does not exist" that follows it.
+  let injectError = null;
+
   try {
     const cached = await chrome.runtime.sendMessage({
       action: 'getCachedAnalysis',
@@ -212,7 +231,11 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
 
     try {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/lib/analysis-errors.js', 'src/content/analyzer.js'] });
-    } catch (e) { /* already injected */ }
+    } catch (e) {
+      // Re-injecting is harmless (analyzer.js guards itself), so a throw here
+      // means Chrome refused the tab.
+      injectError = e;
+    }
 
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
     // #63/#89: a PDF, an SVG or a sitemap, or an analysis that threw. Nothing
@@ -245,7 +268,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       });
     }
   } catch (err) {
-    console.error('Analysis error:', err);
+    console.error('Analysis error:', injectError || err);
     // S29: a web page the extension has no access to, e.g. the tab "Analyze
     // linked page" opened (the toolbar click's activeTab grant isn't there).
     // Ask only from a click; nothing is read until the person allows it.

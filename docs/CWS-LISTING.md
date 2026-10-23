@@ -315,7 +315,14 @@ for lending purposes.
 
 ---
 
-## 6. What's new in 1.9.3 (release notes, ≤ 10 lines)
+## 6. What's new in 1.9.4 (release notes, ≤ 10 lines)
+
+```
+- On a page Chrome doesn't let extensions read, such as the new tab or the
+  Chrome Web Store, the popup says so and why.
+```
+
+1.9.3 (if it wasn't published on its own, use these lines too):
 
 ```
 - Signed in to Google, sitelinks and the AI Overview no longer count as

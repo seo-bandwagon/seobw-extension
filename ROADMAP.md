@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.9.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.9.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,29 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.9.4 (2026-10-23)
+
+Clicking the icon on a page Chrome never lets an extension script (its own
+pages, the new tab, other extensions' pages, the Chrome Web Store) left an
+entry on `chrome://extensions` → Errors: "Analysis error: Could not establish
+connection. Receiving end does not exist" (#129, from the owner's browser).
+The popup swallowed the failed injection as "already injected", then sent the
+analyze message to a tab with nothing listening, and logged Chrome's refusal
+with `console.error`.
+
+- **Those pages are named by address before anything is tried**
+  (`SBWAnalysisErrors.unreadablePage`): the popup says why in plain words, with
+  its own line for the Chrome Web Store and for a file while "Allow access to
+  file URLs" is off, and logs nothing. Before, it said "Try refreshing", which
+  can't help there.
+- **A web page that still refuses the analyzer logs the injection's own
+  error**, not the "Receiving end does not exist" that followed it.
+- The side panel's Scan (`analyzeTab`) uses the same check, so a Chrome Web
+  Store tab gets the store's line instead of "Reload it, then scan again".
+- No permission, host or content-script change; no data-use change.
 
 ---
 

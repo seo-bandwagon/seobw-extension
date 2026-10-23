@@ -47,5 +47,34 @@
     };
   }
 
-  return { nonHtmlKind, describe };
+  // #129: a tab Chrome never lets an extension script, told by its address
+  // → { title, body }, or null when injection may work (a web page, a file
+  // with file access on, or a tab whose address we can't see). The popup
+  // checks this before injecting: injecting there fails, the analyze message
+  // then finds no listener, and Chrome listed that on the Errors page.
+  function unreadablePage(url, { fileAccess = false } = {}) {
+    let u;
+    try { u = new URL(String(url || '')); } catch { return null; }
+    const host = u.hostname.toLowerCase();
+    if (host === 'chromewebstore.google.com' || (host === 'chrome.google.com' && u.pathname.startsWith('/webstore'))) {
+      return {
+        title: 'CHROME WEB STORE PAGE',
+        body: "Chrome doesn't let any extension read Chrome Web Store pages. Open another page and click the icon again."
+      };
+    }
+    if (u.protocol === 'http:' || u.protocol === 'https:') return null;
+    if (u.protocol === 'file:') {
+      if (fileAccess) return null;
+      return {
+        title: 'A FILE ON YOUR COMPUTER',
+        body: 'To analyze files on your computer, turn on "Allow access to file URLs" for SEO Bandwagon on Chrome\'s Extensions page, then click the icon again.'
+      };
+    }
+    return {
+      title: "CHROME DOESN'T ALLOW THIS PAGE",
+      body: "Chrome doesn't let extensions read its own pages, other extensions' pages or the new tab. Open a web page and click the icon again."
+    };
+  }
+
+  return { nonHtmlKind, describe, unreadablePage };
 });
