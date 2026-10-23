@@ -37,6 +37,159 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+- **Major: 2.0.0** is the release that completes the list under "The road to
+  2.0.0" and changes what users can expect of the whole extension, not one
+  part of it.
+
+---
+
+## The road to 2.0.0
+
+2.0.0 is not a list of new features. It is the release where everything the
+extension already has works, is best in class, and is tied into the user's
+SEO Bandwagon account. The audit behind this list (every feature checked
+against the code at `292686a`, the website at `39817892` and the live
+database, 2026-10-23), the competitor benchmark and every decision are in the
+SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
+
+The releases below are in shipping order, and a version number never goes
+back: if one release's website work is late, it and the ones after it wait.
+Within each stage the Google results page comes first, then the account, then
+the popup. Store submissions group them: **A** 1.9.5–1.9.8, **B**
+1.10.0–1.12.0, **C** 1.13.0–1.14.0, **D** 1.15.0–2.0.0 (pending the owner's
+answer on grouping). Every release also updates `CHROMEWEBSTORE.md`,
+`docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
+and the website's `extension-roadmap.ts`.
+
+**Rules for every release:** no paywall after install (core features need no
+account; a free account unlocks the figures); never remove or split up what
+people rely on; network checks only when asked; a new data flow is disclosed
+inside the extension and accepted with a specific action; no release should
+add an install warning (measure with `getPermissionWarningsByManifest` before
+any host or content-script change); the grade is an on-page checklist, never a
+ranking factor.
+
+**Website, now (no extension version):** Link Building spend scoped to the
+caller (`/api/link-building/results` sums every account's jobs); Connect keeps
+`callbackUrl` through sign-in; the uninstall page's description matches what
+it stores; citation campaigns report failure, stop saving scan failures as
+"No listing found", and stop duplicating rows on a rerun; a Candidate tab in
+the Link Building review queue.
+
+**Tooling (no version):** `cws-publish.mjs` stops on `STAGED`; saved real
+Google pages for every layout (featured snippet, local pack, shopping, top
+stories, forums, `udm=web`, signed-out AI Overview, a non-English Google,
+mobile) and real Search Console pages; an e2e Copy check without a clipboard
+grant; the coverage report (#74).
+
+### 1.9.5: the Google results page stops misleading (patch)
+- [ ] Bar below the whole result, with position and Analyze; "Score N · M captures" dropped
+- [ ] People Also Ask containers rejected (no fake results)
+- [ ] 6 metros renamed to Google's names; Compare opens both tabs from the worker
+- [ ] Collect matches repeats on the result link; exports gain "URL known" and the place name
+- [ ] 403 and 429 get their own messages; a visible notice when no results are read
+- [ ] `www.google.co.in` replaces `www.google.in`, which redirects (India gets nothing today)
+- [ ] Search Console: tab switches through `webNavigation.onHistoryStateUpdated`; searches with country and personalisation off
+
+### 1.9.6: the account features work for a normal user (patch)
+- [ ] `hasApiKey` exported; "connected" means a verified key; caches cleared on Connect; 429/503/offline is not "signed out"
+- [ ] Captures refused for auth retried after reconnect; 4xx not retried
+- [ ] Domain-history strip shows only this URL's captures, labelled
+- [ ] Citations: website extraction and compare fixed; JSON-LD subtypes; unchecked filings "unverified"; overclaiming copy removed
+- [ ] Side panel: numeric average (no "NaN%"); failed campaign says failed; review buttons only where the route acts
+- [ ] New tab cards on a second device; Netlify hosts out of the custom API list
+
+### 1.9.7: the score and the page analysis tell the truth (patch)
+- [ ] Words counted in every language; readability only for English pages
+- [ ] Schema check counts JSON-LD, Microdata and RDFa
+- [ ] One check list behind score and sub-scores (https, mixed content, noindex count in both)
+- [ ] Every issue shows its fix and the points it costs
+- [ ] Canonical as a URL with self/elsewhere; `googlebot` meta; duplicate tags; `lang`, viewport, charset
+- [ ] SERP preview truncated by pixel width
+- [ ] Core Web Vitals to the spec, with "No data"
+- [ ] Full ordered H1–H6 tree, skipped and empty headings flagged
+- [ ] Decorative `alt=""` apart from missing alt; word count falls back to the body
+- [ ] Tech stack probed in the page's own world (`world: 'MAIN'`, no new permission)
+
+### 1.9.8: the checks panels are right (patch)
+- [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
+- [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
+- [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
+- [ ] Rendering: warning when JavaScript changes title, canonical or robots; re-analyze after View as
+- [ ] Structured data: Google's required properties, one test per type; nested items validated; Copy JSON-LD whole
+- [ ] Tools: one list everywhere; Search Console link for Domain properties; Count words from the selection; stray tooltip gone
+- [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
+- [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
+
+### 1.10.0: the Google results page, redrawn
+- [ ] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast; one compact line per result
+- [ ] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
+- [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically or on a click
+- [ ] The popup on a results page: the search's features, exports, settings, account state
+- [ ] Exports gain the search's features, AI Overview citations, result type
+- [ ] Your own site highlighted
+- [ ] About 20 more Google domains; dates, ratings and ad labels per language; Search Console in other languages (1.8.4's warning names ten Google domains as one host, so this likely adds no warning; measured first)
+
+### 1.11.0: figures on every result, and the results table
+- [ ] Website `POST /api/v1/serp/metrics`: page referring domains and page rank (the two the grade study supports), domain rank and referring domains (context), domain age from the existing whois lookup; DataForSEO bulk endpoints, cached; per-plan daily cap
+- [ ] Figures on each bar
+- [ ] The Market Samurai-style table at the panel's place: position, title/URL, result type, query words in title and URL, title length, date, the link figures, domain age, word count, the on-page checklist; cells coloured against the search's median or your pinned page; columns chosen and sortable; same columns in the export
+- [ ] AI Overview sources with the same figures
+- [ ] Plan and the day's allowance shown; at the limit the table says so and links to upgrading
+- [ ] Data use: full result URLs sent (today: domains); disclosure, store answers and `/privacy` change
+
+### 1.12.0: keyword data on Google, into the account (#68)
+- [ ] On a click: volume, difficulty, CPC and trend for the search; volumes for related searches and People Also Ask
+- [ ] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet)
+- [ ] Website: keyword metrics and keyword write routes under the `keywords` scope (extension keys lack it today: a 403 shows Reconnect)
+- [ ] Data use: sends the search text; its own first-use disclosure
+
+### 1.13.0: onboarding after feature releases
+The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
+the welcome page on minor and major updates; the `status` message; the opt-in
+to record how Google shows the user's own titles; "Check titles" with its
+first-use disclosure. Needs website parts 1 and 2 live.
+
+### 1.14.0: your site in the extension (Search Console and Analytics)
+- [ ] On your own pages: Search Console figures and top searches, Analytics visits, Google's URL Inspection verdict, the page's fixes ordered by impressions and visits
+- [ ] New tab: Search Console trend, top opportunities, fixes list, client audits
+- [ ] Search Console row actions, account-backed (#67)
+- [ ] On Google: your result's Search Console figures for that search, "add to tracker" (after 1.12.0's consent)
+- [ ] Website: key-scoped Search Console and Analytics reads; the MCP-only analyses as routes; a new scope (403 shows Reconnect)
+
+### 1.15.0: the popup, complete
+- [ ] Social section: every Open Graph and Twitter tag, share-card preview (image on a click, disclosed)
+- [ ] Keyword density for 1–4 words with title/description/H1 presence; n-grams; CSV
+- [ ] Headings click to scroll; link and image tables; stacked highlights with a legend
+- [ ] Page weight; mixed-content items; full header list; robots.txt on a click (optional all-sites access)
+- [ ] Field Core Web Vitals on a click, through the site (disclosed)
+- [ ] Rendering lists what JavaScript added or removed
+- [ ] Issues by severity, jump to section, Copy issues; grade and "N of 14" with what the score measures
+- [ ] "Open in side panel"; the full analysis in the page-checks panel; more tool links
+
+### 1.16.0: history and reports
+- [ ] History from the popup: a timeline per URL, compare two captures
+- [ ] A one-file report of an analysis (HTML that prints to PDF)
+- [ ] Domain-history strip from local captures when signed out
+- [ ] Website: capture pages with history, paging, delete; a summary exact-URL query; links from each synced capture
+
+### 1.17.0: citations, complete
+- [ ] Corrected details and the directory's edit link (#69); Undo (#70); campaign steps and summary (#71)
+- [ ] One directory list served by the site, with Google Business Profile and the aggregators, defunct ones dropped
+- [ ] Proof stored with the citation (uploaded on a click, disclosed)
+- [ ] NAP check log; create a business from the extension; Check NAP shortcut; directory icons; copy pass
+- [ ] Website: queued campaigns with step status and cleanup, plan gate, scanned discovered directories, delete route
+
+### 2.0.0: complete
+- [ ] Link Building for every account: scoring and journalist discovery queued for the caller within a plan budget; pitches editable; chips with counts; the extension never sends email
+- [ ] Connect finished: one key per device, revocable from either side
+- [ ] The full check: every feature signed out and in, Night and Day, fresh profile, saved real pages; `MANUAL_SMOKE_TEST.md` rewritten
+- [ ] Store listing, screenshots, tiles and video; every data-use answer; the website's extension pages true
+- [ ] `lib/` under `src/lib/`
+
+**Not in 2.0.0:** a Firefox port; the extension's own interface in other
+languages; the crowdsourced rank-checker extension; writing content on the
+website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
 
@@ -1056,7 +1209,7 @@ Which version the store serves is in `CHROMEWEBSTORE.md`, Version History.
 - **Onboarding links** (1.7.4) — a first install opens the welcome page on
   seobandwagon.com; removing the extension opens a one-question survey; every
   link to the site carries UTM tags (`src/lib/site-links.js`). An update opens
-  nothing yet (1.10.0 below).
+  nothing yet (1.13.0 below).
 - **Reviews** — a one-time prompt after the fifth analysis (1.6.0) and "Rate
   us" in the popup footer and on the options page (1.7.2).
 - **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
@@ -1232,7 +1385,9 @@ the site's `GET /api/extension/progress` existed.
 
 ## Feature candidates, still open
 
-Each has an issue. None is started in the code at `292686a`.
+Each has an issue. None is started in the code at `292686a`. Each now has a
+place on "The road to 2.0.0" above: #68 in 1.12.0, #67 in 1.14.0, #69–#71 in
+1.17.0.
 
 - **Search Console row actions, account-backed (#67)** — "add this keyword to
   my rank tracker" on the Queries tab and "send this page to my captures" on
@@ -1253,9 +1408,11 @@ Each has an issue. None is started in the code at `292686a`.
 
 ## Non-goals
 
-- **Authority metrics (DA/PA/DR)** — requires a proprietary link index; MozBar and
-  Ahrefs gate theirs behind paid accounts. We don't chase this; our free CWV +
-  citations + score is the counter-position.
+- **An authority score of our own** (a DA/PA/DR of our making): it needs a
+  proprietary link index, and the Bandwagon Score stays an April Fool's joke.
+  Link figures from DataForSEO, labelled as theirs, are in from 1.12.0 (owner,
+  2026-10-17 and 2026-10-23); this non-goal used to rule out all authority
+  metrics.
 - **A runtime build step or runtime dependencies** — the extension ships as
   plain files from `extension/` with no bundler and no npm packages, and that is
   a feature. Keep it. npm is dev-only (tests, `bump`, `zip`, CI).
