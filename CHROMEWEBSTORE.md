@@ -26,6 +26,12 @@ it, and Submit to Chrome Web Store (run `39858017060`) uploaded and submitted
 draft, so the dashboard's listing edits (the Support URL of #77 among them) go
 live with 1.9.3. Once Google approves it, press Publish in the dashboard; until
 then the store serves 1.8.0.
+**2026-10-23: 1.9.3 is approved and waiting for Publish.** A *check* run
+(`39970681148`) read "Published now: PUBLISHED (1.8.0)" and "Submitted:
+STAGED (1.9.3)", and the update server still served 1.8.0. Press Publish in
+the dashboard; submit 1.9.4 only after that, because `scripts/cws-publish.mjs`
+does not yet stop on `STAGED` and would upload over the approved package
+(ROADMAP.md → Still open).
 Not re-checked since
 2026-09-24: the live category was **Productivity › Tools**, not the Developer
 Tools set below (change it in the dashboard with this submission if it still
@@ -186,6 +192,24 @@ install id, setting or usage leaves with either, so no data-use answer changes.
 
 Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
+### Changes the road to 2.0.0 will make here
+
+ROADMAP.md → "The road to 2.0.0" plans four new data flows. Each one changes
+the table above, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy in the
+release that ships it, and is accepted inside the extension with a specific
+action first; until then none of it is sent:
+
+| Release | What starts leaving the device, and only after the user accepts |
+|---|---|
+| 1.11.0 | Full result URLs on a Google results page (today only bare domains), for the link figures and the results table; signed in only |
+| 1.12.0 | The search text, for keyword volume and difficulty, and from 1.14.0 for the user's own Search Console figures for that search |
+| 1.15.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
+| 1.17.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
+
+No release on that road should add an install warning; any host or
+content-script change is measured with `getPermissionWarningsByManifest`
+first.
+
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality
@@ -255,8 +279,8 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | Not submitted |
-| 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-22**, staged publish: run `39858017060` (GitHub release `v1.9.3`, commit `828146d`); the store reads PENDING_REVIEW (1.9.3). Press Publish in the dashboard once approved |
+| 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | Not submitted; held until 1.9.3 is published |
+| 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-22**, staged publish: run `39858017060` (GitHub release `v1.9.3`, commit `828146d`); the store reads PENDING_REVIEW (1.9.3). **Approved, STAGED** on 2026-10-23 (check run `39970681148`): press Publish in the dashboard |
 | 1.9.2 | 2026-10-21 | 1.9.1 plus a fix for signed-out Google results: LinkedIn, Facebook, Instagram, TikTok and Pinterest profiles that show a follower count instead of a URL breadcrumb were dropped from the overlay and the exports, and every later position moved up. They are now placed by their site name, as Reddit, YouTube and Quora already were. No permission, host or content-script change; no data-use change. | Not submitted (folded into 1.9.3) |
 | 1.9.1 | 2026-10-18 | 1.9.0 plus **the new tab's account cards**: signed in, Rank tracking (per tracker, keywords in the top 10 and top 3, moved up and down over 7 days, the biggest movers) and Tasks (the next fix first, then tasks the site derives from rank data) from `GET /api/extension/progress` (scope `progress`), at most one request every 10 minutes (`chrome.storage.session`). A 403 (a key from before the scope) shows Reconnect; a 404 or a network failure shows only the local cards. Signed out or with sync off, nothing is sent. No permission, host or content-script change; the request is a read with the user's own key. | Not submitted (folded into 1.9.3) |
 | 1.9.0 | 2026-10-18 | 1.8.4 plus **a new tab page** (`chrome_url_overrides.newtab`, owner ruling 2026-10-18 reversing the 2026-09-07 one): recent audits with each page's score change since its previous capture, the latest capture's checks, and the next fix (the analyzer's first issue, with fix text built from the page's numbers). Read from the newest 50 local captures; opening a new tab sends no request. The scan box opens a typed site in that tab through the 1.8.4 analyze flow (`analyzeResult` with `sameTab`), and the popup analyzes it. Night, Day and Auto follow the other surfaces, over the Neon 1.0.1 wallpapers as WebP (118 KB together). New install warning, "Replace the page you see when opening a new tab", so the update disables existing installs until accepted (see Permissions Justification). No permission or host added; nothing new is sent. | Not submitted (folded into 1.9.3) |
