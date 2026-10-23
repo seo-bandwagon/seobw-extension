@@ -80,27 +80,29 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready | `extension/src/icons/icon128.png` |
-| Screenshot 1 — popup, Analysis tab with score and issues | 1280×800 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/screenshot-1-analysis-1280x800.png` |
-| Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/screenshot-2-link-check-1280x800.png` |
-| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/screenshot-3-indexability-1280x800.png` |
-| Screenshot 4 — Google results overlay and Collect pages (pages 1–3 added) | 1280×800 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/screenshot-4-serp-collect-1280x800.png` |
-| Screenshot 5 — Page-checks panel in Night and Day | 1280×800 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/screenshot-5-night-day-1280x800.png` |
-| Small Promo Tile | 440×280 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/promo-tile-440x280.png` |
-| Marquee Promo Tile | 1400×560 | ✅ Ready 2026-10-14 (1.8.0) | `store-assets/1.8.0/promo-marquee-1400x560.png` |
+| Screenshot 1 — popup, Analysis tab with score and issues | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-1-analysis-1280x800.png` |
+| Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-2-link-check-1280x800.png` |
+| Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-3-indexability-1280x800.png` |
+| Screenshot 4 — Google results overlay and Collect pages (page 1 added) | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-4-serp-collect-1280x800.png` |
+| Screenshot 5 — the new tab page in Night and Day | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-5-new-tab-1280x800.png` |
+| Small Promo Tile | 440×280 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-tile-440x280.png` |
+| Marquee Promo Tile | 1400×560 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-marquee-1400x560.png` |
 
 ### Screenshot Notes
 
-1.8.0 set: `store-assets/1.8.0/` in the project folder (on disk only, not in
-git; README there says how each was made and
-how to re-shoot; the 1.7.7 and 1.6.1 sets stay for history). Upload all five
-and both tiles with the 1.8.0 package, replacing whatever the listing shows.
+1.9.4 set: `store-assets/1.9.4/` in the project folder (on disk only, not in
+git; README there says how each was made and how to re-shoot, with the capture
+scripts beside it). Captured 2026-10-23 from 1.9.4 (`292686a`). Upload all five
+and both tiles, replacing whatever the listing shows. The 1.8.0 set's files are
+no longer on disk; the 1.6.1 set stays for history.
 
-🟡 **Needs a new shot:** the new tab page (1.9.0, with the account cards of
-1.9.1) is in no screenshot. The store allows five, so it replaces one of them
-at the next re-shoot. The 1.9.2 and 1.9.3 fixes change no screen shown.
+Screen 5 is the new tab page (1.9.0), signed out: recent audits, the latest
+capture and the next fix, in Night and Day. It replaces the 1.8.0 set's
+Night/Day page-checks panel. The new tab's signed-in account cards (1.9.1) are
+in no screenshot: they need an account with rank-tracking data.
 
 Take them from the unpacked build at `extension/` on a real public page,
-Night appearance for 1–4 and a Night/Day pair for 5. Show the extension in
+Night appearance for 1–4 and the new tab in Night and Day for 5. Show the extension in
 action on the page, not the popup floating alone. No competitor names or
 logos anywhere in frame.
 
