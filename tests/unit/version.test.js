@@ -102,12 +102,17 @@ describe('writeVersion', () => {
     const after = readVersions(dir);
     expect(after).toEqual({ manifest: next, versionName: next, pkg: next, lock: next, lockRoot: next, roadmap: next, readme: next });
 
-    // Only the version string moved: swapping it back restores each file byte
-    // for byte (package.json keeps its — escape, the lockfile keeps its
-    // dependency versions).
+    // Only the version string moved: every line that changed differs from the
+    // original by that string alone (package.json keeps its — escape, the
+    // lockfile keeps its dependency versions). Checked line by line because
+    // ROADMAP.md names future versions, the next one among them.
     for (const [f, orig] of Object.entries(originals)) {
-      const now = readFileSync(path.join(dir, f), 'utf8');
-      expect(now.split(next).join(before)).toBe(orig);
+      const was = orig.split('\n');
+      const now = readFileSync(path.join(dir, f), 'utf8').split('\n');
+      expect(now.length).toBe(was.length);
+      now.forEach((line, i) => {
+        if (line !== was[i]) expect(line.split(next).join(before)).toBe(was[i]);
+      });
     }
   });
 
