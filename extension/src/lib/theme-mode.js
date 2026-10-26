@@ -60,11 +60,25 @@
     return resolve(await storedMode(), osMode());
   }
 
+  // A mode this page holds whatever is stored (pin(), 1.9.5): the new tab
+  // follows the installed Neon theme. Never saved, never mirrored.
+  let pinned = null;
+
   function paint(mode) {
     const d = doc();
+    if (pinned) mode = pinned;
     if (d && d.documentElement) d.documentElement.setAttribute('data-theme', mode);
-    try { localStorage.setItem(MIRROR_KEY, mode); } catch (e) { /* private mode etc. */ }
+    if (!pinned) {
+      try { localStorage.setItem(MIRROR_KEY, mode); } catch (e) { /* private mode etc. */ }
+    }
     return mode;
+  }
+
+  /** Hold this page at `mode` through every later repaint; saves nothing. */
+  function pin(mode) {
+    if (!isMode(mode)) throw new Error('mode must be dark or light');
+    pinned = mode;
+    return paint(mode);
   }
 
   /** Synchronous first paint from the mirror (or the OS), before storage answers. */
@@ -149,7 +163,7 @@
   const api = {
     STORAGE_KEY, MIRROR_KEY, THEME_IDS, MODES,
     resolve, osMode, storedMode, resolveMode, applyTheme, setMode, clearMode,
-    watch, controlState, listingUrl, bindControl, paintFromMirror,
+    watch, controlState, listingUrl, bindControl, paintFromMirror, pin,
   };
   root.SBWTheme = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

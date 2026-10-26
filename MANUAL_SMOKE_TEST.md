@@ -126,6 +126,8 @@ On a real content page (e.g. `https://seobandwagon.com/local-seo`) unless noted:
 
 When a new user-facing feature ships, add its check here in the same PR.
 
+- [ ] **New tab follows the theme (1.9.5).** With no Neon theme installed, a new tab is Chrome's own (empty address bar) and the popup shows "Your dashboard on every new tab: add Neon Night or Neon Day". Install Neon Night: a new tab shows the dashboard in Night, with no appearance control; settings say "Neon Night is installed". Settings → New tab → Never: a new tab is Chrome's own. Always, with no theme: the dashboard, with the appearance control. Tick "show a search box and your most visited sites": Chrome asks once; the dashboard then shows both below it, and a search opens your own search engine.
+
 ## Sign-off
 
 - Tester: _______________

@@ -185,7 +185,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   wireLink('linkCitations', () => openDashboardPath('/dashboard/citations'));
   wireLink('linkLinkBuilding', () => openDashboardPath('/dashboard/link-building'));
+  initNewTab();
 });
+
+/* New tab (1.9.5): which page a new tab opens, saved on change. */
+async function initNewTab() {
+  const gate = globalThis.SBWNewTabGate;
+  if (!gate) return;
+  const ids = (globalThis.SBWTheme && SBWTheme.THEME_IDS) || {};
+  const [mode, stored] = await Promise.all([
+    gate.installedThemeMode(ids),
+    chrome.storage.local.get([gate.SETTING_KEY, 'bwNewTabExtras']),
+  ]);
+  const status = document.getElementById('ntThemeStatus');
+  status.textContent = mode
+    ? `Neon ${mode === 'dark' ? 'Night' : 'Day'} is installed, so new tabs can show your dashboard.`
+    : 'Neither Neon Night nor Neon Day is installed, so new tabs stay Chrome\'s own unless you choose Always. Install a theme with the links above.';
+
+  const setting = gate.settingOf(stored[gate.SETTING_KEY]);
+  for (const radio of document.querySelectorAll('input[name="newTab"]')) {
+    radio.checked = radio.value === setting;
+    radio.addEventListener('change', () => {
+      if (radio.checked) chrome.storage.local.set({ [gate.SETTING_KEY]: radio.value });
+    });
+  }
+
+  const extras = document.getElementById('ntExtrasToggle');
+  const granted = await chrome.permissions.contains({ permissions: ['topSites', 'search'] }).catch(() => false);
+  extras.checked = stored.bwNewTabExtras === true && granted;
+  extras.addEventListener('change', async () => {
+    if (!extras.checked) { await chrome.storage.local.set({ bwNewTabExtras: false }); return; }
+    // Asked from this click; a refusal leaves the option off.
+    const ok = await chrome.permissions.request({ permissions: ['topSites', 'search'] }).catch(() => false);
+    extras.checked = ok;
+    await chrome.storage.local.set({ bwNewTabExtras: ok });
+  });
+}
 
 document.getElementById('verifyBtn').addEventListener('click', verifyKeyFromField);
 document.getElementById('disconnectBtn').addEventListener('click', disconnect);

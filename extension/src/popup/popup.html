@@ -18,6 +18,7 @@
 
   <div class="tab-panel active" id="tab-seo">
     <!-- Fix round 1, item 15: lives inside the ANALYSIS tab panel, not a header-level sibling of both panels, so it never renders while the CITATIONS tab is active. -->
+    <div id="themeStrip" class="theme-strip" hidden></div>
     <div id="reviewStrip"></div>
     <div id="content">
       <div class="loading">Analyzing page…</div>
@@ -59,6 +60,7 @@
   <script src="../lib/sub-scores.js"></script>
   <script src="../lib/analysis-errors.js"></script>
   <script src="../lib/review-prompt.js"></script>
+  <script src="../lib/newtab-gate.js"></script>
   <script src="popup.js"></script>
   <script src="../lib/fullpage-plan.js"></script>
   <script src="../lib/proof-store.js"></script>

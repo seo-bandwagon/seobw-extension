@@ -14,18 +14,30 @@
  * does not have the route yet) leaves the page as it is signed out: local
  * cards only. Signed out, opening a new tab sends nothing.
  *
- * Not a search box (Chrome Web Store policy: a new tab page must not change
- * the user's web search). Typed words that are not a site get a note, never a
- * search.
+ * The scan box is not a search box: typed words that are not a site get a
+ * note, never a search.
+ *
+ * 1.9.5: shown only to people with Neon Night or Neon Day installed (or who
+ * chose Always in settings); anyone else is handed to Chrome's own new tab
+ * before anything paints (src/lib/newtab-gate.js). With a Neon theme on, the
+ * page follows that theme's Night or Day. An option adds Chrome's usual items
+ * below the dashboard: a search box that searches with the person's own
+ * default engine (chrome.search, so the extension never changes their search)
+ * and their most visited sites (chrome.topSites). Both permissions are
+ * optional and asked for only when the option is turned on.
  */
 
-import { applyTheme, watchThemeChanges, bindControl, listingUrl } from '../lib/theme-sync.js';
+import { applyTheme, watchThemeChanges, bindControl, listingUrl, installedThemeMode, pinMode } from '../lib/theme-sync.js';
 import {
   recentAudits, checkTotals, topFix, localHistoryLine, accountState, shortcutFor, scanSite, hostOf,
   accountProgress, progressLink,
 } from '../lib/sbw-data.js';
 
 const $ = (id) => document.getElementById(id);
+const GATE = globalThis.SBWNewTabGate;
+const EXTRAS_KEY = 'bwNewTabExtras';
+/* The Neon theme found when this tab opened: 'dark', 'light' or null. */
+let themeOn = null;
 
 /* --------------------------------- audits --------------------------------- */
 
@@ -221,17 +233,63 @@ async function renderShortcut() {
     : 'Click the toolbar icon to analyze a page';
 }
 
-/* The matching Chrome theme for the mode on screen. Without the `management`
-   permission (still declined) the extension cannot tell whether a theme is
-   installed, so this is a quiet footer link, not a prompt. */
+/* With a Neon theme on, the footer offers the other one; without one (the
+   Always setting), the one matching the mode on screen. */
 function renderTheme(mode) {
-  const dark = mode !== 'light';
-  const url = listingUrl(dark ? 'dark' : 'light');
+  const shown = themeOn ? (themeOn === 'dark' ? 'light' : 'dark') : (mode === 'light' ? 'light' : 'dark');
+  const url = listingUrl(shown);
   const a = $('ntTheme');
   if (!url) { a.hidden = true; return; }
+  const name = 'Neon ' + (shown === 'dark' ? 'Night' : 'Day');
   a.href = url;
-  a.textContent = 'Matching Chrome theme: Neon ' + (dark ? 'Night' : 'Day') + ' →';
+  a.textContent = (themeOn ? 'Also available: ' : 'Matching Chrome theme: ') + name + ' →';
   a.hidden = false;
+}
+
+/* ------------------------- Chrome's usual items --------------------------- */
+
+async function renderExtras() {
+  const granted = await chrome.permissions.contains({ permissions: ['topSites', 'search'] }).catch(() => false);
+  if (!granted || !chrome.topSites || !chrome.search) return;
+  $('ntExtras').hidden = false;
+  $('ntSearchForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('ntSearch').value.trim();
+    if (text) chrome.search.query({ text, disposition: 'CURRENT_TAB' });
+  });
+  const sites = (await chrome.topSites.get().catch(() => [])).slice(0, 8);
+  const ul = $('ntTopSites');
+  ul.textContent = '';
+  for (const site of sites) {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = site.url;
+    a.textContent = site.title || hostOf(site.url);
+    a.title = site.url;
+    li.append(a);
+    ul.append(li);
+  }
+}
+
+/* ---------------------------------- gate ---------------------------------- */
+
+/* The dashboard or Chrome's own new tab (src/lib/newtab-gate.js). Returns null
+   once the tab has been handed over. */
+async function gate() {
+  const [mode, stored] = await Promise.all([
+    installedThemeMode(),
+    chrome.storage.local.get([GATE.SETTING_KEY, EXTRAS_KEY]).catch(() => ({})),
+  ]);
+  if (GATE.decide(stored[GATE.SETTING_KEY], mode) === 'chrome') {
+    try {
+      const tab = await chrome.tabs.getCurrent();
+      if (tab && tab.id != null) {
+        await chrome.tabs.update(tab.id, { url: GATE.CHROME_NEW_TAB_URL });
+        return null;
+      }
+    } catch (_) { /* no handoff possible: show the dashboard rather than a blank tab */ }
+  }
+  return { mode, extras: stored[EXTRAS_KEY] === true };
 }
 
 /* ---------------------------------- scan ---------------------------------- */
@@ -255,9 +313,22 @@ async function onScan(e) {
 /* ---------------------------------- boot ---------------------------------- */
 
 (async function init() {
-  renderTheme(await applyTheme());
-  bindControl($('ntAppearance'), renderTheme);
-  watchThemeChanges(renderTheme);
+  const ready = await gate();
+  if (!ready) return;
+  themeOn = ready.mode;
+  if (themeOn) {
+    // The installed theme decides this page's look, through every later
+    // repaint; the saved Night/Day choice for the popup and panel is left alone.
+    pinMode(themeOn);
+    $('ntAppearance').hidden = true;
+    renderTheme(themeOn);
+  } else {
+    renderTheme(await applyTheme());
+    bindControl($('ntAppearance'), renderTheme);
+    watchThemeChanges(renderTheme);
+  }
+  document.documentElement.classList.remove('nt-pending');
+  if (ready.extras) renderExtras();
 
   $('ntScanForm').addEventListener('submit', onScan);
 

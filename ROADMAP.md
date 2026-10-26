@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.9.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.9.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,42 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.9.5 (2026-10-26)
+
+People who installed the extension for its page checks found their new tab
+replaced by our dashboard ("hijacked", owner, 2026-10-26). The original design
+showed the dashboard only to people who installed one of our two Chrome themes,
+and detected the theme with `management`; on 2026-10-18 the new tab came back
+without the detection (owner ruling 2026-09-07 had declined both). 1.9.5 puts
+the detection back (owner ruling 2026-10-26: "add the management permission and
+build it").
+
+- **The new tab follows the theme** (`src/lib/newtab-gate.js`). With Neon Night
+  or Neon Day installed and on (found by store id, or by name for an unpacked
+  copy), the dashboard shows in that theme's Night or Day; the saved Night/Day
+  choice for the popup and panel is left alone (`SBWTheme.pin`). Without one,
+  the page hands its tab to `chrome://new-tab-page/` before anything paints, so
+  the person sees Chrome's own new tab, with an empty address bar (checked in
+  Chrome 156).
+- **A setting**: New tab, in settings: with a Neon theme (default), Always, or
+  Never.
+- **Chrome's usual items, optional**: a search box that searches with the
+  person's own default engine (`chrome.search`) and their most visited sites
+  (`chrome.topSites`), below the dashboard. Both are `optional_permissions`,
+  asked for from the checkbox.
+- **The prompt**: the popup shows "Your dashboard on every new tab: add Neon
+  Night or Neon Day" until a theme is on or "Not now"; settings say which theme
+  was found.
+- **Install warnings** (measured with `getPermissionWarningsByManifest`): 1.9.4's
+  three plus "Manage your apps, extensions, and themes". The optional
+  permissions add none. As with 1.9.0, existing copies turn off on the update
+  until the user accepts.
+- **Chrome's own "Change back to Google?" dialog** still appears on the first new
+  tab after install, even when the tab is handed to Chrome's own; its "Change it
+  back" disables the extension (Chromium `extension_settings_overridden_dialog.cc`).
 
 ---
 

@@ -890,3 +890,40 @@ function exportLinksCsv(data) {
   downloadCsv('links', withTruncationRow(rows, LINKS_CSV_COLUMNS), LINKS_CSV_COLUMNS, data && data.url);
   return true;
 }
+
+/* ---------- the "add a Neon theme" strip (1.9.5) ---------- */
+
+// The new tab shows the dashboard only with Neon Night or Neon Day installed
+// (src/lib/newtab-gate.js). Until one is, and until "Not now", the popup says
+// so. Shown only under the default setting; Always and Never need no theme.
+async function renderThemeStrip() {
+  const gate = globalThis.SBWNewTabGate;
+  const theme = globalThis.SBWTheme;
+  const el = document.getElementById('themeStrip');
+  if (!gate || !theme || !el) return;
+  const [mode, stored] = await Promise.all([
+    gate.installedThemeMode(theme.THEME_IDS),
+    chrome.storage.local.get([gate.SETTING_KEY, gate.PROMPT_DISMISSED_KEY]),
+  ]);
+  if (!gate.shouldPrompt({ setting: stored[gate.SETTING_KEY], themeMode: mode, dismissed: stored[gate.PROMPT_DISMISSED_KEY] === true })) return;
+  const night = theme.listingUrl('dark');
+  const day = theme.listingUrl('light');
+  if (!night || !day) return;
+  const link = (href, text) => {
+    const a = document.createElement('a');
+    a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.textContent = text;
+    return a;
+  };
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.textContent = 'Not now';
+  dismiss.addEventListener('click', async () => {
+    await chrome.storage.local.set({ [gate.PROMPT_DISMISSED_KEY]: true });
+    el.hidden = true;
+  });
+  el.textContent = '';
+  el.append('Your dashboard on every new tab: add ', link(night, 'Neon Night'), ' or ', link(day, 'Neon Day'), dismiss);
+  el.hidden = false;
+}
+
+renderThemeStrip();

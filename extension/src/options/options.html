@@ -51,6 +51,21 @@
         <li><a href="#" id="linkThemeNight" target="_blank" rel="noopener">Chrome theme: SEO Bandwagon — Neon Night</a></li>
         <li><a href="#" id="linkThemeDay" target="_blank" rel="noopener">Chrome theme: SEO Bandwagon — Neon Day</a></li>
       </ul>
+    </div>
+
+    <div class="section" id="newTabSection">
+      <div class="section-title">New tab</div>
+      <p class="hint" id="ntThemeStatus">Checking for Neon Night or Neon Day…</p>
+      <div class="radio-group" role="radiogroup" aria-label="New tab">
+        <label class="radio-row"><input type="radio" name="newTab" value="theme"> Show my dashboard when Neon Night or Neon Day is installed</label>
+        <label class="radio-row"><input type="radio" name="newTab" value="always"> Always show my dashboard</label>
+        <label class="radio-row"><input type="radio" name="newTab" value="off"> Never: keep Chrome's new tab</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="ntExtrasToggle">
+        <label for="ntExtrasToggle">Below the dashboard, show a search box and your most visited sites</label>
+      </div>
+      <p class="help-text">Searches go to your own search engine. Chrome asks you once to allow the extension to read your most visited sites; nothing is sent to SEO Bandwagon.</p>
       <p class="hint rate-hint">Enjoying SEO Bandwagon? <a href="#" data-review-link target="_blank" rel="noopener">Rate it on the Chrome Web Store</a>.</p>
     </div>
 
@@ -77,6 +92,7 @@
     <div class="status" id="status"></div>
   </div>
 
+  <script src="../lib/newtab-gate.js"></script>
   <script src="../lib/api.js"></script>
   <script src="../lib/citations-ui.js"></script>
   <script src="../lib/options-logic.js"></script>
