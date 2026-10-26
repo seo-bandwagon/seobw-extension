@@ -41,20 +41,18 @@ export const controlState = () => required().controlState();
 export const bindControl = (el, onChange) => required().bindControl(el, onChange);
 export const listingUrl = (mode) => required().listingUrl(mode);
 export const osMode = () => required().osMode();
+export const pinMode = (mode) => required().pin(mode);
 
 /**
- * Which Bandwagon Chrome theme is enabled right now.
+ * Which Bandwagon Chrome theme is enabled right now: 'dark' (Neon Night),
+ * 'light' (Neon Day) or null.
  *
- * Always null. Answering it needs `chrome.management.getAll()`, and the
- * `management` permission was declined for this extension (owner ruling,
- * 2026-09-07) because it raises the "Manage your apps, extensions and themes"
- * install warning for a cosmetic gain. Appearance therefore follows the user's
- * own Night/Day/Auto choice and then the OS setting, which is what
- * SBWTheme.resolveMode() already does.
- *
- * Kept as an exported no-op so the design's surfaces import cleanly and so a
- * future decision to take the permission has one obvious place to land.
+ * Since 1.9.5 the extension holds `management` (owner ruling 2026-10-26,
+ * reversing 2026-09-07): the new tab shows the dashboard only with a Neon
+ * theme on. The answer comes from src/lib/newtab-gate.js, which a page loads
+ * as a classic script; without it, or without the API, this is null.
  */
 export async function installedThemeMode() {
-  return null;
+  const gate = globalThis.SBWNewTabGate;
+  return gate ? gate.installedThemeMode(required().THEME_IDS) : null;
 }

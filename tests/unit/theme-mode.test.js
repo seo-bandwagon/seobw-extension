@@ -51,6 +51,22 @@ describe('SBWTheme', () => {
     expect(await S.storedMode()).toBeNull();
   });
 
+  // 1.9.5: the new tab follows the installed Neon theme. Its pin must win over
+  // the load-time repaint, and must not touch the saved choice or the mirror
+  // the other surfaces paint from first.
+  it('pin() holds a mode for this page through later repaints, and saves nothing', async () => {
+    const stub = chromeStub({ bwThemeMode: 'light' });
+    const S = await load(stub, false);
+    const pending = S.applyTheme(); // the repaint theme-mode.js starts on load
+    S.pin('dark');
+    await pending;
+    await S.applyTheme();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(stub.store()[S.STORAGE_KEY]).toBe('light');
+    expect(localStorage.getItem(S.MIRROR_KEY)).not.toBe('dark');
+    expect(() => S.pin('auto')).toThrow();
+  });
+
   it('setMode() writes bwThemeMode and paints; clearMode() REMOVES the key (never writes "auto")', async () => {
     const stub = chromeStub();
     const S = await load(stub, true);

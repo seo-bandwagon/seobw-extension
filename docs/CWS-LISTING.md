@@ -107,7 +107,7 @@ SIDE PANELS
 A side panel keeps the page checks open while you work, with pass, warning and fail counts for the page in the current tab. A second view holds your citations and link building work.
 
 NEW TAB
-Each new tab becomes a summary of your recent work: the sites you analyzed most recently, each with its score and how far it moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. A box takes a site address, opens it in that tab and analyzes it. It is not a search box; it only opens addresses. With an account connected, it also shows your rank tracking, the keywords that moved most and a short list of tasks worked out from it, asked of your account at most every ten minutes. Signed out, it reads only analyses stored on your computer and opening a new tab sends nothing. The only way back to the standard new tab is to turn the whole add-on off or remove it.
+With SEO Bandwagon's Neon Night or Neon Day theme installed, each new tab becomes a summary of your recent work: the sites you analyzed most recently, each with its score and how far it moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. Without one of those themes your new tab stays Chrome's own, and a setting can show the summary always or never. A box takes a site address, opens it in that tab and analyzes it; it only opens addresses. Another setting adds Chrome's usual items below the summary: a box that queries your own default engine, and your most visited sites. With an account connected, it also shows your rank tracking, the keywords that moved most and a short list of tasks worked out from it, asked of your account at most every ten minutes. Signed out, it reads only analyses stored on your computer and opening a new tab sends nothing.
 
 EXPORTS AND SHORTCUTS
 Headings, links, images and the results of each check export as spreadsheet files you save yourself, and the whole analysis can be saved as one JSON file. File names include the page and the time, so one export never replaces another. A right-click menu opens the current address in tools you already use, including Search Console's URL inspection, PageSpeed Insights and the Wayback Machine, and can count the words and characters in any text you select.
@@ -236,6 +236,22 @@ any existing content, including ads. Nothing is fetched from Google by the
 extension itself; the stats lookup goes through our own background service
 worker to our own API.
 
+**`management`** (1.9.5) — reads the list of installed themes with
+`chrome.management.getAll()` to find out whether SEO Bandwagon's own Neon Night
+or Neon Day theme is installed and turned on. The new tab page shows the
+extension's dashboard only with one of them (or when the user chooses "Always"
+in settings); otherwise it hands the tab straight to Chrome's own new tab
+before anything is drawn. The popup and settings page use the same answer to
+offer the themes. Nothing it reads leaves the browser, and the extension never
+enables, disables or removes anything.
+
+**`optional_permissions`: `topSites`, `search`** (1.9.5) — requested only when
+the user turns on "show a search box and your most visited sites" below the
+dashboard in settings. The search box searches with the user's own default
+search engine through `chrome.search.query()`, so the extension never changes
+anyone's search settings; the most-visited list comes from
+`chrome.topSites.get()`. Neither is sent anywhere.
+
 **`web_accessible_resources`** — not present in this manifest. `src/history/
 history.html` (the capture-history page) is only ever opened by
 `chrome.tabs.create(chrome.runtime.getURL(...))` from the extension's own
@@ -257,14 +273,18 @@ extension this way.
 ## 4. Single-purpose statement
 
 SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the
-user's recent analyses and the first issue found on its new tab page, and syncs that
+user's recent analyses and the first issue found on its new tab page when the user
+has installed its Neon Night or Neon Day theme, and syncs that
 analysis — and the local-SEO citation and outreach records derived from it — to
 the user's own SEO Bandwagon account.
 
 The new tab page (`chrome_url_overrides.newtab`, 1.9.0) is the same purpose on
-another surface: it reads only the analyses this extension stored, holds no web
-search box (Chrome Web Store quality guidelines: a new tab page must not change
-the user's search experience), and sends no request when it opens.
+another surface: it reads only the analyses this extension stored and sends no
+request when it opens signed out. From 1.9.5 it appears only with the Neon Night
+or Neon Day theme installed (or the user's "Always" setting); anyone else keeps
+Chrome's own new tab. Its optional search box (off unless the user turns it on)
+searches with the user's own default engine through `chrome.search`, so it never
+changes the user's search experience.
 
 ---
 
@@ -313,9 +333,22 @@ for lending purposes.
 
 **Privacy policy**: https://seobandwagon.com/privacy
 
+**1.9.5: `management`, `topSites`, `search`.** The installed-theme check, the
+most-visited list and searches stay in the browser; none is collected, stored
+by us or sent. A search goes to the user's own default search engine, exactly as
+one typed into Chrome's own new tab would.
+
 ---
 
-## 6. What's new in 1.9.4 (release notes, ≤ 10 lines)
+## 6. What's new in 1.9.5 (release notes, ≤ 10 lines)
+
+```
+- Your new tab shows the SEO Bandwagon dashboard only when the Neon Night or
+  Neon Day theme is installed; otherwise it stays Chrome's own. Settings can
+  show it always or never, and add a search box and your most visited sites.
+```
+
+1.9.4 (if it wasn't published on its own, use these lines too):
 
 ```
 - On a page Chrome doesn't let extensions read, such as the new tab or the
@@ -407,9 +440,16 @@ nothing. Removing the extension opens a one-question survey page on
 seobandwagon.com. Neither needs a permission or sends anything but the
 extension's version (survey only).
 
-**New tab page (1.9.0)**: open a new tab. The extension's page replaces
-Chrome's (`chrome_url_overrides.newtab`; Chrome shows "Replace the page you see
-when opening a new tab" at install). It lists recent analyses from
+**New tab page (1.9.0, gated in 1.9.5)**: the extension's page replaces Chrome's
+(`chrome_url_overrides.newtab`; Chrome shows "Replace the page you see when
+opening a new tab" at install) only when SEO Bandwagon's Neon Night
+(`bomhiblgnbmpgbddhocomnbijdkmpbhl`) or Neon Day
+(`ldifldabjbffldoekbebpickddaiiggm`) theme is installed, found with
+`chrome.management.getAll()`. Without either, a new tab is handed to Chrome's own
+(`chrome://new-tab-page/`) before anything is drawn. To review the page, install
+either theme, or choose "Always show my dashboard" under New tab in the
+extension's settings; the optional search box and most-visited sites are a
+checkbox there, which asks for `topSites` and `search`. It lists recent analyses from
 `chrome.storage.local`. Signed out it sends no request; with an account
 connected it reads `GET /api/extension/progress` at most every 10 minutes for
 its Rank tracking and Tasks cards (a key from before that route's scope gets a

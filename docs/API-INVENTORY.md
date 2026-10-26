@@ -21,6 +21,7 @@ chrome_url_overrides newtab entry in manifest.json".
 - **Not ported from the design:** `analyzeUrl()` (the scan box uses the 1.8.4
   `analyzeResult` flow instead, in the same tab) and `domainHistory()` (it would
   send a request on every new tab; the popup already shows that line).
+- **2026-10-26: `management` added in 1.9.5** (owner ruling): the new tab shows the dashboard only with Neon Night or Neon Day installed. The note below is the earlier state.
 - **`management` stays declined.** The 2026-09-07 ruling covered it too, but
   the new tab page does not need it, and a new permission warning disables every
   existing install until the user accepts it.

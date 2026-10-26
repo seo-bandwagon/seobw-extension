@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-23
+> Last Updated: 2026-10-26
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -67,7 +67,7 @@ Developer Tools
 **Single Purpose**
 
 ```
-SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the user's recent analyses and the first issue found on its new tab page, and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
+SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the user's recent analyses and the first issue found on its new tab page when the user has installed its Neon Night or Neon Day theme, and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
 ```
 
 **Primary Language**
@@ -135,11 +135,13 @@ per-permission fields.
 | `https://search.google.com/search-console/*` | content_scripts | Queries-tab "open in Google Search" icons and compare-mode percent badges, computed from the table already on the page. Nothing fetched or sent. |
 | `https://www.google.com/search*` + 9 ccTLDs | content_scripts | Results overlay: appends a stats bar and toolbar, never hides or moves anything including ads. Sends only bare result domains to our API, never the query. The CSV and clipboard exports stay entirely on the device and now also carry each result's own snippet plus the search context read from the URL — none of it is transmitted. |
 | `externally_connectable` → `https://seobandwagon.com/*` | manifest key | Lets the dashboard's "Connect Chrome extension" button hand over a freshly minted API key. No other origin can message the extension. |
-| `chrome_url_overrides.newtab` → `src/newtab/newtab.html` | manifest key | 1.9.0. The new tab page lists the user's recent analyses with score changes and the first issue found, all read from `chrome.storage.local`; signed out it sends no request on open, and with an account connected it reads the account's rank tracking summary and derived tasks (`GET /api/extension/progress`) at most every 10 minutes. It has no web search box. Its scan box opens a typed site in that tab and the popup analyzes it. Owner ruling 2026-10-18, reversing the 2026-09-07 one. |
+| `chrome_url_overrides.newtab` → `src/newtab/newtab.html` | manifest key | 1.9.0. The new tab page lists the user's recent analyses with score changes and the first issue found, all read from `chrome.storage.local`; signed out it sends no request on open, and with an account connected it reads the account's rank tracking summary and derived tasks (`GET /api/extension/progress`) at most every 10 minutes. It has no web search box. Its scan box opens a typed site in that tab and the popup analyzes it. Owner ruling 2026-10-18, reversing the 2026-09-07 one. From 1.9.5 it shows only with Neon Night or Neon Day installed (or the Always setting); otherwise it hands the tab to Chrome's own new tab before drawing anything. |
+| `management` | permissions | 1.9.5. `chrome.management.getAll()` tells the new tab, popup and settings whether SEO Bandwagon's Neon Night or Neon Day theme is installed and on; the dashboard shows only then. Nothing it reads leaves the browser; it never enables, disables or removes anything. Owner ruling 2026-10-26, reversing the 2026-09-07 one. |
+| `topSites`, `search` | optional_permissions | 1.9.5. Asked only from the settings checkbox that adds a search box (the user's own default engine, `chrome.search.query`) and the most-visited sites (`chrome.topSites.get`) below the dashboard. Neither is sent anywhere. |
 
-Not present and deliberately so: `management`, `web_accessible_resources`,
-`identity`, `oauth2`. `management` stays declined after the 2026-10-18 ruling:
-the new tab page does not need it.
+Not present and deliberately so: `web_accessible_resources`, `identity`,
+`oauth2`. `management` was declined on 2026-09-07 and added in 1.9.5 (owner
+ruling 2026-10-26), so the new tab shows the dashboard only with a Neon theme.
 
 **1.9.0 adds an install warning, and that disables existing installs.** Measured
 2026-10-18 with `chrome.management.getPermissionWarningsByManifest`: 1.8.4 shows
@@ -151,6 +153,16 @@ a third, "Replace the page you see when opening a new tab". Chrome's rule
 Every existing user's copy turns off on the 1.9.0 update until they re-enable
 it, and Chrome also shows its own "Change back to Google?" dialog the first
 time an extension controls the new tab.
+
+**1.9.5 adds a fourth install warning.** Measured 2026-10-26 with
+`getPermissionWarningsByManifest`: 1.9.4's three plus "Manage your apps,
+extensions, and themes" (`management`). The optional `topSites` and `search` add
+none at install. Existing copies turn off on the 1.9.5 update until the user
+accepts. Chrome's "Change back to Google?" dialog still appears on the first new
+tab after install even when the extension hands the tab to Chrome's own; its
+"Change it back" disables the extension (Chromium
+`extension_settings_overridden_dialog.cc`: `kChangeSettingsBack` →
+`DisableControllingExtension()`), and "Keep it" acknowledges it for good.
 
 The themed page-checks panel added 2026-09-08 needs **no manifest change**: it
 is opened per tab with `chrome.sidePanel.setOptions({ tabId, path })` from the
@@ -256,6 +268,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | Not submitted |
 | 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-23**, staged publish: run `39988339252` (GitHub release `v1.9.4`, commit `451d19c`); the store reads PENDING_REVIEW (1.9.4). Press Publish in the dashboard once approved |
 | 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Published 2026-10-23** by the owner after approval (submitted 2026-10-22, run `39858017060`, GitHub release `v1.9.3`, commit `828146d`). A check run that day read PUBLISHED (1.9.3); Google's update server served 1.9.3 |
 | 1.9.2 | 2026-10-21 | 1.9.1 plus a fix for signed-out Google results: LinkedIn, Facebook, Instagram, TikTok and Pinterest profiles that show a follower count instead of a URL breadcrumb were dropped from the overlay and the exports, and every later position moved up. They are now placed by their site name, as Reddit, YouTube and Quora already were. No permission, host or content-script change; no data-use change. | Not submitted (folded into 1.9.3) |

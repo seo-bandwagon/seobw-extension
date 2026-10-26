@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" class="nt-pending">
 <head>
   <meta charset="utf-8">
   <title>New Tab · SEO Bandwagon</title>
   <link rel="stylesheet" href="../styles/fonts.css">
   <script src="../lib/theme-mode.js"></script>
+  <script src="../lib/newtab-gate.js"></script>
   <link rel="stylesheet" href="../styles/popup.css">
   <link rel="stylesheet" href="newtab.css">
 </head>
@@ -75,6 +76,15 @@
         <p class="nt-note" id="ntFixCount"></p>
         <a href="#" id="ntFixLink" class="nt-minilink" target="_blank" rel="noopener" hidden></a>
       </article>
+    </section>
+
+    <section class="nt-extras" id="ntExtras" hidden>
+      <form class="nt-form nt-search" id="ntSearchForm" role="search" autocomplete="off">
+        <label class="nt-sr" for="ntSearch">Search the web</label>
+        <input id="ntSearch" name="q" type="search" placeholder="Search with your search engine" spellcheck="false">
+        <button type="submit">Search</button>
+      </form>
+      <ul class="nt-top-sites" id="ntTopSites" aria-label="Most visited"></ul>
     </section>
 
     <footer class="nt-foot">
