@@ -13,20 +13,22 @@ reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
 items have their own listing text in the seobw-themes repo's `store/LISTING.md`. This file
 summarises both and says where to paste what.
 
-Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-22: Google's update
-server (what Chrome installs from) returns **1.8.0**. Check the update server,
+Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-26: Google's update
+server (what Chrome installs from) returns **1.9.4**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-**1.9.3 published 2026-10-23; 1.9.4 in review since 2026-10-23, as a staged
-publish.** 1.9.3 was submitted 2026-10-22 (run `39858017060`), approved, and
-published by the owner 2026-10-23: a *check* run that day (`39988098117`) read
-"Published now: PUBLISHED (1.9.3)" with nothing in review, and Google's update
-server and the listing page both showed 1.9.3. Its submission carried the
-dashboard's listing edits, the Support URL of #77 among them. Submit to Chrome
-Web Store (run `39988339252`) then uploaded and submitted 1.9.4; a check run
-(`39988414560`) read "Published now: PUBLISHED (1.9.3)" and "Submitted:
-PENDING_REVIEW (1.9.4)". Once Google approves it, press Publish in the
-dashboard; until then the store serves 1.9.3.
+**1.9.4 published; 1.9.5 in review since 2026-10-26, as a staged publish.**
+1.9.4 was submitted 2026-10-23 (run `39988339252`), read STAGED (approved,
+waiting for Publish) later that day, and was published by the owner by
+2026-10-26: a *check* run that day (`40373177944`) read "Published now:
+PUBLISHED (1.9.4)" with nothing waiting. The first submission of 1.9.5 (run
+`40373427903`) uploaded the package, but the store refused the publish with
+HTTP 400 until the dashboard had a justification for `management` and the
+other new fields. The owner filled them in, and Submit to Chrome Web Store
+(run `40386533992`) uploaded 1.9.5 again and submitted it: "Published now:
+PUBLISHED (1.9.4)", then "Submitted for review as a staged publish:
+PENDING_REVIEW". Once Google approves it, press Publish in the dashboard;
+until then the store serves 1.9.4.
 Not re-checked since
 2026-09-24: the live category was **Productivity › Tools**, not the Developer
 Tools set below (change it in the dashboard with this submission if it still
@@ -268,8 +270,8 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | Not submitted |
-| 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-23**, staged publish: run `39988339252` (GitHub release `v1.9.4`, commit `451d19c`); the store reads PENDING_REVIEW (1.9.4). Press Publish in the dashboard once approved |
+| 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | **Submitted 2026-10-26**, staged publish: run `40386533992` (GitHub release `v1.9.5`, commit `678816c`); the store reads PENDING_REVIEW. The first try (run `40373427903`) was refused until the dashboard fields were filled in. Press Publish in the dashboard once approved |
+| 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | **Published** by 2026-10-26 (check run `40373177944`: PUBLISHED (1.9.4); the update server serves 1.9.4). Submitted 2026-10-23, staged publish: run `39988339252` (GitHub release `v1.9.4`, commit `451d19c`) |
 | 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Published 2026-10-23** by the owner after approval (submitted 2026-10-22, run `39858017060`, GitHub release `v1.9.3`, commit `828146d`). A check run that day read PUBLISHED (1.9.3); Google's update server served 1.9.3 |
 | 1.9.2 | 2026-10-21 | 1.9.1 plus a fix for signed-out Google results: LinkedIn, Facebook, Instagram, TikTok and Pinterest profiles that show a follower count instead of a URL breadcrumb were dropped from the overlay and the exports, and every later position moved up. They are now placed by their site name, as Reddit, YouTube and Quora already were. No permission, host or content-script change; no data-use change. | Not submitted (folded into 1.9.3) |
 | 1.9.1 | 2026-10-18 | 1.9.0 plus **the new tab's account cards**: signed in, Rank tracking (per tracker, keywords in the top 10 and top 3, moved up and down over 7 days, the biggest movers) and Tasks (the next fix first, then tasks the site derives from rank data) from `GET /api/extension/progress` (scope `progress`), at most one request every 10 minutes (`chrome.storage.session`). A 403 (a key from before the scope) shows Reconnect; a 404 or a network failure shows only the local cards. Signed out or with sync off, nothing is sent. No permission, host or content-script change; the request is a read with the user's own key. | Not submitted (folded into 1.9.3) |
