@@ -642,6 +642,11 @@ describe('rank changes (1.10.0)', () => {
     // Five each (the feed's cap): the better lost position leads.
     const capped = [...[9, 10, 11, 12, 13].map((from) => drop({ trackerId: T2, from })), ...[2, 30, 31, 32, 33].map((from) => drop({ trackerId: T1, from }))];
     expect(D.trackerOrder(trackers, capped)[0].tracker.id).toBe(T1);
+    // Within a tracker the drops keep the feed's order (search volume since
+    // website #519), never re-sorted by position lost.
+    const byVolume = [drop({ keyword: 'law firm seo cost', from: 10 }), drop({ trackerId: T2, keyword: 'acf mcp', from: 4 }),
+      drop({ keyword: 'swamp seo', from: 6 }), drop({ keyword: 'banstead seo', from: 11 })];
+    expect(D.trackerOrder(trackers, byVolume)[0].drops.map((d) => d.keyword)).toEqual(['law firm seo cost', 'swamp seo', 'banstead seo']);
     // No drops anywhere: the feed's order stands.
     expect(D.trackerOrder(trackers, []).map((o) => o.tracker.id)).toEqual([T2, T1, 'none']);
     expect(D.trackerOrder(trackers, undefined)).toHaveLength(3);

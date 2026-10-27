@@ -490,7 +490,8 @@ export function webHref(raw) {
  * The trackers in the switcher's order: most drops first, then the best
  * lost position (the feed keeps at most 5 drops a tracker, so counts tie),
  * then the feed's own order. The first is the one shown by default.
- * `[{ tracker, drops }]`, `drops` in the feed's order.
+ * `[{ tracker, drops }]`, `drops` in the feed's order, never re-sorted: since
+ * website #519 that is search volume, highest first (owner, 2026-10-27).
  */
 export function trackerOrder(trackers, drops) {
   const list = (trackers || []).map((tracker, i) => {
