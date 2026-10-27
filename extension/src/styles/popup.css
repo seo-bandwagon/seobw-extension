@@ -1948,6 +1948,7 @@ body {
 
 /* Appearance (Night / Day / Auto) — tri-state; aria-pressed marks the STORED choice. */
 .sp-appearance { display: inline-flex; gap: 2px; padding: 2px; margin-left: auto; border: 1px solid var(--pink-30); border-radius: var(--radius-pill); background: var(--surface-2); }
+.sp-appearance[hidden] { display: none; }
 .sp-appearance button { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 9px; border: none; cursor: pointer; border-radius: var(--radius-pill); background: transparent; color: var(--paper-70); }
 .sp-appearance button:hover { color: var(--text-strong); }
 .sp-appearance button[aria-pressed='true'] { background: var(--pink); color: var(--navy); }
