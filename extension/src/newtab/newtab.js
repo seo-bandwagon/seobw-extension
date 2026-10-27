@@ -25,12 +25,23 @@
  * default engine (chrome.search, so the extension never changes their search)
  * and their most visited sites (chrome.topSites). Both permissions are
  * optional and asked for only when the option is turned on.
+ *
+ * 1.10.0: rank drops first. With the account's summary on screen the page
+ * leads with "Rank changes" for one tracker at a time (a switcher when there
+ * are several, the one with the most drops first): each drop's keyword, from
+ * → to as the site gives it, the page that lost it, the page Google ranks
+ * instead when it swapped them, who holds the old spot, the next fix for that
+ * page when it has been captured, and a link to the drop page on the site.
+ * Then the keywords that went up. Tasks sit beside it, and the recent audits
+ * run below, each with its full address, first two issues and date. Signed
+ * out, or when the summary can't be had, the page is the 1.9 layout, with
+ * the same audit rows.
  */
 
 import { applyTheme, watchThemeChanges, bindControl, listingUrl, installedThemeMode, pinMode } from '../lib/theme-sync.js';
 import {
   recentAudits, checkTotals, topFix, localHistoryLine, accountState, shortcutFor, scanSite, hostOf,
-  accountProgress, progressLink,
+  accountProgress, progressLink, trackerOrder, dropView, trackerGains, auditDetail,
 } from '../lib/sbw-data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -41,33 +52,31 @@ let themeOn = null;
 
 /* --------------------------------- audits --------------------------------- */
 
+/* Each row: the score, the page's full address, its first two issues and the
+   capture's date, and the change since that page's previous capture. */
 function renderAudits(rows) {
   const ul = $('ntAudits');
   if (!rows.length) return; // the empty state in the markup stays
   ul.textContent = '';
   for (const r of rows) {
-    const li = document.createElement('li');
-    const host = document.createElement('a');
-    host.className = 'nt-domain';
-    host.href = r.url;
-    host.textContent = r.host;
-    host.title = r.url;
+    const body = document.createElement('span');
+    body.className = 'nt-audit-body';
+    const url = document.createElement('a');
+    url.className = 'nt-domain';
+    url.href = r.url;
+    url.textContent = r.url;
+    url.title = r.url;
+    body.append(url, span('nt-audit-detail', auditDetail(r)));
     const right = document.createElement('span');
     right.className = 'nt-right';
     if (r.delta !== null && r.delta !== 0) {
-      const d = document.createElement('span');
-      d.className = 'nt-delta';
+      const d = span('nt-delta', (r.delta > 0 ? '+' : '−') + Math.abs(r.delta));
       d.dataset.dir = r.delta > 0 ? 'up' : 'down';
-      d.textContent = (r.delta > 0 ? '+' : '−') + Math.abs(r.delta);
       d.title = 'Change since this page\'s previous capture';
       right.append(d);
     }
-    const s = document.createElement('span');
-    s.className = 'nt-score';
-    s.textContent = r.score;
-    right.append(s);
-    li.append(host, right);
-    ul.append(li);
+    right.append(span('nt-score', r.score));
+    ul.append(li('', body, right));
   }
 }
 
@@ -102,6 +111,8 @@ function renderFix(fix) {
 const MAX_TRACKERS = 3;
 const MAX_MOVERS = 3;
 const MAX_TASKS = 5;
+/* The tracker picked in the switcher, kept through repaints of this tab. */
+let trackerChoice = null;
 
 function li(className, ...children) {
   const el = document.createElement('li');
@@ -124,13 +135,85 @@ function setLink(a, url, text) {
   a.textContent = text;
 }
 
+/* A line of text that may hold a link: `parts` are strings, nodes, or
+   { text, href } for an address (shown in full, linked when href is set). */
+function line(className, ...parts) {
+  const p = document.createElement('p');
+  p.className = className;
+  for (const part of parts) {
+    if (typeof part === 'string' || part instanceof Node) { p.append(part); continue; }
+    const el = part.href ? document.createElement('a') : document.createElement('span');
+    el.className = 'nt-url';
+    el.textContent = part.text;
+    if (part.href) { el.href = part.href; el.title = part.text; }
+    p.append(el);
+  }
+  return p;
+}
+
+function dropItem(d, siteHost) {
+  const pos = span('nt-mv-pos', `${d.from} → ${d.out ? 'out' : d.to}`);
+  pos.title = `Position ${d.from}${d.since ? ' on ' + d.since : ''}, `
+    + (d.out ? 'out of the checked results now' : d.to + ' now');
+  const right = document.createElement('span');
+  right.className = 'nt-right';
+  right.append(pos);
+  if (d.fell) {
+    const change = span('nt-delta', '−' + d.fell);
+    change.dataset.dir = 'down';
+    right.append(change);
+  }
+  const head = document.createElement('div');
+  head.className = 'nt-drop-head';
+  head.append(span('nt-drop-kw', d.keyword), right);
+
+  const item = li('nt-drop', head);
+  if (d.lostUrl) item.append(line('nt-drop-line', span('nt-drop-label', 'Page that lost it'), ' ', { text: d.lostUrl, href: d.lostUrl }));
+  if (d.nowUrl) item.append(line('nt-drop-line', 'Google now ranks ', { text: d.nowUrl, href: d.nowUrl }, ' instead'));
+  if (d.out) item.append(line('nt-drop-line', 'Out of the checked results now'));
+  if (d.tookSpot) item.append(line('nt-drop-line', `At ${d.from} now: `, { text: d.tookSpot }));
+  if (d.fix) item.append(line('nt-drop-fix', 'Next fix for this page: ', d.fix));
+  if (d.analyzeUrl) {
+    const a = document.createElement('a');
+    a.className = 'nt-minilink';
+    a.href = d.analyzeUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = `Analyze this drop on ${siteHost} →`;
+    item.append(a);
+  }
+  return item;
+}
+
+function gainItem(m) {
+  const change = span('nt-delta', '+' + m.change);
+  change.dataset.dir = 'up';
+  const right = document.createElement('span');
+  right.className = 'nt-right';
+  right.append(span('nt-mv-pos', m.from + ' → ' + m.to), change);
+  const kw = span('nt-domain', m.keyword);
+  kw.title = m.url || m.domain;
+  return li('', kw, right);
+}
+
+function trackerName(t, all) {
+  const twin = all.some((o) => o.tracker !== t && o.tracker.domain === t.domain);
+  return twin ? `${t.domain} · ${t.market}` : t.domain;
+}
+
 function renderRank(result) {
   const card = $('ntRankCard');
-  const trackersUl = $('ntTrackers');
-  const moversUl = $('ntMovers');
-  trackersUl.textContent = '';
-  moversUl.textContent = '';
+  const dropsUl = $('ntDrops');
+  const gainsUl = $('ntGains');
+  const switcher = $('ntTrackerSwitch');
+  dropsUl.textContent = '';
+  gainsUl.textContent = '';
+  switcher.textContent = '';
+  switcher.hidden = true;
+  $('ntGainsHead').hidden = true;
+  $('ntTrackerLine').textContent = '';
   $('ntRankNote').textContent = '';
+  $('ntRankTitle').textContent = 'Rank tracking';
 
   if (result.state === 'reconnect') {
     $('ntRankNote').textContent = 'Reconnect your account to see rank tracking and tasks here. Your key was made before this page existed.';
@@ -141,33 +224,41 @@ function renderRank(result) {
   if (result.state !== 'ok') { card.hidden = true; return; }
 
   const { trackers, movers } = result.data.rankTracking;
+  const drops = result.data.rankTracking.drops || []; // a site from before PR 3 sends none
   const days = result.data.windowDays;
-  for (const t of trackers.slice(0, MAX_TRACKERS)) {
-    const moves = [];
-    if (t.movedUp) moves.push('+' + t.movedUp + ' up');
-    if (t.movedDown) moves.push(t.movedDown + ' down');
-    const line = `${t.top10} of ${t.keywords} in the top 10 · ${t.top3} in the top 3`
-      + (moves.length ? ` · ${moves.join(', ')} in ${days} days` : '');
-    const head = document.createElement('span');
-    head.className = 'nt-tr-head';
-    head.append(span('nt-tr-domain', t.domain), span('nt-tr-market', t.market + (t.status === 'paused' ? ' · paused' : '')));
-    trackersUl.append(li('', head, span('nt-tr-line', line)));
-  }
-  for (const m of movers.slice(0, MAX_MOVERS)) {
-    const change = span('nt-delta', (m.change > 0 ? '+' : '−') + Math.abs(m.change));
-    change.dataset.dir = m.change > 0 ? 'up' : 'down';
-    const right = document.createElement('span');
-    right.className = 'nt-right';
-    right.append(span('nt-mv-pos', m.from + ' → ' + m.to), change);
-    const kw = span('nt-domain', m.keyword);
-    kw.title = m.domain;
-    moversUl.append(li('', kw, right));
-  }
-  if (!trackers.length) $('ntRankNote').textContent = 'No rank trackers on your account yet.';
-  else if (trackers.length > MAX_TRACKERS) $('ntRankNote').textContent = `${trackers.length - MAX_TRACKERS} more in the dashboard.`;
+  const order = trackerOrder(trackers, drops).slice(0, MAX_TRACKERS);
   setLink($('ntRankLink'), progressLink(result.origin, '/dashboard/rank-tracker/'),
     trackers.length ? 'Open the rank tracker →' : 'Track keywords →');
   card.hidden = false;
+  if (!order.length) { $('ntRankNote').textContent = 'No rank trackers on your account yet.'; return; }
+
+  const shown = order.find((o) => o.tracker.id === trackerChoice) || order[0];
+  const t = shown.tracker;
+  $('ntRankTitle').textContent = `Rank changes · last ${days} days · ${t.domain}`;
+  if (order.length > 1) {
+    for (const o of order) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(o === shown));
+      b.title = `${o.tracker.domain} · ${o.tracker.market}`;
+      b.append(trackerName(o.tracker, order), ' ', span('nt-switch-count', String(o.drops.length)));
+      b.addEventListener('click', () => { trackerChoice = o.tracker.id; renderRank(result); });
+      switcher.append(b);
+    }
+    switcher.hidden = false;
+  }
+  $('ntTrackerLine').textContent = `${t.top10} of ${t.keywords} in the top 10 · ${t.top3} in the top 3 · ${t.market}`
+    + (t.status === 'paused' ? ' · paused' : '');
+
+  const siteHost = hostOf(result.origin) || 'seobandwagon.com';
+  for (const d of shown.drops) dropsUl.append(dropItem(dropView(d, result.origin), siteHost));
+  if (!shown.drops.length) dropsUl.append(li('nt-empty', document.createTextNode(`No keyword on ${t.domain} fell in the last ${days} days.`)));
+
+  const gains = trackerGains(movers, t.id).slice(0, MAX_MOVERS);
+  for (const m of gains) gainsUl.append(gainItem(m));
+  $('ntGainsHead').hidden = !gains.length;
+
+  if (trackers.length > MAX_TRACKERS) $('ntRankNote').textContent = `${trackers.length - MAX_TRACKERS} more trackers in the dashboard.`;
 }
 
 /* Tasks: the next fix from the latest capture first, then the account's. */
@@ -202,8 +293,11 @@ async function paint({ force = false } = {}) {
 
   const progress = await accountProgress({ force });
   renderRank(progress);
-  // With the account's tasks on screen the next fix is their first row.
-  if (renderTasks(progress, fix)) $('ntFixCard').hidden = true;
+  // With the account's tasks on screen the next fix is their first row, and
+  // the page leads with rank changes (newtab.css, [data-layout='account']).
+  const account = renderTasks(progress, fix);
+  if (account) $('ntFixCard').hidden = true;
+  document.querySelector('.nt').dataset.layout = account ? 'account' : 'local';
 }
 
 /* -------------------------------- account --------------------------------- */

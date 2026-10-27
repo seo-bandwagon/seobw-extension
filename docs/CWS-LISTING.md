@@ -107,7 +107,7 @@ SIDE PANELS
 A side panel keeps the page checks open while you work, with pass, warning and fail counts for the page in the current tab. A second view holds your citations and link building work.
 
 NEW TAB
-With SEO Bandwagon's Neon Night or Neon Day theme installed, each new tab becomes a summary of your recent work: the sites you analyzed most recently, each with its score and how far it moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. Without one of those themes your new tab stays Chrome's own, and a setting can show the summary always or never. A box takes a site address, opens it in that tab and analyzes it; it only opens addresses. Another setting adds Chrome's usual items below the summary: a box that queries your own default engine, and your most visited sites. With an account connected, it also shows your rank tracking, the keywords that moved most and a short list of tasks worked out from it, asked of your account at most every ten minutes. Signed out, it reads only analyses stored on your computer and opening a new tab sends nothing.
+With SEO Bandwagon's Neon Night or Neon Day theme installed, each new tab becomes a summary of your recent work: the addresses you analyzed most recently, each in full with its score, the first issues found, the date, and how far its score moved since its previous analysis, then the latest analysis and the first issue it found, with what to change. Without one of those themes your new tab stays Chrome's own, and a setting can show the summary always or never. A box takes a site address, opens it in that tab and analyzes it; it only opens addresses. Another setting adds Chrome's usual items below the summary: a box that queries your own default engine, and your most visited sites. With an account connected, it leads with your rank changes over the last week, one tracked site at a time: each keyword that fell, from its old position to its new one, the address of yours that lost it, the one Google shows instead when it swapped them, and the first issue found at that address when you have analyzed it, with a link to an explanation of the drop on seobandwagon.com. The keywords that rose and a short list of tasks follow, asked of your account at most every ten minutes. Signed out, it reads only analyses stored on your computer and opening a new tab sends nothing.
 
 EXPORTS AND SHORTCUTS
 Headings, links, images and the results of each check export as spreadsheet files you save yourself, and the whole analysis can be saved as one JSON file. File names include the page and the time, so one export never replaces another. A right-click menu opens the current address in tools you already use, including Search Console's URL inspection, PageSpeed Insights and the Wayback Machine, and can count the words and characters in any text you select.
@@ -273,10 +273,11 @@ extension this way.
 ## 4. Single-purpose statement
 
 SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the
-user's recent analyses and the first issue found on its new tab page when the user
-has installed its Neon Night or Neon Day theme, and syncs that
-analysis — and the local-SEO citation and outreach records derived from it — to
-the user's own SEO Bandwagon account.
+user's recent analyses, the first issue found and, with an account connected,
+the user's own rank changes on its new tab page when the user has installed its
+Neon Night or Neon Day theme, and syncs that analysis — and the local-SEO
+citation and outreach records derived from it — to the user's own SEO Bandwagon
+account.
 
 The new tab page (`chrome_url_overrides.newtab`, 1.9.0) is the same purpose on
 another surface: it reads only the analyses this extension stored and sends no
@@ -284,7 +285,10 @@ request when it opens signed out. From 1.9.5 it appears only with the Neon Night
 or Neon Day theme installed (or the user's "Always" setting); anyone else keeps
 Chrome's own new tab. Its optional search box (off unless the user turns it on)
 searches with the user's own default engine through `chrome.search`, so it never
-changes the user's search experience.
+changes the user's search experience. From 1.10.0, signed in, it leads with the
+rank changes of the user's own rank trackers on seobandwagon.com, read from the
+same `GET /api/extension/progress` request the 1.9.1 cards already made; nothing
+new is sent, and it links each drop to a page of the user's own dashboard.
 
 ---
 
@@ -340,7 +344,17 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.9.5 (release notes, ≤ 10 lines)
+## 6. What's new in 1.10.0 (release notes, ≤ 10 lines)
+
+```
+- Signed in, your new tab leads with your rank drops: each keyword that fell,
+  from its old position to its new one, the page that lost it, the page
+  Google ranks instead, and the first issue found on it, with a link to that
+  drop's page on seobandwagon.com. Then the keywords that rose.
+- Recent audits show each page's full address, the issues found and the date.
+```
+
+1.9.5 (if it wasn't published on its own, use these lines too):
 
 ```
 - Your new tab shows the SEO Bandwagon dashboard only when the Neon Night or
@@ -452,8 +466,11 @@ extension's settings; the optional search box and most-visited sites are a
 checkbox there, which asks for `topSites` and `search`. It lists recent analyses from
 `chrome.storage.local`. Signed out it sends no request; with an account
 connected it reads `GET /api/extension/progress` at most every 10 minutes for
-its Rank tracking and Tasks cards (a key from before that route's scope gets a
-Reconnect link). Typing a site address into
+its Rank changes and Tasks cards (a key from before that route's scope gets a
+Reconnect link). From 1.10.0 Rank changes shows, for one rank tracker at a
+time, the keywords that fell (`rankTracking.drops` in that answer) with the
+pages involved, and links each to its page on seobandwagon.com's dashboard,
+which needs the same account signed in on the site. Typing a site address into
 its box and pressing Scan opens that site in the same tab and then the popup,
 which analyzes it; words that are not an address get a note, never a search.
 

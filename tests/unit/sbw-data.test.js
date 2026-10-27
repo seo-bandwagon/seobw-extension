@@ -580,3 +580,94 @@ describe('accountProgress', () => {
     delete globalThis.SBWSiteLinks;
   });
 });
+
+/* ----------------------------- rank changes ------------------------------ */
+
+describe('rank changes (1.10.0)', () => {
+  // Rows from the live feed of 2026-10-27, seobandwagon.com's own tracker.
+  const T1 = 'bc6f1b67-b060-4207-a292-de04bab296a1';
+  const T2 = 'fb3fb28b-fe0f-4df0-a2d7-5bb26f66388b';
+  const drop = (over) => ({
+    trackerId: T1, keyword: 'k', domain: 'seobandwagon.com', from: 6, to: 26,
+    lostUrl: null, nowUrl: null, swapped: false, tookSpot: null, since: '2026-10-17', fix: null,
+    analyzePath: '/dashboard/rank-tracker/drop?tracker=' + T1 + '&keyword=k', ...over,
+  });
+  const SITE = 'https://seobandwagon.com';
+  const links = { siteUrl: (origin, path, surface) => `${origin}${path}#${surface}` };
+
+  it('dropView shows from → to as the feed gives it, the page that lost it, and the page Google swapped in', () => {
+    globalThis.SBWSiteLinks = links;
+    const v = D.dropView(drop({
+      keyword: 'swamp seo', lostUrl: 'https://seobandwagon.com/contact', nowUrl: 'https://seobandwagon.com/',
+      swapped: true, tookSpot: 'www.youtube.com',
+      analyzePath: '/dashboard/rank-tracker/drop?tracker=' + T1 + '&keyword=swamp%20seo',
+    }), SITE);
+    expect(v).toMatchObject({
+      keyword: 'swamp seo', from: 6, to: 26, out: false, fell: 20,
+      lostUrl: 'https://seobandwagon.com/contact', nowUrl: 'https://seobandwagon.com/',
+      tookSpot: 'www.youtube.com', fix: null, since: '2026-10-17',
+      analyzeUrl: SITE + '/dashboard/rank-tracker/drop?tracker=' + T1 + '&keyword=swamp%20seo#new_tab',
+    });
+    delete globalThis.SBWSiteLinks;
+  });
+
+  it('dropView: `to` null is out of the checked results, and an unswapped page is not repeated', () => {
+    const v = D.dropView(drop({
+      keyword: 'how much does law firm seo cost', from: 8, to: null,
+      lostUrl: 'https://seobandwagon.com/law-firm-seo', nowUrl: 'https://seobandwagon.com/law-firm-seo', tookSpot: '6smarketers.com',
+    }), SITE);
+    expect(v).toMatchObject({ from: 8, to: null, out: true, fell: null, nowUrl: null });
+  });
+
+  it('dropView names the fix with the extension\'s own title, and links only http(s) pages', () => {
+    expect(D.dropView(drop({ fix: 'Description too long' }), SITE).fix).toBe('Description too long');
+    expect(D.dropView(drop({ fix: 'Missing title' }), SITE).fix).toBe('No title tag');
+    expect(D.dropView(drop({ fix: 'An issue the extension has no text for' }), SITE).fix).toBe('An issue the extension has no text for');
+    expect(D.dropView(drop({ lostUrl: 'javascript:alert(1)' }), SITE).lostUrl).toBeNull();
+    expect(D.dropView(drop({ lostUrl: 'not a url' }), SITE).lostUrl).toBeNull();
+    expect(D.dropView(drop({ swapped: true, nowUrl: 'data:text/html,x' }), SITE).nowUrl).toBeNull();
+  });
+
+  it('trackerOrder: most drops first, ties to the best lost position, then the feed\'s order', () => {
+    const trackers = [{ id: T2, domain: 'mastercontrolpress.com' }, { id: T1, domain: 'seobandwagon.com' }, { id: 'none', domain: 'quiet.example' }];
+    const drops = [
+      drop({ trackerId: T2, from: 4 }), drop({ trackerId: T2, from: 4 }), drop({ trackerId: T2, from: 24 }),
+      drop({ trackerId: T1, from: 6 }), drop({ trackerId: T1, from: 8 }), drop({ trackerId: T1, from: 10 }),
+      drop({ trackerId: T1, from: 11 }), drop({ trackerId: T1, from: 13 }),
+    ];
+    const order = D.trackerOrder(trackers, drops);
+    expect(order.map((o) => [o.tracker.domain, o.drops.length])).toEqual([
+      ['seobandwagon.com', 5], ['mastercontrolpress.com', 3], ['quiet.example', 0],
+    ]);
+    // Five each (the feed's cap): the better lost position leads.
+    const capped = [...[9, 10, 11, 12, 13].map((from) => drop({ trackerId: T2, from })), ...[2, 30, 31, 32, 33].map((from) => drop({ trackerId: T1, from }))];
+    expect(D.trackerOrder(trackers, capped)[0].tracker.id).toBe(T1);
+    // Within a tracker the drops keep the feed's order (search volume since
+    // website #519), never re-sorted by position lost.
+    const byVolume = [drop({ keyword: 'law firm seo cost', from: 10 }), drop({ trackerId: T2, keyword: 'acf mcp', from: 4 }),
+      drop({ keyword: 'swamp seo', from: 6 }), drop({ keyword: 'banstead seo', from: 11 })];
+    expect(D.trackerOrder(trackers, byVolume)[0].drops.map((d) => d.keyword)).toEqual(['law firm seo cost', 'swamp seo', 'banstead seo']);
+    // No drops anywhere: the feed's order stands.
+    expect(D.trackerOrder(trackers, []).map((o) => o.tracker.id)).toEqual([T2, T1, 'none']);
+    expect(D.trackerOrder(trackers, undefined)).toHaveLength(3);
+  });
+
+  it('trackerGains keeps the keywords on that tracker that went up', () => {
+    const movers = [
+      { trackerId: T1, keyword: 'ahrefs seo toolbar', from: 77, to: 32, change: 45 },
+      { trackerId: T1, keyword: 'wordpress band theme', from: 20, to: 63, change: -43 },
+      { trackerId: T2, keyword: 'acf mcp', from: 9, to: 3, change: 6 },
+    ];
+    expect(D.trackerGains(movers, T1).map((m) => m.keyword)).toEqual(['ahrefs seo toolbar']);
+    expect(D.trackerGains(undefined, T1)).toEqual([]);
+  });
+
+  it('auditDetail: the first two issues, comma-separated, and the date', () => {
+    const now = Date.parse('2026-10-27T18:00:00Z');
+    const row = (issues, at) => ({ at, capture: { seoScore: { issues } } });
+    expect(D.auditDetail(row(['Title too long', 'No structured data', 'Thin content'], Date.parse('2026-10-26T15:00:00Z')), now))
+      .toBe('Title too long, No structured data · Oct 26');
+    expect(D.auditDetail(row([], Date.parse('2025-12-30T15:00:00Z')), now)).toBe('No issues found · Dec 30, 2025');
+    expect(D.auditDetail(row(['Missing H1'], 0), now)).toBe('Missing H1');
+  });
+});

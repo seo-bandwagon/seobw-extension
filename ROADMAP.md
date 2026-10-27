@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.9.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.10.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,46 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.10.0 (2026-10-27)
+
+Part C of the rank-drops design: the signed-in new tab answers "what moved,
+which page, what to fix" at a glance. The site's progress feed has carried the
+drops since website PR 3 (keepkalm/platform#518, `rankTracking.drops`), and
+the installed 1.9.x tab already sent each rank-drop task to its drop page.
+Built now, ahead of the Google results page work, and numbered as the next
+minor (owner, 2026-10-27: "build part C").
+
+- **Rank changes lead** (`src/newtab/newtab.js`, `[data-layout='account']`
+  in `newtab.css`). One tracker at a time; with several, a switcher, opening
+  on the one with the most drops (the feed keeps at most 5 a tracker, so ties
+  go to the best lost position, then the feed's order; `trackerOrder`). Each
+  drop: the keyword, from → to as the feed gives it (a drop is the window's
+  start against now, owner ruling 2026-10-27, "down overall is down"; `to`
+  null reads "out"), the page that lost it in full, "Google now ranks …
+  instead" when the pages swapped, who holds the old position (`tookSpot`),
+  "Next fix for this page" when that exact page has a capture (`fix`, shown
+  with this extension's own title for the issue), and "Analyze this drop on
+  seobandwagon.com →" (`analyzePath` through `progressLink`). Then the
+  tracker's gains. Page addresses are linked only when they are http(s)
+  (`webHref`).
+- **Tasks beside, recent audits below.** The side column holds Tasks and has
+  room for 1.14.0's top opportunities. Each recent audit shows the full
+  address, the first two issues and the date, signed in or out
+  (`auditDetail`); signed in, Latest capture and Next fix give way to them,
+  since the audit rows and Tasks carry the same facts. The scan box stays,
+  smaller.
+- **No "Ask about this drop" link yet.** It opens the drop page's chat,
+  which is part D and not built; the Analyze link already opens that page.
+- **The `to` label** is "out" / "Out of the checked results now": the feed's
+  tracker summary carries no `depth`, so the tab doesn't name a number.
+- Signed out, or with the feed unavailable, the page is 1.9.5's layout with
+  the new audit rows. The wallpaper stays at the window's foot on a page
+  taller than the window (`background-attachment: fixed`).
+- No permission, host or content-script change; no data-use change: the same
+  `GET /api/extension/progress` request, at most one every 10 minutes.
 
 ---
 

@@ -470,6 +470,86 @@ export function progressLink(origin, path) {
   try { return L.siteUrl(origin, path, 'new_tab'); } catch { return null; }
 }
 
+/* ------------------------------ rank changes ------------------------------ */
+
+/* 1.10.0: the signed-in new tab leads with rank changes, from the progress
+   answer's `rankTracking.drops` (website PR 3). A drop is the feed's own rule,
+   the window's start against now (owner ruling 2026-10-27, "down overall is
+   down"): the tab shows from → to as given and adds no rule of its own. */
+
+/** A page address from the feed as a link, or null: http(s) only. */
+export function webHref(raw) {
+  if (typeof raw !== 'string') return null;
+  try {
+    const u = new URL(raw);
+    return /^https?:$/.test(u.protocol) ? u.href : null;
+  } catch { return null; }
+}
+
+/**
+ * The trackers in the switcher's order: most drops first, then the best
+ * lost position (the feed keeps at most 5 drops a tracker, so counts tie),
+ * then the feed's own order. The first is the one shown by default.
+ * `[{ tracker, drops }]`, `drops` in the feed's order, never re-sorted: since
+ * website #519 that is search volume, highest first (owner, 2026-10-27).
+ */
+export function trackerOrder(trackers, drops) {
+  const list = (trackers || []).map((tracker, i) => {
+    const own = (drops || []).filter((d) => d.trackerId === tracker.id);
+    const best = own.reduce((m, d) => Math.min(m, d.from), Infinity);
+    return { tracker, drops: own, best, i };
+  });
+  list.sort((a, b) => b.drops.length - a.drops.length || a.best - b.best || a.i - b.i);
+  return list.map(({ tracker, drops: own }) => ({ tracker, drops: own }));
+}
+
+/** The extension's own title for an issue string, or the string as stored. */
+export function fixTitle(issue) {
+  return (FIXES[issue] && FIXES[issue].title) || issue;
+}
+
+/**
+ * One drop as the new tab shows it. `to` null is out of the tracker's
+ * checked range; `nowUrl` only when Google swapped pages; `fix` is the
+ * newest capture's first issue on that exact page, when there is one.
+ */
+export function dropView(drop, origin) {
+  const out = drop.to === null || drop.to === undefined;
+  return {
+    keyword: drop.keyword,
+    from: drop.from,
+    to: out ? null : drop.to,
+    out,
+    fell: out ? null : drop.to - drop.from,
+    since: drop.since || null,
+    lostUrl: webHref(drop.lostUrl),
+    nowUrl: drop.swapped ? webHref(drop.nowUrl) : null,
+    tookSpot: drop.tookSpot || null,
+    fix: drop.fix ? fixTitle(drop.fix) : null,
+    analyzeUrl: progressLink(origin, drop.analyzePath),
+  };
+}
+
+/** The keywords on one tracker that went up, biggest first, as the feed orders movers. */
+export function trackerGains(movers, trackerId) {
+  return (movers || []).filter((m) => m.trackerId === trackerId && m.change > 0);
+}
+
+/** A capture's date for a list row: "Oct 27", with the year when it isn't this year's. */
+export function shortDate(ms, now = Date.now()) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** A recent audit's detail line: its first two issues, comma-separated, and its date. */
+export function auditDetail(row, now = Date.now()) {
+  const issues = issuesOf(row.capture);
+  const found = issues.length ? issues.slice(0, 2).join(', ') : 'No issues found';
+  return [found, shortDate(row.at, now)].filter(Boolean).join(' · ');
+}
+
 /** How long a verified key is trusted before another /v1/me round trip. */
 export const VERIFY_TTL_MS = 10 * 60 * 1000;
 

@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-26
+> Last Updated: 2026-10-27
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -69,7 +69,7 @@ Developer Tools
 **Single Purpose**
 
 ```
-SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the user's recent analyses and the first issue found on its new tab page when the user has installed its Neon Night or Neon Day theme, and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
+SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the user's recent analyses, the first issue found and, with an account connected, the user's own rank changes on its new tab page when the user has installed its Neon Night or Neon Day theme, and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
 ```
 
 **Primary Language**
@@ -87,7 +87,7 @@ English
 | Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-2-link-check-1280x800.png` |
 | Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-3-indexability-1280x800.png` |
 | Screenshot 4 — Google results overlay and Collect pages (page 1 added) | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-4-serp-collect-1280x800.png` |
-| Screenshot 5 — the new tab page in Night and Day, signed in | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-5-new-tab-1280x800.png` |
+| Screenshot 5 — the new tab page in Night and Day, signed in: rank drops first (1.10.0) | 1280×800 | ✅ Ready 2026-10-27 (1.10.0) | `store-assets/1.10.0/screenshot-5-new-tab-1280x800.png` |
 | Small Promo Tile | 440×280 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-tile-440x280.png` |
 | Marquee Promo Tile | 1400×560 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-marquee-1400x560.png` |
 
@@ -109,7 +109,13 @@ page-checks panel. The README beside the set says what was arranged for each
 screen. A signed-out set of the same day is in `store-assets/1.9.4/signed-out/`.
 
 Take them from the unpacked build at `extension/` on a real public page,
-Night appearance for 1–4 and the new tab in Night and Day for 5. Show the extension in
+Night appearance for 1–4 and the new tab in Night and Day for 5.
+
+1.10.0 replaces screenshot 5 only: `store-assets/1.10.0/` holds the new tab
+with rank drops first, shot 2026-10-27 from the 1.10.0 branch in the owner's
+signed-in profile against production, with the feed filtered to
+seobandwagon.com's own tracker (no client site in frame); its README says how.
+Screens 1 to 4 and both tiles stay the 1.9.4 set. Show the extension in
 action on the page, not the popup floating alone. No competitor names or
 logos anywhere in frame.
 
@@ -270,6 +276,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.10.0 | 2026-10-27 | 1.9.5 plus **rank drops first on the new tab** (part C of the rank-drops design): signed in, the tab leads with Rank changes for one tracker at a time (a switcher when there are several, the one with the most drops first). Each keyword that fell shows from → to as the site's feed gives it (`rankTracking.drops`, the window's start against now), the page that lost it, the page Google ranks instead when it swapped them, who holds the old position, the next fix for that page when it has been captured, and "Analyze this drop on seobandwagon.com", which opens the drop page on the user's own dashboard. Then the keywords that went up; Tasks beside; recent audits below with each page's full address, first two issues and date (signed out too). The scan box stays, smaller. Single-purpose statement grows to name rank changes. No permission, host or content-script change; **no data-use change**: the same `GET /api/extension/progress` request as 1.9.1, which already returned these fields. Screenshot 5 re-shot (`store-assets/1.10.0/`). | Not submitted |
 | 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | **Submitted 2026-10-26**, staged publish: run `40386533992` (GitHub release `v1.9.5`, commit `678816c`); the store reads PENDING_REVIEW. The first try (run `40373427903`) was refused until the dashboard fields were filled in. Press Publish in the dashboard once approved |
 | 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | **Published** by 2026-10-26 (check run `40373177944`: PUBLISHED (1.9.4); the update server serves 1.9.4). Submitted 2026-10-23, staged publish: run `39988339252` (GitHub release `v1.9.4`, commit `451d19c`) |
 | 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Published 2026-10-23** by the owner after approval (submitted 2026-10-22, run `39858017060`, GitHub release `v1.9.3`, commit `828146d`). A check run that day read PUBLISHED (1.9.3); Google's update server served 1.9.3 |

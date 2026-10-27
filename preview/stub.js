@@ -747,24 +747,37 @@ function installSbwStubs() {
   // Never let the real network-hitting bits fire in a preview.
   SBW.verifyKey = () => delay({ ok: true, status: 200, data: FX.user, code: 'ok' });
   // The new tab's account cards (GET /api/extension/progress). `newtab-audits`
-  // answers a summary; `newtab-reconnect` a key from before the scope (403);
-  // anything else a site without the route yet (404), so only local cards show.
+  // answers a summary with drops on two trackers (1.10.0); `newtab-reconnect`
+  // a key from before the scope (403); anything else a site without the route
+  // yet (404), so only local cards show.
   SBW.progress = () => delay(
     PREVIEW_STATE === 'newtab-audits'
       ? { ok: true, status: 200, code: 'ok', data: {
           generatedAt: '2026-10-18T16:00:00.000Z', windowDays: 7,
           rankTracking: {
             trackers: [
-              { id: 't1', domain: 'northsidedental.com', market: 'Austin, Texas · English · desktop', status: 'active', keywords: 42, top3: 3, top10: 9, top100: 30, notRanked: 12, movedUp: 4, movedDown: 2, lastCheckedAt: '2026-10-17T09:00:00.000Z' },
+              { id: 't2', domain: 'plumbingpros.com', market: 'United States · English · desktop', status: 'active', keywords: 18, top3: 1, top10: 4, top100: 12, notRanked: 6, movedUp: 1, movedDown: 1, lastCheckedAt: '2026-10-17T09:00:00.000Z' },
+              { id: 't1', domain: 'northsidedental.com', market: 'Austin, Texas · English · desktop', status: 'active', keywords: 42, top3: 3, top10: 9, top100: 30, notRanked: 12, movedUp: 4, movedDown: 3, lastCheckedAt: '2026-10-17T09:00:00.000Z' },
             ],
             movers: [
-              { trackerId: 't1', keyword: 'family dentist austin', domain: 'northsidedental.com', from: 14, to: 8, change: 6, since: '2026-10-11' },
-              { trackerId: 't1', keyword: 'emergency dentist austin', domain: 'northsidedental.com', from: 6, to: 12, change: -6, since: '2026-10-11' },
+              { trackerId: 't1', keyword: 'family dentist austin', domain: 'northsidedental.com', from: 14, to: 8, change: 6, since: '2026-10-11', url: 'https://northsidedental.com/austin/family-dentistry' },
+              { trackerId: 't1', keyword: 'emergency dentist austin', domain: 'northsidedental.com', from: 6, to: 12, change: -6, since: '2026-10-11', url: 'https://northsidedental.com/austin/' },
+              { trackerId: 't1', keyword: 'dentist open saturday austin', domain: 'northsidedental.com', from: 19, to: 15, change: 4, since: '2026-10-11', url: 'https://northsidedental.com/austin/hours' },
+            ],
+            // The feed's own rule: the window's start against now. `to` null is
+            // out of the checked range; `fix` is the newest capture's first issue
+            // on that exact page.
+            drops: [
+              { trackerId: 't1', keyword: 'emergency dentist austin', domain: 'northsidedental.com', from: 6, to: 12, lostUrl: 'https://northsidedental.com/austin/emergency', nowUrl: 'https://northsidedental.com/austin/', swapped: true, tookSpot: 'austinsmiles.com', since: '2026-10-11', fix: 'Description too short', analyzePath: '/dashboard/rank-tracker/drop?tracker=t1&keyword=emergency%20dentist%20austin' },
+              { trackerId: 't1', keyword: 'teeth whitening austin', domain: 'northsidedental.com', from: 9, to: null, lostUrl: 'https://northsidedental.com/austin/whitening', nowUrl: null, swapped: false, tookSpot: 'brightsmileaustin.com', since: '2026-10-11', fix: null, analyzePath: '/dashboard/rank-tracker/drop?tracker=t1&keyword=teeth%20whitening%20austin' },
+              { trackerId: 't1', keyword: 'pediatric dentist austin', domain: 'northsidedental.com', from: 22, to: 27, lostUrl: 'https://northsidedental.com/austin/kids', nowUrl: 'https://northsidedental.com/austin/kids', swapped: false, tookSpot: null, since: '2026-10-11', fix: null, analyzePath: '/dashboard/rank-tracker/drop?tracker=t1&keyword=pediatric%20dentist%20austin' },
+              { trackerId: 't2', keyword: 'water heater repair', domain: 'plumbingpros.com', from: 7, to: 9, lostUrl: 'https://plumbingpros.com/water-heaters', nowUrl: 'https://plumbingpros.com/water-heaters', swapped: false, tookSpot: 'fixitfast.com', since: '2026-10-11', fix: null, analyzePath: '/dashboard/rank-tracker/drop?tracker=t2&keyword=water%20heater%20repair' },
             ],
           },
           clientAudits: [],
           tasks: [
-            { id: 'rank-drop:t1:emergency dentist austin', kind: 'rank_drop', title: '"emergency dentist austin" left the top 10', detail: 'northsidedental.com: position 6 on 2026-10-11, now 12 (Austin, Texas · English · desktop).', path: '/dashboard/rank-tracker/', trackerId: 't1' },
+            { id: 'rank-drop:t1:emergency dentist austin', kind: 'rank_drop', title: '"emergency dentist austin" left the top 10', detail: 'northsidedental.com: position 6 on 2026-10-11, now 12 (Austin, Texas · English · desktop).', path: '/dashboard/rank-tracker/drop?tracker=t1&keyword=emergency%20dentist%20austin', trackerId: 't1' },
+            { id: 'rank-drop:t1:teeth whitening austin', kind: 'rank_drop', title: '"teeth whitening austin" left the top 10', detail: 'northsidedental.com: position 9 on 2026-10-11, now not in the top 100 (Austin, Texas · English · desktop).', path: '/dashboard/rank-tracker/drop?tracker=t1&keyword=teeth%20whitening%20austin', trackerId: 't1' },
             { id: 'repeated-miss:t1', kind: 'repeated_miss', title: '12 keywords on northsidedental.com missed 4 checks running', detail: 'Not found in the top 100 on 4 checks in a row, so they are checked every 28 days instead of every 7.', path: '/dashboard/rank-tracker/', trackerId: 't1' },
           ],
         } }
