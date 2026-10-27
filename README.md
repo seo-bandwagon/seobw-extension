@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.9.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.10.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -82,9 +82,14 @@ replaces Chrome's new tab: the recent audits with each page's change in score,
 the latest capture's checks and the next fix (the analyzer's first issue on
 it), read from the newest 50 local captures through `src/lib/sbw-data.js`.
 Signed out, opening it sends no request; with an account connected it adds
-Rank tracking and Tasks cards from the site's `GET /api/extension/progress`
+Rank changes and Tasks from the site's `GET /api/extension/progress`
 (scope `progress`, at most one request every 10 minutes; a 403 shows
-Reconnect, a 404 shows only the local cards). Its scan box opens a typed site
+Reconnect, a 404 shows only the local cards). From 1.10.0 the signed-in page
+leads with rank changes, one tracker at a time: each dropped keyword's from →
+to, the page that lost it, the page Google swapped in, the next fix for that
+page when it was captured, and a link to its drop page on seobandwagon.com;
+then gains, with Tasks beside and the recent audits (full address, issues,
+date) below. Its scan box opens a typed site
 in that tab and the popup analyzes it (the 1.8.4 analyze flow). It draws the Neon Night and
 Neon Day wallpapers itself, because an extension's new tab hides the theme's
 own. Adding it added the install warning "Replace the page you see when

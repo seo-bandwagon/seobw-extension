@@ -151,7 +151,7 @@ site — nothing to build server-side.
 |---|---|---|---|---|---|---|
 | `/extension/dashboard` | GET | key or session, scope `captures` | **nothing — `unused`** | possible new-tab source; local captures are preferred | `{analyses: [full rows, ≤50, own only]}` | **none** |
 | `/extension/stats` | GET | key or session, scope `captures` | **nothing — `unused`** | possible new-tab totals | `{totalAnalyses, avgScore, uniqueDomains, topDomains:[{domain,count,avgScore}]}` | **none** |
-| `/extension/progress` | GET | key or session, scope `progress` (2026-10-18; keys minted before it get **403**) | `progress()` → `accountProgress()` → new tab Rank tracking and Tasks cards, at most once per 10 min (`chrome.storage.session` `sbwProgress`) | **new tab** | `{generatedAt, windowDays, rankTracking:{trackers[], movers[]}, clientAudits[], tasks[≤5]}` · `Cache-Control: private, max-age=300` | `extension:progress` 30/min per account |
+| `/extension/progress` | GET | key or session, scope `progress` (2026-10-18; keys minted before it get **403**) | `progress()` → `accountProgress()` → new tab Rank changes (1.10.0: drops first, one tracker at a time) and Tasks, at most once per 10 min (`chrome.storage.session` `sbwProgress`) | **new tab** | `{generatedAt, windowDays, rankTracking:{trackers[], movers[], drops[]}, clientAudits[], tasks[≤5]}`; `drops[]` (website PR 3, ≤5 a tracker) carries `from`, `to`, `lostUrl`, `nowUrl`, `swapped`, `tookSpot`, `fix`, `analyzePath` · `Cache-Control: private, max-age=300` | `extension:progress` 30/min per account |
 
 Both are unthrottled and both are candidates, but neither is required: the
 design's new tab treats **local captures as the source of truth** and enriches

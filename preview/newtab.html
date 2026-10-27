@@ -5,6 +5,7 @@
   <title>New Tab · SEO Bandwagon</title>
   <link rel="stylesheet" href="../extension/src/styles/fonts.css">
   <script src="../extension/src/lib/theme-mode.js"></script>
+  <script src="../extension/src/lib/newtab-gate.js"></script>
   <link rel="stylesheet" href="../extension/src/styles/popup.css">
   <link rel="stylesheet" href="../extension/src/newtab/newtab.css">
   <script src="stub.js"></script>
@@ -38,14 +39,34 @@
     </section>
 
     <section class="nt-grid">
-      <article class="nt-card">
+      <article class="nt-card nt-card-rank" id="ntRankCard" hidden>
+        <div class="nt-rank-head">
+          <p class="nt-eyebrow" id="ntRankTitle">Rank tracking</p>
+          <div class="nt-switch" id="ntTrackerSwitch" role="group" aria-label="Tracker" hidden></div>
+        </div>
+        <p class="nt-tr-line" id="ntTrackerLine"></p>
+        <ul class="nt-drops" id="ntDrops"></ul>
+        <p class="nt-subhead" id="ntGainsHead" hidden>Gains</p>
+        <ul class="nt-movers" id="ntGains"></ul>
+        <p class="nt-note" id="ntRankNote"></p>
+        <a href="#" id="ntRankLink" class="nt-minilink" target="_blank" rel="noopener" hidden></a>
+      </article>
+
+      <div class="nt-side">
+        <article class="nt-card nt-card-fix" id="ntTasksCard" hidden>
+          <p class="nt-eyebrow">Tasks</p>
+          <ul class="nt-tasks" id="ntTasks"></ul>
+        </article>
+      </div>
+
+      <article class="nt-card nt-card-audits">
         <p class="nt-eyebrow">Recent audits</p>
         <ul class="nt-audits" id="ntAudits">
           <li class="nt-empty">No captures yet. Scan a site to start the list.</li>
         </ul>
       </article>
 
-      <article class="nt-card">
+      <article class="nt-card nt-card-latest">
         <p class="nt-eyebrow">Latest capture</p>
         <p class="nt-ratio">
           <span id="ntLatestScore">—</span>
@@ -56,19 +77,6 @@
         <p class="nt-note" id="ntHistoryLine"></p>
       </article>
 
-      <article class="nt-card" id="ntRankCard" hidden>
-        <p class="nt-eyebrow">Rank tracking</p>
-        <ul class="nt-trackers" id="ntTrackers"></ul>
-        <ul class="nt-movers" id="ntMovers"></ul>
-        <p class="nt-note" id="ntRankNote"></p>
-        <a href="#" id="ntRankLink" class="nt-minilink" target="_blank" rel="noopener" hidden></a>
-      </article>
-
-      <article class="nt-card nt-card-fix" id="ntTasksCard" hidden>
-        <p class="nt-eyebrow">Tasks</p>
-        <ul class="nt-tasks" id="ntTasks"></ul>
-      </article>
-
       <article class="nt-card nt-card-fix" id="ntFixCard" hidden>
         <p class="nt-eyebrow">Next fix</p>
         <h3 id="ntFixTitle"></h3>
@@ -76,6 +84,15 @@
         <p class="nt-note" id="ntFixCount"></p>
         <a href="#" id="ntFixLink" class="nt-minilink" target="_blank" rel="noopener" hidden></a>
       </article>
+    </section>
+
+    <section class="nt-extras" id="ntExtras" hidden>
+      <form class="nt-form nt-search" id="ntSearchForm" role="search" autocomplete="off">
+        <label class="nt-sr" for="ntSearch">Search the web</label>
+        <input id="ntSearch" name="q" type="search" placeholder="Search with your search engine" spellcheck="false">
+        <button type="submit">Search</button>
+      </form>
+      <ul class="nt-top-sites" id="ntTopSites" aria-label="Most visited"></ul>
     </section>
 
     <footer class="nt-foot">
