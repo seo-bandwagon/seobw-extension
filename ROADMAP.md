@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.10.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.10.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -37,6 +37,29 @@ Semantic-ish, three digits, driven by what the user would notice:
   `chrome.runtime.getManifest()`.
 - Docs-only changes (like this file) don't bump anything.
 - Tag each version submitted to the store: `git tag v1.7.0 <merge commit>`.
+
+---
+
+## Changelog — v1.10.1 (2026-10-27)
+
+With Neon Night or Neon Day on, the new tab still showed the AUTO / NIGHT / DAY
+switch at the top right, and clicking it did nothing (seen 2026-10-27 in Chrome
+for Testing 151). `newtab.js` sets `hidden` on the switch and leaves it unbound
+when a theme decides the page's look, but `.sp-appearance { display:
+inline-flex }` in `popup.css` beat the browser's own `[hidden] { display: none
+}`: an author `display` always does. Written as 1.9.6 (#137) and rebuilt on
+1.10.0, which merged first.
+
+- **`.sp-appearance[hidden] { display: none; }`**, beside the rule, as
+  `.credits[hidden]` already does. Only the new tab ever sets `hidden` on the
+  switch; the popup has none, and the side panel, page-checks panel and
+  settings show theirs as before.
+- **`tests/unit/appearance-hidden.test.js`** loads each page that has the
+  switch with the sheets it links and checks it shows, and hides once `hidden`
+  is set. jsdom's `getComputedStyle` lets `[hidden]` win regardless, so the
+  test resolves `display` from the page's own rules by specificity and order;
+  it fails without the new rule.
+- No permission, host or content-script change; no data-use change.
 
 ---
 
