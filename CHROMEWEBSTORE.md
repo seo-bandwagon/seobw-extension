@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-27
+> Last Updated: 2026-10-28
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -13,22 +13,28 @@ reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
 items have their own listing text in the seobw-themes repo's `store/LISTING.md`. This file
 summarises both and says where to paste what.
 
-Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-26: Google's update
-server (what Chrome installs from) returns **1.9.4**. Check the update server,
+Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-28: Google's update
+server (what Chrome installs from) returns **1.9.5**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-**1.9.4 published; 1.9.5 in review since 2026-10-26, as a staged publish.**
-1.9.4 was submitted 2026-10-23 (run `39988339252`), read STAGED (approved,
-waiting for Publish) later that day, and was published by the owner by
-2026-10-26: a *check* run that day (`40373177944`) read "Published now:
-PUBLISHED (1.9.4)" with nothing waiting. The first submission of 1.9.5 (run
-`40373427903`) uploaded the package, but the store refused the publish with
-HTTP 400 until the dashboard had a justification for `management` and the
-other new fields. The owner filled them in, and Submit to Chrome Web Store
-(run `40386533992`) uploaded 1.9.5 again and submitted it: "Published now:
-PUBLISHED (1.9.4)", then "Submitted for review as a staged publish:
+**1.9.5 published; 1.10.1 in review since 2026-10-28, as a staged publish.**
+1.9.5 was submitted 2026-10-26 (run `40386533992`) and published by the owner
+on 2026-10-27. The owner then saved a listing update against the 1.9.5
+package (the single purpose below, at 980 of 1,000 characters, and screenshot
+5 from `store-assets/1.10.1/`) and submitted it for review. While that review
+was pending, and earlier while 1.9.5 sat approved and waiting for Publish, the
+store refused a new package with HTTP 400 "You may not edit or publish an item
+that is in review" (2026-10-27). A check run on 2026-10-28 (`40683781629`) read
+"Published now: PUBLISHED (1.9.5)" with nothing waiting, and the listing page
+showed it updated October 28. Submit to Chrome Web Store (run `40683986066`)
+then uploaded 1.10.1 and submitted it: "Published now: PUBLISHED (1.9.5)",
+"Uploaded version 1.10.1", then "Submitted for review as a staged publish:
 PENDING_REVIEW". Once Google approves it, press Publish in the dashboard;
-until then the store serves 1.9.4.
+until then the store serves 1.9.5.
+The live detailed description has **no NEW TAB section** (read in the
+dashboard 2026-10-27: it goes from SIDE PANELS straight to EXPORTS AND
+SHORTCUTS). The NEW TAB paragraph in `docs/CWS-LISTING.md` §2 has never been
+pasted in.
 Not re-checked since
 2026-09-24: the live category was **Productivity › Tools**, not the Developer
 Tools set below (change it in the dashboard with this submission if it still
@@ -66,10 +72,10 @@ feature named there is shipped on `main`; nothing planned appears in it.
 Developer Tools
 ```
 
-**Single Purpose**
+**Single Purpose** (980 of 1,000 characters; saved in the dashboard 2026-10-27, live since 2026-10-28)
 
 ```
-SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the user's recent analyses, the first issue found and, with an account connected, the user's own rank changes on its new tab page when the user has installed its Neon Night or Neon Day theme, and syncs that analysis — and the local-SEO citation and outreach records derived from it — to the user's own SEO Bandwagon account.
+SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, so the user can see what the page gets right and what it is missing. In one click it scores the page and lists what it found in the title and description, headings, links, images, structured data, canonical and hreflang tags, indexability and redirects, and compares the raw HTML with the rendered page. On Google results pages it numbers each result and analyzes any of them in one click. With an account connected, it saves those analyses to the user's own SEO Bandwagon account, checks the user's local business citations against the user's own business record, and lists the user's link-building prospects and placements. On its new tab page, shown with its Neon Night or Neon Day theme or when chosen in settings, it summarizes the user's recent analyses, the first issue found and the rank changes of the user's own tracked keywords. Its findings export as spreadsheet or JSON files the user saves.
 ```
 
 **Primary Language**
@@ -87,7 +93,7 @@ English
 | Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-2-link-check-1280x800.png` |
 | Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-3-indexability-1280x800.png` |
 | Screenshot 4 — Google results overlay and Collect pages (page 1 added) | 1280×800 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/screenshot-4-serp-collect-1280x800.png` |
-| Screenshot 5 — the new tab page in Night and Day, signed in: rank drops first (1.10.0) | 1280×800 | ✅ Ready 2026-10-27 (1.10.0) | `store-assets/1.10.0/screenshot-5-new-tab-1280x800.png` |
+| Screenshot 5 — the new tab page in Night and Day, signed in: rank drops first, in search-volume order (1.10.1) | 1280×800 | ✅ Live 2026-10-28 (shot 2026-10-27 from 1.10.1) | `store-assets/1.10.1/screenshot-5-new-tab-1280x800.png` |
 | Small Promo Tile | 440×280 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-tile-440x280.png` |
 | Marquee Promo Tile | 1400×560 | ✅ Ready 2026-10-23 (1.9.4) | `store-assets/1.9.4/promo-marquee-1400x560.png` |
 
@@ -115,7 +121,10 @@ Night appearance for 1–4 and the new tab in Night and Day for 5.
 with rank drops first, shot 2026-10-27 from the 1.10.0 branch in the owner's
 signed-in profile against production, with the feed filtered to
 seobandwagon.com's own tracker (no client site in frame); its README says how.
-Screens 1 to 4 and both tiles stay the 1.9.4 set. Show the extension in
+Screens 1 to 4 and both tiles stay the 1.9.4 set. 1.10.1 re-shot it again
+in `store-assets/1.10.1/`: the drops in search-volume order (the site's feed
+sorts them that way since 2026-10-27) with each page's "Next fix" line. That
+is the screenshot 5 on the live listing since 2026-10-28. Show the extension in
 action on the page, not the popup floating alone. No competitor names or
 logos anywhere in frame.
 
@@ -251,8 +260,8 @@ text in its `store/LISTING.md`, packaged by its `npm run zip`:
 
 | Item | Status | Item ID |
 |------|--------|---------|
-| SEO Bandwagon — Neon Night | Published 2026-09-08, category Dark & Black | `bomhiblgnbmpgbddhocomnbijdkmpbhl` |
-| SEO Bandwagon — Neon Day | Published 2026-09-08, category Other | `ldifldabjbffldoekbebpickddaiiggm` |
+| SEO Bandwagon — Neon Night | Published 2026-09-08, category Dark & Black; 1.0.1. Listing updated 2026-10-28 with five screenshots (seobw-themes `store/neon-night-1-new-tab.png` to `-5-side-panel.png`) | `bomhiblgnbmpgbddhocomnbijdkmpbhl` |
+| SEO Bandwagon — Neon Day | Published 2026-09-08, category Other; 1.0.1. Listing updated 2026-10-28 with five screenshots (seobw-themes `store/neon-day-1-new-tab.png` to `-5-side-panel.png`) | `ldifldabjbffldoekbebpickddaiiggm` |
 
 Both ids are in `THEME_IDS` in `extension/src/lib/theme-mode.js`, so the
 extension's options page shows its theme links from 1.6.0 on.
@@ -276,9 +285,9 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.10.1 | 2026-10-27 | 1.10.0 plus a fix for the new tab with Neon Night or Neon Day on: the Night / Day / Auto switch stayed on screen and did nothing, because its `display` overrode the `hidden` attribute. It is now hidden, as 1.9.5 meant; the popup, side panel and settings are unchanged. It was #137, written as 1.9.6 and rebuilt on 1.10.0 after #138 merged first. No permission, host or content-script change; no data-use change. | Not submitted (1.9.5 is in review) |
-| 1.10.0 | 2026-10-27 | 1.9.5 plus **rank drops first on the new tab** (part C of the rank-drops design): signed in, the tab leads with Rank changes for one tracker at a time (a switcher when there are several, the one with the most drops first). Each keyword that fell shows from → to as the site's feed gives it (`rankTracking.drops`, the window's start against now), the page that lost it, the page Google ranks instead when it swapped them, who holds the old position, the next fix for that page when it has been captured, and "Analyze this drop on seobandwagon.com", which opens the drop page on the user's own dashboard. Then the keywords that went up; Tasks beside; recent audits below with each page's full address, first two issues and date (signed out too). The scan box stays, smaller. Single-purpose statement grows to name rank changes. No permission, host or content-script change; **no data-use change**: the same `GET /api/extension/progress` request as 1.9.1, which already returned these fields. Screenshot 5 re-shot (`store-assets/1.10.0/`). | Not submitted |
-| 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | **Submitted 2026-10-26**, staged publish: run `40386533992` (GitHub release `v1.9.5`, commit `678816c`); the store reads PENDING_REVIEW. The first try (run `40373427903`) was refused until the dashboard fields were filled in. Press Publish in the dashboard once approved |
+| 1.10.1 | 2026-10-27 | 1.10.0 plus a fix for the new tab with Neon Night or Neon Day on: the Night / Day / Auto switch stayed on screen and did nothing, because its `display` overrode the `hidden` attribute. It is now hidden, as 1.9.5 meant; the popup, side panel and settings are unchanged. It was #137, written as 1.9.6 and rebuilt on 1.10.0 after #138 merged first. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-28**, staged publish: run `40683986066` (GitHub release `v1.10.1`, commit `1df4ff6`); the store reads PENDING_REVIEW. Two earlier tries on 2026-10-27 were refused (HTTP 400) while 1.9.5, then its listing update, was in review. Press Publish in the dashboard once approved |
+| 1.10.0 | 2026-10-27 | 1.9.5 plus **rank drops first on the new tab** (part C of the rank-drops design): signed in, the tab leads with Rank changes for one tracker at a time (a switcher when there are several, the one with the most drops first). Each keyword that fell shows from → to as the site's feed gives it (`rankTracking.drops`, the window's start against now), the page that lost it, the page Google ranks instead when it swapped them, who holds the old position, the next fix for that page when it has been captured, and "Analyze this drop on seobandwagon.com", which opens the drop page on the user's own dashboard. Then the keywords that went up; Tasks beside; recent audits below with each page's full address, first two issues and date (signed out too). The scan box stays, smaller. Single-purpose statement grows to name rank changes. No permission, host or content-script change; **no data-use change**: the same `GET /api/extension/progress` request as 1.9.1, which already returned these fields. Screenshot 5 re-shot (`store-assets/1.10.0/`). | Not submitted (folded into 1.10.1) |
+| 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | **Published** 2026-10-27 (the update server serves 1.9.5); its listing update (single purpose, screenshot 5) was live 2026-10-28 (check run `40683781629`). Submitted 2026-10-26, staged publish: run `40386533992` (GitHub release `v1.9.5`, commit `678816c`); the first try (run `40373427903`) was refused until the dashboard fields were filled in |
 | 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | **Published** by 2026-10-26 (check run `40373177944`: PUBLISHED (1.9.4); the update server serves 1.9.4). Submitted 2026-10-23, staged publish: run `39988339252` (GitHub release `v1.9.4`, commit `451d19c`) |
 | 1.9.3 | 2026-10-21 | 1.9.2 plus a fix for signed-in Google results, where result links are direct: the sitelinks under a result (Contact, About Us…) and the AI Overview's heading each counted as a result of their own, so on "seo bandwagon" the overlay and the exports held seobandwagon.com seven times and LinkedIn at 8 instead of 2. Sitelinks now count as part of their result, as DataForSEO counts them, and the AI Overview is left out. No permission, host or content-script change; no data-use change. | **Published 2026-10-23** by the owner after approval (submitted 2026-10-22, run `39858017060`, GitHub release `v1.9.3`, commit `828146d`). A check run that day read PUBLISHED (1.9.3); Google's update server served 1.9.3 |
 | 1.9.2 | 2026-10-21 | 1.9.1 plus a fix for signed-out Google results: LinkedIn, Facebook, Instagram, TikTok and Pinterest profiles that show a follower count instead of a URL breadcrumb were dropped from the overlay and the exports, and every later position moved up. They are now placed by their site name, as Reddit, YouTube and Quora already were. No permission, host or content-script change; no data-use change. | Not submitted (folded into 1.9.3) |
