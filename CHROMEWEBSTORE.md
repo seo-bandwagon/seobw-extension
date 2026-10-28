@@ -13,11 +13,11 @@ reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
 items have their own listing text in the seobw-themes repo's `store/LISTING.md`. This file
 summarises both and says where to paste what.
 
-Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-28: Google's update
-server (what Chrome installs from) returns **1.9.5**. Check the update server,
+Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-10-28 16:45 UTC: Google's
+update server (what Chrome installs from) returns **1.10.1**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-**1.9.5 published; 1.10.1 in review since 2026-10-28, as a staged publish.**
+**1.10.1 published 2026-10-28; nothing in review.**
 1.9.5 was submitted 2026-10-26 (run `40386533992`) and published by the owner
 on 2026-10-27. The owner then saved a listing update against the 1.9.5
 package (the single purpose below, at 980 of 1,000 characters, and screenshot
@@ -29,8 +29,10 @@ that is in review" (2026-10-27). A check run on 2026-10-28 (`40683781629`) read
 showed it updated October 28. Submit to Chrome Web Store (run `40683986066`)
 then uploaded 1.10.1 and submitted it: "Published now: PUBLISHED (1.9.5)",
 "Uploaded version 1.10.1", then "Submitted for review as a staged publish:
-PENDING_REVIEW". Once Google approves it, press Publish in the dashboard;
-until then the store serves 1.9.5.
+PENDING_REVIEW". Google approved it the same day: a check run at 15:53 UTC
+(`40720492443`) read "Submitted: STAGED (1.10.1)". The owner pressed Publish,
+and a check run at 16:44 UTC (`40728987116`) read "Published now: PUBLISHED
+(1.10.1)" with nothing waiting.
 The live detailed description has **no NEW TAB section** (read in the
 dashboard 2026-10-27: it goes from SIDE PANELS straight to EXPORTS AND
 SHORTCUTS). The NEW TAB paragraph in `docs/CWS-LISTING.md` §2 has never been
@@ -285,7 +287,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.10.1 | 2026-10-27 | 1.10.0 plus a fix for the new tab with Neon Night or Neon Day on: the Night / Day / Auto switch stayed on screen and did nothing, because its `display` overrode the `hidden` attribute. It is now hidden, as 1.9.5 meant; the popup, side panel and settings are unchanged. It was #137, written as 1.9.6 and rebuilt on 1.10.0 after #138 merged first. No permission, host or content-script change; no data-use change. | **Submitted 2026-10-28**, staged publish: run `40683986066` (GitHub release `v1.10.1`, commit `1df4ff6`); the store reads PENDING_REVIEW. Two earlier tries on 2026-10-27 were refused (HTTP 400) while 1.9.5, then its listing update, was in review. Press Publish in the dashboard once approved |
+| 1.10.1 | 2026-10-27 | 1.10.0 plus a fix for the new tab with Neon Night or Neon Day on: the Night / Day / Auto switch stayed on screen and did nothing, because its `display` overrode the `hidden` attribute. It is now hidden, as 1.9.5 meant; the popup, side panel and settings are unchanged. It was #137, written as 1.9.6 and rebuilt on 1.10.0 after #138 merged first. No permission, host or content-script change; no data-use change. | **Published** 2026-10-28 (check run `40728987116`: PUBLISHED (1.10.1); the update server serves 1.10.1). Submitted 2026-10-28, staged publish: run `40683986066` (GitHub release `v1.10.1`, commit `1df4ff6`), approved the same day (STAGED at 15:53 UTC). Two earlier tries on 2026-10-27 were refused (HTTP 400) while 1.9.5, then its listing update, was in review |
 | 1.10.0 | 2026-10-27 | 1.9.5 plus **rank drops first on the new tab** (part C of the rank-drops design): signed in, the tab leads with Rank changes for one tracker at a time (a switcher when there are several, the one with the most drops first). Each keyword that fell shows from → to as the site's feed gives it (`rankTracking.drops`, the window's start against now), the page that lost it, the page Google ranks instead when it swapped them, who holds the old position, the next fix for that page when it has been captured, and "Analyze this drop on seobandwagon.com", which opens the drop page on the user's own dashboard. Then the keywords that went up; Tasks beside; recent audits below with each page's full address, first two issues and date (signed out too). The scan box stays, smaller. Single-purpose statement grows to name rank changes. No permission, host or content-script change; **no data-use change**: the same `GET /api/extension/progress` request as 1.9.1, which already returned these fields. Screenshot 5 re-shot (`store-assets/1.10.0/`). | Not submitted (folded into 1.10.1) |
 | 1.9.5 | 2026-10-26 | 1.9.4 plus **the new tab follows the theme**: the dashboard shows only with SEO Bandwagon's Neon Night or Neon Day theme installed (found with the new `management` permission), in that theme's Night or Day; anyone else is handed to Chrome's own new tab. A New tab setting (with a theme, Always, Never), an optional search box (the user's own engine) and most-visited sites (`optional_permissions` `topSites`, `search`), and a popup prompt to add a theme. New install warning "Manage your apps, extensions, and themes" (see Permissions Justification). Data use: unchanged, nothing new is sent. | **Published** 2026-10-27 (the update server serves 1.9.5); its listing update (single purpose, screenshot 5) was live 2026-10-28 (check run `40683781629`). Submitted 2026-10-26, staged publish: run `40386533992` (GitHub release `v1.9.5`, commit `678816c`); the first try (run `40373427903`) was refused until the dashboard fields were filled in |
 | 1.9.4 | 2026-10-23 | 1.9.3 plus #129: on a page Chrome never lets an extension script (its own pages, the new tab, other extensions' pages, the Chrome Web Store, a file while file access is off) the popup says why before trying, and no longer leaves "Receiving end does not exist" on chrome://extensions → Errors. The side panel's Scan uses the same check. No permission, host or content-script change; no data-use change. | **Published** by 2026-10-26 (check run `40373177944`: PUBLISHED (1.9.4); the update server serves 1.9.4). Submitted 2026-10-23, staged publish: run `39988339252` (GitHub release `v1.9.4`, commit `451d19c`) |
