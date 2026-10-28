@@ -58,6 +58,10 @@ properly, still in plain sentences. Google's rules for this field
 - no list of more than five supported sites or brands
 - nothing not directly relevant to the extension
 
+Read in the dashboard 2026-10-27: the live description has no NEW TAB
+section. It goes from SIDE PANELS straight to EXPORTS AND SHORTCUTS; the NEW
+TAB paragraph below has never been pasted in.
+
 `tests/unit/listing-copy.test.js` holds the block below to those: search and
 purpose keywords at most five times, no other word repeated to the point of
 stuffing, no list of five or more bare terms, and the 16,000-character limit.
@@ -272,12 +276,22 @@ extension this way.
 
 ## 4. Single-purpose statement
 
-SEO Bandwagon analyses the SEO signals of the page you are viewing, shows the
-user's recent analyses, the first issue found and, with an account connected,
-the user's own rank changes on its new tab page when the user has installed its
-Neon Night or Neon Day theme, and syncs that analysis — and the local-SEO
-citation and outreach records derived from it — to the user's own SEO Bandwagon
-account.
+The text live in the dashboard (980 of 1,000 characters; saved 2026-10-27,
+live since 2026-10-28):
+
+SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, so
+the user can see what the page gets right and what it is missing. In one click
+it scores the page and lists what it found in the title and description,
+headings, links, images, structured data, canonical and hreflang tags,
+indexability and redirects, and compares the raw HTML with the rendered page. On
+Google results pages it numbers each result and analyzes any of them in one
+click. With an account connected, it saves those analyses to the user's own SEO
+Bandwagon account, checks the user's local business citations against the user's
+own business record, and lists the user's link-building prospects and
+placements. On its new tab page, shown with its Neon Night or Neon Day theme or
+when chosen in settings, it summarizes the user's recent analyses, the first
+issue found and the rank changes of the user's own tracked keywords. Its
+findings export as spreadsheet or JSON files the user saves.
 
 The new tab page (`chrome_url_overrides.newtab`, 1.9.0) is the same purpose on
 another surface: it reads only the analyses this extension stored and sends no
