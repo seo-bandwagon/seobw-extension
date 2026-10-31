@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-28
+> Last Updated: 2026-10-31
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -218,6 +218,26 @@ install id, setting or usage leaves with either, so no data-use answer changes.
 
 Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
+### Changes the road to 2.0.0 will make here
+
+ROADMAP.md → "The road to 2.0.0" plans four new data flows. Each one changes
+the table above, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy in the
+release that ships it, and is accepted inside the extension with a specific
+action first; until then none of it is sent:
+
+| Release | What starts leaving the device, and only after the user accepts |
+|---|---|
+| 1.12.0 | Full result URLs on a Google results page (today only bare domains), for the link figures and the results table; signed in only |
+| 1.13.0 | The search text, for keyword volume and difficulty, and from 1.15.0 for the user's own Search Console figures for that search |
+| 1.16.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
+| 1.18.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
+
+*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one.*
+
+No release on that road should add an install warning; any host or
+content-script change is measured with `getPermissionWarningsByManifest`
+first.
+
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality
@@ -238,6 +258,22 @@ and when. Keep it in step with the table above.
 
 **Visibility**: Public
 **Regions**: All regions
+
+## Other stores from 2.0.0
+
+Owner, 2026-10-31: "When we launch 2.0.0 I want to have Edge and Firefox
+versions." Plan in ROADMAP.md → "The road to 2.0.0" (1.10.6, 1.10.7, 2.0.0);
+reasoning in the SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
+Nothing is listed in either store yet; this section gets each store's fields
+when its listing is written, as the sections above do for Chrome.
+
+| | Microsoft Edge Add-ons | Firefox Add-ons (AMO) |
+|---|---|---|
+| Package | `npm run zip -- --target edge` (from 1.10.6): the Chrome manifest without `key`, the new-tab override and `management` | `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
+| Listing rules | Policy 1.1.2: the extension and listing name no other browser; reviewer test account (1.3.1); certification up to seven business days | Data consent: `required: ["none"]`; the optional categories follow the data-use table above (see the vault design's consent map); every send is gated on the user's choice |
+| Item ID | Assigned at the first upload; the site's Connect uses a bridge, so it doesn't need it | Ours, in `gecko.id` |
+| Publishing | `scripts/edge-publish.mjs` (Edge Add-ons API v1.1) uploads; the owner presses Publish in Partner Center (the API has no staged publish). The product and its first listing are created by hand | `web-ext sign --channel=listed`; listed versions go live after the automated check |
+| Account | Microsoft Partner Center developer account (owner) | Mozilla add-on developer account with two-factor sign-in (owner) |
 
 ## Developer Info
 
