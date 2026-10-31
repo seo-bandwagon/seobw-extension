@@ -42,8 +42,8 @@ npm run bump -- patch    # or minor / x.y.z
 
 Any non-Markdown change under `extension/` bumps the version; CI
 (`scripts/check-version-bump.mjs`) fails the PR otherwise. Fixes are `patch`;
-a ROADMAP feature-list item is `minor` (1.9.0 shipped the latest; the next
-one makes 1.10.0). After `npm run bump`, also edit `version_name`'s summary in the
+a ROADMAP feature-list item is `minor` (1.10.0 shipped the latest; the next
+one makes 1.11.0). After `npm run bump`, also edit `version_name`'s summary in the
 manifest, add the `CHROMEWEBSTORE.md` Version History row and a ROADMAP
 changelog section. Full rules: ROADMAP.md → "Versioning policy", README.md →
 "Releasing".

@@ -21,7 +21,7 @@ Semantic-ish, three digits, driven by what the user would notice:
 - **Every PR that changes what ships bumps the version.** "What ships" is
   anything under `extension/` except Markdown. A fix or small edit bumps the
   patch digit (1.6.0 → 1.6.1); only a feature from the feature list below bumps
-  the minor. Stay on 1.9.x until the next feature from that list lands (1.10.0).
+  the minor. Stay on 1.10.x until the next feature from that list lands (1.11.0).
 - **Bump with `npm run bump -- patch`** (or `minor`, or an explicit `x.y.z`). It
   writes `extension/manifest.json` (`version` and the number leading
   `version_name`), `package.json`, `package-lock.json`, the "Current version"
@@ -55,8 +55,12 @@ SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
 The releases below are in shipping order, and a version number never goes
 back: if one release's website work is late, it and the ones after it wait.
 Within each stage the Google results page comes first, then the account, then
-the popup. Store submissions group them: **A** 1.9.5–1.9.8, **B**
-1.10.0–1.12.0, **C** 1.13.0–1.14.0, **D** 1.15.0–2.0.0 (owner, 2026-10-23). Every release also updates `CHROMEWEBSTORE.md`,
+the popup. Store submissions group them: **A** 1.10.2–1.10.6, **B**
+1.10.7–1.13.0, **C** 1.14.0–1.15.0 (with the Firefox gate), **D**
+1.16.0–2.0.0 (owner, 2026-10-23). Renumbered 2026-10-31: 1.9.5, 1.10.0 and
+1.10.1 shipped the Neon and rank-drops new tab first, so the patches start at
+1.10.2 and the minors at 1.11.0. Every release builds and lints the Chrome,
+Edge and Firefox packages from 1.10.6 on. Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -75,13 +79,14 @@ it stores; citation campaigns report failure, stop saving scan failures as
 "No listing found", and stop duplicating rows on a rerun; a Candidate tab in
 the Link Building review queue.
 
-**Tooling (no version):** `cws-publish.mjs` stops on `STAGED`; saved real
+**Tooling (no version):** `cws-publish.mjs` says why before uploading while a
+version is `STAGED` or in review (the store refuses it with HTTP 400); saved real
 Google pages for every layout (featured snippet, local pack, shopping, top
 stories, forums, `udm=web`, signed-out AI Overview, a non-English Google,
 mobile) and real Search Console pages; an e2e Copy check without a clipboard
 grant; the coverage report (#74).
 
-### 1.9.5: the Google results page stops misleading (patch)
+### 1.10.2: the Google results page stops misleading (patch)
 - [ ] Bar below the whole result, with position and Analyze; "Score N · M captures" dropped
 - [ ] People Also Ask containers rejected (no fake results)
 - [ ] 6 metros renamed to Google's names; Compare opens both tabs from the worker
@@ -90,7 +95,7 @@ grant; the coverage report (#74).
 - [ ] `www.google.co.in` replaces `www.google.in`, which redirects (India gets nothing today)
 - [ ] Search Console: tab switches through `webNavigation.onHistoryStateUpdated`; searches with country and personalisation off
 
-### 1.9.6: the account features work for a normal user (patch)
+### 1.10.3: the account features work for a normal user (patch)
 - [ ] `hasApiKey` exported; "connected" means a verified key; caches cleared on Connect; 429/503/offline is not "signed out"
 - [ ] Captures refused for auth retried after reconnect; 4xx not retried
 - [ ] Domain-history strip shows only this URL's captures, labelled
@@ -98,7 +103,7 @@ grant; the coverage report (#74).
 - [ ] Side panel: numeric average (no "NaN%"); failed campaign says failed; review buttons only where the route acts
 - [ ] New tab cards on a second device; Netlify hosts out of the custom API list
 
-### 1.9.7: the score and the page analysis tell the truth (patch)
+### 1.10.4: the score and the page analysis tell the truth (patch)
 - [ ] Words counted in every language; readability only for English pages
 - [ ] Schema check counts JSON-LD, Microdata and RDFa
 - [ ] One check list behind score and sub-scores (https, mixed content, noindex count in both)
@@ -110,7 +115,7 @@ grant; the coverage report (#74).
 - [ ] Decorative `alt=""` apart from missing alt; word count falls back to the body
 - [ ] Tech stack probed in the page's own world (`world: 'MAIN'`, no new permission)
 
-### 1.9.8: the checks panels are right (patch)
+### 1.10.5: the checks panels are right (patch)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -120,16 +125,31 @@ grant; the coverage report (#74).
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
 
-### 1.10.0: the Google results page, redrawn
+### 1.10.6: build targets for Chrome, Edge and Firefox (patch)
+Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0).
+- [ ] `npm run zip -- --target chrome|edge|firefox`: each manifest is the shared one plus a per-target overlay under `scripts/`, so a change for one store never forces a bump; `check:zip` reads the packaged manifest
+- [ ] Edge and Firefox overlays leave out the new-tab override and `management` (the Neon themes are Chrome Web Store items); Firefox adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain
+- [ ] `src/lib/browser.js`: browser name, store and review URLs, private-mode name, unreadable store hosts, default shortcut (Ctrl+Shift+S is Firefox's screenshot key); the strings that name Chrome read from it (Edge policy 1.1.2)
+- [ ] `utm_source` per browser: `chrome_extension`, `edge_extension`, `firefox_extension`
+- [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
+
+### 1.10.7: shared pieces for three browsers (patch)
+Merged after submission A uploads, and before any new data flow.
+- [ ] The Connect bridge: a content script on seobandwagon.com's api-keys and welcome paths, top frame only, origin and `event.source` checked, replies on a `MessageChannel` port; `externally_connectable` stays for Chrome and Edge
+- [ ] A consent module: each data flow mapped to a Firefox category; every send checks category granted and flow accepted; on Firefox data collection starts off; accept buttons in Options (Firefox's prompt closes the popup)
+- [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
+- [ ] Website: the messaging tries the bridge first, then `sendMessage(EXTENSION_ID)`
+
+### 1.11.0: the Google results page, redrawn
 - [ ] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast; one compact line per result
 - [ ] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
 - [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically or on a click
 - [ ] The popup on a results page: the search's features, exports, settings, account state
 - [ ] Exports gain the search's features, AI Overview citations, result type
-- [ ] Your own sites highlighted: every Search Console property the account granted (a local setting until 1.13.0 links the account)
+- [ ] Your own sites highlighted: every Search Console property the account granted (a local setting until 1.14.0 links the account)
 - [ ] About 20 more Google domains; dates, ratings and ad labels per language; Search Console in other languages (1.8.4's warning names ten Google domains as one host, so this likely adds no warning; measured first)
 
-### 1.11.0: figures on every result, and the results table
+### 1.12.0: figures on every result, and the results table
 - [ ] Website `POST /api/v1/serp/metrics`: page referring domains and page rank (the two the grade study supports), domain rank and referring domains (context), domain age from the existing whois lookup; DataForSEO bulk endpoints, cached; per-plan daily cap
 - [ ] Figures on each bar
 - [ ] The Market Samurai-style table at the panel's place: position, title/URL, result type, query words in title and URL, title length, date, the link figures, domain age, word count, the on-page checklist; cells coloured against the search's median or your pinned page; columns chosen and sortable; same columns in the export
@@ -139,13 +159,13 @@ grant; the coverage report (#74).
 - [ ] Signed out of Google, a row known only by its site gets domain figures and "sign in to Google to see page figures"; no request to Google
 - [ ] Data use: full result URLs sent (today: domains); disclosure, store answers and `/privacy` change
 
-### 1.12.0: keyword data on Google, into the account (#68)
+### 1.13.0: keyword data on Google, into the account (#68)
 - [ ] On a click: volume, difficulty, CPC and trend for the search; volumes for related searches and People Also Ask
 - [ ] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet)
 - [ ] Website: keyword metrics and keyword write routes under the `keywords` scope (extension keys lack it today: a 403 shows Reconnect)
 - [ ] Data use: sends the search text; its own first-use disclosure
 
-### 1.13.0: onboarding after feature releases
+### 1.14.0: onboarding after feature releases
 The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
 the welcome page on minor and major updates; the `status` message; the opt-in
 to record how Google shows the user's own titles; "Check titles" with its
@@ -153,15 +173,15 @@ first-use disclosure. Needs website parts 1 and 2 live. On the website, the
 onboarding page also sets up Search Console and Analytics for a user who has
 neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 
-### 1.14.0: your site in the extension (Search Console and Analytics)
+### 1.15.0: your site in the extension (Search Console and Analytics)
 - [ ] One chosen site with a switcher for agencies' other properties
 - [ ] On your own pages: Search Console figures and top searches, Analytics visits, Google's URL Inspection verdict, the page's fixes ordered by impressions and visits
 - [ ] New tab: Search Console trend, top opportunities, fixes list, client audits
 - [ ] Search Console row actions, account-backed (#67)
-- [ ] On Google: your result's Search Console figures for that search, "add to tracker" (after 1.12.0's consent)
+- [ ] On Google: your result's Search Console figures for that search, "add to tracker" (after 1.13.0's consent)
 - [ ] Website: key-scoped Search Console and Analytics reads; the MCP-only analyses as routes; a new scope (403 shows Reconnect)
 
-### 1.15.0: the popup, complete
+### 1.16.0: the popup, complete
 - [ ] Social section: every Open Graph and Twitter tag, share-card preview (image on a click, disclosed)
 - [ ] Keyword density for 1–4 words with title/description/H1 presence; n-grams; CSV
 - [ ] Headings click to scroll; link and image tables; stacked highlights with a legend
@@ -171,13 +191,13 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 - [ ] Issues by severity, jump to section, Copy issues; grade and "N of 14" with what the score measures
 - [ ] "Open in side panel"; the full analysis in the page-checks panel; more tool links
 
-### 1.16.0: history and reports
+### 1.17.0: history and reports
 - [ ] History from the popup: a timeline per URL, compare two captures
 - [ ] A one-file report of an analysis (HTML that prints to PDF)
 - [ ] Domain-history strip from local captures when signed out
 - [ ] Website: capture pages with history, paging, delete; a summary exact-URL query; links from each synced capture
 
-### 1.17.0: citations, complete
+### 1.18.0: citations, complete
 - [ ] Corrected details and the directory's edit link (#69); Undo (#70); campaign steps and summary (#71)
 - [ ] One directory list served by the site, with Google Business Profile and the aggregators, defunct ones dropped
 - [ ] Proof stored with the citation (uploaded on a click, disclosed)
@@ -190,9 +210,10 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 - [ ] The full check: every feature signed out and in, Night and Day, fresh profile, saved real pages; `MANUAL_SMOKE_TEST.md` rewritten
 - [ ] Store listing, screenshots, tiles and video; every data-use answer; the website's extension pages true
 - [ ] `lib/` under `src/lib/`
+- [ ] **Edge and Firefox launch** (owner, 2026-10-31): Firefox wiring (`sidebar_action` with one sidebar page that follows the active tab, the consent prompts); `scripts/edge-publish.mjs` (upload only; the owner presses Publish) and `web-ext sign` for AMO; first listings on Edge Add-ons and AMO; the full check on all three; the API key in `storage.local`
+- [ ] Firefox gate, held at submission C with a `web-ext run` smoke test on every surface: if the sidebar or consent gating can't pass, Firefox follows 2.0.0 instead of holding it, and no copy mentions Firefox until it is live
 
-**Not in 2.0.0:** a Firefox port; the extension's own interface in other
-languages; the crowdsourced rank-checker extension; writing content on the
+**Not in 2.0.0:** the extension's own interface in other languages; the crowdsourced rank-checker extension; writing content on the
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
@@ -1254,9 +1275,11 @@ site API (`seobandwagon.com/api`) and adds account sync throughout:
 
 ---
 
-## Where we are — v1.9.4 (23 Oct 2026)
+## Where we are — v1.10.1 (31 Oct 2026)
 
-Checked against the code at `292686a` (1.9.4), not only the changelogs above.
+Checked against the code at `292686a` (1.9.4), not only the changelogs above;
+the new tab's 1.9.5 to 1.10.1 changes are from their changelogs and the code at
+`d8810aa`.
 Which version the store serves is in `CHROMEWEBSTORE.md`, Version History.
 
 - **SEO Analysis tab** — score ring + four sub-scores (14 checks,
@@ -1304,15 +1327,18 @@ Which version the store serves is in `CHROMEWEBSTORE.md`, Version History.
   `src/lib/analyze-link.js`). Social profiles, signed-in sitelinks and the AI
   Overview are placed or left out as Google means them (1.9.2, 1.9.3).
   `src/overlay/serp-overlay.js`, `src/lib/serp.js`, `src/lib/serp-collect.js`.
-- **New tab page** (1.9.0, 1.9.1) — recent audits with each page's score
-  change, the latest capture's checks, the next fix, a scan box, and, signed
-  in, the account's rank tracking summary and derived tasks from
-  `GET /api/extension/progress` (scope `progress`, at most one request every
-  10 minutes). `src/newtab/`.
+- **New tab page** (1.9.0, 1.9.1, 1.9.5, 1.10.0, 1.10.1) — shown only with
+  the Neon Night or Neon Day theme on (found with `management`, 1.9.5; a New
+  tab setting: with a Neon theme, Always or Never), otherwise the tab is handed
+  to Chrome's own. Signed in it leads with rank drops for one tracker at a time
+  (1.10.0), with Tasks beside and recent audits below; signed out, recent
+  audits, the latest capture's checks, the next fix and a scan box. One
+  `GET /api/extension/progress` request (scope `progress`) at most every 10
+  minutes. `src/newtab/`, `src/lib/newtab-gate.js`.
 - **Onboarding links** (1.7.4) — a first install opens the welcome page on
   seobandwagon.com; removing the extension opens a one-question survey; every
   link to the site carries UTM tags (`src/lib/site-links.js`). An update opens
-  nothing yet (1.13.0 below).
+  nothing yet (1.14.0 below).
 - **Reviews** — a one-time prompt after the fifth analysis (1.6.0) and "Rate
   us" in the popup footer and on the options page (1.7.2).
 - **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
@@ -1435,9 +1461,12 @@ candidates, still open" below.
 
 **Release tooling**
 - [ ] `scripts/cws-publish.mjs` stops a submission only on `PENDING_REVIEW`.
-      A submit run while a version is `STAGED` (approved, waiting for Publish)
-      would upload over the approved package and send the new one back to
-      review. Found 2026-10-23 with 1.9.3 staged and 1.9.4 waiting.
+      While a version is `STAGED` (approved, waiting for Publish) or a listing
+      update is in review, the store itself refuses the upload with HTTP 400
+      "You may not edit or publish an item that is in review" (seen
+      2026-10-27), so nothing is overwritten; the script should say so before
+      uploading. *Corrected 2026-10-31: 2026-10-23 thought the upload would go
+      through.*
 
 **Test debt**
 - [ ] An e2e check of the SERP Copy buttons **without** pre-granted clipboard
@@ -1489,8 +1518,8 @@ the site's `GET /api/extension/progress` existed.
 ## Feature candidates, still open
 
 Each has an issue. None is started in the code at `292686a`. Each now has a
-place on "The road to 2.0.0" above: #68 in 1.12.0, #67 in 1.14.0, #69–#71 in
-1.17.0.
+place on "The road to 2.0.0" above: #68 in 1.13.0, #67 in 1.15.0, #69–#71 in
+1.18.0.
 
 - **Search Console row actions, account-backed (#67)** — "add this keyword to
   my rank tracker" on the Queries tab and "send this page to my captures" on
