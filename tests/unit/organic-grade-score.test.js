@@ -21,18 +21,20 @@ import { JSDOM } from 'jsdom';
 import analysis from '../../extension/lib/content-analysis.js';
 import extraction from '../../extension/lib/dom-extraction.js';
 import subScores from '../../extension/src/lib/sub-scores.js';
-import { CHECK_DEDUCTIONS, checksFromIssues, scoreDocument } from '../../research/organic-grade/score-core.js';
+import { CHECK_START, CHECK_DEDUCTIONS, checksFromIssues, scoreDocument } from '../../research/organic-grade/score-core.js';
 import { scorePages, scorerLabel } from '../../research/organic-grade/score-run.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXTENSION = resolve(REPO, 'extension');
 const deps = { analysis, extraction, subScores };
 
-// The points each check starts from (the checks' maximums; 95 in all, because
-// the readability comment says 10 points and its deduction is 5).
+// The points each check starts from (the checks' maximums, 100 in all since
+// 1.10.4), typed out here so a change to lib/content-analysis.js's CHECKS
+// has to be made twice.
 const START = {
-  title: 15, description: 15, h1: 10, imageAlt: 10, canonical: 5, jsonLd: 10,
-  ogTitle: 5, wordCount: 10, internalLinks: 5, domSize: 5, readability: 5
+  indexable: 15, title: 12, description: 8, h1: 8, https: 5, canonical: 5, words: 10,
+  imageAlt: 6, internalLinks: 5, structuredData: 5, viewport: 4, readability: 4,
+  mixedContent: 3, lang: 2, duplicates: 2, openGraph: 2, domSize: 2, charset: 2
 };
 
 // ---------------------------------------------------------------- fixtures
@@ -44,7 +46,7 @@ const HARD = 'Organizational interoperability considerations notwithstanding, co
 const paragraphs = (sentence, count, perParagraph) =>
   Array.from({ length: count }, () => `<p>${sentence.repeat(perParagraph)}</p>`).join('\n');
 
-const page = ({ head = '', body = '' }) => `<!doctype html><html lang="en"><head><meta charset="utf-8">${head}</head><body>${body}</body></html>`;
+const page = ({ head = '', body = '' }) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${head}</head><body>${body}</body></html>`;
 
 // A rich page: every check passes, the text is inside <main>.
 const RICH = {
@@ -183,7 +185,7 @@ describe('scoreDocument', () => {
     });
 
     // The fixtures differ, so a function returning one constant would not pass.
-    expect(fulls.map((f) => f.seoScore.score)).toEqual([100, 29, 60]);
+    expect(fulls.map((f) => f.seoScore.score)).toEqual([100, 49, 71]);
   }, 20_000);
 
   it('records the title, the word count, the four sub-scores and the points kept per check', () => {
@@ -201,16 +203,19 @@ describe('scoreDocument', () => {
     expect(rich.wordCount).toBeGreaterThanOrEqual(600);
     expect(rich.checks).toEqual(START);
 
-    // The thin page, worked by hand from sub-scores.js: Meta 0 of 5 (short
-    // title and description, no canonical, Open Graph or schema); Content 1 of 3
-    // (thin, two H1s, but easy to read); Links 1 of 3 (one internal link and
-    // bare images, but one external link); Tech 1 of 3 (2,100 elements, http,
-    // and mixed content counts as passed).
+    // The thin page, worked by hand from the checks' points (a group's
+    // sub-score is the points it kept of the points of its checks that apply):
+    // Meta 12 of 34 (short title -6, short description -4, no canonical -5,
+    // no structured data -5, no Open Graph -2); Content 10 of 24 (thin -10,
+    // two H1s -4, easy to read); Links 3 of 11 (one of three images has no
+    // alt, alt="" is decorative, -3; one internal link -5); Tech 21 of 28
+    // (http -5, 2,100 elements -2; mixed content doesn't apply to http).
     const thin = scoreFixture(THIN);
-    expect(thin.subScores).toEqual({ Meta: 0, Content: 33, Links: 33, Tech: 33 });
+    expect(thin.score).toBe(49);
+    expect(thin.subScores).toEqual({ Meta: 35, Content: 42, Links: 27, Tech: 75 });
     expect(thin.checks).toEqual({
-      title: 7, description: 7, h1: 5, imageAlt: 0, canonical: 0, jsonLd: 0,
-      ogTitle: 0, wordCount: 0, internalLinks: 0, domSize: 0, readability: 5
+      ...START, title: 6, description: 4, h1: 4, https: 0, canonical: 0, words: 0,
+      imageAlt: 3, internalLinks: 0, structuredData: 0, openGraph: 0, domSize: 0
     });
 
     // No <title>: null, not '' and not 0.
@@ -220,18 +225,18 @@ describe('scoreDocument', () => {
     expect(bare.issues).toEqual(expect.arrayContaining(['Missing title', 'Missing meta description']));
   });
 
-  it('counts mixed content as passed, because the document is not asked about it', () => {
-    // An http image on an https page: the popup's Tech sub-score counts it,
-    // this path does not compute it (the study summary notes it).
+  it('counts mixed content, as the popup does (since 1.10.4 it is part of the document path)', () => {
+    // An http image on an https page: Tech keeps 28 of its 31 points.
     const record = scoreFixture({
       url: 'https://example.com/m',
       html: page({ body: '<main><h1>Mixed</h1><img src="http://example.com/i.png" alt="x"></main>' })
     });
-    expect(record.subScores.Tech).toBe(100);
+    expect(record.issues).toContain('Mixed content');
+    expect(record.subScores.Tech).toBe(90);
   });
 
   it('the points taken add up to 100 minus the score', () => {
-    expect(Object.values(START).reduce((a, b) => a + b, 0)).toBe(95);
+    expect(Object.values(START).reduce((a, b) => a + b, 0)).toBe(100);
     for (const fixture of FIXTURES) {
       const { score, checks } = scoreFixture(fixture);
       expect(Object.keys(checks).sort(), fixture.name).toEqual(Object.keys(START).sort());
@@ -256,7 +261,7 @@ describe('scoreDocument', () => {
     expect(record.error.length).toBeGreaterThan(0);
     expect(record).toMatchObject({ score: null, grade: null, issues: [], wordCount: null, titleText: null, titleLength: null });
 
-    const boom = { ...deps, analysis: { ...analysis, calculateSEOScore: () => { throw new Error('boom'); } } };
+    const boom = { ...deps, analysis: { ...analysis, analyzeDocument: () => { throw new Error('boom'); } } };
     const dom = new JSDOM('<p>x</p>', { url: 'https://boom.example.com/' });
     const failed = scoreDocument(dom.window.document, dom.window, boom);
     expect(failed.error).toBe('boom');
@@ -266,23 +271,22 @@ describe('scoreDocument', () => {
 });
 
 describe('CHECK_DEDUCTIONS', () => {
-  const source = readFileSync(resolve(EXTENSION, 'lib/content-analysis.js'), 'utf8');
-
-  it('maps every issue label calculateSEOScore can emit', () => {
-    const labels = [...source.matchAll(/issues\.push\('([^']+)'\)/g)].map((m) => m[1]);
-    expect(labels).toHaveLength(18);
+  it('is the checks\' own table: every issue label, its check and its points', () => {
+    expect(CHECK_START).toEqual(START);
+    const labels = analysis.CHECKS.flatMap((c) => Object.keys(c.outcomes));
+    expect(labels).toHaveLength(26);
     expect(Object.keys(CHECK_DEDUCTIONS).sort()).toEqual([...labels].sort());
+    for (const c of analysis.CHECKS) {
+      for (const [label, points] of Object.entries(c.outcomes)) {
+        expect(CHECK_DEDUCTIONS[label], label).toEqual([c.id, points]);
+        expect(points, `${label}: no more than the check has`).toBeLessThanOrEqual(START[c.id]);
+      }
+    }
   });
 
-  it('takes the points calculateSEOScore takes, from checks that exist', () => {
-    const taken = Object.fromEntries(
-      [...source.matchAll(/score -= (\d+);\s*issues\.push\('([^']+)'\)/g)].map((m) => [m[2], Number(m[1])])
-    );
-    expect(Object.keys(taken)).toHaveLength(18);
-    for (const [label, [check, points]] of Object.entries(CHECK_DEDUCTIONS)) {
-      expect(START, `${label}: a known check`).toHaveProperty(check);
-      expect(points, `${label}: points`).toBe(taken[label]);
-      expect(points, `${label}: no more than the check has`).toBeLessThanOrEqual(START[check]);
+  it('has fix text for every label', () => {
+    for (const label of Object.keys(CHECK_DEDUCTIONS)) {
+      expect(analysis.fixFor(label, {}), label).toMatchObject({ points: CHECK_DEDUCTIONS[label][1] });
     }
   });
 });
@@ -294,7 +298,7 @@ describe('checksFromIssues', () => {
 
   it('takes each issue\'s points off its own check', () => {
     expect(checksFromIssues(['Title too short', 'Many images missing alt', 'Large DOM'])).toEqual({
-      ...START, title: 15 - 8, imageAlt: 0, domSize: 0
+      ...START, title: 12 - 6, imageAlt: 0, domSize: 0
     });
   });
 
@@ -344,7 +348,7 @@ describe('scorePages', () => {
     const first = readFileSync(join(dir, 'scores.ndjson'), 'utf8');
     const records = scoresOf(dir);
     expect(records.map((r) => r.url)).toEqual([RICH.url, THIN.url]);
-    expect(records.map((r) => r.score)).toEqual([100, 29]);
+    expect(records.map((r) => r.score)).toEqual([100, 49]);
     expect(records.map((r) => r.error)).toEqual([null, null]);
 
     // Run again with the HTML gone: a page scored a second time would now be an
@@ -396,7 +400,7 @@ describe('scorePages', () => {
     const records = scoresOf(dir);
     // The run went on past it.
     expect(records.map((r) => r.url)).toEqual([RICH.url, 'https://bad.example.com/p', THIN.url]);
-    expect(records.map((r) => r.score)).toEqual([100, null, 29]);
+    expect(records.map((r) => r.score)).toEqual([100, null, 49]);
 
     const bad = records[1];
     expect(bad.error).toBeTypeOf('string');
@@ -562,7 +566,7 @@ describe('scorePages', () => {
       expect(records[i], htmlFile).toMatchObject({ score: null, grade: null, titleText: null, wordCount: null });
     });
     // A page inside the folder is scored as before.
-    expect(records[4]).toMatchObject({ url: THIN.url, score: 29, error: null });
+    expect(records[4]).toMatchObject({ url: THIN.url, score: 49, error: null });
   });
 
   it('refuses a run folder that has no pages.ndjson', async () => {

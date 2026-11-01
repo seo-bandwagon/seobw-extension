@@ -3,74 +3,48 @@
 // The study asks whether the extension's SEO grade predicts Google's organic
 // positions. It scores about 28,000 fetched pages in jsdom and a sample in
 // Chromium, and that only answers the question if the score is the one the
-// popup shows. So this follows analyzePage() in src/content/analyzer.js line
-// for line for everything the score reads, and takes the three libraries
-// (SEOBWAnalysis, SEOBWExtraction, SBWSubScores) as arguments: the caller
-// loads them the same way for jsdom, Node or a browser, and this file holds no
-// copy of a threshold.
+// popup shows. Since 1.10.4 both take one path: SEOBWAnalysis.analyzeDocument
+// (extension/lib/content-analysis.js), which src/content/analyzer.js calls on
+// the live page. This file takes the three libraries (SEOBWAnalysis,
+// SEOBWExtraction, SBWSubScores) as arguments: the caller loads them the same
+// way for jsdom, Node or a browser, and this file holds no copy of a
+// threshold or a point value.
 //
-// One difference from the popup, on purpose: `mixedContent` is not computed
-// (analyzeMixedContent() lives inside analyzer.js and needs the live page), so
-// computeSubScores() counts its Tech check as passed. A study summary must say
-// so; the score, grade and issues are not affected, only the Tech sub-score of
-// an https page that loads http resources.
+// Until 1.10.4 this followed analyzePage() line for line and left mixed
+// content out (it lived in analyzer.js); it is part of the document path now.
+// Records from 1.10.4 on have the 1.10.4 checks (scores before it are not
+// comparable: https, noindex, mixed content, viewport, language, charset and
+// duplicate tags count, and the points changed).
 //
 // Pure: no network, no chrome. Dual-export pattern (see
 // extension/src/lib/sync-state.js): `globalThis.OGSScore` in a browser,
 // `module.exports` in Node.
 
 (function (factory) {
-  var api = factory();
+  var analysis = (typeof globalThis !== 'undefined' && globalThis.SEOBWAnalysis) ||
+    (typeof require === 'function' ? require('../../extension/lib/content-analysis.js') : null);
+  var api = factory(analysis);
   if (typeof globalThis !== 'undefined') {
     globalThis.OGSScore = api;
   }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   }
-})(function () {
+})(function (analysis) {
 
-  // The points each check keeps when nothing is wrong. calculateSEOScore
-  // starts at 100 but its checks add up to 95 (the readability comment says
-  // 10 points, its deduction is 5), so no page scores below 5, and for any
-  // page: sum(CHECK_START - kept) === 100 - score.
-  const CHECK_START = Object.freeze({
-    title: 15,
-    description: 15,
-    h1: 10,
-    imageAlt: 10,
-    canonical: 5,
-    jsonLd: 10,
-    ogTitle: 5,
-    wordCount: 10,
-    internalLinks: 5,
-    domSize: 5,
-    readability: 5
-  });
+  // The points each check keeps when nothing is wrong, from the checks
+  // themselves: they add up to 100, so for any page
+  // sum(CHECK_START - kept) === 100 - score.
+  const CHECK_START = Object.freeze(Object.fromEntries(
+    ((analysis && analysis.CHECKS) || []).map(function (c) { return [c.id, c.points]; })
+  ));
 
-  // Each issue label calculateSEOScore can push (extension/lib/content-analysis.js,
-  // read 2026-10-17), to the check it belongs to and the points it takes.
-  // tests/unit/organic-grade-score.test.js reads the scorer's source and fails
-  // if a label or a point value drifts from this table.
-  const CHECK_DEDUCTIONS = Object.freeze({
-    'Missing title': ['title', 15],
-    'Title too short': ['title', 8],
-    'Title too long': ['title', 5],
-    'Missing meta description': ['description', 15],
-    'Description too short': ['description', 8],
-    'Description too long': ['description', 5],
-    'Missing H1': ['h1', 10],
-    'Multiple H1 tags': ['h1', 5],
-    'Many images missing alt': ['imageAlt', 10],
-    'Some images missing alt': ['imageAlt', 5],
-    'No canonical URL': ['canonical', 5],
-    'No structured data': ['jsonLd', 10],
-    'Missing Open Graph': ['ogTitle', 5],
-    'Thin content': ['wordCount', 10],
-    'Light content': ['wordCount', 5],
-    'Few internal links': ['internalLinks', 5],
-    'Large DOM': ['domSize', 5],
-    'Hard to read': ['readability', 5]
-  });
+  // Each issue label to the check it belongs to and the points it takes.
+  const CHECK_DEDUCTIONS = Object.freeze(Object.fromEntries(
+    Object.keys((analysis && analysis.POINTS) || {}).map(function (label) {
+      return [label, [analysis.CHECK_OF_ISSUE[label], analysis.POINTS[label]]];
+    })
+  ));
 
   // issues -> points kept per check. An unknown label throws: a label the
   // table lacks would leave its points on the check without a word, and the
@@ -114,32 +88,15 @@
   // in `error`.
   function scoreDocument(doc, win, deps) {
     try {
-      const analysis = deps.analysis;
       const extraction = deps.extraction;
 
-      // analyzePage(), minus what the score does not read (top words and
-      // phrases, tech stack, hash, web vitals and the other advanced analyzers).
-      const mainContent = extraction.getMainContent(doc);
-      const text = analysis.cleanText(mainContent);
-      const words = analysis.getWords(text);
-
-      const content = {
-        title: doc.title,
-        wordCount: words.length,
-        charCount: text.length,
-        sentenceCount: analysis.countSentences(text),
-        readability: analysis.calculateReadability(text, words)
-      };
-
-      const url = doc.URL;
-      const meta = extraction.extractMeta(doc);
-      const headings = extraction.extractHeadings(doc);
-      const links = extraction.extractLinks(doc, win.location);
-      const images = extraction.extractImages(doc);
-      const technical = extraction.extractTechnical(doc, win);
-
-      const seoScore = analysis.calculateSEOScore(content, meta, headings, links, images, technical);
-      const groups = deps.subScores.computeSubScores({ url, meta, content, headings, links, technical, images });
+      // analyzePage()'s score path: the same call analyzer.js makes.
+      const analyzed = deps.analysis.analyzeDocument(doc, win, extraction).data;
+      const url = analyzed.url;
+      const meta = analyzed.meta;
+      const content = analyzed.content;
+      const seoScore = analyzed.seoScore;
+      const groups = deps.subScores.computeSubScores(analyzed);
 
       const subScores = {};
       SUB_SCORE_KEYS.forEach(function (k) {

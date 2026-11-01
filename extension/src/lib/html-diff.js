@@ -149,19 +149,36 @@
   // regex — not attempted here; a resulting small residual delta is
   // expected and is exactly what the >50% growth trigger in diffSummaries()
   // is for, rather than chasing exact parity here.
-  function extractMainRegion(html) {
-    const mainMatch = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i);
-    if (mainMatch) return mainMatch[1];
-    const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
-    if (articleMatch) return articleMatch[1];
+  //
+  // 1.10.4: and like getMainContent(), a tiny main region (under 100 words,
+  // with more than twice as many in the body) gives way to the body, and
+  // words are counted with the analyzer's own counter (every language), so
+  // a page isn't flagged "added by JavaScript" for either.
+  const MAIN_MIN_WORDS = 100;
+
+  function countWords(text) {
+    const A = typeof globalThis !== 'undefined' && globalThis.SEOBWAnalysis;
+    return A ? A.getWords(A.cleanText(text)).length : String(text).split(/\s+/).filter(Boolean).length;
+  }
+
+  function bodyRegion(html) {
     const bodyMatch = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
-    let region = bodyMatch ? bodyMatch[1] : html;
-    region = region
+    const region = bodyMatch ? bodyMatch[1] : html;
+    return region
       .replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, ' ')
       .replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, ' ')
       .replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, ' ')
       .replace(/<aside\b[^>]*>[\s\S]*?<\/aside>/gi, ' ');
-    return region;
+  }
+
+  function extractMainRegion(html) {
+    const mainMatch = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) ||
+      html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
+    if (!mainMatch) return bodyRegion(html);
+    const mainWords = countWords(textOf(mainMatch[1]));
+    if (mainWords >= MAIN_MIN_WORDS) return mainMatch[1];
+    const body = bodyRegion(html);
+    return countWords(textOf(body)) > 2 * mainWords ? body : mainMatch[1];
   }
 
   // Symmetric with the DOM side's links.internal.count + links.external.count
@@ -288,7 +305,7 @@
     // getMainContent() reads — see extractMainRegion()'s comment — not the
     // whole withoutScripts document, so a page's chrome (nav/header/footer)
     // can't inflate the raw side and produce a false content-growth signal.
-    const wordCountApprox = textOf(extractMainRegion(withoutScripts)).split(/\s+/).filter(Boolean).length;
+    const wordCountApprox = countWords(textOf(extractMainRegion(withoutScripts)));
 
     const hreflangCount = (typeof globalThis !== 'undefined' && globalThis.SBWHreflang)
       ? globalThis.SBWHreflang.extractHreflangFromHtml(raw, baseUrl).length

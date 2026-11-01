@@ -81,7 +81,9 @@ describe('getGrade', () => {
 describe('calculateSEOScore', () => {
   it('awards perfect-but-not-100 for a well-formed page (deducts the title-too-short if applicable)', () => {
     const inputs = goodCaptureInputs();
-    // Title has length 24 (< 30) -> -8. Description length 58 (< 120) -> -8. Everything else clean.
+    // Title has length 24 (< 30) -> -6. Description length 58 (< 120) -> -4.
+    // Everything else clean; what the inputs don't carry (url, lang,
+    // viewport, charset) doesn't apply.
     const result = calculateSEOScore(
       inputs.content,
       inputs.meta,
@@ -90,13 +92,13 @@ describe('calculateSEOScore', () => {
       inputs.images,
       inputs.technical
     );
-    expect(result.score).toBe(84);
-    expect(result.grade).toBe('B');
+    expect(result.score).toBe(90);
+    expect(result.grade).toBe('A');
     expect(result.issues).toContain('Title too short');
     expect(result.issues).toContain('Description too short');
   });
 
-  it('deducts 15 each for missing title and missing description', () => {
+  it('deducts 12 for a missing title and 8 for a missing description', () => {
     const inputs = goodCaptureInputs({
       meta: {
         ...goodCaptureInputs().meta,
@@ -112,7 +114,7 @@ describe('calculateSEOScore', () => {
       inputs.images,
       inputs.technical
     );
-    expect(result.score).toBe(70); // 100 - 15 - 15
+    expect(result.score).toBe(80); // 100 - 12 - 8
     expect(result.issues).toContain('Missing title');
     expect(result.issues).toContain('Missing meta description');
   });
@@ -200,17 +202,19 @@ describe('calculateSEOScore', () => {
   });
 
   it('produces a failing grade when every signal is missing', () => {
-    // Max possible deductions with current rules sum to 95, so the raw score
-    // bottoms out at 5. The `Math.max(0, score)` floor exists as a safety net
-    // in case future rules push deductions over 100; verify the floor holds
-    // via a separate "impossible high deduction" contract test below.
+    // Since 1.10.4 the checks' points add up to 100. An http page has no
+    // mixed-content check, so this one bottoms out at 3.
     const inputs = goodCaptureInputs({
       meta: {
-        title: { text: '', length: 0 },
-        description: { text: '', length: 0 },
+        title: { text: '', length: 0, count: 2 },
+        description: { text: '', length: 0, count: 0 },
         canonical: null,
         schema: [],
-        openGraph: { title: null }
+        openGraph: { title: null },
+        robots: 'noindex',
+        lang: null,
+        viewport: null,
+        charset: { document: 'windows-1252', declared: null }
       },
       headings: { h1: [], multipleH1: false },
       links: { internal: { count: 0 } },
@@ -220,9 +224,10 @@ describe('calculateSEOScore', () => {
     });
     const result = calculateSEOScore(
       inputs.content, inputs.meta, inputs.headings,
-      inputs.links, inputs.images, inputs.technical
+      inputs.links, inputs.images, inputs.technical,
+      { url: 'http://example.com/', mixedContent: { isHttps: false, mixedCount: 0 } }
     );
-    expect(result.score).toBeLessThan(10);
+    expect(result.score).toBe(3);
     expect(result.grade).toBe('F');
     expect(result.issues.length).toBeGreaterThan(7);
   });
@@ -444,5 +449,184 @@ describe('DEFAULT_STOP_WORDS', () => {
     expect(DEFAULT_STOP_WORDS.has('the')).toBe(true);
     expect(DEFAULT_STOP_WORDS.has('and')).toBe(true);
     expect(DEFAULT_STOP_WORDS.has('local')).toBe(false);
+  });
+});
+
+// ------------------------------------------------------------------ 1.10.4
+
+const {
+  evaluateChecks, groupChecks, fixFor, CHECKS, ISSUES, POINTS,
+  detectLanguage, displayLength, lcpFrom, clsFrom, inpFrom, firstHiddenFrom
+} = analysis;
+
+describe('words in every language (1.10.4)', () => {
+  it('counts Cyrillic, Greek and accented Latin words, which cleanText used to drop', () => {
+    expect(getWords(cleanText('Небольшой огород у дома — это просто.'))).toEqual(['небольшой', 'огород', 'у', 'дома', 'это', 'просто']);
+    expect(getWords('Καλημέρα κόσμε')).toEqual(['καλημέρα', 'κόσμε']);
+    expect(getWords('Crème brûlée à la française')).toHaveLength(5);
+  });
+
+  it('splits Japanese, Chinese and Thai, which have no spaces, into words', () => {
+    const ja = getWords('小さな家庭菜園の始め方。');
+    expect(ja.length).toBeGreaterThan(3);
+    expect(ja.join('')).toBe('小さな家庭菜園の始め方');
+    expect(getWords('SEO対策').slice(0, 1)).toEqual(['seo']);
+    expect(getWords('ภาษาไทยง่ายนิดเดียว').length).toBeGreaterThan(1);
+  });
+
+  it('keeps an English page\'s words as they were: apostrophes, hyphens, dots and digit commas join', () => {
+    expect(getWords("Don't e-mail the U.S. team about example.com")).toEqual(["don't", 'e-mail', 'the', 'u.s', 'team', 'about', 'example.com']);
+    expect(getWords('It costs 5.99, or 1,000 for a crate, e.g. now.')).toEqual(['it', 'costs', '5.99', 'or', '1,000', 'for', 'a', 'crate', 'e.g', 'now']);
+  });
+
+  it('drops emoji and symbols but keeps every script\'s letters', () => {
+    expect(cleanText('Привет 👋 мир ©')).toBe('Привет мир');
+  });
+
+  it('counts sentences ending in CJK full stops', () => {
+    expect(countSentences('一つ目。二つ目！三つ目？')).toBe(3);
+  });
+});
+
+describe('detectLanguage', () => {
+  it('reads the lang attribute: English only for en', () => {
+    expect(detectLanguage('en-US', 'Hello there', ['hello', 'there'])).toEqual({ code: 'en', source: 'lang', english: true });
+    expect(detectLanguage('ru', 'Привет', ['привет'])).toMatchObject({ code: 'ru', english: false });
+  });
+
+  it('is not English when the text is mostly another script, whatever lang says', () => {
+    expect(detectLanguage('en', 'これは日本語の文章です', ['これ', 'は'])).toMatchObject({ code: 'en', english: false });
+  });
+
+  it('without lang, recognises English text by its commonest words', () => {
+    const en = 'The garden is easy to start and the soil is the most important part of it for you to get right this year'.toLowerCase().split(' ');
+    expect(detectLanguage(null, en.join(' '), en)).toMatchObject({ code: 'en', source: 'text', english: true });
+    const de = 'Der Garten ist leicht anzulegen und der Boden ist der wichtigste Teil davon für dich in diesem Jahr ganz sicher'.toLowerCase().split(' ');
+    expect(detectLanguage(null, de.join(' '), de)).toMatchObject({ code: null, english: false });
+  });
+});
+
+describe('displayLength', () => {
+  it('counts CJK and full-width characters twice', () => {
+    expect(displayLength('abc')).toBe(3);
+    expect(displayLength('家庭菜園')).toBe(8);
+    expect(displayLength('ＡＢ')).toBe(4);
+    expect(displayLength('Огород')).toBe(6);
+  });
+});
+
+describe('the one check list', () => {
+  it('has 18 checks whose points add up to 100, each outcome no more than its check', () => {
+    expect(CHECKS).toHaveLength(18);
+    expect(CHECKS.reduce((n, c) => n + c.points, 0)).toBe(100);
+    for (const c of CHECKS) {
+      for (const [label, pts] of Object.entries(c.outcomes)) {
+        expect(pts, label).toBeLessThanOrEqual(c.points);
+        expect(POINTS[label]).toBe(pts);
+      }
+    }
+  });
+
+  it('has fix text for every issue a check can raise, and nothing else', () => {
+    expect(Object.keys(ISSUES).sort()).toEqual(Object.keys(POINTS).sort());
+  });
+
+  it('marks each check pass, warn, fail or na, and the score is 100 minus the points lost', () => {
+    const r = evaluateChecks({
+      url: 'https://example.com/',
+      meta: { title: { text: 'x'.repeat(20), length: 20 }, description: { text: '', length: 0 }, canonical: null, openGraph: {}, schema: [] },
+      content: { wordCount: 700, readability: null },
+      headings: { h1: ['A'] },
+      links: { internal: { count: 5 } },
+      images: { total: 0 },
+      technical: { domElements: 10 }
+    });
+    const by = Object.fromEntries(r.checks.map((c) => [c.id, c.status]));
+    expect(by).toMatchObject({ title: 'warn', description: 'fail', canonical: 'fail', h1: 'pass', readability: 'na', imageAlt: 'na', viewport: 'na' });
+    const lost = r.checks.reduce((n, c) => n + c.lost, 0);
+    expect(r.score).toBe(100 - lost);
+    expect(r.issues).toEqual(r.checks.filter((c) => c.issue).map((c) => c.issue));
+  });
+
+  it('reads noindex from the robots or googlebot meta, and none as noindex', () => {
+    const page = (meta) => evaluateChecks({ meta: { title: { text: '' }, ...meta } }).issues;
+    expect(page({ noindex: true, noindexSource: 'googlebot' })).toContain('Set to noindex');
+    expect(page({ robots: 'none' })).toContain('Set to noindex');
+    expect(page({ robots: 'index, follow' })).not.toContain('Set to noindex');
+  });
+
+  it('counts JSON-LD, Microdata and RDFa as structured data', () => {
+    const has = (sd) => evaluateChecks({ meta: { structuredData: sd, schema: [] } }).issues.includes('No structured data');
+    expect(has({ jsonLd: 0, microdata: 1, rdfa: 0 })).toBe(false);
+    expect(has({ jsonLd: 0, microdata: 0, rdfa: 2 })).toBe(false);
+    expect(has({ jsonLd: 0, microdata: 0, rdfa: 0 })).toBe(true);
+  });
+
+  it('groups the checks into the four sub-scores by points kept', () => {
+    const groups = groupChecks(evaluateChecks({ url: 'http://example.com/' }).checks);
+    expect(groups.find((g) => g.k === 'Tech')).toMatchObject({ of: 1, points: 5, kept: 0, v: 0 });
+  });
+
+  it('fixFor gives each issue its fix and points, from the page\'s own numbers', () => {
+    expect(fixFor('Title too short', { meta: { title: { text: 'Short', length: 5 } } }))
+      .toEqual({ title: 'Title too short', body: '5 characters. Aim for 30 to 60.', tool: 'gsc', points: 6 });
+    expect(fixFor('Title too short', { meta: { title: { text: '家庭菜園', length: 4, displayLength: 8 } } }).body)
+      .toBe('4 characters (8 counting each wide character as two). Aim for 30 to 60.');
+    expect(fixFor('Duplicate tags', { meta: { title: { count: 2 }, description: { count: 1 }, canonicalCount: 2 } }).body)
+      .toBe('2 title tags, 2 canonical tags. Keep one of each: Google picks one, and it may not be yours.');
+    expect(fixFor('Some images missing alt', { images: { total: 6, missingAlt: { count: 1 }, decorative: 3 } }).body)
+      .toBe('1 of 6 images have no alt attribute. 3 more have alt="" and count as decorative.');
+    expect(fixFor('Something new', {})).toBeNull();
+  });
+});
+
+describe('Core Web Vitals arithmetic', () => {
+  it('LCP is the last entry before the page was first hidden, from activation', () => {
+    const e = [{ startTime: 800 }, { startTime: 1900 }, { startTime: 5200 }];
+    expect(lcpFrom(e, Infinity, 0)).toBe(5200);
+    expect(lcpFrom(e, 3000, 0)).toBe(1900);
+    expect(lcpFrom(e, Infinity, 500)).toBe(4700);
+    expect(lcpFrom([], Infinity, 0)).toBeNull();
+    expect(lcpFrom(e, 0, 0)).toBeNull();
+  });
+
+  it('CLS is the largest session window, not the sum of every shift', () => {
+    // Two windows: 0.05 + 0.05 (shifts 400 ms apart), then 0.08 three seconds later.
+    const shifts = [
+      { startTime: 100, value: 0.05 }, { startTime: 500, value: 0.05 },
+      { startTime: 3500, value: 0.08 }, { startTime: 3600, value: 0.5, hadRecentInput: true }
+    ];
+    expect(clsFrom(shifts)).toBe(0.1);
+    // A window closes after 5 seconds even without a 1-second gap.
+    const steady = Array.from({ length: 12 }, (_, i) => ({ startTime: i * 900, value: 0.01 }));
+    expect(clsFrom(steady)).toBe(0.06);
+    expect(clsFrom([])).toBe(0);
+  });
+
+  it('INP is the worst interaction, ignoring one in every 50, and null with none', () => {
+    const events = [
+      { interactionId: 1, duration: 40 }, { interactionId: 1, duration: 120 },
+      { interactionId: 2, duration: 300 }, { interactionId: 0, duration: 900 }
+    ];
+    expect(inpFrom(events)).toEqual({ inp: 300, interactions: 2 });
+    const many = Array.from({ length: 60 }, (_, i) => ({ interactionId: i + 1, duration: i === 0 ? 1000 : 50 + i }));
+    expect(inpFrom(many)).toEqual({ inp: 109, interactions: 60 });
+    expect(inpFrom([{ interactionId: 0, duration: 400 }])).toEqual({ inp: null, interactions: 0 });
+  });
+
+  it('firstHiddenFrom: a background tab that never painted was hidden from the start', () => {
+    expect(firstHiddenFrom([{ name: 'hidden', startTime: 0 }], true, false)).toBe(0);
+    expect(firstHiddenFrom([{ name: 'visible', startTime: 0 }, { name: 'hidden', startTime: 4000 }], true, true)).toBe(4000);
+    expect(firstHiddenFrom([{ name: 'visible', startTime: 0 }], false, true)).toBe(Infinity);
+    expect(firstHiddenFrom(null, true, false)).toBe(0);
+    expect(firstHiddenFrom(null, false, true)).toBe(Infinity);
+  });
+
+  it('firstHiddenFrom: a prerendered page, hidden until activated, was not hidden', () => {
+    const prerendered = [{ name: 'hidden', startTime: 0 }, { name: 'visible', startTime: 800 }];
+    expect(firstHiddenFrom(prerendered, false, true, 800)).toBe(Infinity);
+    expect(firstHiddenFrom([...prerendered, { name: 'hidden', startTime: 5000 }], true, true, 800)).toBe(5000);
+    // Not prerendered (activationStart 0): hidden at 0 is a background load.
+    expect(firstHiddenFrom([{ name: 'hidden', startTime: 0 }], true, true, 0)).toBe(0);
   });
 });

@@ -74,10 +74,11 @@ jobs:
 
       # Only the specs that never leave the runner: Collect pages answers
       # google.com/search from tests/fixtures, the account spec answers
-      # seobandwagon.com/api from stubs, and both block everything else. No
-      # secrets. The production canary stays in canary.yml.
+      # seobandwagon.com/api from stubs, the analysis spec serves its pages
+      # from 127.0.0.1, and all of them block everything else. No secrets.
+      # The production canary stays in canary.yml.
       - name: Run offline e2e under xvfb
-        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs
+        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs
 
       - name: Upload trace on failure
         if: failure()

@@ -95,9 +95,11 @@ function renderFix(fix) {
   if (!fix) return;
   $('ntFixTitle').textContent = fix.title;
   $('ntFixBody').textContent = fix.body;
-  $('ntFixCount').textContent = fix.of === 1
+  // 1.10.4: and what it costs on the on-page checklist, as the popup says.
+  const cost = fix.points ? ' · costs ' + fix.points + (fix.points === 1 ? ' point' : ' points') : '';
+  $('ntFixCount').textContent = (fix.of === 1
     ? 'The one issue found on ' + fix.host
-    : '1 of ' + fix.of + ' issues found on ' + fix.host;
+    : '1 of ' + fix.of + ' issues found on ' + fix.host) + cost;
   const link = $('ntFixLink');
   link.hidden = !fix.url;
   if (fix.url) {
