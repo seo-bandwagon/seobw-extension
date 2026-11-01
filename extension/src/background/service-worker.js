@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js');
+importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js');
 
 // 1.10.2: the results overlay sends nothing to SEO Bandwagon. Its bar showed
 // "Score N · M captures" from POST /api/domain/quick-batch, an on-page grade
@@ -395,6 +395,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'updateBadge') {
     setScoreBadge(request.tabId, request.grade);
+  }
+
+  // 1.10.4: the analyzer's tech-stack probe, run in the page's own world
+  // (the content script's isolated world can't see a page's globals). One
+  // executeScript with world 'MAIN' in the frame that asked; the tab is one
+  // the analyzer was just injected into, so this needs no new permission.
+  // Answers booleans and counts (SEOBWExtraction.probeTechGlobals).
+  if (request.action === 'probeTechGlobals' && sender.tab) {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] },
+      world: 'MAIN',
+      func: SEOBWExtraction.probeTechGlobals
+    }).then(
+      (results) => sendResponse({ ok: true, globals: (results && results[0] && results[0].result) || null }),
+      () => sendResponse({ ok: false })
+    );
+    return true;
   }
 
   if (request.action === 'captureScreenshot') {

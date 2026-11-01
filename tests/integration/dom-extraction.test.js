@@ -109,12 +109,14 @@ describe('extractHeadings', () => {
         '</body></html>';
       const d = new JSDOM(html, { url: FIXTURE_URL });
       const headings = extractHeadings(d.window.document);
+      // 1.10.4: Sub A jumps from H1 to H3, so it skips H2.
       expect(headings.outline).toEqual([
         { level: 1, text: 'Title', order: 1 },
-        { level: 3, text: 'Sub A', order: 2 },
+        { level: 3, text: 'Sub A', order: 2, skipped: [2] },
         { level: 2, text: 'Section', order: 3 },
         { level: 3, text: 'Sub B', order: 4 }
       ]);
+      expect(headings.skips).toBe(1);
     });
 
     it('includes [role="heading"][aria-level] elements the plain hN arrays ignore', () => {
@@ -166,13 +168,36 @@ describe('extractHeadings', () => {
       expect(headings.outline[1].level).toBe(1);
     });
 
-    it('excludes empty-text headings from the outline, same as the hN arrays', () => {
+    // 1.10.4: the popup shows the whole tree, so an empty heading stays in
+    // it, flagged; the hN arrays (what the H1 check counts) still leave it out.
+    it('keeps empty headings in the outline, flagged, and out of the hN arrays', () => {
       const html = '<html><body>' +
         '<h1></h1><h1>Real</h1><div role="heading" aria-level="2">   </div>' +
         '</body></html>';
       const d = new JSDOM(html, { url: FIXTURE_URL });
       const headings = extractHeadings(d.window.document);
-      expect(headings.outline).toEqual([{ level: 1, text: 'Real', order: 1 }]);
+      expect(headings.outline).toEqual([
+        { level: 1, text: '', order: 1, empty: true },
+        { level: 1, text: 'Real', order: 2 },
+        { level: 2, text: '', order: 3, empty: true }
+      ]);
+      expect(headings.h1).toEqual(['Real']);
+      expect(headings.empty).toBe(2);
+    });
+
+    it('reads a heading that is only an image from its alt, as search engines do', () => {
+      const html = '<html><body><h1><a href="/"><img src="logo.svg" alt="Green Plot"></a></h1><h2>Next</h2></body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const headings = extractHeadings(d.window.document);
+      expect(headings.h1).toEqual(['Green Plot']);
+      expect(headings.outline[0]).toEqual({ level: 1, text: 'Green Plot', order: 1, fromAlt: true });
+    });
+
+    it('names every level a heading skips', () => {
+      const html = '<html><body><h1>A</h1><h2>B</h2><h5>C</h5><h3>D</h3></body></html>';
+      const d = new JSDOM(html, { url: FIXTURE_URL });
+      const outline = extractHeadings(d.window.document).outline;
+      expect(outline.map((h) => h.skipped || null)).toEqual([null, null, [3, 4], null]);
     });
 
     it('never double-counts an hN element that also carries role=heading', () => {
@@ -314,14 +339,15 @@ describe('extractImages', () => {
   it('counts missing alt correctly', () => {
     const html = '<html><body>' +
       '<img src="a.jpg">' +               // missing
-      '<img src="b.jpg" alt="">' +         // empty alt = missing
-      '<img src="c.jpg" alt="   ">' +     // whitespace alt = missing
+      '<img src="b.jpg" alt="">' +         // empty alt = decorative (1.10.4)
+      '<img src="c.jpg" alt="   ">' +     // whitespace alt = decorative
       '<img src="d.jpg" alt="Valid alt">' +
       '</body></html>';
     const d = new JSDOM(html, { url: FIXTURE_URL });
     const images = extractImages(d.window.document);
     expect(images.total).toBe(4);
-    expect(images.missingAlt.count).toBe(3);
+    expect(images.missingAlt.count).toBe(1);
+    expect(images.decorative).toBe(2);
     expect(images.altTexts).toEqual(['Valid alt']);
   });
 
@@ -343,10 +369,10 @@ describe('extractImages', () => {
       const d = new JSDOM(html, { url: FIXTURE_URL });
       const images = extractImages(d.window.document);
       expect(images.list[0]).toEqual({
-        src: 'https://seobandwagon.com/a.jpg', alt: 'A photo', hasAlt: true, lazy: false, width: '640', height: '480'
+        src: 'https://seobandwagon.com/a.jpg', alt: 'A photo', hasAlt: true, decorative: false, lazy: false, width: '640', height: '480'
       });
       expect(images.list[1]).toEqual({
-        src: 'https://seobandwagon.com/b.jpg', alt: '', hasAlt: false, lazy: true, width: null, height: null
+        src: 'https://seobandwagon.com/b.jpg', alt: '', hasAlt: false, decorative: false, lazy: true, width: null, height: null
       });
     });
 

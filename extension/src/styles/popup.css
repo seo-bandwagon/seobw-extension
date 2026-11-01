@@ -561,6 +561,11 @@ body {
 }
 .issue { color: var(--paper-95); }
 .issue::before { content: '▲'; color: var(--warning); font-family: var(--font-mono); font-size: 8px; margin-top: 3px; flex: none; }
+/* 1.10.4: each issue carries its fix and the points it costs */
+.issue-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.issue-label { color: var(--paper-95); }
+.issue-fix { color: var(--paper-70); font-size: 10.5px; line-height: 1.4; }
+.issue-points { font-family: var(--font-mono); font-size: 10px; color: var(--warning); flex: none; margin-top: 1px; }
 .pass { color: var(--paper-70); }
 .pass::before { content: '✓'; color: var(--success); font-family: var(--font-mono); font-size: 10px; flex: none; }
 
@@ -569,6 +574,23 @@ body {
 .serp-title { font-family: var(--font-body); font-size: 13px; color: var(--accent-text); line-height: 1.3; margin-bottom: 3px; }
 .serp-url { font-family: var(--font-mono); font-size: 9.5px; color: var(--success); margin-bottom: 4px; }
 .serp-desc { font-family: var(--font-body); font-size: 11px; color: var(--paper-70); line-height: 1.45; }
+.serp-note { font-family: var(--font-body); font-size: 9.5px; color: var(--paper-50); line-height: 1.4; margin-top: 7px; }
+
+/* Core Web Vitals: no data, and where the numbers come from */
+.cwv-v.cwv-none { font-size: 14px; color: var(--paper-50); padding-top: 6px; }
+.cwv-notes { padding: 8px 14px 10px; }
+.cwv-note { font-family: var(--font-body); font-size: 10px; color: var(--paper-50); line-height: 1.45; }
+
+/* Headings: the full tree, flags beside a row */
+.h-tree { max-height: 320px; overflow-y: auto; }
+.h-flag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--warning);
+  flex: none;
+}
+.h-flag-info { color: var(--paper-50); }
 
 /* Highlight buttons — .section-action-btn (Task 7) shares this look for a
    non-toggling row action (Export CSV, Copy outline) placed alongside

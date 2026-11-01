@@ -4,7 +4,8 @@
  * already ships in this extension —
  *
  *   src/lib/api.js            SBW              account, captures, domain stats
- *   src/lib/sub-scores.js     SBWSubScores     the 14 checks and their totals
+ *   lib/content-analysis.js   SEOBWAnalysis    the checks: score, issues, fixes
+ *   src/lib/sub-scores.js     SBWSubScores     the four groups and their totals
  *   src/lib/capture-strip.js  SBWCaptureStrip  what is safe to persist / sync
  *   src/lib/tool-links.js     SBWToolLinks     GSC / PSI / Rich Results / Wayback
  *   src/background/…          getCachedAnalysis · storeAnalysis · updateBadge ·
@@ -45,6 +46,7 @@ const api = () => globalThis.SBW;
 const strip = () => globalThis.SBWCaptureStrip;
 const tools = () => globalThis.SBWToolLinks;
 const scores = () => globalThis.SBWSubScores;
+const analysis = () => (globalThis.SBWSubScores && globalThis.SBWSubScores.analysis) || globalThis.SEOBWAnalysis;
 
 /* ------------------------------- url helpers ------------------------------ */
 
@@ -96,50 +98,24 @@ export function issuesOf(data) {
 }
 
 /**
- * Threshold-matched rows for the panel, at the same limits the popup renders.
- * Every note is formatted from the analyzer's own numbers; a row whose value
- * the analyzer did not produce is left out rather than shown as zero.
+ * The panel's rows: the score's own checks (lib/content-analysis.js), each
+ * with its note and status, so the panel, the popup and the score can't
+ * disagree. A check that doesn't apply is left out rather than shown as
+ * zero. LCP follows when the analyzer measured it.
  */
 export function pageChecks(data) {
+  const A = analysis();
+  if (!A) return [];
   const d = data || {};
-  const m = d.meta || {};
-  const c = d.content || {};
-  const h = d.headings || {};
-  const l = d.links || {};
-  const img = d.images || {};
-  const t = d.technical || {};
+  const rows = A.evaluateChecks(d).checks
+    .filter((c) => c.status !== 'na')
+    .map((c) => ({ name: c.label, note: c.note || '', status: c.status }));
   const wv = d.webVitals || {};
-
-  const titleLen = (m.title && m.title.length) || 0;
-  const descLen = (m.description && m.description.length) || 0;
-  const h1 = (h.h1 || []).length;
-  const schema = (m.schema || []).length;
-  const noAlt = (img.missingAlt && img.missingAlt.count) || 0;
-  const internal = (l.internal && l.internal.count) || 0;
-  const words = c.wordCount || 0;
-  const dom = t.domElements || 0;
-
-  const state = (good, warn) => (good ? 'pass' : warn ? 'warn' : 'fail');
-
-  const rows = [
-    ['Title', titleLen + ' / 60', state(titleLen >= 30 && titleLen <= 60, titleLen > 0)],
-    ['Description', descLen + ' / 160', state(descLen >= 120 && descLen <= 160, descLen > 0)],
-    ['Canonical', m.canonical ? 'Set' : 'Missing', state(!!m.canonical, false)],
-    ['H1', h1 + ' on page', state(h1 === 1, h1 > 1)],
-    ['Structured data', schema + (schema === 1 ? ' block' : ' blocks'), state(schema > 0, false)],
-    ['Open Graph', m.openGraph && m.openGraph.title ? 'Set' : 'Missing', state(!!(m.openGraph && m.openGraph.title), true)],
-    ['Images without alt', noAlt + ' of ' + (img.total || 0), state(noAlt === 0, noAlt <= 3)],
-    ['Internal links', String(internal), state(internal >= 3, internal > 0)],
-    ['Words', words.toLocaleString(), state(words >= 600, words >= 300)],
-    ['DOM nodes', dom.toLocaleString(), state(dom <= 2000, dom <= 3500)],
-  ];
   if (wv.lcp !== null && wv.lcp !== undefined) {
-    rows.push(['LCP', Math.round(wv.lcp) + ' ms', state(wv.lcp <= 2500, wv.lcp <= 4000)]);
+    const status = wv.lcp <= 2500 ? 'pass' : wv.lcp <= 4000 ? 'warn' : 'fail';
+    rows.push({ name: 'LCP', note: Math.round(wv.lcp) + ' ms', status });
   }
-  if (c.readability) {
-    rows.push(['Reading level', c.readability.level, state(c.readability.fleschKincaid <= 14, true)]);
-  }
-  return rows.map(([name, note, status]) => ({ name, note, status }));
+  return rows;
 }
 
 /* -------------------------------- captures -------------------------------- */
@@ -230,32 +206,16 @@ export function localHistoryLine(row) {
 
 /* ---------------------------------- fixes --------------------------------- */
 
-/* One entry per issue string lib/content-analysis.js can push (a test holds
-   the two together). Every body is built from the page's own numbers. */
-const FIXES = {
-  'Missing title': { title: 'No title tag', body: () => 'This page has no title. It is the first line of every search result.', tool: 'gsc' },
-  'Title too short': { title: 'Title too short', body: (d) => `${d.meta.title.length} characters. Aim for 30 to 60.`, tool: 'gsc' },
-  'Title too long': { title: 'Title too long', body: (d) => `${d.meta.title.length} characters. Search results cut off near 60.`, tool: 'gsc' },
-  'Missing meta description': { title: 'No meta description', body: () => 'Google writes its own snippet when you leave this out.', tool: 'gsc' },
-  'Description too short': { title: 'Description too short', body: (d) => `${d.meta.description.length} characters. Aim for 120 to 160.`, tool: 'gsc' },
-  'Description too long': { title: 'Description too long', body: (d) => `${d.meta.description.length} characters. Snippets cut off near 160.`, tool: 'gsc' },
-  'Missing H1': { title: 'No H1 heading', body: () => 'Nothing on the page states what it is about at heading level.', tool: null },
-  'Multiple H1 tags': { title: 'More than one H1', body: (d) => `${d.headings.h1.length} H1 headings on the page. Use one.`, tool: null },
-  'Many images missing alt': { title: 'Images without alt text', body: (d) => `${d.images.missingAlt.count} of ${d.images.total} images have no alt attribute.`, tool: null },
-  'Some images missing alt': { title: 'Images without alt text', body: (d) => `${d.images.missingAlt.count} of ${d.images.total} images have no alt attribute.`, tool: null },
-  'No canonical URL': { title: 'No canonical tag', body: () => 'Nothing tells Google which URL is the original.', tool: 'gsc' },
-  'No structured data': { title: 'No structured data', body: () => 'No JSON-LD, Microdata or RDFa found, so no rich result is possible.', tool: 'rich-results' },
-  'Missing Open Graph': { title: 'No Open Graph tags', body: () => 'Shared links fall back to whatever the platform can guess.', tool: null },
-  'Thin content': { title: 'Thin content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page.`, tool: null },
-  'Light content': { title: 'Light content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page.`, tool: null },
-  'Few internal links': { title: 'Few internal links', body: (d) => `${d.links.internal.count} internal links point from this page to the rest of the site.`, tool: null },
-  'Large DOM': { title: 'Large DOM', body: (d) => `${(d.technical.domElements || 0).toLocaleString()} nodes. Heavy pages render slowly.`, tool: 'pagespeed' },
-  'Hard to read': { title: 'Hard to read', body: (d) => `Reading level ${d.content.readability.level}, grade ${d.content.readability.fleschKincaid}.`, tool: null },
-};
+/* The fix text lives with the checks (SEOBWAnalysis.ISSUES in
+   lib/content-analysis.js), so the popup's issue list and this read the same
+   words. Every body is built from the page's own numbers. */
 const TOOL_LABELS = { gsc: 'Open in Search Console', pagespeed: 'PageSpeed Insights', 'rich-results': 'Rich Results Test' };
 
 /** The issue strings that have fix text. */
-export const FIX_ISSUES = Object.freeze(Object.keys(FIXES));
+export function fixIssues() {
+  const A = analysis();
+  return A ? Object.keys(A.ISSUES) : [];
+}
 
 /**
  * The next fix for a capture: the analyzer's first issue that has fix text, in
@@ -263,17 +223,18 @@ export const FIX_ISSUES = Object.freeze(Object.keys(FIXES));
  * the page has. Null for a clean page.
  */
 export function topFix(data) {
+  const A = analysis();
+  if (!A) return null;
   const issues = issuesOf(data);
-  const issue = issues.find((i) => FIXES[i]);
+  const issue = issues.find((i) => A.fixFor(i, data));
   if (!issue) return null;
-  const spec = FIXES[issue];
-  let body = '';
-  try { body = spec.body(data); } catch { body = ''; }
+  const spec = A.fixFor(issue, data);
   const url = spec.tool ? toolUrl(spec.tool, data.url) : null;
   return {
     issue,
     title: spec.title,
-    body,
+    body: spec.body,
+    points: spec.points,
     url,
     label: url ? TOOL_LABELS[spec.tool] : null,
     host: hostOf(data.url),
@@ -523,7 +484,9 @@ export function trackerOrder(trackers, drops) {
 
 /** The extension's own title for an issue string, or the string as stored. */
 export function fixTitle(issue) {
-  return (FIXES[issue] && FIXES[issue].title) || issue;
+  const A = analysis();
+  const spec = A && Object.prototype.hasOwnProperty.call(A.ISSUES, issue) ? A.ISSUES[issue] : null;
+  return (spec && spec.title) || issue;
 }
 
 /**

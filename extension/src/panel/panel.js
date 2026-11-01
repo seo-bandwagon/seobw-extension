@@ -1,7 +1,7 @@
 /* SEO Bandwagon — themed page-checks panel.
  *
  * Live checks for the tab in front of you, from the same analyzer response the
- * toolbar popup renders and the same 14 checks it scores. Citations and link
+ * toolbar popup renders and the same checks it scores. Citations and link
  * building stay in src/sidepanel; the footer link swaps this tab's panel over
  * to that one, and neither replaces the other.
  *

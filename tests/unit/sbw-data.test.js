@@ -5,8 +5,6 @@
 // no number that did not come from the shipped scorer, and a complete render
 // when the API is unreachable.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import * as D from '../../extension/src/lib/sbw-data.js';
 import SubScores from '../../extension/src/lib/sub-scores.js';
 
@@ -560,10 +558,14 @@ describe('topFix', () => {
   });
 
   it('has fix text for every issue string the analyzer can produce', () => {
-    const src = readFileSync(resolve(__dirname, '../../extension/lib/content-analysis.js'), 'utf8');
-    const issues = [...src.matchAll(/issues\.push\('([^']+)'\)/g)].map((m) => m[1]);
-    expect(issues.length).toBeGreaterThan(10);
-    for (const issue of issues) expect(D.FIX_ISSUES, issue).toContain(issue);
+    // 1.10.4: the fix text lives with the checks, so it is read from there.
+    const issues = SubScores.analysis.CHECKS.flatMap((c) => Object.keys(c.outcomes));
+    expect(issues.length).toBeGreaterThan(20);
+    for (const issue of issues) expect(D.fixIssues(), issue).toContain(issue);
+  });
+
+  it('says what each fix costs on the checklist', () => {
+    expect(D.topFix(page).points).toBe(4);
   });
 
   it('is null for a clean page, and skips an issue it has no words for', () => {

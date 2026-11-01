@@ -96,10 +96,12 @@ describe('store listing copy', () => {
     expect(doc).toBe(short);
   });
 
-  // The popup lists issue labels such as "Missing H1" with no fix text
-  // (lib/content-analysis.js, calculateSEOScore). The store said "a score with
-  // fixes" and "a short list of fixes" until 1.7.3; name fixes again only when
-  // a build that shows them ships.
+  // The store said "a score with fixes" and "a short list of fixes" until
+  // 1.7.3, when the popup listed bare issue labels. Since 1.10.4 each issue
+  // in the popup has a line on what to change and the points it costs
+  // (lib/content-analysis.js, ISSUES); the copy says that in those words,
+  // and still names issues, never "fixes", which reads as the extension
+  // changing the page.
   for (const [name, text] of [['detailed description', detailed], ['short description', short]]) {
     it(`${name}: names issues, not fixes`, () => {
       expect(text).not.toMatch(/\bfix(es)?\b/i);

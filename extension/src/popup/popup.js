@@ -303,7 +303,7 @@ function showCantAnalyze(title, body) {
 
 /* ---------- sub-scores derived from real analyzer data ---------- */
 
-// The 14 checks moved to src/lib/sub-scores.js so the themed surfaces can
+// The sub-scores moved to src/lib/sub-scores.js so the themed surfaces can
 // show the same numbers without a second copy of the thresholds. Loaded as a
 // classic <script> before this file (see popup.html).
 function computeSubScores(data) {
@@ -312,17 +312,44 @@ function computeSubScores(data) {
 
 /* ---------- main renderer ---------- */
 
+// The score's checks for this analysis (lib/content-analysis.js), by id, and
+// the row class each one's status reads as.
+function checksById(data) {
+  const A = globalThis.SEOBWAnalysis;
+  const out = {};
+  if (A) A.evaluateChecks(data).checks.forEach(c => { out[c.id] = c; });
+  return out;
+}
+function checkClass(check) {
+  if (!check || check.status === 'na') return '';
+  return check.status === 'pass' ? 'good' : check.status === 'warn' ? 'warn' : 'bad';
+}
+
+// An issue with its fix and the points it costs (1.10.4; the fix text was
+// only on the new tab).
+function issueRow(issue, data) {
+  const fix = globalThis.SEOBWAnalysis ? SEOBWAnalysis.fixFor(issue, data) : null;
+  const body = fix && fix.body ? `<span class="issue-fix">${esc(fix.body)}</span>` : '';
+  const pts = fix && fix.points
+    ? `<span class="issue-points" title="Points this costs on the on-page checklist">−${fix.points}</span>`
+    : '';
+  return `<div class="issue"><span class="issue-main"><span class="issue-label">${esc(issue)}</span>${body}</span>${pts}</div>`;
+}
+
+const has = (v) => v !== null && v !== undefined;
+
 function renderResults(data) {
   const content = document.getElementById('content');
   const score = data.seoScore || { score: 0, grade: 'F', issues: [] };
   const techStack = data.techStack || [];
   const subs = computeSubScores(data);
+  const checks = checksById(data);
 
   let html = '';
 
   /* --- Score hero --- */
   html += `<div class="seo-hero">
-    <div class="ring" style="background:${ringStyle(score.score)}">
+    <div class="ring" style="background:${ringStyle(score.score)}" title="On-page checklist: 100 minus the points the issues below cost">
       <span>
         <span class="ring-val">${score.score}</span>
         <span class="ring-cap">SCORE</span>
@@ -355,73 +382,26 @@ function renderResults(data) {
     : badge('CLEAN', 'b-ok');
   html += section('issues', 'Issues', issueBadge,
     score.issues.length
-      ? score.issues.map(i => `<div class="issue">${esc(i)}</div>`).join('')
+      ? score.issues.map(i => issueRow(i, data)).join('')
       : '<div class="pass">No major issues found</div>',
     true);
 
   /* --- Page meta --- */
-  const metaWarnings = [
-    !data.meta.canonical,
-    !data.meta.openGraph.title,
-    data.meta.schema.length === 0,
-    data.meta.title.length > 60 || data.meta.title.length < 30,
-    data.meta.description.length > 160 || data.meta.description.length < 120
-  ].filter(Boolean).length;
-
-  html += section('meta', 'Page Meta',
-    metaWarnings ? badge(`${metaWarnings} WARNING${metaWarnings > 1 ? 'S' : ''}`, 'b-warn') : badge('OK', 'b-ok'),
-    `<div class="serp-preview">
-      <div class="serp-title">${esc(data.meta.title.text.slice(0, 60)) || 'No title'}${data.meta.title.length > 60 ? '…' : ''}</div>
-      <div class="serp-url">${esc((data.url || '').replace(/^https?:\/\//, '').slice(0, 60))}</div>
-      <div class="serp-desc">${esc(data.meta.description.text.slice(0, 155)) || 'No meta description'}${data.meta.description.length > 155 ? '…' : ''}</div>
-    </div>
-    ${dataRow('Title', esc(data.meta.title.length) + ' / 60', data.meta.title.length <= 60 && data.meta.title.length >= 30 ? 'good' : 'warn')}
-    ${dataRow('Description', esc(data.meta.description.length) + ' / 160', data.meta.description.length <= 160 && data.meta.description.length >= 120 ? 'good' : 'warn')}
-    ${dataRow('Canonical', data.meta.canonical ? 'Set' : 'Missing', data.meta.canonical ? 'good' : 'bad')}
-    ${dataRow('Robots', esc(data.meta.robots || 'Default'))}
-    ${dataRow('Open Graph', data.meta.openGraph.title ? 'Set' : 'Missing', data.meta.openGraph.title ? 'good' : 'warn')}
-    ${dataRow('Twitter', esc(data.meta.twitter.card || 'Missing'), data.meta.twitter.card ? 'good' : 'warn')}
-    ${dataRow('Schema', `${data.meta.schema.length} block${data.meta.schema.length === 1 ? '' : 's'}`, data.meta.schema.length ? 'good' : 'warn')}`);
+  html += section('meta', 'Page Meta', metaBadge(checks), renderPageMeta(data, checks));
 
   /* --- Core Web Vitals --- */
-  if (data.webVitals) {
-    const wv = data.webVitals;
-    const vitals = [
-      { k: 'LCP', v: wv.lcp, unit: 'ms', good: 2500, poor: 4000 },
-      { k: 'INP', v: wv.inp, unit: 'ms', good: 200, poor: 500 },
-      { k: 'CLS', v: wv.cls, unit: '', good: 0.1, poor: 0.25 }
-    ];
-    const worst = vitals.filter(v => v.v !== null && v.v !== undefined)
-      .find(v => v.v > v.poor) || vitals.find(v => v.v !== null && v.v !== undefined && v.v > v.good);
-
-    html += section('webvitals', 'Core Web Vitals',
-      worst ? badge(`${worst.k} ${worst.v > worst.poor ? 'POOR' : 'FAIR'}`, worst.v > worst.poor ? 'b-err' : 'b-warn') : badge('GOOD', 'b-ok'),
-      `<div class="cwv-grid">
-        ${vitals.map(v => {
-          const has = v.v !== null && v.v !== undefined;
-          const pctVal = has ? Math.max(6, 100 - Math.min(100, (v.v / v.poor) * 100)) : 0;
-          return `<div class="cwv-cell">
-            <div class="cwv-k">${v.k}</div>
-            <div class="cwv-v">${has ? (v.unit ? Math.round(v.v) : v.v) : '—'}</div>
-            ${meter(pctVal, has ? (v.v <= v.good ? 'var(--success)' : v.v <= v.poor ? 'var(--warning)' : 'var(--error)') : 'rgba(245,245,245,.1)')}
-          </div>`;
-        }).join('')}
-      </div>
-      ${wv.fcp !== null && wv.fcp !== undefined ? dataRow('FCP', Math.round(wv.fcp) + ' ms', wv.fcp <= 1800 ? 'good' : 'warn') : ''}
-      ${wv.ttfb !== null && wv.ttfb !== undefined ? dataRow('TTFB', Math.round(wv.ttfb) + ' ms', wv.ttfb <= 800 ? 'good' : 'warn') : ''}`);
-  }
+  if (data.webVitals) html += renderWebVitals(data.webVitals);
 
   /* --- Headings --- */
   const hCount = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map(k => (data.headings[k] || []).length);
+  const outline = SBWExportRows.headingsRows(data) || [];
+  const skips = outline.filter(h => h.skipped).length;
+  const empties = outline.filter(h => h.empty).length;
+  const flags = [skips ? `${skips} SKIPPED` : '', empties ? `${empties} EMPTY` : ''].filter(Boolean).join(' · ');
   html += section('headings', 'Headings',
-    badge(`H1×${hCount[0]} · H2×${hCount[1]} · H3×${hCount[2]}`, data.headings.h1.length === 1 ? '' : 'b-warn'),
-    ['h1', 'h2', 'h3'].map(level =>
-      (data.headings[level] || []).slice(0, 4).map(text =>
-        `<div class="data-row">
-          <span class="h-tag">${level.toUpperCase()}</span>
-          <span class="data-value">${esc(String(text).slice(0, 70))}</span>
-        </div>`).join('')
-    ).join('') +
+    badge(`H1×${hCount[0]} · H2×${hCount[1]} · H3×${hCount[2]}`, data.headings.h1.length === 1 ? '' : 'b-warn') +
+      (flags ? ' ' + badge(flags, 'b-warn') : ''),
+    renderHeadingTree(outline) +
     `<div class="highlight-buttons">
       <button class="highlight-btn" data-type="headings">Highlight headings</button>
       ${exportButtonHtml('hdExportBtn', 'Export CSV', SBWExportRows.headingsRows(data))}
@@ -442,6 +422,7 @@ function renderResults(data) {
     ${nfAnchors.length ? dataRow('Total links with any of nofollow/ugc/sponsored', esc(nfAnchors.length)) : ''}
     ${dataRow('Images', esc(data.images.total))}
     ${dataRow('Missing alt', esc(missingAlt), missingAlt === 0 ? 'good' : 'bad')}
+    ${has(data.images.decorative) ? dataRow('Decorative', esc(data.images.decorative) + ' with alt=""') : ''}
     ${nfList.length ? `<details class="nf-details">
       <summary class="nf-summary">Nofollow / UGC / sponsored links (${nfList.length})</summary>
       <div class="nf-list">${nfList.map(l => `<div class="nf-row">
@@ -463,10 +444,14 @@ function renderResults(data) {
   html += section('content', 'Content',
     badge(`${(data.content.wordCount || 0).toLocaleString()} WORDS`, data.content.wordCount >= 600 ? 'b-ok' : 'b-warn'),
     `${dataRow('Words', (data.content.wordCount || 0).toLocaleString())}
+    ${data.content.scope === 'body-fallback' ? dataRow('Counted in', 'The page body: its main region has under 100 words') : ''}
     ${dataRow('Characters', (data.content.charCount || 0).toLocaleString())}
     ${dataRow('Sentences', esc(data.content.sentenceCount))}
-    ${dataRow('Reading level', `${esc(data.content.readability.level)} · grade ${esc(data.content.readability.fleschKincaid)}`)}
-    ${dataRow('Flesch ease', `${esc(data.content.readability.fleschEase)} / 100`)}
+    ${data.content.language ? dataRow('Language', esc(languageLine(data.content.language))) : ''}
+    ${data.content.readability
+      ? dataRow('Reading level', `${esc(data.content.readability.level)} · grade ${esc(data.content.readability.fleschKincaid)}`) +
+        dataRow('Flesch ease', `${esc(data.content.readability.fleschEase)} / 100`)
+      : dataRow('Reading level', esc(readabilitySkipped(data.content.language)))}
     <div class="tags-label">Top words</div>
     <div class="tags">${(data.content.topWords || []).slice(0, 10).map(w => `<span class="tag">${esc(w.word)}<span class="tag-count">${w.count}</span></span>`).join('')}</div>
     <div class="tags-label">Top phrases</div>
@@ -475,7 +460,7 @@ function renderResults(data) {
   /* --- Tech stack --- */
   if (techStack.length) {
     html += section('techstack', 'Tech Stack', badge(`${techStack.length} DETECTED`, ''),
-      `<div class="tech-badges">${techStack.map(t => `<span class="tech-badge">${esc(t.name)}</span>`).join('')}</div>`);
+      `<div class="tech-badges">${techStack.map(t => `<span class="tech-badge" title="${esc(t.category || '')}">${esc(t.name)}</span>`).join('')}</div>`);
   }
 
   /* --- Technical --- */
@@ -519,6 +504,130 @@ function renderResults(data) {
   // above the score hero, so it has to mount last (every mount() above
   // targets a spot further down and would otherwise land above it).
   globalThis.SBWToolsUI?.mount(document.getElementById('content'), data);
+}
+
+/* ---------- section renderers (1.10.4) ---------- */
+
+const META_CHECKS = ['indexable', 'title', 'description', 'canonical', 'duplicates', 'structuredData', 'openGraph', 'viewport', 'lang', 'charset'];
+
+function metaBadge(checks) {
+  const n = META_CHECKS.filter(id => checks[id] && (checks[id].status === 'warn' || checks[id].status === 'fail')).length;
+  return n ? badge(`${n} WARNING${n > 1 ? 'S' : ''}`, 'b-warn') : badge('OK', 'b-ok');
+}
+
+function shortUrl(url) {
+  return String(url || '').replace(/^https?:\/\//, '');
+}
+
+// Page Meta: the preview cut by pixel width, then every head tag the checks
+// read, the canonical as its URL and where it points.
+function renderPageMeta(data, checks) {
+  const m = data.meta;
+  const P = globalThis.SBWSerpPreview;
+  const t = P ? P.title(m.title.text) : { text: m.title.text, cut: false, width: null };
+  const d = P ? P.description(m.description.text) : { text: m.description.text, cut: false, width: null };
+  const px = (fit, max) => (fit.width === null ? '' : ` · ${fit.width} px of about ${max}${fit.cut ? ', cut' : ''}`);
+  const rowClass = (check, fit) => (fit.cut && checkClass(check) === 'good' ? 'warn' : checkClass(check));
+  const value = (check, fallback) => esc((check && check.note) || fallback);
+
+  const canonicalUrls = (m.canonicalUrls && m.canonicalUrls.length) ? m.canonicalUrls : (m.canonical ? [m.canonical] : []);
+  const where = m.canonicalTarget === 'self' ? 'Points to itself'
+    : m.canonicalTarget === 'elsewhere' ? 'Points elsewhere' : null;
+  const canonicalValue = !m.canonical ? 'Missing'
+    : canonicalUrls.length > 1 ? `${canonicalUrls.length} different URLs` : (where || 'Set');
+  const canonicalClass = !m.canonical || canonicalUrls.length > 1 ? 'bad' : m.canonicalTarget === 'elsewhere' ? 'warn' : 'good';
+
+  const sd = checks.structuredData;
+  const dup = checks.duplicates;
+  return `<div class="serp-preview">
+      <div class="serp-title">${esc(t.text) || 'No title'}</div>
+      <div class="serp-url">${esc(shortUrl(data.url).slice(0, 60))}</div>
+      <div class="serp-desc">${esc(d.text) || 'No meta description'}</div>
+      <div class="serp-note">Cut where Google's desktop results cut, by width: about 600 px of title and 920 px of description.</div>
+    </div>
+    ${dataRow('Title', `${esc(m.title.length)} chars${px(t, 600)}`, rowClass(checks.title, t))}
+    ${dataRow('Description', `${esc(m.description.length)} chars${px(d, 920)}`, rowClass(checks.description, d))}
+    ${dataRow('Canonical', esc(canonicalValue), canonicalClass)}
+    ${canonicalUrls.map((u, i) => `<div class="data-row">
+      <span class="data-label">${canonicalUrls.length > 1 ? 'URL ' + (i + 1) : 'Canonical URL'}</span>
+      <span class="data-value" title="${esc(u)}">${esc(shortUrl(u))}</span>
+    </div>`).join('')}
+    ${checks.indexable ? dataRow('Indexable', value(checks.indexable, 'Yes'), checkClass(checks.indexable)) : ''}
+    ${dataRow('Robots', esc(m.robots || 'Not set (index, follow)'))}
+    ${m.googlebot ? dataRow('Googlebot', esc(m.googlebot)) : ''}
+    ${dup && dup.status !== 'pass' && dup.status !== 'na' ? dataRow('Duplicates', value(dup, ''), 'bad') : ''}
+    ${checks.lang && checks.lang.status !== 'na' ? dataRow('Lang', value(checks.lang, 'Missing'), checkClass(checks.lang)) : ''}
+    ${checks.viewport && checks.viewport.status !== 'na' ? dataRow('Viewport', value(checks.viewport, 'Missing'), checkClass(checks.viewport)) : ''}
+    ${checks.charset && checks.charset.status !== 'na' ? dataRow('Charset', value(checks.charset, ''), checkClass(checks.charset)) : ''}
+    ${dataRow('Open Graph', m.openGraph.title ? 'Set' : 'Missing', m.openGraph.title ? 'good' : 'warn')}
+    ${dataRow('Twitter', esc(m.twitter.card || 'Missing'), m.twitter.card ? 'good' : 'warn')}
+    ${dataRow('Schema', value(sd, `${m.schema.length} block${m.schema.length === 1 ? '' : 's'}`), sd && sd.status === 'pass' ? 'good' : 'warn')}`;
+}
+
+// Core Web Vitals of this visit (src/content/analyzer.js). A value the page
+// didn't report reads "No data", never 0 or GOOD.
+function renderWebVitals(wv) {
+  const vitals = [
+    { k: 'LCP', v: wv.lcp, unit: 'ms', good: 2500, poor: 4000 },
+    { k: 'INP', v: wv.inp, unit: 'ms', good: 200, poor: 500 },
+    { k: 'CLS', v: wv.cls, unit: '', good: 0.1, poor: 0.25 }
+  ];
+  const measured = vitals.filter(v => has(v.v));
+  const poor = measured.find(v => v.v > v.poor);
+  const fair = measured.find(v => v.v > v.good);
+  let state;
+  if (!measured.length) state = badge('NO DATA', '');
+  else if (poor) state = badge(`${poor.k} POOR`, 'b-err');
+  else if (fair) state = badge(`${fair.k} FAIR`, 'b-warn');
+  else if (measured.length < vitals.length) state = badge(`${measured.length} OF 3 GOOD`, 'b-ok');
+  else state = badge('GOOD', 'b-ok');
+
+  const notes = [];
+  if (wv.loadedHidden) notes.push('This page loaded in a background tab, where Chrome measures no LCP. Reload it in front to measure it.');
+  if (!has(wv.inp)) notes.push('INP needs an interaction: none was measured on this visit.');
+  notes.push('Measured on this visit, in your browser: not Google\'s field data.');
+
+  return section('webvitals', 'Core Web Vitals', state,
+    `<div class="cwv-grid">
+      ${vitals.map(v => {
+        const on = has(v.v);
+        const pctVal = on ? Math.max(6, 100 - Math.min(100, (v.v / v.poor) * 100)) : 0;
+        return `<div class="cwv-cell">
+          <div class="cwv-k">${v.k}</div>
+          <div class="cwv-v${on ? '' : ' cwv-none'}">${on ? (v.unit ? Math.round(v.v) : v.v) : 'No data'}</div>
+          ${meter(pctVal, on ? (v.v <= v.good ? 'var(--success)' : v.v <= v.poor ? 'var(--warning)' : 'var(--error)') : 'rgba(245,245,245,.1)')}
+        </div>`;
+      }).join('')}
+    </div>
+    ${has(wv.fcp) ? dataRow('FCP', Math.round(wv.fcp) + ' ms', wv.fcp <= 1800 ? 'good' : 'warn') : ''}
+    ${has(wv.ttfb) ? dataRow('TTFB', Math.round(wv.ttfb) + ' ms', wv.ttfb <= 800 ? 'good' : 'warn') : ''}
+    <div class="cwv-notes">${notes.map(n => `<div class="cwv-note">${esc(n)}</div>`).join('')}</div>`);
+}
+
+// The full H1–H6 tree in page order, indented by level; skipped levels and
+// empty headings flagged (lib/dom-extraction.js's outline).
+function renderHeadingTree(outline) {
+  if (!outline.length) return '<div class="pass">No headings on this page</div>';
+  return `<div class="h-tree">${outline.map(h => {
+    const flags = [];
+    if (h.skipped) flags.push(`<span class="h-flag" title="Jumps from H${h.skipped[0] - 1} to H${h.level}">skips H${h.skipped.join(', H')}</span>`);
+    if (h.fromAlt) flags.push('<span class="h-flag h-flag-info" title="Read from the image\'s alt text">image alt</span>');
+    return `<div class="data-row h-row" style="padding-left:${14 + (Math.min(6, h.level) - 1) * 9}px">
+      <span class="h-tag">H${esc(h.level)}</span>
+      <span class="data-value${h.empty ? ' bad' : ''}" title="${esc(h.text || '')}">${h.empty ? '(empty)' : esc(String(h.text).slice(0, 90))}</span>
+      ${flags.join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function languageLine(lang) {
+  const code = lang.code || 'Unknown';
+  return lang.source === 'lang' ? `${code} · from the page's lang attribute` : `${code} · from the text (no lang attribute)`;
+}
+
+function readabilitySkipped(lang) {
+  if (lang && lang.code && lang.code !== 'en') return 'Not scored: the page is not in English';
+  return 'Not scored: no English text recognised';
 }
 
 function wireSeoTab() {
@@ -819,8 +928,15 @@ function withTruncationRow(rows, columns) {
 const HEADINGS_CSV_COLUMNS = [
   { key: 'order', label: 'Order' },
   { key: 'level', label: 'Level' },
-  { key: 'text', label: 'Text' }
+  { key: 'text', label: 'Text' },
+  { key: 'flags', label: 'Flags' }
 ];
+
+// 1.10.4: what the tree flags, as words in the export.
+function headingFlags(r) {
+  return [r.empty ? 'empty' : '', r.skipped ? 'skips H' + r.skipped.join(', H') : '', r.fromAlt ? 'image alt' : '']
+    .filter(Boolean).join('; ');
+}
 
 function downloadCsv(prefix, rows, columns, pageUrl) {
   const csv = SBWCsv.toCsv(rows, columns);
@@ -842,14 +958,15 @@ function downloadCsv(prefix, rows, columns, pageUrl) {
 function exportHeadingsCsv(data) {
   const rows = SBWExportRows.headingsRows(data);
   if (!rows) return null;
-  downloadCsv('headings', withTruncationRow(rows, HEADINGS_CSV_COLUMNS), HEADINGS_CSV_COLUMNS, data && data.url);
+  const flagged = rows.map(r => Object.assign({}, r, { flags: headingFlags(r) }));
+  downloadCsv('headings', withTruncationRow(flagged, HEADINGS_CSV_COLUMNS), HEADINGS_CSV_COLUMNS, data && data.url);
   return true;
 }
 
 function copyHeadingsOutline(data) {
   const rows = SBWExportRows.headingsRows(data);
   if (!rows) return null;
-  const text = rows.map(r => '  '.repeat(Math.max(0, r.level - 1)) + r.text).join('\n');
+  const text = rows.map(r => '  '.repeat(Math.max(0, r.level - 1)) + (r.empty ? '(empty)' : r.text)).join('\n');
   navigator.clipboard.writeText(text)
     .then(() => setSeoStatus('Outline copied', 'success'))
     .catch(() => setSeoStatus('Copy failed', 'error'));
@@ -860,6 +977,7 @@ const IMAGES_CSV_COLUMNS = [
   { key: 'src', label: 'Src' },
   { key: 'alt', label: 'Alt' },
   { key: 'hasAlt', label: 'Has Alt' },
+  { key: 'decorative', label: 'Decorative' },
   { key: 'lazy', label: 'Lazy' },
   { key: 'width', label: 'Width' },
   { key: 'height', label: 'Height' }

@@ -840,18 +840,31 @@ function installSbwStubs() {
 
 const SEO_FIXTURE = {
   url: 'https://northsidedental.com/austin/family-dentistry',
-  seoScore: { score: 78, grade: 'B', issues: ['Description too short', 'Some images missing alt', 'No structured data'] },
+  // 1.10.4: the score and its issues as lib/content-analysis.js's checks give
+  // them for the facts below (100 - 4 - 3 - 5).
+  seoScore: { score: 88, grade: 'B', issues: ['Description too short', 'Some images missing alt', 'No structured data'] },
   meta: {
-    title: { text: 'Family Dentistry in North Austin | Northside Dental Co.', length: 54 },
-    description: { text: 'Gentle family dentistry in North Austin. Same-week appointments.', length: 64 },
+    title: { text: 'Family Dentistry in North Austin | Northside Dental Co.', length: 54, displayLength: 54, count: 1 },
+    description: { text: 'Gentle family dentistry in North Austin. Same-week appointments.', length: 64, displayLength: 64, count: 1 },
     canonical: 'https://northsidedental.com/austin/family-dentistry',
+    canonicalUrls: ['https://northsidedental.com/austin/family-dentistry'],
+    canonicalCount: 1,
+    canonicalTarget: 'self',
     robots: 'index, follow',
+    googlebot: null,
+    noindex: false,
+    noindexSource: null,
+    lang: 'en-US',
+    viewport: 'width=device-width, initial-scale=1',
+    charset: { document: 'UTF-8', declared: 'utf-8' },
     openGraph: { title: 'Family Dentistry in North Austin' },
     twitter: { card: 'summary_large_image' },
-    schema: []
+    schema: [],
+    structuredData: { jsonLd: 0, microdata: 0, rdfa: 0 }
   },
   content: {
-    wordCount: 842, charCount: 5310, sentenceCount: 47,
+    wordCount: 842, charCount: 5310, sentenceCount: 47, scope: 'main',
+    language: { code: 'en', source: 'lang', english: true },
     readability: { level: 'Fairly easy', fleschKincaid: 8.2, fleschEase: 68 },
     topWords: [
       { word: 'dental', count: 24 }, { word: 'austin', count: 18 }, { word: 'family', count: 15 },
@@ -867,15 +880,29 @@ const SEO_FIXTURE = {
     h1: ['Family Dentistry in North Austin'],
     h2: ['Our Services', 'Meet the Team', 'Insurance We Accept', 'Book an Appointment'],
     h3: ['Cleanings', 'Fillings', 'Whitening', 'Emergency Care', 'Pediatric', 'Invisalign'],
-    h4: [], h5: [], h6: [], multipleH1: false
+    h4: ['Saturday hours'], h5: [], h6: [], multipleH1: false,
+    // The full tree the popup shows (1.10.4): one empty heading, one skip.
+    outline: [
+      { level: 1, text: 'Family Dentistry in North Austin', order: 1 },
+      { level: 2, text: 'Our Services', order: 2 },
+      { level: 3, text: 'Cleanings', order: 3 }, { level: 3, text: 'Fillings', order: 4 },
+      { level: 3, text: 'Whitening', order: 5 }, { level: 3, text: 'Emergency Care', order: 6 },
+      { level: 3, text: 'Pediatric', order: 7 }, { level: 3, text: 'Invisalign', order: 8 },
+      { level: 2, text: 'Meet the Team', order: 9 },
+      { level: 2, text: '', order: 10, empty: true },
+      { level: 4, text: 'Saturday hours', order: 11, skipped: [3] },
+      { level: 2, text: 'Insurance We Accept', order: 12 },
+      { level: 2, text: 'Book an Appointment', order: 13 }
+    ],
+    empty: 1, skips: 1
   },
   links: { internal: { count: 34 }, external: { count: 8 }, nofollow: 3 },
-  images: { total: 14, missingAlt: { count: 3 } },
+  images: { total: 14, missingAlt: { count: 3 }, decorative: 2 },
   // hreflang is assigned below, after this literal, via a lazy getter (see
   // HREFLANG_RAW_ENTRIES / the Object.defineProperty call) — not inline
   // here.
   technical: { domElements: 1240, scripts: 12, stylesheets: 4, urlDepth: 2, loadTimeMs: 1840 },
-  webVitals: { lcp: 2180, inp: 640, cls: 0.04, fcp: 1210, ttfb: 420 },
+  webVitals: { lcp: 2180, inp: 640, cls: 0.04, fcp: 1210, ttfb: 420, interactions: 3, loadedHidden: false, source: 'this-visit' },
   textToHtml: { ratio: 18, textSize: 5310, htmlSize: 29500, status: 'good' },
   mixedContent: { isHttps: true, mixedCount: 0, items: [] },
   techStack: [

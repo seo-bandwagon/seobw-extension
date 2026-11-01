@@ -8,29 +8,21 @@ window.__seoBandwagonLoaded = true;
 // on self.SEOBWAnalysis; destructure the ones we use so existing call sites
 // below reference them by bare name.
 const {
-  calculateSEOScore,
-  getGrade,
-  cleanText,
+  analyzeDocument,
   getWords,
-  countSentences,
-  countSyllables,
-  calculateReadability,
-  getTopWords,
-  getTopPhrases,
   buildNgramCounts,
-  getTopN
+  getTopN,
+  lcpFrom,
+  clsFrom,
+  inpFrom,
+  firstHiddenFrom
 } = self.SEOBWAnalysis;
 
 // DOM extractors are similarly injected from lib/dom-extraction.js. Each
 // takes optional (doc, win) args so they work in JSDOM tests too; here in
 // the content script we let them default to the target tab's document.
 const {
-  extractMeta,
-  extractHeadings,
-  extractLinks,
-  extractImages,
-  extractTechnical,
-  getMainContent,
+  detectTechStack,
   visibleText
 } = self.SEOBWExtraction;
 
@@ -89,45 +81,29 @@ async function hashContent(text) {
 
 async function analyzePage() {
   const webVitalsPromise = analyzeWebVitals();
-  const mainContent = getMainContent();
-  const text = cleanText(mainContent);
-  const words = getWords(text);
-  
-  const content = {
-    title: document.title,
-    wordCount: words.length,
-    charCount: text.length,
-    sentenceCount: countSentences(text),
-    readability: calculateReadability(text, words),
-    topWords: getTopWords(words),
-    topPhrases: getTopPhrases(words)
-  };
-  
-  const meta = extractMeta();
-  const headings = extractHeadings();
-  const links = extractLinks();
-  const images = extractImages();
-  const technical = extractTechnical();
-  const techStack = detectTechStack();
-  
-  // Calculate SEO score
-  const seoScore = calculateSEOScore(content, meta, headings, links, images, technical);
-  
-  // Generate content hash for change detection
-  const contentHash = await hashContent(text);
+  const globalsPromise = probeTechGlobals();
+
+  // The score's whole path (lib/content-analysis.js), the same one a parsed
+  // Document takes: content, meta, headings, links, images, technical,
+  // mixedContent and seoScore.
+  const { data } = analyzeDocument(document, window, self.SEOBWExtraction);
+
+  // Generate content hash for change detection, from the text 1.10.3 hashed
+  // (SEOBWExtraction.legacyHashText says why).
+  const contentHash = await hashContent(self.SEOBWExtraction.legacyHashText(document));
 
   return {
     url: window.location.href,
     capturedAt: new Date().toISOString(),
     contentHash,
-    seoScore,
-    content,
-    meta,
-    headings,
-    links,
-    images,
-    technical,
-    techStack,
+    seoScore: data.seoScore,
+    content: data.content,
+    meta: data.meta,
+    headings: data.headings,
+    links: data.links,
+    images: data.images,
+    technical: data.technical,
+    techStack: detectTechStack(document, await globalsPromise),
     // Advanced analyzers (v1.1.0)
     webVitals: await webVitalsPromise,
     performance: analyzePerformance(),
@@ -136,7 +112,7 @@ async function analyzePage() {
     hreflang: analyzeHreflang(),
     schemaValidation: analyzeSchemaValidation(),
     lazyImages: analyzeLazyImages(),
-    mixedContent: analyzeMixedContent(),
+    mixedContent: data.mixedContent,
     iframes: analyzeIframes(),
     socialCards: analyzeSocialCards(),
     faviconAndFeeds: analyzeFaviconAndFeeds(),
@@ -149,82 +125,24 @@ async function analyzePage() {
 
 // ============ TECH STACK DETECTION ============
 
-function detectTechStack() {
-  const tech = [];
-  
-  // CMS
-  if (document.querySelector('meta[name="generator"][content*="WordPress"]') || 
-      document.querySelector('link[href*="wp-content"]') ||
-      document.querySelector('script[src*="wp-includes"]')) {
-    tech.push({ name: 'WordPress', category: 'CMS', icon: '📝' });
-  }
-  if (window.Shopify || document.querySelector('meta[name="shopify-checkout-api-token"]')) {
-    tech.push({ name: 'Shopify', category: 'E-commerce', icon: '🛒' });
-  }
-  if (document.querySelector('meta[name="generator"][content*="Wix"]') || window.wixBiSession) {
-    tech.push({ name: 'Wix', category: 'CMS', icon: '📝' });
-  }
-  if (document.querySelector('[class*="squarespace"]') || window.Static?.SQUARESPACE_CONTEXT) {
-    tech.push({ name: 'Squarespace', category: 'CMS', icon: '📝' });
-  }
-  if (document.querySelector('[data-wf-page]') || window.Webflow) {
-    tech.push({ name: 'Webflow', category: 'CMS', icon: '📝' });
-  }
-  if (document.querySelector('meta[name="generator"][content*="Drupal"]')) {
-    tech.push({ name: 'Drupal', category: 'CMS', icon: '💧' });
-  }
-  if (document.querySelector('meta[name="generator"][content*="Joomla"]')) {
-    tech.push({ name: 'Joomla', category: 'CMS', icon: '📝' });
-  }
-  
-  // Frameworks
-  if (document.getElementById('__next') || window.__NEXT_DATA__) {
-    tech.push({ name: 'Next.js', category: 'Framework', icon: '⚛️' });
-  } else if (document.querySelector('[data-reactroot]') || window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
-    tech.push({ name: 'React', category: 'Framework', icon: '⚛️' });
-  }
-  if (window.__VUE__ || document.querySelector('[data-v-]')) {
-    tech.push({ name: 'Vue.js', category: 'Framework', icon: '💚' });
-  }
-  if (window.angular || document.querySelector('[ng-app]')) {
-    tech.push({ name: 'Angular', category: 'Framework', icon: '🅰️' });
-  }
-  if (document.getElementById('___gatsby')) {
-    tech.push({ name: 'Gatsby', category: 'Framework', icon: '💜' });
-  }
-  if (window.__NUXT__) {
-    tech.push({ name: 'Nuxt.js', category: 'Framework', icon: '💚' });
-  }
-  if (document.querySelector('[data-sveltekit-hydrate]') || window.__sveltekit_1) {
-    tech.push({ name: 'SvelteKit', category: 'Framework', icon: '🔥' });
-  }
-  
-  // Analytics & Marketing
-  if (window.gtag || window.ga || document.querySelector('script[src*="googletagmanager"]')) {
-    tech.push({ name: 'Google Analytics', category: 'Analytics', icon: '📊' });
-  }
-  if (window.fbq) {
-    tech.push({ name: 'Facebook Pixel', category: 'Analytics', icon: '📘' });
-  }
-  if (window.hj || document.querySelector('script[src*="hotjar"]')) {
-    tech.push({ name: 'Hotjar', category: 'Analytics', icon: '🔥' });
-  }
-  if (window.HubSpotConversations || document.querySelector('script[src*="hubspot"]')) {
-    tech.push({ name: 'HubSpot', category: 'Marketing', icon: '🟠' });
-  }
-  if (window.Intercom || document.querySelector('script[src*="intercom"]')) {
-    tech.push({ name: 'Intercom', category: 'Support', icon: '💬' });
-  }
-  if (document.querySelector('script[src*="clarity"]') || window.clarity) {
-    tech.push({ name: 'Microsoft Clarity', category: 'Analytics', icon: '🔍' });
-  }
-  
-  // CDN & Performance
-  if (document.querySelector('link[href*="cloudflare"]') || document.querySelector('script[src*="cloudflare"]')) {
-    tech.push({ name: 'Cloudflare', category: 'CDN', icon: '☁️' });
-  }
-  
-  return tech;
+// The page's own globals, read in its own world by the service worker
+// ('probeTechGlobals', SEOBWExtraction.probeTechGlobals). This world can't
+// see them. Null when the worker doesn't answer in time: detectTechStack
+// then reads the DOM alone.
+function probeTechGlobals() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => { if (!settled) { settled = true; resolve(value || null); } };
+    setTimeout(() => done(null), 1500);
+    try {
+      chrome.runtime.sendMessage({ action: 'probeTechGlobals' }, (reply) => {
+        void chrome.runtime.lastError;
+        done(reply && reply.ok ? reply.globals : null);
+      });
+    } catch (e) {
+      done(null);
+    }
+  });
 }
 
 // ============ LINK COLLECTION (broken-link checker, Task 1) ============
@@ -346,18 +264,16 @@ function highlightElement(type, request) {
         }
       });
       break;
+    // 1.10.4: as lib/dom-extraction.js's extractImages() counts them, only an
+    // image with no alt attribute is missing one; alt="" is decorative.
     case 'images-missing-alt':
-      document.querySelectorAll('img').forEach(el => {
-        const alt = el.getAttribute('alt');
-        if (!alt || alt.trim() === '') {
-          el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-missing-alt');
-        }
+      document.querySelectorAll('img:not([alt])').forEach(el => {
+        el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-missing-alt');
       });
       break;
     case 'images-all':
       document.querySelectorAll('img').forEach(el => {
-        const alt = el.getAttribute('alt');
-        if (!alt || alt.trim() === '') {
+        if (el.getAttribute('alt') === null) {
           el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-missing-alt');
         } else {
           el.classList.add('seo-toolkit-highlight', 'seo-toolkit-highlight-image-has-alt');
@@ -438,82 +354,79 @@ document.addEventListener('mousedown', (e) => {
 // ============ DOM EXTRACTION ============
 // extractMeta, extractHeadings, extractLinks, extractImages, extractTechnical,
 // getMainContent all live in lib/dom-extraction.js (JSDOM-testable).
-// calculateSEOScore + getGrade live in lib/content-analysis.js.
+// The checks, the score and analyzeDocument() live in lib/content-analysis.js.
 
 
 // ============================================
 // Advanced Analyzers (ported from v0.3.0)
 // ============================================
 
+// Core Web Vitals of this visit, measured as the spec measures them
+// (web.dev/articles/vitals; the arithmetic is SEOBWAnalysis's lcpFrom,
+// clsFrom and inpFrom). Until 1.10.4, INP was the longest event of any kind,
+// CLS summed every shift, and a value the page never reported read 0.
+//
+// A null value is "no data", never a number: Chrome reports no LCP or FCP
+// for a page loaded in a background tab, which is how Analyze on Google
+// (1.10.2) opens one, so `loadedHidden` says why; INP is null until the
+// visit has an interaction. `interactions` is how many INP came from.
 function analyzeWebVitals() {
   return new Promise((resolve) => {
-    const vitals = { lcp: null, cls: null, inp: null, fcp: null, ttfb: null };
-    let clsValue = 0;
-    let inpValue = 0;
+    const lcpEntries = [];
+    const shiftEntries = [];
+    const eventEntries = [];
+    const observers = [];
     let resolved = false;
+
+    const observe = (type, sink, extra) => {
+      try {
+        const po = new PerformanceObserver((list) => { sink.push(...list.getEntries()); });
+        po.observe(Object.assign({ type, buffered: true }, extra || {}));
+        observers.push([po, sink]);
+      } catch (e) { /* type not supported here */ }
+    };
+    observe('largest-contentful-paint', lcpEntries);
+    observe('layout-shift', shiftEntries);
+    // 16 ms is the smallest threshold the Event Timing API takes.
+    observe('event', eventEntries, { durationThreshold: 16 });
+    observe('first-input', eventEntries);
 
     function finish() {
       if (resolved) return;
       resolved = true;
-      vitals.cls = +clsValue.toFixed(4);
-      vitals.inp = inpValue || null;
-      resolve(vitals);
+      // Entries queued but not yet delivered are taken before stopping.
+      observers.forEach(([po, sink]) => {
+        try { sink.push(...po.takeRecords()); po.disconnect(); } catch (e) { /* gone */ }
+      });
+
+      let nav = null;
+      let fcpEntry = null;
+      let visibility = null;
+      try { nav = performance.getEntriesByType('navigation')[0] || null; } catch (e) { /* none */ }
+      try { fcpEntry = performance.getEntriesByName('first-contentful-paint')[0] || null; } catch (e) { /* none */ }
+      try { visibility = performance.getEntriesByType('visibility-state'); } catch (e) { /* unsupported */ }
+      const activationStart = (nav && nav.activationStart) || 0;
+      const firstHidden = firstHiddenFrom(visibility, document.visibilityState === 'hidden', !!fcpEntry, activationStart);
+      const loadedHidden = firstHidden <= (fcpEntry ? fcpEntry.startTime : Infinity) && firstHidden !== Infinity;
+
+      const fcp = fcpEntry && fcpEntry.startTime < firstHidden
+        ? Math.max(0, Math.round(fcpEntry.startTime - activationStart))
+        : null;
+      const inp = inpFrom(eventEntries);
+      resolve({
+        lcp: loadedHidden ? null : lcpFrom(lcpEntries, firstHidden, activationStart),
+        // CLS is reported once the page has painted (as web-vitals does).
+        cls: fcp === null ? null : clsFrom(shiftEntries),
+        inp: inp.inp,
+        fcp,
+        ttfb: nav && nav.responseStart > 0 ? Math.max(0, Math.round(nav.responseStart - activationStart)) : null,
+        interactions: inp.interactions,
+        loadedHidden,
+        source: 'this-visit'
+      });
     }
 
-    // TTFB
-    try {
-      const nav = performance.getEntriesByType('navigation')[0];
-      if (nav) {
-        vitals.ttfb = Math.round(nav.responseStart - nav.requestStart);
-      }
-    } catch (e) {}
-
-    // FCP
-    try {
-      const fcpEntry = performance.getEntriesByName('first-contentful-paint')[0];
-      if (fcpEntry) {
-        vitals.fcp = Math.round(fcpEntry.startTime);
-      }
-    } catch (e) {}
-
-    // LCP
-    try {
-      const lcpObserver = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
-        if (entries.length > 0) {
-          const last = entries[entries.length - 1];
-          vitals.lcp = Math.round(last.startTime);
-        }
-      });
-      lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
-    } catch (e) {}
-
-    // CLS
-    try {
-      const clsObserver = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          if (!entry.hadRecentInput) {
-            clsValue += entry.value;
-          }
-        }
-      });
-      clsObserver.observe({ type: 'layout-shift', buffered: true });
-    } catch (e) {}
-
-    // INP (interaction to next paint)
-    try {
-      const inpObserver = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          const duration = entry.duration || 0;
-          if (duration > inpValue) {
-            inpValue = duration;
-          }
-        }
-      });
-      inpObserver.observe({ type: 'event', buffered: true });
-    } catch (e) {}
-
-    // Resolve after 2 seconds to capture buffered entries
+    // Two seconds for the buffered entries and any interaction meanwhile.
     setTimeout(finish, 2000);
   });
 }
@@ -713,30 +626,8 @@ function analyzeLazyImages() {
   };
 }
 
-function analyzeMixedContent() {
-  const isHttps = window.location.protocol === 'https:';
-  if (!isHttps) return { isHttps: false, mixedCount: 0, items: [] };
-
-  const items = [];
-  // Check images
-  document.querySelectorAll('img[src^="http:"]').forEach(el => {
-    items.push({ type: 'image', url: el.getAttribute('src').substring(0, 100) });
-  });
-  // Check scripts
-  document.querySelectorAll('script[src^="http:"]').forEach(el => {
-    items.push({ type: 'script', url: el.getAttribute('src').substring(0, 100) });
-  });
-  // Check stylesheets
-  document.querySelectorAll('link[rel="stylesheet"][href^="http:"]').forEach(el => {
-    items.push({ type: 'stylesheet', url: el.getAttribute('href').substring(0, 100) });
-  });
-  // Check iframes
-  document.querySelectorAll('iframe[src^="http:"]').forEach(el => {
-    items.push({ type: 'iframe', url: el.getAttribute('src').substring(0, 100) });
-  });
-
-  return { isHttps, mixedCount: items.length, items: items.slice(0, 20) };
-}
+// Mixed content moved to lib/dom-extraction.js (extractMixedContent) in
+// 1.10.4, so the score counts it on a parsed Document too.
 
 function analyzeIframes() {
   const iframes = document.querySelectorAll('iframe');
@@ -874,8 +765,9 @@ function analyzeKeywordDensity() {
 
   const bodyClone = document.body.cloneNode(true);
   bodyClone.querySelectorAll('script, style, noscript, svg').forEach(el => el.remove());
-  const bodyText = visibleText(bodyClone).toLowerCase();
-  const bodyWords = bodyText.match(/[a-z0-9]+(?:['-][a-z0-9]+)*/g) || [];
+  // 1.10.4: words of every language, as the word count reads them (this
+  // matched [a-z0-9] only).
+  const bodyWords = getWords(visibleText(bodyClone));
   const totalWords = bodyWords.length;
 
   if (totalWords === 0) return { titleTerms: [], h1Terms: [], totalWords: 0 };
@@ -883,7 +775,7 @@ function analyzeKeywordDensity() {
   const stopWords = new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','is','it','this','that','are','was','be','have','do','not','from','as','i','you','we','they','he','she','your','my','our','their']);
 
   function getTermDensity(text) {
-    const words = text.toLowerCase().match(/[a-z0-9]+(?:['-][a-z0-9]+)*/g) || [];
+    const words = getWords(text);
     const meaningful = words.filter(w => !stopWords.has(w) && w.length > 2);
     return meaningful.map(term => {
       const count = bodyWords.filter(w => w === term).length;
@@ -935,10 +827,9 @@ function analyzeTocNavigation() {
 function analyzeNgrams() {
   const bodyClone = document.body.cloneNode(true);
   bodyClone.querySelectorAll('script, style, noscript, svg, [hidden], [aria-hidden="true"]').forEach(el => el.remove());
-  const text = visibleText(bodyClone).toLowerCase();
-
-  // Tokenize: letters, numbers, hyphens within words
-  const words = text.match(/[a-z0-9](?:[a-z0-9'-]*[a-z0-9])?/g) || [];
+  // Tokenize as the word count does: every language (1.10.4; this matched
+  // [a-z0-9] only).
+  const words = getWords(visibleText(bodyClone));
 
   const stopWords = new Set([
     'a','an','the','and','or','but','in','on','at','to','for','of','with','by',

@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.10.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.10.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -112,16 +112,16 @@ grant; the coverage report (#74).
 - [x] New tab cards on a second device; Netlify hosts out of the custom API list
 
 ### 1.10.4: the score and the page analysis tell the truth (patch)
-- [ ] Words counted in every language; readability only for English pages
-- [ ] Schema check counts JSON-LD, Microdata and RDFa
-- [ ] One check list behind score and sub-scores (https, mixed content, noindex count in both)
-- [ ] Every issue shows its fix and the points it costs
-- [ ] Canonical as a URL with self/elsewhere; `googlebot` meta; duplicate tags; `lang`, viewport, charset
-- [ ] SERP preview truncated by pixel width
-- [ ] Core Web Vitals to the spec, with "No data"
-- [ ] Full ordered H1–H6 tree, skipped and empty headings flagged
-- [ ] Decorative `alt=""` apart from missing alt; word count falls back to the body
-- [ ] Tech stack probed in the page's own world (`world: 'MAIN'`, no new permission)
+- [x] Words counted in every language; readability only for English pages
+- [x] Schema check counts JSON-LD, Microdata and RDFa
+- [x] One check list behind score and sub-scores (https, mixed content, noindex count in both)
+- [x] Every issue shows its fix and the points it costs
+- [x] Canonical as a URL with self/elsewhere; `googlebot` meta; duplicate tags; `lang`, viewport, charset
+- [x] SERP preview truncated by pixel width
+- [x] Core Web Vitals to the spec, with "No data"
+- [x] Full ordered H1–H6 tree, skipped and empty headings flagged
+- [x] Decorative `alt=""` apart from missing alt; word count falls back to the body
+- [x] Tech stack probed in the page's own world (`world: 'MAIN'`, no new permission)
 
 ### 1.11.0: figures under every result, and the results page redrawn
 - [ ] One line under each result, figures chosen in settings: the page's referring domains, backlinks, rank, traffic and ranking keywords; the site's rank, referring domains, traffic and ranking keywords; domain age with registrar and dates on hover; your own on-page checklist where you captured the page
@@ -233,6 +233,107 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.10.4 (2026-11-01)
+
+The score and the page analysis tell the truth: the second of store
+submission B (with 1.10.3 and 1.11.0, one upload of 1.11.0), and before
+1.12.0 because 1.12.0 shows these same checks in a row under each Google
+result. Built from the audit's rows 1 to 9 in the vault's
+`03_Wiki/Extension_Roadmap_To_2_0_Design.md`. The score is an on-page
+checklist: 100 minus the points its issues cost.
+
+- **One list of checks** (`lib/content-analysis.js`, `CHECKS`). The score,
+  the four sub-scores (`src/lib/sub-scores.js`), the page-checks panel's rows
+  (`pageChecks`) and the new tab's next fix now read the same 18 checks, each
+  with its group, its points (they add up to 100) and its issues. Until now
+  the sub-scores were 14 checks of their own beside the score's 11, so https,
+  mixed content and noindex counted in the sub-scores only, and an http or
+  noindex page could score 100. Points: indexable 15, title 12, words 10,
+  description 8, H1 8, image alt 6, https 5, canonical 5, internal links 5,
+  structured data 5, viewport 4, readability 4, mixed content 3, language 2,
+  duplicate tags 2, Open Graph 2, DOM size 2, charset 2. A group's sub-score
+  is the points it kept of the points of its checks that apply; a check whose
+  facts a page (or an older capture) lacks doesn't apply. Popup, panel and
+  new tab load `lib/content-analysis.js` as a classic script.
+- **Words in every language.** Text cleaning kept ASCII only, so a Russian or
+  Japanese page counted 0 words and read "Thin content". Letters, marks and
+  digits of every script count; Japanese, Chinese and Thai are split with
+  `Intl.Segmenter`. An English page's count is unchanged (789 on the saved
+  guide before and after). Keyword density and n-grams (export only) use the
+  same words. Readability is scored only for English: the page's `lang`, or
+  without one, its commonest words. A wide (CJK) character counts two toward a
+  title's or description's length.
+- **Structured data:** JSON-LD, Microdata and RDFa all count (a Microdata or
+  RDFa page lost 10 points for "no schema").
+- **Every issue shows its fix and the points it costs** in the popup. The fix
+  text (`ISSUES`) moved from `src/lib/sbw-data.js` to the checks, so the
+  popup and the new tab read the same words; the new tab's next fix says its
+  cost too.
+- **Meta tags:** the canonical as its URL, "Points to itself" or "Points
+  elsewhere" (it said "Set"); the `googlebot` meta read with `robots` (`none`
+  is noindex), and an Indexable row; duplicate title, description and
+  canonical tags flagged, and canonicals that disagree; `lang`, viewport and
+  charset checked.
+- **Search-result preview** cut by pixel width (`src/lib/serp-preview.js`):
+  Google's desktop fonts measured on an `OffscreenCanvas`, about 600 px of
+  title and 920 px of description, cut with " ..." at a word. It cut at 60
+  and 155 characters.
+- **Core Web Vitals to the spec:** INP is the worst interaction ignoring one
+  in 50 (it was the longest event of any kind, usually blank), CLS the largest
+  session window (it summed every shift), LCP the last entry before the page
+  was first hidden, TTFB from navigation start. A value the visit didn't give
+  reads "No data", and the badge reads NO DATA or "2 OF 3 GOOD", never GOOD
+  with nothing measured. A page loaded in a background tab (Analyze on Google)
+  gets "No data" for LCP, FCP and CLS, with the reason, never a wrong value;
+  a prerendered page, hidden until it is shown, is not taken for one.
+  The section says the numbers are measured on this visit, not Google's field
+  data.
+- **Headings:** the full ordered H1 to H6 tree (it showed the first four of H1
+  to H3), indented, with skipped levels ("skips H3, H4") and empty headings
+  flagged, in the popup and the CSV and outline exports. A heading that is
+  only an image reads its alt, so a logo H1 is no longer "Missing H1".
+- **Images and words:** `alt=""` is decorative, counted apart and not
+  missing; the word count reads the body when the main region holds under 100
+  words and the body twice as many (the render check's raw-HTML count does
+  the same, so it doesn't flag JavaScript content that isn't).
+- **Tech stack** probed in the page's own world: the content script asks the
+  service worker, which runs one `chrome.scripting.executeScript` with
+  `world: 'MAIN'` in that frame (`SEOBWExtraction.probeTechGlobals`, booleans
+  and counts only). The isolated world can't see a page's globals, so the
+  Facebook Pixel, Nuxt and Vue were never found. Tag Manager is its own entry,
+  apart from Analytics; `cdnjs.cloudflare.com` no longer reads as the site
+  being on Cloudflare; React DevTools' global no longer reads as React; jQuery
+  and AngularJS are named. A page element whose id matches a global
+  (`<a id="next">` is `window.next`) doesn't count as that global.
+- **One analysis path on any `Document`** (`SEOBWAnalysis.analyzeDocument`):
+  the live page and a parsed one (no window, not laid out; pass the page's
+  URL) take the same code, as 1.12.0's offscreen analysis will. The organic
+  grade study's scorer (`research/organic-grade/score-core.js`) calls it too
+  and holds no copy of a point value; mixed content, which lived in
+  `analyzer.js`, is part of that path now.
+- **Tests:** saved pages in `tests/fixtures/pages/` (Russian, Japanese,
+  Microdata, RDFa, noindex, duplicate tags, a heading tree with skips, a tiny
+  main region; the English guide served at http) through the popup's own
+  injection in jsdom and the real popup rendered on each
+  (`tests/unit/saved-pages.test.js`); `tests/e2e/analysis.spec.mjs` in
+  Chromium for the main-world probe and a background tab's Web Vitals, added
+  to CI's offline e2e. Before and after on those pages: Russian 90 (0 words) →
+  100, Japanese 82 (0 words, "Description too short") → 100, Microdata and
+  RDFa 90 → 100, the guide at http 100 → 95, noindex 100 → 85, duplicate
+  tags 100 → 85, image-only H1 90 → 100, tiny main region 80 → 100.
+- No permission, host, content-script or install-warning change (the manifest
+  differs by its version only). **Data use:** nothing new is sent; a synced
+  capture's `meta`, `headings`, `images` and `content` carry the new on-page
+  facts of the same page (canonical target, googlebot, lang, viewport,
+  charset, tag counts, structured-data counts, language, decorative-image and
+  heading-flag counts). The content hash is still taken from 1.10.3's text
+  (the first main region, ASCII only): the site's report says "content
+  changed" when two captures' hashes differ, so a new hash would have marked
+  every page changed once. Moving it to every language needs the report to
+  compare one kind of hash only (a website change). `meta.robots` stays the
+  first robots tag, as the render check reads the raw HTML; a `<noscript>`'s
+  contents are left out, as the live page reads them as text.
 
 ## Changelog — v1.10.3 (2026-11-01)
 
