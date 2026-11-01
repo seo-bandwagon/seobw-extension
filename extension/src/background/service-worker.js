@@ -171,6 +171,21 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+// --- The account's caches (1.10.3) ---
+// A key or API address that changes anywhere (Options, Connect, Disconnect,
+// or another device through Chrome sync) is another account, so what the
+// old one was told goes (SBW.clearAccountCaches) and "connected" waits for
+// the new key's own answer. The Connect handler below clears before its own
+// write and verifies right after, so that write is skipped here; any other
+// local writer clears first too, and a late clear here only costs one more
+// /v1/me.
+let connectingKey = null;
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync' || !(changes.apiKey || changes.apiUrl)) return;
+  if (!changes.apiUrl && connectingKey && changes.apiKey.newValue === connectingKey) return;
+  SBW.clearAccountCaches();
+});
+
 // Clear cache when the tab navigates to a new URL or reloads. #93: a reload
 // keeps the URL, so until 1.7.9 "View as" (which reloads the tab with
 // another user agent) and a plain reload both reopened on the old analysis.
@@ -402,7 +417,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractNap') {
     chrome.scripting.executeScript({
       target: { tabId: request.tabId },
-      files: ['src/content/nap-extractor.js']
+      files: ['src/lib/nap-extract.js', 'src/content/nap-extractor.js']
     }).then(() => {
       chrome.tabs.sendMessage(request.tabId, { action: 'extractNap' }, (result) => {
         sendResponse(result || { error: 'No NAP data found' });
@@ -1470,24 +1485,31 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     // Verify BEFORE persisting: stash whatever key (if any) is currently
     // stored, stage the candidate just long enough for SBW.verifyKey() to
     // check it (verifyKey reads the stored key, not an argument), and only
-    // leave it in place on success. On any non-ok, restore the prior value
-    // — including clearing the stale sbwKeyStatus/sbwUser cache a failed
-    // candidate may have left behind — so a rejected key never lingers.
-    chrome.storage.sync.get({ apiKey: '' }, (prior) => {
-      chrome.storage.sync.set({ apiKey }, () => {
-        SBW.verifyKey().then((res) => {
-          if (res.ok) {
-            sendResponse({ ok: true, email: res.data?.email });
-          } else {
-            chrome.storage.sync.set({ apiKey: prior.apiKey }, () => {
-              chrome.storage.local.remove(['sbwKeyStatus', 'sbwUser'], () => {
-                sendResponse({ ok: false, error: res.data?.error || res.code });
-              });
-            });
-          }
-        });
-      });
-    });
+    // leave it in place on success. On any non-ok, restore the prior value.
+    // 1.10.3: the previous account's caches are cleared first, so nothing an
+    // old key was told is shown for this one; on success the /v1/me answer
+    // is kept, and captures an old key was refused for (requeued by api.js
+    // on the key's first good answer) are sent straight away.
+    (async () => {
+      const prior = await chrome.storage.sync.get({ apiKey: '' });
+      connectingKey = apiKey;
+      try {
+        await SBW.clearAccountCaches();
+        await chrome.storage.sync.set({ apiKey });
+        const res = await SBW.verifyKey();
+        if (res.ok) {
+          await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
+          sendResponse({ ok: true, email: res.data?.email });
+          SBW.drainPendingCaptures({ max: 20 });
+          return;
+        }
+        await chrome.storage.sync.set({ apiKey: prior.apiKey });
+        await SBW.clearAccountCaches();
+        sendResponse({ ok: false, error: res.data?.error || res.code });
+      } finally {
+        connectingKey = null;
+      }
+    })();
     return true;
   }
 

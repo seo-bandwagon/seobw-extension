@@ -341,7 +341,7 @@ function renderResults(data) {
     </div>
   </div>`;
 
-  /* --- Domain history (populated async by loadDomainHistory) --- */
+  /* --- Page history (populated async by loadDomainHistory) --- */
   html += `<div id="domainHistory" class="domain-history" hidden></div>`;
 
   /* --- Add current tab as a link-building outlet --- */
@@ -664,15 +664,14 @@ async function autoSaveCapture(data) {
   SBW.syncCapture(key); // fire-and-forget; the outcome is recorded on the stored capture's `sync` field
 }
 
-/* ---------- domain history strip ---------- */
+/* ---------- page history strip ---------- */
 
-// Strips a leading "www." so the domain lines up with how quickDomain keys
-// server-side history (bare registrable-ish host, not the exact hostname).
-function domainFromUrl(url) {
+// Only http(s) pages have a capture history (chrome://, file://, ... don't).
+function isWebPage(url) {
   try {
-    return new URL(url).hostname.replace(/^www\./, '');
+    return /^https?:$/.test(new URL(url).protocol);
   } catch (e) {
-    return null; // non-http(s) pages (chrome://, file://, ...) have no domain
+    return false;
   }
 }
 
@@ -694,8 +693,8 @@ async function resolveCached(entry, now, key, fetcher) {
 
 function renderDomainHistoryConnect(container) {
   container.innerHTML = `<div class="domain-history-row">
-    <span class="domain-history-label">Domain history</span>
-    <span class="domain-history-line">Connect your account to see history</span>
+    <span class="domain-history-label">Page history</span>
+    <span class="domain-history-line">Your key was refused. Reconnect to see this page's history</span>
     <button type="button" id="domainHistoryConnect" class="domain-history-link">OPTIONS</button>
   </div>`;
   container.hidden = false;
@@ -706,20 +705,22 @@ function renderDomainHistoryConnect(container) {
 
 function renderDomainHistorySummary(container, summary) {
   const lines = summary.hasHistory
-    ? [summary.domainLine, summary.urlLine].filter(Boolean)
-    : ['No history yet'];
+    ? [summary.urlLine]
+    : ['This page: no earlier captures'];
 
   container.innerHTML = `<div class="domain-history-row">
-    <span class="domain-history-label">Domain history</span>
+    <span class="domain-history-label">Page history</span>
     <div class="domain-history-lines">${lines.map(l => `<span class="domain-history-line">${esc(l)}</span>`).join('')}</div>
   </div>`;
   container.hidden = false;
 }
 
-// Populates #domainHistory under the score ring with what SEO Bandwagon
-// already knows about this domain/URL. Best-effort: any failure (disabled
-// collection, no key, network error, non-401 API error) just leaves the
-// strip hidden rather than showing an error state, per the brief.
+// Populates #domainHistory under the score ring with the account's earlier
+// captures of this page (src/lib/domain-history.js says what counts).
+// Best-effort: any failure (disabled collection, no key, network error,
+// non-401 API error) just leaves the strip hidden rather than showing an
+// error state, per the brief. 1.10.3: one request, the page's captures; the
+// pooled domain average (GET /api/domain/:domain/quick) is no longer asked.
 async function loadDomainHistory(tab, data, analysisStartedAt) {
   const container = document.getElementById('domainHistory');
   if (!container) return;
@@ -730,30 +731,24 @@ async function loadDomainHistory(tab, data, analysisStartedAt) {
     const settings = await SBW.getApiSettings();
     if (!settings.apiKey) return;
 
-    const domain = domainFromUrl(tab.url);
-    if (!domain) return;
+    if (!isWebPage(tab.url)) return;
 
     const now = Date.now();
-    const quickKey = SBWDomainHistory.cacheKey('quick', domain);
     const urlKey = SBWDomainHistory.cacheKey('url', tab.url);
-    const cached = await chrome.storage.session.get([quickKey, urlKey]);
+    const cached = await chrome.storage.session.get(urlKey);
+    const capturesResult = await resolveCached(cached[urlKey], now, urlKey, () => SBW.capturesForUrl(tab.url));
 
-    const [quickResult, capturesResult] = await Promise.all([
-      resolveCached(cached[quickKey], now, quickKey, () => SBW.quickDomain(domain)),
-      resolveCached(cached[urlKey], now, urlKey, () => SBW.capturesForUrl(tab.url))
-    ]);
-
-    if (quickResult.code === 'unauthorized' || capturesResult.code === 'unauthorized') {
+    if (capturesResult.code === 'unauthorized') {
       renderDomainHistoryConnect(container);
       return;
     }
 
-    if (!quickResult.ok || !capturesResult.ok) return; // no error UI
+    if (!capturesResult.ok) return; // no error UI
 
     const currentScore = data.seoScore ? data.seoScore.score : null;
     const summary = SBWDomainHistory.summarize({
-      quick: quickResult.data,
       captures: capturesResult.data,
+      pageUrl: tab.url,
       currentScore,
       excludeSince: analysisStartedAt
     });

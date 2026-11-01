@@ -304,6 +304,7 @@ async function paint({ force = false } = {}) {
 
 const ACCOUNT_BADGES = {
   connected: { text: 'Synced', title: (email) => (email ? 'Connected as ' + email : 'Account connected') },
+  unverified: { text: 'Checking key', title: () => 'Your API key is on this device but SEO Bandwagon has not answered for it yet.' },
   collection_off: { text: 'Sync off', title: () => 'Capture sync is off in settings' },
   invalid: { text: 'Key rejected', title: () => 'Your API key was rejected. Reconnect in settings to sync again.' },
   no_key: { text: 'Signed out', title: () => 'Everything on this page works signed out. Connect an account in settings to sync captures.' },
@@ -430,13 +431,17 @@ async function onScan(e) {
   renderAccount();
   renderShortcut();
 
-  /* A capture saved in another tab, or the account changing in settings. */
+  /* A capture saved in another tab, or the account changing in settings.
+     A verify writes two keys, so the account repaint waits a moment and runs
+     once. It needs no force: a reconnect clears the cached progress
+     (SBW.clearAccountCaches), so a key that now carries the scope is asked. */
+  let accountTimer = null;
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (Object.keys(changes).some((k) => k.startsWith('capture_'))) paint();
     if (changes.sbwKeyStatus || changes.sbwUser || changes.dataCollection) {
-      renderAccount();
-      paint({ force: true }); // a reconnect brings a key that may now carry the scope
+      clearTimeout(accountTimer);
+      accountTimer = setTimeout(() => { renderAccount(); paint(); }, 50);
     }
   });
 })();

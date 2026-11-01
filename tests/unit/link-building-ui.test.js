@@ -252,3 +252,21 @@ describe('funnelRows', () => {
     expect(LB.funnelRows(undefined).every(r => r.value === 0)).toBe(true);
   });
 });
+
+describe('outletActions (1.10.3)', () => {
+  // POST /api/link-building/prospects/review changes only qualified and held rows.
+  it('shows review buttons only where the route acts', () => {
+    expect(LB.outletActions('qualified')).toEqual(['approve', 'hold', 'reject']);
+    expect(LB.outletActions('held')).toEqual(['approve', 'reject']);
+    expect(LB.outletActions('approved')).toEqual([]);
+    expect(LB.outletActions('candidate')).toEqual([]);
+    expect(LB.outletActions('archived')).toEqual([]);
+    expect(LB.outletActions(undefined)).toEqual([]);
+  });
+});
+
+describe('lbErrorMessage — no key', () => {
+  it('says to connect', () => {
+    expect(LB.lbErrorMessage('no_key')).toMatch(/Connect your SEO Bandwagon account/);
+  });
+});

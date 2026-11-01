@@ -10,6 +10,13 @@ import { resolve } from 'node:path';
 import * as D from '../../extension/src/lib/sbw-data.js';
 import SubScores from '../../extension/src/lib/sub-scores.js';
 
+// The shipped API module, for the second-device tests: the stub below has a
+// `hasApiKey` that api.js did not export until 1.10.3, which is how the gap
+// got past these tests.
+await import('../../extension/src/lib/sync-state.js');
+await import('../../extension/src/lib/api.js');
+const REAL_SBW = globalThis.SBW;
+
 function chromeStub(local = {}) {
   const store = { ...local };
   const messages = [];
@@ -144,6 +151,118 @@ describe('accountState', () => {
     globalThis.chrome = stub.api;
     globalThis.SBW = sbwStub({ isDataCollectionEnabled: vi.fn(async () => false) });
     expect(await D.accountState()).toMatchObject({ state: 'collection_off', collecting: false });
+  });
+
+  it('is unverified, not connected and not signed out, for a key with no status yet (1.10.3)', async () => {
+    expect(await D.accountState()).toMatchObject({ state: 'unverified', connected: false, email: null });
+  });
+
+  it('a status left by a key that is gone is not connected (Disconnect on another device)', async () => {
+    const stub = chromeStub({ sbwKeyStatus: 'valid', sbwUser: { data: { email: 'old@example.com' }, at: Date.now() } });
+    globalThis.chrome = stub.api;
+    globalThis.SBW = sbwStub({ hasApiKey: vi.fn(async () => false) });
+    expect(await D.accountState()).toMatchObject({ state: 'no_key', connected: false, email: null });
+  });
+});
+
+/* -------------------- a second device (1.10.3), real api.js ------------------- */
+
+describe('a second device: the key came through Chrome sync, this profile has nothing else', () => {
+  const SUMMARY = { generatedAt: 'x', windowDays: 7, rankTracking: { trackers: [{ id: 't1' }], movers: [] }, clientAudits: [], tasks: [{ id: 'k1' }] };
+
+  // A fresh profile: chrome.storage.sync holds the key (synced from the
+  // first device), chrome.storage.local and .session are empty. fetch
+  // answers as seobandwagon.com does.
+  function freshProfile(answers) {
+    const local = {};
+    const session = {};
+    globalThis.chrome = {
+      storage: {
+        sync: { get: vi.fn((defaults, cb) => cb({ ...defaults, apiKey: 'sbw_' + 'a'.repeat(48) })) },
+        local: {
+          get: vi.fn(async (k) => {
+            if (k === null || k === undefined) return { ...local };
+            if (typeof k === 'string') return { [k]: local[k] };
+            if (Array.isArray(k)) return Object.fromEntries(k.map((n) => [n, local[n]]));
+            return { ...k, ...local };
+          }),
+          set: vi.fn(async (obj) => { Object.assign(local, obj); }),
+          remove: vi.fn(async (keys) => { [].concat(keys).forEach((n) => { delete local[n]; }); }),
+        },
+        session: {
+          get: vi.fn(async (k) => (typeof k === 'string' ? { [k]: session[k] } : { ...session })),
+          set: vi.fn(async (obj) => { Object.assign(session, obj); }),
+          remove: vi.fn(async (keys) => { [].concat(keys).forEach((n) => { delete session[n]; }); }),
+        },
+        onChanged: { addListener: vi.fn() },
+      },
+      runtime: { getManifest: () => ({ version: '1.10.3' }) },
+    };
+    const calls = [];
+    globalThis.fetch = vi.fn(async (url, init) => {
+      const path = new URL(url).pathname;
+      calls.push(path);
+      const [status, body] = answers[path] || [404, { error: 'Not found' }];
+      return { ok: status >= 200 && status < 300, status, json: async () => body, headers: { get: () => null } };
+    });
+    globalThis.SBW = REAL_SBW;
+    return { local, session, calls };
+  }
+
+  it('1.10.2 read it as signed out: the real api.js had no hasApiKey', async () => {
+    freshProfile({});
+    globalThis.SBW = Object.assign({}, REAL_SBW, { hasApiKey: undefined });
+    expect(await D.accountState()).toMatchObject({ state: 'no_key' });
+    expect(await D.accountProgress()).toEqual({ state: 'signed_out' });
+  });
+
+  it('reads unverified, checks the key once, then loads the account cards', async () => {
+    const { local, session, calls } = freshProfile({
+      '/api/v1/me': [200, { email: 'k@example.com', scopes: ['captures', 'progress'] }],
+      '/api/extension/progress': [200, SUMMARY],
+    });
+
+    expect(await D.accountState()).toMatchObject({ state: 'unverified' });
+    const progress = await D.accountProgress({ now: 1000 });
+
+    expect(progress).toEqual({ state: 'ok', data: SUMMARY, origin: 'https://seobandwagon.com' });
+    expect(calls).toEqual(['/api/v1/me', '/api/extension/progress']);
+    expect(local.sbwKeyStatus).toBe('valid');
+    expect(local.sbwUser.data.email).toBe('k@example.com');
+    expect(session.sbwProgress.result.state).toBe('ok');
+    expect(await D.accountState()).toMatchObject({ state: 'connected', email: 'k@example.com' });
+
+    // The next new tab sends nothing: verified, and the cards are cached.
+    await D.accountProgress({ now: 2000 });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('overlapping paints share one /v1/me', async () => {
+    const { calls } = freshProfile({
+      '/api/v1/me': [200, { email: 'k@example.com' }],
+      '/api/extension/progress': [200, SUMMARY],
+    });
+    await Promise.all([D.accountProgress({ now: 1 }), D.accountProgress({ now: 1 })]);
+    expect(calls.filter((p) => p === '/api/v1/me')).toHaveLength(1);
+  });
+
+  it('a 429 or no connection on the check is not signed out: still unverified, asked again later', async () => {
+    const { local, calls } = freshProfile({ '/api/v1/me': [429, { error: 'Too many requests' }] });
+    expect(await D.accountProgress()).toEqual({ state: 'signed_out' });
+    expect(calls).toEqual(['/api/v1/me']);
+    expect(local.sbwKeyStatus).toBeUndefined();
+    expect(await D.accountState()).toMatchObject({ state: 'unverified' });
+
+    freshProfile({});
+    globalThis.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+    expect(await D.verifyAccount()).toMatchObject({ code: 'network', state: 'unverified' });
+  });
+
+  it('a refused key reads invalid, so the surfaces say to reconnect', async () => {
+    const { local } = freshProfile({ '/api/v1/me': [401, { error: 'Invalid API key' }] });
+    expect(await D.accountProgress()).toEqual({ state: 'signed_out' });
+    expect(local.sbwKeyStatus).toBe('invalid');
+    expect(await D.accountState()).toMatchObject({ state: 'invalid' });
   });
 });
 

@@ -54,7 +54,7 @@
   <script>
     // popup.js's top-level chrome.tabs.query(...) callback runs synchronously
     // at parse time (like sidepanel.js's initSidePanel(), see sidepanel.html)
-    // — it calls SBW.quickDomain/capturesForUrl via loadDomainHistory() before
+    // — it calls SBW.capturesForUrl via loadDomainHistory() before
     // stub.js's own DOMContentLoaded handler would otherwise install the
     // stubs, so install them here instead.
     installSbwStubs();

@@ -323,13 +323,6 @@ describe('no_key short-circuit — account endpoints skip the network entirely',
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it('quickDomain() returns a no_key result without calling fetch', async () => {
-    globalThis.chrome = mockChrome({ apiKey: '' });
-    const res = await SBW.quickDomain('example.com');
-    expect(res.code).toBe('no_key');
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
-
   it('quickBatch() returns a no_key result without calling fetch', async () => {
     globalThis.chrome = mockChrome({ apiKey: '' });
     const res = await SBW.quickBatch(['example.com']);
@@ -588,5 +581,139 @@ describe('autoSaveLocal makes room by bytes (#90)', () => {
     const key = await SBW.autoSaveLocal({ url: 'https://example.com/new' });
     expect(store[key]).toBeDefined();
     expect(store.capture_1000).toBeUndefined();
+  });
+});
+
+/* ------------------------------ 1.10.3 ------------------------------ */
+
+describe('1.10.3 — the account on this device', () => {
+  it('exports hasApiKey: sbw-data.js reads it, and its absence made a second device read signed out', async () => {
+    expect(typeof SBW.hasApiKey).toBe('function');
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_synced_from_another_device' });
+    expect(await SBW.hasApiKey()).toBe(true);
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    expect(await SBW.hasApiKey()).toBe(false);
+  });
+
+  it('the first good answer for a key not known to be good marks it valid and requeues captures refused for auth', async () => {
+    const store = {
+      capture_100: { url: 'https://example.com/a', sync: { status: 'skipped', error: 'unauthorized' } },
+      capture_200: { url: 'https://example.com/b', sync: { status: 'skipped', error: 'forbidden' } },
+      capture_300: { url: 'https://example.com/c', sync: { status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 } },
+      capture_400: { url: 'https://example.com/d', sync: { status: 'failed', error: 'rejected', httpStatus: 400 } }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_new', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(200, { email: 'k@example.com' }));
+
+    await SBW.verifyKey();
+
+    expect(store.sbwKeyStatus).toBe('valid');
+    expect(store.capture_100.sync).toEqual({ status: 'pending', attempts: 0, nextAt: 0 });
+    expect(store.capture_200.sync).toEqual({ status: 'pending', attempts: 0, nextAt: 0 });
+    // A legacy capture waits for the History page's opt-in; a 400 stays failed.
+    expect(store.capture_300.sync.status).toBe('skipped');
+    expect(store.capture_400.sync.status).toBe('failed');
+  });
+
+  it('a key already known to be good writes nothing on an answer', async () => {
+    const store = { sbwKeyStatus: 'valid', capture_100: { url: 'https://example.com/a', sync: { status: 'skipped', error: 'unauthorized' } } };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_good', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(200, {}));
+
+    await SBW.verifyKey();
+
+    expect(globalThis.chrome.storage.local.set).not.toHaveBeenCalled();
+    expect(store.capture_100.sync.status).toBe('skipped');
+  });
+
+  it('a 429, a 503 or the network does not touch the key status (it is not signed out)', async () => {
+    for (const res of [mockResponse(429, {}), mockResponse(503, {})]) {
+      const store = {};
+      globalThis.chrome = mockChrome({ apiKey: 'sbw_x', localStore: store });
+      globalThis.fetch = vi.fn().mockResolvedValue(res);
+      await SBW.verifyKey();
+      expect(store.sbwKeyStatus).toBeUndefined();
+    }
+    const store = {};
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_x', localStore: store });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    expect((await SBW.verifyKey()).code).toBe('network');
+    expect(store.sbwKeyStatus).toBeUndefined();
+  });
+
+  it('clearAccountCaches drops every per-account cache and nothing else', async () => {
+    const store = {
+      sbwKeyStatus: 'valid', sbwUser: { data: { email: 'old@example.com' }, at: 1 }, cfSelectedBusiness: 'b1',
+      dataCollection: true, bwThemeMode: 'night', capture_100: { url: 'https://example.com/a' }
+    };
+    const session = { sbwProgress: { at: 1, result: {} }, 'dh:url:https://example.com/a': { at: 1, value: {} }, serpAnalyzeTabs: { a: 1 } };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_x', localStore: store });
+    globalThis.chrome.storage.session = {
+      get: vi.fn(async () => Object.assign({}, session)),
+      remove: vi.fn(async (keys) => { keys.forEach(k => { delete session[k]; }); })
+    };
+
+    await SBW.clearAccountCaches();
+
+    expect(Object.keys(store).sort()).toEqual(['bwThemeMode', 'capture_100', 'dataCollection']);
+    expect(Object.keys(session)).toEqual(['serpAnalyzeTabs']);
+  });
+
+  it('clearAccountCaches works where there is no session storage', async () => {
+    const store = { sbwKeyStatus: 'invalid' };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_x', localStore: store });
+    await SBW.clearAccountCaches();
+    expect(store).toEqual({});
+  });
+
+  it('drainPendingCaptures stops on a 403 too: a key without the captures scope refuses every capture alike', async () => {
+    const pending = { status: 'pending', attempts: 0, nextAt: 0 };
+    const store = {
+      sbwKeyStatus: 'valid',
+      capture_100: { url: 'https://example.com/a', sync: pending },
+      capture_200: { url: 'https://example.com/b', sync: pending }
+    };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(403, { error: 'insufficient_scope' }));
+
+    const result = await SBW.drainPendingCaptures({ max: 20 });
+
+    expect(result).toMatchObject({ sent: 1, stoppedOn: 'forbidden' });
+    expect(store.capture_100.sync).toEqual({ status: 'skipped', error: 'forbidden' });
+    expect(store.capture_200.sync).toEqual(pending);
+  });
+
+  it('a capture refused with a 400 is not retried', async () => {
+    const store = { sbwKeyStatus: 'valid', capture_100: { url: 'https://example.com/a', sync: { status: 'pending', attempts: 0, nextAt: 0 } } };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_test', localStore: store });
+    globalThis.fetch.mockResolvedValue(mockResponse(400, { error: 'Invalid input' }));
+
+    await SBW.drainPendingCaptures({ max: 20, now: 1000 });
+    expect(store.capture_100.sync).toEqual({ status: 'failed', error: 'rejected', httpStatus: 400 });
+
+    // Not due again, however long the drainer keeps running.
+    await SBW.drainPendingCaptures({ max: 20, now: 1000 + 30 * 24 * 3600 * 1000 });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('end to end: refused for auth, reconnected, then sent', async () => {
+    const store = { sbwKeyStatus: 'valid', capture_100: { url: 'https://example.com/a', sync: { status: 'pending', attempts: 0, nextAt: 0 } } };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_revoked', localStore: store });
+    globalThis.fetch.mockResolvedValueOnce(mockResponse(401, { error: 'bad key' }));
+    await SBW.drainPendingCaptures({ max: 20 });
+    expect(store.capture_100.sync).toEqual({ status: 'skipped', error: 'unauthorized' });
+    expect(store.sbwKeyStatus).toBe('invalid');
+
+    // Reconnect: Connect and Options clear the caches, then verify the new key.
+    await SBW.clearAccountCaches();
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_new', localStore: store });
+    globalThis.fetch.mockResolvedValueOnce(mockResponse(200, { email: 'k@example.com' }));
+    await SBW.verifyKey();
+    expect(store.capture_100.sync.status).toBe('pending');
+
+    globalThis.fetch.mockResolvedValueOnce(mockResponse(201, { id: 'r1' }));
+    const result = await SBW.drainPendingCaptures({ max: 20 });
+    expect(result).toMatchObject({ sent: 1, synced: 1, stoppedOn: null });
+    expect(store.capture_100.sync).toMatchObject({ status: 'synced', remoteId: 'r1' });
   });
 });

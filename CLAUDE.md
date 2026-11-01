@@ -16,8 +16,10 @@ for working in the repo.
   (`THEME_IDS` in `src/lib/theme-mode.js`).
 - `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — Playwright:
   the canary against production (weekly + every push to `main`, files an issue
-  on failure) and `serp-collect.spec.mjs`, Collect pages offline against the
-  saved Google pages in `tests/fixtures` (every PR). No test queries Google.
+  on failure), `serp-collect.spec.mjs`, Collect pages offline against the
+  saved Google pages in `tests/fixtures`, and `account.spec.mjs`, the account
+  surfaces in a fresh profile with seobandwagon.com's answers stubbed (both
+  every PR). No test queries Google.
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only:
   just the two files `ROADMAP.md` links to. Don't add planning or spec docs
   to the repo; they go where findings go (below).

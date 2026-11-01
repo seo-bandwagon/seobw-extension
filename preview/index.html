@@ -38,7 +38,7 @@
   <h2>Side panel · Links mode</h2>
   <div class="grid" id="g5"></div>
 
-  <h2>Popup · Domain history</h2>
+  <h2>Popup · Page history</h2>
   <div class="grid" id="g6"></div>
 
   <h2>Options · Key states</h2>
@@ -106,7 +106,7 @@
       </div>`).join('');
 
     document.getElementById('g6').innerHTML = [
-      ['domain-history', 'SEO Analysis tab — domain avg + prior-capture line under the score ring']
+      ['domain-history', 'SEO Analysis tab — this page\'s earlier captures under the score ring']
     ].map(([state, label]) => `
       <div class="cell">
         <div class="cap"><b>${state}</b><span>${label}</span></div>

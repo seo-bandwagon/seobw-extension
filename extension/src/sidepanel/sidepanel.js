@@ -99,11 +99,31 @@ async function checkSignedIn() {
     return { signedIn: true, user: stored.sbwUser.data };
   }
 
+  // 1.10.3: only a refused key signs out; a 429, a 503 or no connection
+  // keeps the panel signed in, and the section's own call says what failed.
   const res = await SBW.verifyKey();
-  if (!res.ok) return { signedIn: false };
+  if (!res.ok) return { signedIn: SBWCitations.signedInAfterVerify(res), user: null };
 
   await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
   return { signedIn: true, user: res.data };
+}
+
+// What the panel says signed out, per mode (1.10.3: Link Building had the
+// Citations words).
+const NOT_CONNECTED = {
+  citations: 'Open the extension options page and connect your SEO Bandwagon account to see your citation data here.',
+  links: 'Open the extension options page and connect your SEO Bandwagon account to review link-building outlets and pitches and see their results here.'
+};
+let spSignedIn = false;
+
+function renderNotConnected() {
+  renderModeNav();
+  document.getElementById('spFilters').innerHTML = '';
+  document.getElementById('spBody').innerHTML = spEmpty('◎', 'NOT CONNECTED', NOT_CONNECTED[spMode] || NOT_CONNECTED.citations, 'spConnect', 'CONNECT');
+  document.getElementById('spConnect').addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+  setFoot('');
 }
 
 /* ---------- boot ---------- */
@@ -119,16 +139,16 @@ async function initSidePanel() {
   }
 
   const auth = await checkSignedIn();
+  spSignedIn = auth.signedIn;
   if (!auth.signedIn) {
     // Leave #spModeNav's static markup alone (same as #spNav below) — its
     // buttons are only ever toggled/replaced, never rebuilt from scratch, so
     // clearing them here would leave the mode toggle permanently empty if
-    // the user reconnects without a full page reload.
-    document.getElementById('spFilters').innerHTML = '';
-    body.innerHTML = spEmpty('◎', 'NOT CONNECTED', 'Open the extension options page and connect your SEO Bandwagon account to see your citation data here.', 'spConnect', 'CONNECT');
-    document.getElementById('spConnect').addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
-    });
+    // the user reconnects without a full page reload. The mode decides the
+    // words, and switching mode while signed out swaps them (switchMode).
+    const storedMode = await chrome.storage.local.get('spMode');
+    spMode = storedMode.spMode === 'links' ? 'links' : 'citations';
+    renderNotConnected();
     return;
   }
 
@@ -183,6 +203,7 @@ async function switchMode(mode) {
   if (mode === spMode || !MODE_SECTIONS[mode]) return;
   spMode = mode;
   await chrome.storage.local.set({ spMode: mode });
+  if (!spSignedIn) { renderNotConnected(); return; }
   renderModeNav();
   renderSectionNav(mode);
   setExportVisible(mode === 'citations');
@@ -331,6 +352,10 @@ async function sectionBusinesses(body, run) {
 // server-side — the site has no idempotency guard on the trigger endpoint.
 const campaignInFlight = new Set();
 
+// The outcome of the last run (SBWCitations.campaignOutcome), kept for the
+// list's reload so the count doesn't replace it (1.10.3).
+let campaignNotice = null; // { businessId, text }
+
 async function sectionCampaigns(body, run) {
   renderFilters([]);
   if (!spBiz) { body.innerHTML = spEmpty('◎', 'PICK A BUSINESS', 'Select a business first — campaigns run per business.'); return; }
@@ -359,6 +384,11 @@ async function sectionCampaigns(body, run) {
   }
 
   const activeCount = campaigns.filter(c => c.status === 'running' || c.status === 'pending').length;
+  if (campaignNotice && campaignNotice.businessId === spBiz.id) {
+    setFoot(campaignNotice.text);
+    campaignNotice = null;
+    return;
+  }
   setFoot(`${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}${activeCount ? ` · ${activeCount} active` : ''}`);
 }
 
@@ -376,20 +406,23 @@ async function runCampaign(businessId) {
 
   let needsReauth = false;
 
+  // 1.10.3: the site answers a campaign its engine failed with a 201 and
+  // `status: 'failed'`; the footer says which (SBWCitations.campaignOutcome).
   try {
-    await SBW.ct.triggerCampaign(businessId);
-    setFoot('Campaign complete');
+    const campaign = await SBW.ct.triggerCampaign(businessId);
+    setFoot(SBWCitations.campaignOutcome(campaign && campaign.status));
   } catch (e) {
     if (SBWCitations.shouldPollAfterTrigger(e)) {
       setFoot('Campaign started — refreshing…');
-      const { done } = await SBWCitations.pollUntilDone({
+      const { done, value } = await SBWCitations.pollUntilDone({
         fetchOnce: () => SBW.ct.campaigns(businessId),
         isDone: (campaigns) => {
           const newest = SBWCitations.newestCampaign(campaigns);
           return !!newest && SBWCitations.isCampaignDone(newest.status);
         }
       });
-      setFoot(done ? 'Campaign complete' : 'Still running — check back soon');
+      const newest = done ? SBWCitations.newestCampaign(value) : null;
+      setFoot(SBWCitations.campaignOutcome(newest && newest.status));
     } else if (e.code === 'unauthorized') {
       needsReauth = true;
     } else {
@@ -409,8 +442,10 @@ async function runCampaign(businessId) {
 
   // Refresh stats/list only if the user hasn't switched businesses or
   // sections while the campaign (or the poll) was running. This re-render
-  // is also what clears the disabled "RUNNING…" button state.
+  // is also what clears the disabled "RUNNING…" button state, and it keeps
+  // the outcome just shown in the footer.
   if (spBiz && spBiz.id === businessId && spSection === 'campaigns') {
+    campaignNotice = { businessId, text: document.getElementById('spFootStat').textContent };
     loadSection('campaigns');
   }
 }
@@ -440,7 +475,8 @@ async function sectionCitations(body, run) {
   }
 
   body.innerHTML = rows.map((c, i) => {
-    const pct = c.nap_match_score != null ? Math.round(c.nap_match_score * 100) : null;
+    const score = SBWCitations.napScore(c);
+    const pct = score != null ? Math.round(score * 100) : null;
     return `<div class="sp-row" data-url="${spEsc(c.directory_url)}">
       <div class="sp-idx">${i + 1}</div>
       <div class="sp-row-body">
@@ -458,8 +494,9 @@ async function sectionCitations(body, run) {
     });
   });
 
-  const scored = all.filter(c => c.nap_match_score != null);
-  const avg = scored.length ? Math.round(scored.reduce((s, c) => s + c.nap_match_score, 0) / scored.length * 100) : null;
+  // 1.10.3: scores arrive as strings ("0.850"), so the old sum joined them
+  // and read "NaN%" once two citations had one (SBWCitations.averageNapPct).
+  const avg = SBWCitations.averageNapPct(all);
   setFoot(`${rows.length} shown · ${all.length} total${avg != null ? ` · ${avg}% avg` : ''}`);
 }
 
@@ -488,9 +525,13 @@ async function openSetSenderPage() {
 
 /* ---------- outlets ---------- */
 
-function outletCard(o) {
+const ACTION_LABELS = { approve: 'APPROVE', hold: 'HOLD', reject: 'REJECT' };
+
+// `status` is the card's own, else the chip it was listed under.
+function outletCard(o, status) {
   const pct = o.quality_score != null ? Math.round(Number(o.quality_score)) : null;
   const journalists = o.journalist_count || 0;
+  const actions = SBWLinkBuildingUI.outletActions(o.status || status);
   return `<div class="lb-card" data-id="${spEsc(o.id)}">
     <div class="lb-card-top">
       <div class="sp-row-body">
@@ -500,11 +541,9 @@ function outletCard(o) {
       ${pct != null ? spBar(pct) : '<div class="sp-bar"></div>'}
       <span class="badge-mono${pct != null ? ' ' + spBadgeCls(pct) : ''}">${pct != null ? pct : '—'}</span>
     </div>
-    <div class="lb-actions">
-      <button data-act="approve">APPROVE</button>
-      <button data-act="hold">HOLD</button>
-      <button data-act="reject">REJECT</button>
-    </div>
+    ${actions.length ? `<div class="lb-actions">
+      ${actions.map(a => `<button data-act="${a}">${ACTION_LABELS[a]}</button>`).join('\n      ')}
+    </div>` : ''}
   </div>`;
 }
 
@@ -545,7 +584,7 @@ async function sectionOutlets(body, run) {
     return;
   }
 
-  body.innerHTML = addBar + prospects.map(outletCard).join('');
+  body.innerHTML = addBar + prospects.map(o => outletCard(o, spFilter)).join('');
 
   document.getElementById('spAddOutlet')?.addEventListener('click', addCurrentTabAsOutlet);
   body.querySelectorAll('.lb-card').forEach(card => {
@@ -894,7 +933,7 @@ document.getElementById('spExport').addEventListener('click', async () => {
     const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [head.join(',')].concat(citations.map(c => [
       c.directory_name, c.directory_url, c.status,
-      c.nap_match_score != null ? Math.round(c.nap_match_score * 100) + '%' : '',
+      SBWCitations.napScore(c) != null ? Math.round(SBWCitations.napScore(c) * 100) + '%' : '',
       c.found_name || '', c.found_phone || '',
       c.last_checked_at || c.created_at
     ].map(esc).join(','))).join('\n');

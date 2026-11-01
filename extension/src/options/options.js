@@ -33,7 +33,8 @@ async function renderVerifyResult(res) {
 // changed key means any cached sbwUser/sbwKeyStatus belongs to the OLD key
 // and must be dropped before anything re-verifies, or a stale "Connected
 // as …" from key A would keep showing for up to sbwUser's 10-minute TTL
-// after switching to key B.
+// after switching to key B. Since 1.10.3 that is every per-account cache
+// (SBW.clearAccountCaches, src/lib/api.js), not just those two.
 async function keyChangedFromStorage(newKey) {
   const stored = await chrome.storage.sync.get({ apiKey: '' });
   return SBWOptions.keyChanged(stored.apiKey, newKey);
@@ -75,7 +76,7 @@ async function verifyKeyFromField() {
   }
 
   if (await keyChangedFromStorage(key)) {
-    await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus']);
+    await SBW.clearAccountCaches();
   }
   await new Promise(resolve => chrome.storage.sync.set({ apiKey: key }, resolve));
 
@@ -87,7 +88,7 @@ async function verifyKeyFromField() {
 async function disconnect() {
   document.getElementById('apiKey').value = '';
   await new Promise(resolve => chrome.storage.sync.set({ apiKey: '' }, resolve));
-  await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus']);
+  await SBW.clearAccountCaches();
   setStatus(document.getElementById('keyStatus'), 'Disconnected', 'pending');
 }
 
@@ -116,7 +117,7 @@ async function saveAdvancedApiUrl() {
   const raw = field.value.trim();
 
   if (!SBWOptions.isValidApiUrl(raw)) {
-    setStatus(statusEl, 'Only seobandwagon.com, its deploy previews, or localhost are allowed', 'error');
+    setStatus(statusEl, 'Only seobandwagon.com, its subdomains, or localhost are allowed', 'error');
     return;
   }
 
@@ -235,7 +236,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const keyField = document.getElementById('apiKey').value.trim();
   const changed = await keyChangedFromStorage(keyField);
   if (changed) {
-    await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus']);
+    await SBW.clearAccountCaches();
   }
 
   await new Promise(resolve => chrome.storage.sync.set({ apiKey: keyField }, resolve));

@@ -35,6 +35,18 @@
     return (now - entry.at) < SBW_USER_CACHE_TTL_MS;
   }
 
+  // What a /v1/me answer (SBW.verifyKey()) means for "signed in". 1.10.3:
+  // only a refused key (401) or no key signs the user out. A rate limit, an
+  // outage, the network or any other failure keeps them signed in, and the
+  // call that follows says what went wrong (ctErrorMessage). Until then a
+  // 429, a 503 or a dropped connection showed the "Connect your account"
+  // screen to someone whose key was fine.
+  function signedInAfterVerify(res) {
+    if (!res) return false;
+    if (res.ok) return true;
+    return res.code !== 'unauthorized' && res.code !== 'no_key';
+  }
+
   // ============================================
   // sbwFetch/ct.* code → user-facing message
   // ============================================
@@ -53,6 +65,8 @@
         return 'SEO Bandwagon is temporarily unavailable';
       case 'network':
         return "Can't reach SEO Bandwagon — check your connection";
+      case 'no_key':
+        return 'Connect your SEO Bandwagon account in the extension options first';
       default:
         return fallback || 'Something went wrong';
     }
@@ -110,6 +124,15 @@
     return status === 'completed' || status === 'failed';
   }
 
+  // The side panel's footer once a campaign trigger (or the poll after it)
+  // ends. 1.10.3: the site answers a campaign its engine failed with a 201
+  // and `status: 'failed'`, which read "Campaign complete" until then.
+  function campaignOutcome(status) {
+    if (status === 'completed') return 'Campaign complete';
+    if (status === 'failed') return 'Campaign failed. Open the dashboard for the reason, then run it again.';
+    return 'Still running — check back soon';
+  }
+
   function campaignBadgeTone(status) {
     if (status === 'completed') return 'b-ok';
     if (status === 'running') return 'b-pink';
@@ -118,11 +141,46 @@
   }
 
   // ============================================
+  // Citation scores
+  // ============================================
+
+  // A citation's nap_match_score as a number, or null. The site returns the
+  // numeric column as a string ("0.850"), so adding two of them joined the
+  // strings and the side panel's average read "NaN%" (1.10.3).
+  function napScore(c) {
+    if (!c || c.nap_match_score == null || c.nap_match_score === '') return null;
+    const n = Number(c.nap_match_score);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // The average NAP match of the citations that have a score, as a whole
+  // percent, or null when none has one.
+  function averageNapPct(citations) {
+    const scores = (citations || []).map(napScore).filter(n => n !== null);
+    if (!scores.length) return null;
+    return Math.round(scores.reduce((s, n) => s + n, 0) / scores.length * 100);
+  }
+
+  // The newest citations first, by when each was last checked or filed. The
+  // site lists them by priority rank, so the popup's first three were not
+  // the latest three (1.10.3).
+  function latestCitations(citations, n) {
+    const at = c => Date.parse(c.last_checked_at || c.created_at) || 0;
+    return (citations || []).slice().sort((a, b) => at(b) - at(a)).slice(0, n);
+  }
+
+  // ============================================
   // Citation filing
   // ============================================
 
+  // Every filing carries a NAP check since 1.10.3 (the popup runs one when
+  // none was), so a status always comes from a score. The site has no status
+  // for an unchecked listing yet ('unverified' is not in its list), and an
+  // unchecked filing was saved as 'active', which says it matches; now there
+  // is no unchecked filing, and a null score is refused here rather than
+  // guessed.
   function citationStatusFromScore(pct) {
-    if (pct == null) return 'active';
+    if (pct == null) return null;
     return pct >= 80 ? 'active' : 'inconsistent';
   }
 
@@ -130,6 +188,7 @@
   // includes screenshot_url; the field doesn't exist in that schema.
   // `screenshotDownloaded` only changes the notes text, recording that the
   // user downloaded a local PNG (there is nowhere else to point to it).
+  // Null without a score (1.10.3): an unchecked listing is not filed.
   function buildCitationPayload({
     directoryName,
     directoryUrl,
@@ -138,7 +197,8 @@
     screenshotDownloaded = false,
     now = new Date()
   }) {
-    const pct = scoreTotal != null ? Math.round(scoreTotal * 100) : null;
+    if (scoreTotal == null) return null;
+    const pct = Math.round(scoreTotal * 100);
     const dateStr = now.toISOString().slice(0, 10);
     const notes = screenshotDownloaded
       ? `Filed from the extension on ${dateStr} — screenshot downloaded locally`
@@ -177,12 +237,17 @@
   return {
     SBW_USER_CACHE_TTL_MS,
     isUserCacheFresh,
+    signedInAfterVerify,
     ctErrorMessage,
     shouldPollAfterTrigger,
     pollUntilDone,
     newestCampaign,
     isCampaignDone,
+    campaignOutcome,
     campaignBadgeTone,
+    napScore,
+    averageNapPct,
+    latestCitations,
     citationStatusFromScore,
     buildCitationPayload,
     screenshotFilename

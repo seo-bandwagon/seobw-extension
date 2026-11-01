@@ -46,13 +46,23 @@ describe('nextSyncState', () => {
     expect(SBWSync.nextSyncState(prev, result, NOW)).toEqual({ status: 'duplicate', syncedAt: NOW });
   });
 
-  it('401 -> skipped with error code, never retried', () => {
+  it('400, 404, 413 and 422 -> failed, never retried (1.10.3: a 400 was posted five times)', () => {
+    for (const status of [400, 404, 413, 422]) {
+      const prev = { status: 'pending', attempts: 0, nextAt: 0 };
+      const result = { ok: false, status, data: { error: 'Invalid input' }, retryAfter: null, code: 'error' };
+      const next = SBWSync.nextSyncState(prev, result, NOW);
+      expect(next).toEqual({ status: 'failed', error: 'rejected', httpStatus: status });
+      expect(SBWSync.isDue(next, NOW + 365 * 24 * 3600 * 1000)).toBe(false);
+    }
+  });
+
+  it('401 -> skipped with error code, not retried with this key', () => {
     const prev = SBWSync.initialSync();
     const result = { ok: false, status: 401, data: null, retryAfter: null, code: 'unauthorized' };
     expect(SBWSync.nextSyncState(prev, result, NOW)).toEqual({ status: 'skipped', error: 'unauthorized' });
   });
 
-  it('403 -> skipped with error code, never retried', () => {
+  it('403 -> skipped with error code, not retried with this key', () => {
     const prev = SBWSync.initialSync();
     const result = { ok: false, status: 403, data: null, retryAfter: null, code: 'forbidden' };
     expect(SBWSync.nextSyncState(prev, result, NOW)).toEqual({ status: 'skipped', error: 'forbidden' });
@@ -232,5 +242,24 @@ describe('unskipLegacy', () => {
   it('leaves a non-skipped sync unchanged', () => {
     const synced = { status: 'synced', remoteId: '1', syncedAt: 100 };
     expect(SBWSync.unskipLegacy(synced)).toEqual(synced);
+  });
+});
+
+describe('releaseAuthSkipped (1.10.3)', () => {
+  it('puts a capture refused for the key back to pending', () => {
+    expect(SBWSync.releaseAuthSkipped({ status: 'skipped', error: 'unauthorized' })).toEqual(SBWSync.initialSync());
+    expect(SBWSync.releaseAuthSkipped({ status: 'skipped', error: 'forbidden' })).toEqual(SBWSync.initialSync());
+  });
+
+  it('leaves every other state as it is', () => {
+    const cases = [
+      { status: 'skipped', error: 'legacy', attempts: 0, nextAt: 0 },
+      { status: 'failed', error: 'rejected', httpStatus: 400 },
+      { status: 'failed', error: 'unavailable' },
+      { status: 'synced', remoteId: 'r', syncedAt: 1 },
+      { status: 'pending', attempts: 2, nextAt: 5 }
+    ];
+    for (const c of cases) expect(SBWSync.releaseAuthSkipped(c)).toBe(c);
+    expect(SBWSync.releaseAuthSkipped(undefined)).toBeUndefined();
   });
 });

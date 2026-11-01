@@ -37,9 +37,11 @@
   }
 
   // Allowlist, not a blocklist: the Advanced field accepts only
-  // seobandwagon.com (and any subdomain), a Netlify deploy-preview host for
-  // that same site (`<name>--seobandwagon.netlify.app`), or a local dev
-  // server (see isLocalhostUrl above). Every other https:// host — including
+  // seobandwagon.com (and any subdomain, such as the staging Worker at
+  // cf.seobandwagon.com) or a local dev server (see isLocalhostUrl above).
+  // 1.10.3 dropped the Netlify deploy-preview hosts
+  // (`<name>--seobandwagon.netlify.app`): the site left Netlify on
+  // 2026-10-05 and has no deploy previews. Every other https:// host — including
   // a lookalike domain, a credentials trick like
   // `https://seobandwagon.com@evil.com`, or any other real site — is
   // rejected. Parsed with `new URL()` rather than a prefix regex specifically
@@ -58,9 +60,7 @@
     if (parsed.protocol !== 'https:') return false;
 
     const host = parsed.hostname.toLowerCase();
-    return host === 'seobandwagon.com' ||
-      host.endsWith('.seobandwagon.com') ||
-      host.endsWith('--seobandwagon.netlify.app');
+    return host === 'seobandwagon.com' || host.endsWith('.seobandwagon.com');
   }
 
   // Same rule as the private normalizeApiUrl() inside SBW.getApiSettings

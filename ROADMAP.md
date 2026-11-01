@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.10.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.10.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -104,12 +104,12 @@ grant; the coverage report (#74).
 - [x] Nothing new sent; the bar stops calling `quick-batch`
 
 ### 1.10.3: the account features work for a normal user (patch)
-- [ ] `hasApiKey` exported; "connected" means a verified key; caches cleared on Connect; 429/503/offline is not "signed out"
-- [ ] Captures refused for auth retried after reconnect; 4xx not retried
-- [ ] Domain-history strip shows only this URL's captures, labelled
-- [ ] Citations: website extraction and compare fixed; JSON-LD subtypes; unchecked filings "unverified"; overclaiming copy removed
-- [ ] Side panel: numeric average (no "NaN%"); failed campaign says failed; review buttons only where the route acts
-- [ ] New tab cards on a second device; Netlify hosts out of the custom API list
+- [x] `hasApiKey` exported; "connected" means a verified key; caches cleared on Connect; 429/503/offline is not "signed out"
+- [x] Captures refused for auth retried after reconnect; 4xx not retried
+- [x] Domain-history strip shows only this URL's captures, labelled (now "Page history"; the pooled "Domain avg" dropped, no website change)
+- [x] Citations: website extraction and compare fixed; JSON-LD subtypes; overclaiming copy removed; "Last 3 checks" relabelled. Unchecked filings: none are made (REPORT checks first), since the site has no "unverified" status yet; filing an unreadable listing as "unverified" waits for the website to accept that status
+- [x] Side panel: numeric average (no "NaN%"); failed campaign says failed; review buttons only where the route acts; Link Building's own not-connected words
+- [x] New tab cards on a second device; Netlify hosts out of the custom API list
 
 ### 1.10.4: the score and the page analysis tell the truth (patch)
 - [ ] Words counted in every language; readability only for English pages
@@ -233,6 +233,90 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.10.3 (2026-11-01)
+
+The account features work for a normal user: the first of store submission
+B (with 1.10.4 and 1.11.0, one upload of 1.11.0), and before 1.11.0 because
+its figures need "connected" to be true on every device. Built from the
+audit's rows 31 to 38 in the vault's `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
+
+- **Connected on every device** (`src/lib/api.js`, `src/lib/sbw-data.js`).
+  `SBW.hasApiKey` is exported. `accountState()` called it and caught the
+  TypeError, so a second device (the key arrives through `chrome.storage.sync`,
+  the key's status in `chrome.storage.local` does not) read "Signed out" and
+  the new tab hid its rank and task cards. "Connected" now means a stored key
+  that verified (`sbwKeyStatus` 'valid', written on the key's first answered
+  call); a key with no status is a new state, `unverified` ("Checking key" on
+  the new tab), and the new tab checks it with one `/v1/me` before asking for
+  its cards. Overlapping paints share one `/v1/me` and one progress request.
+  A stale 'valid' with no key (Disconnect on another device) is signed out.
+- **Caches cleared on Connect** (`SBW.clearAccountCaches`): the key status,
+  the `/v1/me` answer, the chosen citations business, the new tab's progress
+  and the popup's page-history entries. The Connect handler, Options (Save,
+  Verify, Disconnect) and the Citations tab's Disconnect call it, and the
+  worker calls it whenever the key or API address changes in sync storage,
+  which covers a change made on another device.
+- **429, 503 and offline are not "signed out"**
+  (`SBWCitations.signedInAfterVerify`). Only a 401 or no key shows the
+  Connect screen in the Citations tab and the side panel; otherwise the next
+  call says "Rate limited", "temporarily unavailable" or "Can't reach".
+- **Capture sync** (`src/lib/sync-state.js`). A capture refused for the key
+  (401, or 403 for a key without the scope) is put back in the queue on the
+  key's first good answer after a reconnect (`releaseAuthSkipped`,
+  `requeueAuthSkipped`) and sent at once after a Connect; until now it was
+  skipped for good. Any other 4xx is `failed` with `rejected` and not retried
+  (a 400 was posted five times over a day). The drainer stops on a 403 too.
+  Options and the side panel now load `sync-state.js`, so a reconnect there
+  requeues as well.
+- **Page history** (`src/lib/domain-history.js`, the popup's strip). Only
+  captures whose own URL is this page count (http/https, `www.` and a trailing
+  slash are one page); the captures route falls back to other pages on the
+  domain, which the strip showed as this URL's history. The line reads "This
+  page: N earlier captures · last S (±d)" under "Page history". The "Domain
+  avg" line is dropped, not relabelled: `domain_stats` pools every account's
+  captures of the host (no user column), the figure 1.10.2 took off the
+  results bar, and dropping it needs no website change and sends one request
+  fewer (`SBW.quickDomain` is gone).
+- **Citations, NAP check** (`src/lib/nap-extract.js`, new;
+  `src/lib/nap-compare.js`). The extractor reads every schema.org
+  LocalBusiness and Organization subtype, a `@type` array, prefixed type names,
+  `@graph` and `mainEntity`, and prefers the node with an address or phone over
+  the directory's own Organization. The website is the business's own: a
+  JSON-LD or Microdata `url` on the directory's site, and the fallback's
+  `location.href`, no longer count; a link labelled as the website or whose
+  text is an address does, including through the directory's redirector
+  (`/biz_redir?url=`). The compare is by host, without scheme, `www.`, path or
+  query, and a website missing on either side is not compared. Unit-tested on
+  hand-built listings.
+- **Citations, filing.** REPORT runs the NAP check first and files with its
+  score, so no citation is filed unchecked (until now, as "active"); a page
+  the check can't read is not filed and says why. The roadmap asked for an
+  "unverified" status; the site's `CITATION_STATUSES` has none, so that waits
+  for the website. Copy: the signed-out screen no longer says proof is filed
+  with the citation (proof is a download), the picker no longer says every
+  proof is filed, REPORT reads "Check this listing and file it with your
+  citations", a field the listing lacks is "not on this listing" rather than
+  "differs", and "Last 3 checks" is "Latest citations · this business",
+  newest first (it was the first three by priority rank).
+- **Side panel.** The average is a number: the site sends `nap_match_score`
+  as a string, and two of them were joined into "NaN%"
+  (`SBWCitations.averageNapPct`). A campaign the engine failed (a 201 with
+  `status: 'failed'`) says "Campaign failed", after the list reloads too;
+  until now it said "Campaign complete". Approve/Hold/Reject show only on
+  qualified outlets, Approve/Reject on held, none on approved or candidate
+  (the route changes only qualified and held). Link Building's not-connected
+  screen names outlets, pitches and results, and follows the mode toggle.
+- **Options.** The Advanced API address no longer accepts
+  `*--seobandwagon.netlify.app` (the site left Netlify on 2026-10-05).
+- **Tests.** Unit tests for each item, including a second device built on
+  the shipped `api.js` with the site's answers stubbed; a new offline e2e
+  spec, `tests/e2e/account.spec.mjs`, loads the extension into a fresh
+  profile, puts a key in `chrome.storage.sync` and checks the new tab's
+  cards, the side panel's average, campaign and review buttons, a 429 and the
+  signed-out words, with every request answered from stubs (run on every PR).
+- No permission, host, content-script or install-warning change. Less is
+  sent: the popup's domain lookup is gone. No data-use answer changes.
 
 ## Changelog — v1.10.2 (2026-11-01)
 
