@@ -1,16 +1,14 @@
 // jsdom tests for the SERP overlay content script (src/overlay/serp-overlay.js).
 //
-// Covers fix round 1's stats pipeline: the pending-row queue (item 4), the
-// per-domain cache (item 5), chunked batches (item 6), the toolbar count
-// spans surviving a Copy flash (item 9), the three stat-text states (item
-// 10), skipping the toolbar on non-organic tabs (item 11), and the dropped
-// #sbw-analyze hash (item 16).
+// 1.10.2: the bar shows the result's position (no request to SEO Bandwagon),
+// sits below the whole result, and Analyze hands the result to the worker,
+// whose answer becomes one line under that result. Also covers the toolbar
+// count spans surviving a Copy flash (fix round 1, item 9), skipping the
+// toolbar on non-organic tabs (item 11), the dropped #sbw-analyze hash (item
+// 16), copying, empty pages, and Collect.
 //
-// Every scenario stubs chrome.runtime.sendMessage to CAPTURE every message
-// and chrome.storage.session with a Map-backed get/set, per the harness's
-// privacy contract for this content script — after each scenario the
-// captured payloads must contain only bare hostnames, never the query
-// string, a title, or a snippet.
+// Every scenario stubs chrome.runtime.sendMessage to CAPTURE every message,
+// and chrome.storage.session to throw as it does in a real content script.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -18,34 +16,30 @@ await import('../../extension/src/lib/serp.js');
 
 let sentMessages;
 let sendMessageImpl;
+let messageListeners;
 
-// #50: the overlay asks the worker for stats with { action: 'serpStats',
-// domains }; the worker owns the cache and the API call.
-function isQuickBatch(msg) {
-  return !!msg && msg.action === 'serpStats';
-}
-
+// The worker's answer to a click on Analyze: it has started. The outcome
+// comes later as a 'serpAnalysis' message (deliver(), below).
 function defaultSendMessageImpl(msg, cb) {
-  if (isQuickBatch(msg)) {
-    const domains = msg.domains;
-    const results = {};
-    domains.forEach((d) => { results[d] = { avgScore: 70, sampleSize: 2, schemaPercentage: 40, age: '1 year' }; });
-    setTimeout(() => cb({ ok: true, status: 200, code: 'ok', data: { results, invalid: [] } }), 10);
+  if (msg && msg.action === 'serpAnalyze') {
+    setTimeout(() => cb({ ok: true, state: 'working' }), 10);
     return;
   }
-  setTimeout(() => cb({ ok: false, status: 0, code: 'network' }), 10);
+  setTimeout(() => cb(undefined), 10);
 }
 
 function installChromeStub() {
   sentMessages = [];
   sendMessageImpl = defaultSendMessageImpl;
 
+  messageListeners = [];
   window.chrome = {
     runtime: {
       sendMessage: (msg, cb) => {
         sentMessages.push(msg);
-        sendMessageImpl(msg, cb);
+        sendMessageImpl(msg, cb || (() => {}));
       },
+      onMessage: { addListener: (fn) => messageListeners.push(fn) },
       // What Chrome really returns. A link to it from google.com is blocked
       // (ERR_BLOCKED_BY_CLIENT): nothing in the manifest is web-accessible.
       getURL: (p) => 'chrome-extension://dphmaddiedhkejfhabkfdenfphjljioj/' + p
@@ -90,14 +84,9 @@ function barFor(domain) {
   return domainEl && domainEl.closest('.sbw-serp-bar');
 }
 
-function statTextFor(domain) {
-  const bar = barFor(domain);
-  const stat = bar && bar.querySelector('.sbw-serp-stat');
-  return stat ? stat.textContent : undefined;
-}
-
-function quickBatchMessages() {
-  return sentMessages.filter(isQuickBatch);
+// A message from the worker, as chrome.tabs.sendMessage delivers it.
+function deliver(msg) {
+  messageListeners.forEach((fn) => fn(msg, {}, () => {}));
 }
 
 beforeEach(() => {
@@ -115,34 +104,17 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-/* ---------- privacy: bare hostnames only, never the query ---------- */
+/* ---------- 1.10.2: nothing goes to SEO Bandwagon from Google ---------- */
 
-describe('privacy: quick-batch payloads', () => {
-  it('carry only bare hostnames and never the query string, a title, or a snippet', async () => {
+describe('1.10.2: the results page sends nothing to SEO Bandwagon', () => {
+  it('asks the worker for nothing on load but what Collect already holds', async () => {
     window.history.pushState({}, '', '/search?q=confidential+search+terms&gl=us&hl=en');
     freshDom(['alpha.example', 'beta.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-
-    const msgs = quickBatchMessages();
-    expect(msgs.length).toBeGreaterThan(0);
-    msgs.forEach((msg) => {
-      expect(Array.isArray(msg.domains)).toBe(true);
-      msg.domains.forEach((d) => {
-        expect(d).not.toMatch(/\s/);
-        expect(d).not.toMatch(/^https?:/);
-      });
-    });
-
-    // What can reach the network: the serpStats lookups. (#45's serpCollect
-    // messages carry the search to the extension's own worker, which keeps
-    // it in session storage and sends nothing.)
-    const raw = JSON.stringify(sentMessages.filter((m) => m && m.action !== 'serpCollect'));
-    expect(raw).not.toContain('confidential');
-    expect(raw).not.toContain('search terms');
-    expect(raw).not.toContain('Result 1');
-    expect(raw).toContain('alpha.example');
-    expect(raw).toContain('beta.example');
+    // serpCollect 'get' reads session storage in the worker; it sends nothing.
+    expect(sentMessages.map((m) => [m.action, m.op])).toEqual([['serpCollect', 'get']]);
+    expect(sentMessages.some((m) => m.action === 'serpStats')).toBe(false);
   });
 
   it('never touches chrome.storage from the content script (#50)', async () => {
@@ -151,109 +123,66 @@ describe('privacy: quick-batch payloads', () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(window.chrome.storage.session.get).not.toHaveBeenCalled();
     expect(window.chrome.storage.session.set).not.toHaveBeenCalled();
-    expect(statTextFor('first.example')).toMatch(/^Score /);
   });
+});
 
-  it('sends the worker nothing but the domains', async () => {
-    freshDom(['first.example']);
+/* ---------- 1.10.2: the bar shows the position ---------- */
+
+describe('1.10.2: each bar shows its result\'s position, below the whole result', () => {
+  it('drops the pooled score for the organic position, with the whole-page position in its tooltip', async () => {
+    document.body.innerHTML = `<div id="tads"><div data-text-ad="1"><a href="https://ad.example/"><h3>An ad</h3></a><div>Ad copy here.</div></div></div>
+      <div id="search">${resultBlock('first.example', 0)}${resultBlock('second.example', 1)}</div>`;
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-    quickBatchMessages().forEach((m) => expect(Object.keys(m).sort()).toEqual(['action', 'domains']));
+    const pos = (d) => barFor(d).querySelector('.sbw-serp-pos');
+    expect([pos('first.example').textContent, pos('second.example').textContent]).toEqual(['#1', '#2']);
+    expect(pos('second.example').title).toMatch(/^Organic position 2 on this page\. Counting everything on the page .*: 3\.$/);
+    expect(document.querySelector('.sbw-serp-stat')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Score|captures|No data/);
   });
-});
 
-/* ---------- item 4: pending-row queue (mid-flight rows never dropped) ---------- */
-
-describe('fix round 1, item 4: pending-row queue', () => {
-  it('queues a result appended mid-flight and fetches it in a second call once the first settles', async () => {
-    freshDom(['first.example']);
-    sendMessageImpl = (msg, cb) => {
-      if (isQuickBatch(msg)) {
-        setTimeout(() => {
-          const results = {};
-          msg.domains.forEach((d) => { results[d] = { avgScore: 55, sampleSize: 1 }; });
-          cb({ ok: true, status: 200, code: 'ok', data: { results, invalid: [] } });
-        }, 1500);
-        return;
-      }
-      setTimeout(() => cb({ ok: false, code: 'network' }), 10);
-    };
-
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(quickBatchMessages().length).toBe(1);
-    expect(quickBatchMessages()[0].domains).toEqual(['first.example']);
-
-    // Append a new result while the first request is still in flight.
-    document.querySelector('#search').insertAdjacentHTML('beforeend', resultBlock('second.example', 2));
-
-    // Debounced rescan (500ms) fires well before the 1500ms reply — the new
-    // row must get a bar and sit pending, not be silently dropped.
-    await vi.advanceTimersByTimeAsync(500);
-    expect(quickBatchMessages().length).toBe(1); // still just the first request
-    expect(statTextFor('second.example')).toBe('—');
-
-    // Let the first request resolve (total elapsed 1500ms) — its `finally`
-    // must drain the queued row into a second request.
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(quickBatchMessages().length).toBe(2);
-    expect(quickBatchMessages()[1].domains).toEqual(['second.example']);
-
-    // Let the second request resolve.
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(statTextFor('second.example')).not.toBe('—');
-    expect(statTextFor('first.example')).not.toBe('—');
-  });
-});
-
-/* ---------- item 5: per-domain cache ---------- */
-
-describe('fix round 1, item 5: per-domain cache', () => {
-  it('does not re-request a domain already resolved, even when it reappears in a new row', async () => {
-    freshDom(['first.example']);
+  it('says the same positions as Copy results', async () => {
+    let copied = '';
+    document.execCommand = vi.fn(() => { copied = document.querySelector('textarea[aria-hidden="true"]').value; return true; });
+    document.body.innerHTML = `<div id="tads"><div data-text-ad="1"><a href="https://ad.example/"><h3>An ad</h3></a><div>Ad copy.</div></div></div>
+      <div id="search">${resultBlock('first.example', 0)}${resultBlock('second.example', 1)}</div>`;
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-    expect(quickBatchMessages().length).toBe(1);
-    expect(quickBatchMessages()[0].domains).toEqual(['first.example']);
-
-    // A second block reusing the already-resolved domain, plus one new
-    // domain — only the new domain should ever go out.
-    document.querySelector('#search').insertAdjacentHTML('beforeend', resultBlock('first.example', 2));
-    document.querySelector('#search').insertAdjacentHTML('beforeend', resultBlock('second.example', 3));
-
-    await vi.advanceTimersByTimeAsync(600);
-    const msgs = quickBatchMessages();
-    expect(msgs.length).toBe(2);
-    expect(msgs[1].domains).toEqual(['second.example']);
+    Array.from(document.querySelectorAll('.sbw-serp-tools button')).find((b) => b.textContent.startsWith('Copy results')).click();
+    const [header, ...lines] = copied.split('\n');
+    const cols = header.split('\t');
+    const at = (l, name) => l.split('\t')[cols.indexOf(name)];
+    expect(lines.map((l) => [at(l, 'Position'), at(l, 'Position counting everything')])).toEqual([['1', '2'], ['2', '3']]);
+    expect(bars().map((b) => b.querySelector('.sbw-serp-pos').title.match(/(\d+)\.$/)[1])).toEqual(['2', '3']);
+    delete document.execCommand;
   });
-});
 
-/* ---------- item 6: chunked batches for >20 domains ---------- */
-
-describe('fix round 1, item 6: chunked batches', () => {
-  it('splits 25 domains into two requests of 20 and 5, and every bar resolves', async () => {
-    const domains = Array.from({ length: 25 }, (_, i) => `domain${i + 1}.example`);
-    freshDom(domains);
+  it('goes after the description, not between the title and the description', async () => {
+    document.body.innerHTML = `<div id="search"><div id="rso"><div class="MjjYud"><div class="g">
+      <div class="title"><a href="https://first.example/page"><h3>A title</h3></a><cite>https://first.example</cite></div>
+      <div class="VwiC3b">A description long enough to count as a real snippet for this result.</div>
+      </div></div></div></div>`;
     await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const bar = barFor('first.example');
+    const desc = document.querySelector('.VwiC3b');
+    expect(desc.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector('.title').contains(bar)).toBe(false);
+  });
 
-    // First chunk (20) resolves...
-    await vi.advanceTimersByTimeAsync(20);
-    // ...which drains the remaining 5 into a second request.
-    await vi.advanceTimersByTimeAsync(20);
-
-    const msgs = quickBatchMessages();
-    expect(msgs.length).toBe(2);
-    const sizes = msgs.map((m) => m.domains.length).sort((a, b) => a - b);
-    expect(sizes).toEqual([5, 20]);
-
-    domains.forEach((d) => {
-      expect(statTextFor(d)).not.toBe('—');
-      expect(statTextFor(d)).not.toBe('No data');
-    });
+  it('marks a result it can\'t place as an unknown site, and counts on past it', async () => {
+    document.body.innerHTML = `<div id="search"><div id="rso">
+      <div class="g"><div><a href="/goto?url=CAESabc"><h3>A forum thread</h3></a><cite>10+ comments · 3 years ago</cite>
+        <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div></div></div>
+      ${resultBlock('second.example', 1)}</div></div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(bars().map((b) => [b.querySelector('.sbw-serp-pos').textContent, b.querySelector('.sbw-serp-domain').textContent]))
+      .toEqual([['#1', 'unknown site'], ['#2', 'second.example']]);
+    // Analyze still opens it, through Google's own link.
+    expect(bars()[0].querySelector('.sbw-serp-analyze').getAttribute('href')).toMatch(/\/goto\?url=CAESabc$/);
   });
 });
-
-/* ---------- item 9: toolbar count spans survive a flash ---------- */
 
 describe('fix round 1, item 9: toolbar count survives a Copy flash', () => {
   it('keeps updating [data-role="copy-count"] after the button has flashed "Copied"', async () => {
@@ -274,57 +203,6 @@ describe('fix round 1, item 9: toolbar count survives a Copy flash', () => {
     expect(countEl.textContent).toBe('2');
   });
 });
-
-/* ---------- item 10: three stat-text states ---------- */
-
-describe('fix round 1, item 10: stat-text states', () => {
-  it('shows the pending placeholder before anything resolves', async () => {
-    freshDom(['first.example']);
-    sendMessageImpl = (msg, cb) => {
-      setTimeout(() => cb({ ok: true, status: 200, code: 'ok', data: { results: {}, invalid: [] } }), 5000);
-    };
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(statTextFor('first.example')).toBe('—');
-  });
-
-  it('shows "No data" when the server has nothing for the domain', async () => {
-    freshDom(['first.example']);
-    sendMessageImpl = (msg, cb) => {
-      setTimeout(() => cb({ ok: true, status: 200, code: 'ok', data: { results: { 'first.example': null }, invalid: [] } }), 10);
-    };
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    expect(statTextFor('first.example')).toBe('No data');
-  });
-
-  it('shows "No score yet · N captures" rather than the old "Score —" when avgScore is null but captures exist', async () => {
-    freshDom(['first.example']);
-    sendMessageImpl = (msg, cb) => {
-      setTimeout(() => cb({
-        ok: true, status: 200, code: 'ok',
-        data: { results: { 'first.example': { avgScore: null, sampleSize: 3 } }, invalid: [] }
-      }), 10);
-    };
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    expect(statTextFor('first.example')).toBe('No score yet · 3 captures');
-  });
-
-  it('shows "Unavailable" with a title attribute when the worker bridge fails', async () => {
-    freshDom(['first.example']);
-    sendMessageImpl = (msg, cb) => {
-      setTimeout(() => cb({ ok: false, status: 0, code: 'network' }), 10);
-    };
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    expect(statTextFor('first.example')).toBe('Unavailable');
-    const bar = barFor('first.example');
-    expect(bar.querySelector('.sbw-serp-stat').getAttribute('title')).toBe('Could not reach SEO Bandwagon');
-  });
-});
-
-/* ---------- item 11: skip the toolbar on non-organic tabs ---------- */
 
 describe('fix round 1, item 11: no toolbar without an organic result', () => {
   it('renders no toolbar when there is no #rso/#search container with an h3 at all (e.g. Images tab)', async () => {
@@ -362,18 +240,96 @@ describe('fix round 1, item 16: dropped #sbw-analyze hash', () => {
   });
 });
 
-describe('1.8.4: Analyze opens the result and analyzes it', () => {
+describe('1.10.2: Analyze stays on Google', () => {
   const click = (el, init = {}) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init }));
-  const analyzeMessages = () => sentMessages.filter((m) => m && m.action === 'analyzeResult');
+  const analyzeMessages = () => sentMessages.filter((m) => m && m.action === 'serpAnalyze');
+  const lineFor = (domain) => {
+    const next = barFor(domain).nextElementSibling;
+    return next && next.classList.contains('sbw-serp-analysis') ? next : null;
+  };
 
-  it('a plain click asks the worker to open and analyze the result, instead of a bare tab', async () => {
+  it('a plain click hands the result to the worker and says it is analyzing in a background tab', async () => {
     freshDom(['first.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     const link = document.querySelector('.sbw-serp-analyze');
     const notCancelled = click(link);
     expect(notCancelled).toBe(false);
-    expect(analyzeMessages()).toEqual([{ action: 'analyzeResult', url: 'https://first.example/page-0' }]);
+    expect(analyzeMessages()).toEqual([{ action: 'serpAnalyze', url: 'https://first.example/page-0', key: 'https://first.example/page-0' }]);
+    expect(lineFor('first.example').textContent).toBe('Analyzing in a background tab…');
+  });
+
+  it('puts the on-page checklist under the result when the worker reports, with Open report', async () => {
+    freshDom(['first.example', 'second.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(barFor('second.example').querySelector('.sbw-serp-analyze'));
+    await vi.advanceTimersByTimeAsync(20);
+    deliver({ action: 'serpAnalysis', key: 'https://second.example/page-1', state: 'done', tabId: 42, score: 82, grade: 'B', issues: 3 });
+    const line = lineFor('second.example');
+    expect(line.querySelector('.sbw-serp-analysis-text').textContent).toBe('On-page checklist: 82/100 (B) · 3 issues');
+    expect(line.querySelector('.sbw-serp-analysis-text').title).toMatch(/not a ranking factor/);
+    expect(lineFor('first.example')).toBeNull();
+
+    line.querySelector('.sbw-serp-open').click();
+    expect(sentMessages.at(-1)).toEqual({ action: 'serpAnalysisOpen', tabId: 42, report: true });
+  });
+
+  it('gives several quick clicks a line each, and a second click on one result the same line', async () => {
+    freshDom(['first.example', 'second.example', 'third.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    ['first.example', 'second.example', 'third.example', 'first.example']
+      .forEach((d) => click(barFor(d).querySelector('.sbw-serp-analyze')));
+    expect(analyzeMessages().map((m) => m.key)).toEqual([
+      'https://first.example/page-0', 'https://second.example/page-1', 'https://third.example/page-2', 'https://first.example/page-0']);
+    expect(document.querySelectorAll('.sbw-serp-analysis')).toHaveLength(3);
+    deliver({ action: 'serpAnalysis', key: 'https://third.example/page-2', state: 'done', tabId: 7, score: 60, grade: 'D', issues: 1 });
+    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'done', tabId: 5, score: 91, grade: 'A', issues: 0 });
+    expect(lineFor('first.example').textContent).toMatch(/91\/100 \(A\) · 0 issues/);
+    expect(lineFor('second.example').textContent).toBe('Analyzing in a background tab…');
+    expect(lineFor('third.example').textContent).toMatch(/60\/100 \(D\) · 1 issue/);
+  });
+
+  it('asks for site access in the extension\'s own window when there is none, and says so', async () => {
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpAnalyze') { setTimeout(() => cb({ ok: true, state: 'needs_access' }), 10); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(document.querySelector('.sbw-serp-analyze'));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(lineFor('first.example').textContent).toMatch(/^Allow access in the SEO Bandwagon window that opened/);
+    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'declined' });
+    expect(lineFor('first.example').textContent).toMatch(/needs access to other sites/);
+    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'working' });
+    expect(lineFor('first.example').textContent).toBe('Analyzing in a background tab…');
+  });
+
+  it('says what went wrong, and offers the tab when there is one', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(document.querySelector('.sbw-serp-analyze'));
+    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'error', code: 'unreadable', title: 'PDF FILE', tabId: 9 });
+    expect(lineFor('first.example').querySelector('.sbw-serp-analysis-text').textContent).toBe("Couldn't analyze this page. PDF FILE.");
+    lineFor('first.example').querySelector('.sbw-serp-open').click();
+    expect(sentMessages.at(-1)).toEqual({ action: 'serpAnalysisOpen', tabId: 9, report: false });
+    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'error', code: 'closed' });
+    expect(lineFor('first.example').textContent).toBe('The tab was closed before the page was analyzed.');
+    expect(lineFor('first.example').querySelector('.sbw-serp-open')).toBeNull();
+  });
+
+  it('never words the checklist as a ranking factor or a score of the site', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(document.querySelector('.sbw-serp-analyze'));
+    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'done', tabId: 1, score: 70, grade: 'C', issues: 2 });
+    const text = lineFor('first.example').textContent;
+    expect(text).not.toMatch(/rank|score/i);
   });
 
   it('sends the link as Google rendered it, so a /goto result opens through Google', async () => {
@@ -387,6 +343,7 @@ describe('1.8.4: Analyze opens the result and analyzes it', () => {
     click(barFor('goto-site.example').querySelector('.sbw-serp-analyze'));
     expect(analyzeMessages()).toHaveLength(1);
     expect(analyzeMessages()[0].url).toMatch(/\/goto\?url=CAESopaque$/);
+    expect(analyzeMessages()[0].key).toBe('/goto?url=CAESopaque');
   });
 
   it('leaves Ctrl, Cmd, Shift, Alt and middle clicks to the browser', async () => {
@@ -423,7 +380,6 @@ describe('issue #41: results linked through Google /goto redirects', () => {
     expect(barFor('goto-site.example')).toBeTruthy();
     const link = barFor('goto-site.example').querySelector('.sbw-serp-analyze');
     expect(link.getAttribute('href')).toMatch(/\/goto\?url=CAESopaque$/);
-    quickBatchMessages().forEach((m) => expect(m.domains).toContain('goto-site.example'));
   });
 });
 
@@ -526,12 +482,12 @@ describe('issue #37: copying from the SERP toolbar', () => {
 /* ---------- issue #44: say when there is nothing to copy or export ---------- */
 
 describe('issue #44: empty results are reported, not exported', () => {
-  // A result heading the parser can't place: a /goto link whose breadcrumb
-  // isn't a URL. The toolbar still renders (there is an organic h3).
+  // A result heading the parser can't read: a /goto link with neither a URL
+  // line nor a site name (1.10.2 keeps a result with either as an unknown
+  // site). The toolbar still renders (there is an organic h3).
   function unreadableDom() {
     document.body.innerHTML = `<div id="search"><div id="rso"><div class="g"><div>
       <a href="/goto?url=CAESopaque"><h3>Unplaceable result</h3></a>
-      <cite>10+ comments · 3 years ago</cite>
       <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div>
     </div></div></div></div>`;
   }
@@ -620,6 +576,30 @@ describe('issue #44: empty results are reported, not exported', () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(warn.mock.calls.some((c) => String(c[0]).includes('read 0 results'))).toBe(false);
   });
+
+  // 1.10.2: on the page too, not only in the console.
+  it('shows a notice on the page when it reads no results from a page that has them', async () => {
+    unreadableDom();
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const notice = document.querySelector('.sbw-serp-tools [data-role="unread-notice"]');
+    expect(notice.hidden).toBe(false);
+    expect(notice.textContent).toMatch(/couldn't read the results on this page/);
+
+    // Google finishes drawing: a rescan reads a result, and the notice goes.
+    document.querySelector('#rso').insertAdjacentHTML('beforeend', resultBlock('late.example', 1));
+    // Past the 500 ms debounce, twice over: an earlier test's copy of the
+    // overlay still watches document.body and its own bar restarts it.
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(notice.hidden).toBe(true);
+  });
+
+  it('keeps the notice hidden on a page it reads', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('[data-role="unread-notice"]').hidden).toBe(true);
+  });
 });
 
 /* ---------- 1.7.7: #54 flash text, #55 SERP filename, #45 TSV column, #56 status ---------- */
@@ -665,10 +645,26 @@ describe('1.7.7 SERP toolbar fixes', () => {
     await vi.advanceTimersByTimeAsync(50);
     button('Copy results').click();
     const [header, r1, r2] = copied.split('\n');
-    expect(header.split('\t').slice(-3)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes']);
-    expect([r1.split('\t').at(-3), r2.split('\t').at(-3)]).toEqual(['11', '12']);
+    expect(header.split('\t').slice(-6)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes',
+      'Position counting everything', 'URL known', 'Place name']);
+    // Page 1 wasn't added to Collect: it counts as Google's 10.
+    expect([r1.split('\t').at(-6), r2.split('\t').at(-6)]).toEqual(['11', '12']);
     // Page 2 on its own: the exact overall rank can't be known.
-    expect([r1.split('\t').at(-2), r2.split('\t').at(-2)]).toEqual(['', '']);
+    expect([r1.split('\t').at(-5), r2.split('\t').at(-5)]).toEqual(['', '']);
+  });
+
+  it('1.10.2: counts page 1\'s organic results, once page 1 was added to Collect', async () => {
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpCollect') { setTimeout(() => cb({ rows: [], summary: { pages: [] }, line: '', earlierOrganic: 7 }), 5); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+    window.history.pushState({}, '', '/search?q=x&start=10');
+    freshDom(['first.example', 'second.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    button('Copy results').click();
+    const [, r1, r2] = copied.split('\n');
+    expect([r1.split('\t').at(-6), r2.split('\t').at(-6)]).toEqual(['8', '9']);
   });
 
   it('#56: answers the popup with what the page actually yielded', async () => {
@@ -769,69 +765,49 @@ describe('#45: collecting result pages', () => {
     const links = [...document.querySelectorAll('.sbw-serp-collect a')].map((a) => [a.textContent, new URL(a.href).search]);
     expect(links).toEqual([['Next page →', '?q=crm&start=10']]);
     // Google fills the "More" menu after load; the button looks then.
-    const more = document.createElement('a'); more.href = '/search?q=crm&udm=web'; more.textContent = 'Web';
+    // 1.10.2: Google's Web filter is udm=14 (until then only udm=web was
+    // looked for, and the button found nothing).
+    const more = document.createElement('a'); more.href = '/search?q=crm&udm=14'; more.textContent = 'Web';
     document.body.append(more);
     const assign = vi.fn();
     const orig = window.location;
     delete window.location; window.location = Object.assign(new URL(orig.href), { assign, search: orig.search });
     try {
       button('Web results only').click();
-      expect(assign).toHaveBeenCalledWith(expect.stringContaining('udm=web'));
+      expect(assign).toHaveBeenCalledWith(expect.stringContaining('udm=14'));
     } finally { window.location = orig; }
   });
 
-  it('shows no Web results only button on a Web-only page', async () => {
+  it.each(['14', 'web'])('shows no Web results only button on a Web-only page (udm=%s)', async (udm) => {
     await workerStub();
-    window.history.pushState({}, '', '/search?q=crm&udm=web');
+    window.history.pushState({}, '', '/search?q=crm&udm=' + udm);
     freshDom(['a.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     expect(button('Web results only')).toBeUndefined();
   });
-});
 
-/* ---------- 1.8.2: a signed-out user's "Connect your account" ---------- */
-
-// The overlay is a content script, so its links are navigations from
-// google.com. Until 1.8.2 "Connect your account" pointed at the extension's
-// options page, which Chrome blocks from a web page ("This page has been
-// blocked by Chrome"). It now opens the site's connect page, a URL the worker
-// builds and sends back with the no_key/unauthorized reply.
-describe('1.8.2: Connect your account opens the site, not an extension page', () => {
-  const CONNECT = 'https://seobandwagon.com/dashboard/api-keys'
-    + '?utm_source=chrome_extension&utm_medium=extension&utm_campaign=serp_overlay';
-
-  function replyWith(reply) {
-    sendMessageImpl = (msg, cb) => {
-      if (isQuickBatch(msg)) { setTimeout(() => cb(reply), 10); return; }
-      defaultSendMessageImpl(msg, cb);
-    };
-  }
-
-  for (const code of ['no_key', 'unauthorized']) {
-    it(`links each bar to the connect page the worker sent (${code})`, async () => {
-      replyWith({ ok: false, status: code === 'no_key' ? 0 : 401, data: null, code, connectUrl: CONNECT });
-      freshDom(['alpha.example', 'beta.example']);
-      await loadOverlay();
-      await vi.advanceTimersByTimeAsync(50);
-
-      for (const domain of ['alpha.example', 'beta.example']) {
-        const link = barFor(domain).querySelector('a.sbw-serp-connect');
-        expect(link).toBeTruthy();
-        expect(link.textContent).toBe('Connect your account');
-        expect(link.href).toBe(CONNECT);
-        expect(link.href).not.toMatch(/^chrome-extension:/);
-        expect(link.target).toBe('_blank');
-      }
-    });
-  }
-
-  it('shows the words without a link when the reply carries no usable URL', async () => {
-    replyWith({ ok: false, status: 0, data: null, code: 'no_key', connectUrl: 'chrome-extension://x/src/options/options.html' });
-    freshDom(['alpha.example']);
+  // 1.10.2: signed out, Google links most results through /goto and only the
+  // site's home address is known, so two results from one site share a URL.
+  it('keeps two results from one site that only Google\'s link tells apart', async () => {
+    await workerStub();
+    window.history.pushState({}, '', '/search?q=crm');
+    const gotoBlock = (token, n) => `<div class="g"><div><a href="/goto?url=CAES${token}"><h3>Result ${n}</h3></a>
+      <cite>https://same-site.example › page-${n}</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div></div></div>`;
+    document.body.innerHTML = `<div id="search"><div id="rso">${gotoBlock('one', 1)}${gotoBlock('two', 2)}${resultBlock('other.example', 3)}</div></div>`;
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-    expect(statTextFor('alpha.example')).toBe('Connect your account');
-    expect(barFor('alpha.example').querySelector('.sbw-serp-stat a')).toBeNull();
+    button('Add page 1').click();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('[data-role="collect-count"]').textContent).toBe('3');
+    const added = sentMessages.find((m) => m.action === 'serpCollect' && m.op === 'add');
+    expect(added.page.rows.map((r) => r.link)).toEqual([
+      expect.stringMatching(/\/goto\?url=CAESone$/), expect.stringMatching(/\/goto\?url=CAEStwo$/), 'https://other.example/page-3']);
+    button('Copy collected').click();
+    const [header, ...lines] = copied.split('\n');
+    const at = (l, name) => l.split('\t')[header.split('\t').indexOf(name)];
+    expect(lines.map((l) => [at(l, 'URL'), at(l, 'URL known')])).toEqual([
+      ['https://same-site.example/', 'site only'], ['https://same-site.example/', 'site only'], ['https://other.example/page-3', 'yes']]);
   });
 });

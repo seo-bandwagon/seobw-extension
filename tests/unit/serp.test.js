@@ -878,13 +878,38 @@ describe('resolving Google redirect links (issue #41)', () => {
     expect(row.urlResolved).toBeUndefined();
   });
 
-  it('ignores a breadcrumb host Google cut short', () => {
-    expect(parse(block('/goto?url=CAESabc', '<cite>https://some-very-long-host-name.exa…</cite>'))).toEqual([]);
-    expect(parse(block('/goto?url=CAESabc', '<cite>https://some-very-long-host-name.exa...</cite>'))).toEqual([]);
+  it('takes no host from a breadcrumb Google cut short: the result is an unknown site', () => {
+    for (const cut of ['https://some-very-long-host-name.exa…', 'https://some-very-long-host-name.exa...']) {
+      const [row] = parse(block('/goto?url=CAESabc', `<cite>${cut}</cite>`));
+      expect(row).toMatchObject({ position: 1, url: '', domain: '', siteUnknown: true, displayUrl: cut });
+    }
   });
 
-  it('drops a /goto result it cannot place rather than guessing', () => {
-    expect(parse(block('/goto?url=CAESabc', '<cite>10+ comments · 3 years ago</cite>'))).toEqual([]);
+  // 1.10.2: until then a result like this was dropped, and every result after
+  // it moved up one position.
+  it('keeps a /goto result it cannot place in its slot, without guessing a site', () => {
+    const rows = parse(
+      block('/goto?url=CAESabc', '<cite>10+ comments · 3 years ago</cite>') +
+      block('/goto?url=CAESdef', '<cite>https://example.com › blog</cite>'));
+    expect(rows.map((r) => [r.position, r.domain, !!r.siteUnknown])).toEqual([[1, '', true], [2, 'example.com', false]]);
+    expect(rows[0].url).toBe('');
+    expect(rows[0].urlResolved).toBeUndefined();
+    expect(rows[0]._href).toBe('https://www.google.com/goto?url=CAESabc');
+  });
+
+  it('still drops an unplaceable link with neither a URL line nor a site name, as a signed-out sitelink is', () => {
+    expect(parse(block('/goto?url=CAESabc'))).toEqual([]);
+  });
+
+  it('says in the export which rows have their URL, their site only, or neither', () => {
+    const rows = parse(
+      block('https://example.com/page') +
+      block('/goto?url=CAESdef', '<cite>https://example.org › blog</cite>') +
+      block('/goto?url=CAESabc', '<cite>10+ comments · 3 years ago</cite>'));
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x' }));
+    const [header, ...lines] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
+    const at = header.split(',').indexOf('URL known');
+    expect(lines.map((l) => l.split(',')[at])).toEqual(['yes', 'site only', 'no']);
   });
 
   // Signed out, Google shows a social profile as "LinkedIn · SEO Bandwagon"
@@ -917,8 +942,9 @@ describe('resolving Google redirect links (issue #41)', () => {
     ]);
   });
 
-  it('still drops a site name that is not one known site', () => {
-    expect(parse(block('/goto?url=CAESabc', '<span class="VuuXrf">Acme Profiles · SEO Bandwagon</span><cite>200+ followers</cite>'))).toEqual([]);
+  it('guesses no site from a name that is not one known site; the result keeps its slot', () => {
+    const [row] = parse(block('/goto?url=CAESabc', '<span class="VuuXrf">Acme Profiles · SEO Bandwagon</span><cite>200+ followers</cite>'));
+    expect(row).toMatchObject({ position: 1, domain: '', siteUnknown: true, siteName: 'Acme Profiles · SEO Bandwagon' });
   });
 
   it('does not merge two different pages on one site known only by origin', () => {
@@ -941,7 +967,7 @@ describe('absolute position (approx.) column (#45)', () => {
   const rows = [{ position: 1, url: 'https://a.example/', domain: 'a.example', title: 'A' },
                 { position: 2, url: 'https://b.example/', domain: 'b.example', title: 'B' }];
 
-  it('is Google\'s start offset plus the position on the page', () => {
+  it('counts 10 for each earlier page nobody added to Collect', () => {
     const ctx = SBWSerp.searchContext({ search: '?q=x&start=20' });
     expect(ctx.start).toBe(20);
     expect(ctx.page).toBe(3);
@@ -949,20 +975,29 @@ describe('absolute position (approx.) column (#45)', () => {
     expect(SBWSerp.absolutePosition(rows[0], SBWSerp.searchContext({ search: '?q=x' }))).toBe(1);
   });
 
+  // 1.10.2: until then it was always `start` + position, wrong whenever a
+  // page held other than 10 organic results.
+  it('counts the organic results of the earlier pages when they were added', () => {
+    const ctx = Object.assign(SBWSerp.searchContext({ search: '?q=x&start=10' }), { earlierOrganic: 6 });
+    expect(rows.map((r) => SBWSerp.absolutePosition(r, ctx))).toEqual([7, 8]);
+    expect(SBWSerp.absolutePosition({ position: 3, absoluteApprox: 15 }, ctx)).toBe(15);
+  });
+
   it('is appended after the earlier columns, so existing column positions don\'t move', () => {
     const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x&start=10' }));
     const [header, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
     const cols = header.split(',');
-    expect(cols.slice(-3)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes']);
+    expect(cols.slice(-6)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes',
+      'Position counting everything', 'URL known', 'Place name']);
     expect(cols.slice(0, 3)).toEqual(['Query', 'Position', 'URL']);
-    expect(first.split(',').at(-3)).toBe('11');
-    expect(second.split(',').at(-3)).toBe('12');
+    expect(first.split(',').at(-6)).toBe('11');
+    expect(second.split(',').at(-6)).toBe('12');
   });
 
   it('on page 1 the exact absolute position is the position (#45)', () => {
     const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x' }));
     const [, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
-    expect([first.split(',').at(-2), second.split(',').at(-2)]).toEqual(['1', '2']);
+    expect([first.split(',').at(-5), second.split(',').at(-5)]).toEqual(['1', '2']);
   });
 });
 
@@ -984,5 +1019,158 @@ describe('ads are matched by whole-word aria-labels (#94)', () => {
       <section aria-label="Downloads"><div aria-label="sponsored">${result('ad3.example')}</div></section>
       ${result('organic.example')}`);
     expect(SBWSerp.parseResults(doc).map(r => r.domain)).toEqual(['organic.example']);
+  });
+});
+
+/* ---------- 1.10.2: the right numbers on the Google results page ---------- */
+
+describe('People also ask is never a result (1.10.2)', () => {
+  // An expanded question shows its answer's source as an h3 with a link, a
+  // URL line and a snippet: everything a result has. Built after Google's
+  // People also ask markup: the block is [jsname="yEVEwb"] with
+  // [data-initq], each question a .related-question-pair.
+  const result = (domain, n) => `<div class="MjjYud"><div class="g"><div>
+      <a href="https://${domain}/page"><h3>Result ${n}</h3></a><cite>https://${domain}</cite>
+      <div class="VwiC3b">A description long enough to count as a real snippet for this result.</div></div></div></div>`;
+  const paa = (expanded) => `<div class="MjjYud"><div jsname="yEVEwb" data-initq="widgets">
+      <div role="heading" aria-level="2"><span>People also ask</span></div>
+      <div class="related-question-pair" data-q="How do widgets work?"><div role="button">How do widgets work?</div>
+        ${expanded ? `<div><div class="g"><a href="https://answer-source.example/widgets"><h3>How widgets work, explained</h3></a>
+          <cite>https://answer-source.example › widgets</cite>
+          <div class="VwiC3b">Widgets work by turning one thing into another thing, which is the long answer.</div></div></div>` : ''}
+      </div></div></div>`;
+  const parse = (html) => SBWSerp.parseResults(
+    new JSDOM(`<!doctype html><body><div id="search"><div id="rso">${html}</div></div></body>`).window.document);
+
+  it('reads the same results with a question open as with it closed', () => {
+    const closed = parse(result('one.example', 1) + paa(false) + result('two.example', 2));
+    const open = parse(result('one.example', 1) + paa(true) + result('two.example', 2));
+    expect(open.map((r) => [r.position, r.domain])).toEqual([[1, 'one.example'], [2, 'two.example']]);
+    expect(open.map((r) => r.position)).toEqual(closed.map((r) => r.position));
+  });
+
+  it('counts the People also ask block itself in the position counting everything', () => {
+    const rows = parse(result('one.example', 1) + paa(true) + result('two.example', 2));
+    expect(rows.map((r) => r.pagePosition)).toEqual([1, 3]);
+  });
+});
+
+describe('the position counting everything on the page (1.10.2)', () => {
+  const result = (domain) => `<div class="MjjYud"><div class="g"><div>
+      <a href="https://${domain}/page"><h3>A result on ${domain}</h3></a><cite>https://${domain}</cite>
+      <div class="VwiC3b">A description long enough to count as a real snippet for this result.</div></div></div></div>`;
+  const ad = (n) => `<div data-text-ad="1"><a href="https://ad${n}.example/"><h3>Ad ${n}</h3></a><div>Ad copy for an advertiser here.</div></div>`;
+  const doc = (body) => new JSDOM(`<!doctype html><body>${body}</body>`).window.document;
+
+  it('counts each ad above the results, and none below', () => {
+    const rows = SBWSerp.parseResults(doc(`<div id="tads">${ad(1)}${ad(2)}</div>
+      <div id="search"><div id="rso">${result('one.example')}${result('two.example')}
+      <div id="bottomads">${ad(3)}</div></div></div>`));
+    expect(rows.map((r) => [r.position, r.pagePosition])).toEqual([[1, 3], [2, 4]]);
+  });
+
+  it('counts a feature block between results, and skips empty spacers and hidden headings', () => {
+    const rows = SBWSerp.parseResults(doc(`<div id="search"><h1>Search Results</h1><div id="rso">
+      ${result('one.example')}<div class="MjjYud"></div>
+      <div class="MjjYud"><h2>Videos</h2><g-scrolling-carousel><div>Video one · 3 min</div></g-scrolling-carousel></div>
+      <div class="MjjYud" style="display:none">Hidden block</div>
+      ${result('two.example')}</div></div>`));
+    expect(rows.map((r) => [r.position, r.pagePosition])).toEqual([[1, 1], [2, 3]]);
+  });
+
+  it('counts an AI Overview that Google wraps in one block with the results after it', () => {
+    const rows = SBWSerp.parseResults(doc(`<div id="search"><div id="rso">${result('one.example')}
+      <div><div class="ULSxyf"><div data-subtree="aimc"><h2>AI Overview</h2><div>An AI summary of the answer.</div></div></div>
+      ${result('two.example')}${result('three.example')}</div></div></div>`));
+    expect(rows.map((r) => r.pagePosition)).toEqual([1, 3, 4]);
+  });
+
+  it('counts a block above the results list inside #search', () => {
+    const rows = SBWSerp.parseResults(doc(`<div id="search"><div class="ai-overview-shell"><div>An AI summary above everything.</div></div>
+      <div id="rso">${result('one.example')}</div></div>`));
+    expect(rows[0].pagePosition).toBe(2);
+  });
+
+  it('matches the export, on a real saved page', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(path.join(__dirname, '../fixtures/serp-google-social-profiles.html'), 'utf8');
+    const rows = SBWSerp.parseResults(new JSDOM(`<!doctype html><body>${html}</body>`).window.document);
+    // The AI Overview sits between result 1 and LinkedIn, and Search
+    // Console's own box (shown to the site's owner) between LinkedIn and Yelp.
+    // The one ad on the page is at the bottom.
+    expect(rows.map((r) => [r.position, r.pagePosition])).toEqual([[1, 1], [2, 3], [3, 5], [4, 6], [5, 7]]);
+    const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=seo+bandwagon' }));
+    const [header, ...lines] = csv.replace(/^﻿/, '').trim().split('\r\n');
+    const at = header.split(',').indexOf('Position counting everything');
+    expect(lines.map((l) => l.split(',').at(at - header.split(',').length))).toEqual(['1', '3', '5', '6', '7']);
+  });
+});
+
+describe('the bar goes below the whole result (1.10.2)', () => {
+  it('anchors after the description, not between it and the title', () => {
+    const document = new JSDOM(`<!doctype html><body><div id="rso"><div class="MjjYud"><div class="g">
+      <div class="title"><a href="https://example.com/page"><h3>A title</h3></a><cite>https://example.com</cite></div>
+      <div class="VwiC3b">A description long enough to count as a real snippet for this result.</div>
+      </div></div></div></body>`).window.document;
+    const [row] = SBWSerp.parseResults(document);
+    expect(row._end.contains(document.querySelector('.VwiC3b'))).toBe(true);
+    expect(row._end.contains(row._el)).toBe(true);
+    expect(Object.keys(row)).not.toContain('_end');
+  });
+
+  it('anchors after the sitelinks when Google wraps them with the result', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const html = fs.readFileSync(path.join(__dirname, '../fixtures/serp-google-social-profiles.html'), 'utf8');
+    const document = new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
+    const [first] = SBWSerp.parseResults(document);
+    expect(first._end.getAttribute('data-rpos')).toBe('0');
+    expect([...first._end.querySelectorAll('h3')].map((h) => h.textContent)).toContain('Contact');
+  });
+});
+
+describe('the place a location stands for (1.10.2)', () => {
+  it('reads the name back out of a uule the simulator wrote', () => {
+    const u = SBWSerp.uule('Austin,Texas,United States');
+    expect(SBWSerp.placeFromUule(u)).toBe('Austin,Texas,United States');
+    expect(SBWSerp.placeFromUule(u.replace('+', ' '))).toBe('Austin,Texas,United States');
+  });
+
+  it('is blank for Google\'s coordinate form and for anything that does not decode', () => {
+    expect(SBWSerp.placeFromUule('a+cm9sZToxIHByb2R1Y2VyOjEy')).toBe('');
+    expect(SBWSerp.placeFromUule('w+CAIQICIZbogus')).toBe('');
+    expect(SBWSerp.placeFromUule('')).toBe('');
+  });
+
+  it('fills the Place name column, beside the encoded Location', () => {
+    const u = SBWSerp.uule('Denver,Colorado,United States');
+    const search = '?' + new URLSearchParams({ q: 'plumbers', uule: u }).toString();
+    const ctx = SBWSerp.searchContext({ search });
+    expect(ctx.place).toBe('Denver,Colorado,United States');
+    const tsv = SBWSerp.resultsToTsv([{ position: 1, url: 'https://a.example/', domain: 'a.example', title: 'A' }], ctx);
+    const [header, line] = tsv.split('\n');
+    const cell = (name) => line.split('\t')[header.split('\t').indexOf(name)];
+    expect(cell('Place name')).toBe('Denver,Colorado,United States');
+    expect(cell('Location')).toBe(u);
+  });
+});
+
+describe('metro names Google knows (1.10.2)', () => {
+  // Google's geotargets list (2026-10-06) has none of these six metro names;
+  // a uule built from one made Google fall back to the searcher's own place.
+  it.each([
+    ['Dallas, TX', 'Dallas,Texas,United States'],
+    ['Fort Myers, FL', 'Fort Myers,Florida,United States'],
+    ['Minneapolis, MN', 'Minneapolis,Minnesota,United States'],
+    ['Raleigh, NC', 'Raleigh,North Carolina,United States'],
+    ['Sarasota, FL', 'Sarasota,Florida,United States'],
+    ['Tampa, FL', 'Tampa,Florida,United States']
+  ])('%s searches as %s', (label, canonical) => {
+    expect(SBWSerp.PRESET_LOCATIONS.find((l) => l.label === label).canonical).toBe(canonical);
+  });
+
+  it('keeps no hyphenated metro name', () => {
+    expect(SBWSerp.PRESET_LOCATIONS.filter((l) => /-/.test(l.canonical))).toEqual([]);
   });
 });

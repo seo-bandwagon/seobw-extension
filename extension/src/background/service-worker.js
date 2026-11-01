@@ -1,29 +1,34 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/serp-stats.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js');
+importScripts('../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js');
 
-// SERP overlay domain stats (#50): cache in chrome.storage.session, and no
-// request at all without an API key (SBW.quickBatch enforces that). Signed
-// out, the overlay's "Connect your account" opens the site's connect page,
-// which signs the user in, mints a key and hands it back through
-// externally_connectable (1.8.2; a content script can't link to options.html).
-const serpStats = SBWSerpStats.createSerpStats({
-  quickBatch: (domains) => SBW.quickBatch(domains),
-  storage: chrome.storage.session,
-  connectUrl: async () => {
-    const settings = await SBW.getApiSettings();
-    return SBWSiteLinks.siteUrl(settings.apiUrl.replace(/\/api$/, ''), '/dashboard/api-keys', 'serp_overlay');
-  }
-});
+// 1.10.2: the results overlay sends nothing to SEO Bandwagon. Its bar showed
+// "Score N · M captures" from POST /api/domain/quick-batch, an on-page grade
+// averaged over the whole host and every account's captures, cached here for
+// 10 minutes (src/lib/serp-stats.js, #50). The bar shows the result's
+// position now, so that lookup, its cache and its "Connect your account"
+// link are gone. 1.11.0's figures come from their own route.
 
 // Open a link in a new tab and, once the page it lands on has loaded, the
 // popup, which analyzes it: the context menu's "Analyze linked page" and the
-// results overlay's Analyze button (src/lib/analyze-link.js).
+// new tab page's scan box (src/lib/analyze-link.js). The results overlay's
+// Analyze button has its own flow since 1.10.2 (serpAnalyze, below).
 const analyzeLink = SBWAnalyzeLink.createAnalyzeLink({ tabs: chrome.tabs, action: chrome.action });
+
+// The files injected before { action: 'analyze' }, the same list (and order)
+// as src/popup/popup.js, src/popup/link-check.js and ANALYZER_FILES in
+// src/lib/sbw-data.js: change all four together.
+const ANALYZER_FILES = ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/lib/analysis-errors.js', 'src/content/analyzer.js'];
 
 // Cache: tabId -> { url, data, timestamp }
 const tabCache = {};
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function setScoreBadge(tabId, grade) {
+  const colors = { 'A': '#06d6a0', 'B': '#4cc9f0', 'C': '#ffd166', 'D': '#f77f00', 'F': '#ef476f' };
+  chrome.action.setBadgeText({ text: grade, tabId });
+  chrome.action.setBadgeBackgroundColor({ color: colors[grade] || '#888', tabId });
+}
 
 // Fix round 1, item 4: every `create()` gets a callback that reads and
 // discards `chrome.runtime.lastError` — without one, a duplicate-id
@@ -193,7 +198,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
     try {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['lib/content-analysis.js', 'lib/dom-extraction.js', 'src/lib/link-check.js', 'src/lib/hreflang.js', 'src/lib/structured-data.js', 'src/lib/analysis-errors.js', 'src/content/analyzer.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ANALYZER_FILES });
       } catch (e) { /* already injected */ }
 
       const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });
@@ -325,7 +330,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'openSearch') {
     const query = (request.query || '').trim();
     if (query) {
-      chrome.tabs.create({ url: 'https://www.google.com/search?q=' + encodeURIComponent(query) });
+      chrome.tabs.create({ url: gscSearchUrl(query, request.gl) });
     }
     sendResponse({ ok: !!query });
     return true;
@@ -340,7 +345,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ ok: false });
       return true;
     }
-    const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+    const searchUrl = gscSearchUrl(query, request.gl);
     chrome.windows.create({ url: searchUrl, incognito: true }, () => {
       if (chrome.runtime.lastError) {
         chrome.windows.create({ url: searchUrl }, () => {
@@ -374,10 +379,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'updateBadge') {
-    const { score, grade } = request;
-    const colors = { 'A': '#06d6a0', 'B': '#4cc9f0', 'C': '#ffd166', 'D': '#f77f00', 'F': '#ef476f' };
-    chrome.action.setBadgeText({ text: grade, tabId: request.tabId });
-    chrome.action.setBadgeBackgroundColor({ color: colors[grade] || '#888', tabId: request.tabId });
+    setScoreBadge(request.tabId, request.grade);
   }
 
   if (request.action === 'captureScreenshot') {
@@ -409,16 +411,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // Generic bridge: content scripts (no chrome.storage/fetch access of their
-  // own in isolated-world contexts) route SBW API calls through here.
-  // #50: the SERP overlay's only call. It sends bare domains; the cache and
-  // the "no key, no request" rule live here (src/lib/serp-stats.js). This
-  // replaced a generic `sbwFetch` bridge that let the overlay skip that rule.
-  if (request.action === 'serpStats') {
-    serpStats.lookup(request.domains).then(sendResponse);
-    return true;
-  }
-
   // #45: Google result pages a person added, one click per page, from the
   // overlay's "Add this page". Session storage only (cleared with the
   // browser); nothing is sent. Content scripts can't use session storage
@@ -430,6 +422,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyzeResult') {
     const tabId = request.sameTab && sender.tab ? sender.tab.id : undefined;
     analyzeLink.open(request.url, { tabId }).then(sendResponse, () => sendResponse({ ok: false, error: 'tab_open_failed' }));
+    return true;
+  }
+
+  // 1.10.2: the overlay's Analyze button. The result opens in a background
+  // tab beside the results page and is analyzed there by its tab ID; the
+  // outcome comes back as { action: 'serpAnalysis', key, state, … } to the
+  // frame that asked (src/lib/serp-analyze.js).
+  if (request.action === 'serpAnalyze' && sender.tab) {
+    serpAnalyze.start({
+      key: request.key,
+      url: request.url,
+      serpTabId: sender.tab.id,
+      frameId: sender.frameId || 0,
+      windowId: sender.tab.windowId,
+      index: sender.tab.index
+    }).then(sendResponse, () => sendResponse({ ok: false, state: 'error', code: 'failed' }));
+    return true;
+  }
+
+  // "Open report" / "Open tab" on the overlay's analysis line.
+  if (request.action === 'serpAnalysisOpen') {
+    serpAnalyze.open(request.tabId, { report: request.report !== false }).then(sendResponse);
+    return true;
+  }
+
+  // The access page's answer (src/access/access.js).
+  if (request.action === 'serpAccess') {
+    serpAnalyze.accessAnswered(request.granted === true).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // 1.10.2: "Compare in two tabs". The overlay's two window.open() calls
+  // from one click opened one tab: Chrome lets a page open one pop-up a
+  // click. Only Google results URLs on the overlay's own hosts open.
+  if (request.action === 'serpOpenSearches' && sender.tab) {
+    const urls = (Array.isArray(request.urls) ? request.urls : []).filter(isOverlaySearchUrl).slice(0, 2);
+    Promise.all(urls.map((url, i) => chrome.tabs.create({
+      url,
+      active: i === 0,
+      windowId: sender.tab.windowId,
+      index: sender.tab.index + 1 + i,
+      openerTabId: sender.tab.id
+    }))).then(() => sendResponse({ ok: urls.length > 0, opened: urls.length }), () => sendResponse({ ok: false }));
     return true;
   }
 
@@ -557,6 +592,7 @@ const SERP_COLLECT_KEEP = 20; // searches kept per browser session
 async function serpCollectHandle(req) {
   const key = SBWSerpCollect.collectionKey(req.search);
   if (!key) return { error: 'no-query' };
+  const start = Number(new URLSearchParams(String(req.search || '').replace(/^\?/, '')).get('start')) || 0;
   const storeKey = SERP_COLLECT_PREFIX + key;
   const got = await chrome.storage.session.get(storeKey);
   let collection = got[storeKey] || SBWSerpCollect.emptyCollection(key);
@@ -578,13 +614,137 @@ async function serpCollectHandle(req) {
   }
 
   const combined = SBWSerpCollect.combine(collection);
+  // 1.10.2: `earlierOrganic`, the organic results on the pages before the
+  // asking one, for its own Copy results / Export CSV "Absolute position
+  // (approx.)".
   return {
     added: result.added, moved: result.moved, error: result.error,
     summary: combined.summary,
     line: SBWSerpCollect.describe(combined.summary),
+    earlierOrganic: SBWSerpCollect.earlierOrganic(collection, start),
     rows: req.withRows ? combined.rows : undefined
   };
 }
+
+// --- Analyze from a Google results page, in a background tab (1.10.2) ---
+const SERP_ACCESS_WINDOW_KEY = 'serpAccessWindow';
+
+async function openSerpAccessPage() {
+  const got = await chrome.storage.session.get(SERP_ACCESS_WINDOW_KEY);
+  const open = got[SERP_ACCESS_WINDOW_KEY];
+  if (typeof open === 'number') {
+    try {
+      await chrome.windows.update(open, { focused: true });
+      return;
+    } catch (e) { /* closed since */ }
+  }
+  const win = await chrome.windows.create({
+    url: chrome.runtime.getURL('src/access/access.html'),
+    type: 'popup',
+    width: 520,
+    height: 640,
+    focused: true
+  });
+  await chrome.storage.session.set({ [SERP_ACCESS_WINDOW_KEY]: win.id });
+}
+
+// The popup's analysis, run in a tab by its ID: the same files and message,
+// the same "can't analyze" words (src/lib/analysis-errors.js).
+async function analyzeTabById(tab) {
+  const unreadable = SBWAnalysisErrors.unreadablePage(tab.url);
+  if (unreadable) throw Object.assign(new Error(unreadable.body), { problem: unreadable });
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ANALYZER_FILES });
+  } catch (e) {
+    throw Object.assign(new Error('not_scriptable'), { code: 'unreadable' });
+  }
+  const data = await chrome.tabs.sendMessage(tab.id, { action: 'analyze' });
+  if (!data) throw Object.assign(new Error('no_analysis'), { code: 'unreadable' });
+  const problem = SBWAnalysisErrors.describe(data);
+  if (problem) throw Object.assign(new Error(problem.body), { problem });
+  return data;
+}
+
+// What the popup does with a fresh analysis: the tab cache (so the popup on
+// that tab opens on it), the badge, and the saved capture, synced only with
+// an account connected and data collection on (SBW.syncCapture).
+async function storeSerpAnalysis(tab, data) {
+  tabCache[tab.id] = { url: tab.url, data, timestamp: Date.now() };
+  if (data.seoScore) setScoreBadge(tab.id, data.seoScore.grade);
+  try {
+    const key = await SBW.autoSaveLocal(SBWCaptureStrip.strip(data));
+    SBW.syncCapture(key);
+  } catch (e) { /* storage quota etc.: the analysis still shows */ }
+}
+
+const serpAnalyze = SBWSerpAnalyze.createSerpAnalyze({
+  tabs: chrome.tabs,
+  windows: chrome.windows,
+  storage: chrome.storage.session,
+  hasAccess: () => SBWPerms.hasAllUrls().catch(() => false),
+  openAccessPage: openSerpAccessPage,
+  analyze: analyzeTabById,
+  onAnalyzed: storeSerpAnalysis,
+  notify: (req, msg) => {
+    chrome.tabs.sendMessage(req.serpTabId, Object.assign({ action: 'serpAnalysis', key: req.key }, msg), { frameId: req.frameId })
+      .catch(() => {}); // the results page was closed or left
+  },
+  openPopup: (windowId) => chrome.action.openPopup(typeof windowId === 'number' ? { windowId } : undefined),
+  isRedirect: SBWAnalyzeLink.isGoogleRedirect
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => { serpAnalyze.tabRemoved(tabId); });
+
+// Granted from the access page, or from chrome://extensions while a click
+// waited: carry on. The window closed without an answer: tell the page.
+chrome.permissions.onAdded.addListener(() => { serpAnalyze.accessAnswered(true); });
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  const got = await chrome.storage.session.get(SERP_ACCESS_WINDOW_KEY);
+  if (got[SERP_ACCESS_WINDOW_KEY] !== windowId) return;
+  await chrome.storage.session.remove(SERP_ACCESS_WINDOW_KEY);
+  serpAnalyze.accessAnswered(false);
+});
+
+// The Google search hosts the overlay runs on, read from its own
+// content_scripts entry, so this list can't drift from the manifest.
+const OVERLAY_SEARCH_HOSTS = new Set(
+  (chrome.runtime.getManifest().content_scripts || [])
+    .flatMap((cs) => cs.matches || [])
+    .map((m) => /^https:\/\/([^/]+)\/search\*$/.exec(m))
+    .filter(Boolean)
+    .map((m) => m[1])
+);
+
+function isOverlaySearchUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && OVERLAY_SEARCH_HOSTS.has(u.hostname) && u.pathname === '/search';
+  } catch (e) {
+    return false;
+  }
+}
+
+// --- Search Console (1.10.2) ---
+
+// A Search Console row's search: the property's country (`gl`, from
+// src/lib/gsc-inject.js propertyCountry) when it has one, and
+// personalisation off, so the results are closer to what the report counts.
+function gscSearchUrl(query, gl) {
+  const url = new URL('https://www.google.com/search');
+  url.searchParams.set('q', query);
+  if (typeof gl === 'string' && /^[a-z]{2}$/.test(gl)) url.searchParams.set('gl', gl);
+  url.searchParams.set('pws', '0');
+  return url.toString();
+}
+
+// Search Console switches report tabs with history.pushState. The content
+// script's own patch of pushState never fired: it ran in the isolated world,
+// where the page's calls don't reach it. The navigation API sees them
+// (`webNavigation`, already in the manifest), so the worker tells the page.
+chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
+  chrome.tabs.sendMessage(details.tabId, { action: 'gscNavigated', url: details.url }, { frameId: details.frameId })
+    .catch(() => {}); // no runner in that frame
+}, { url: [{ hostEquals: 'search.google.com', pathPrefix: '/search-console' }] });
 
 async function pruneSerpCollections(keep) {
   const all = await chrome.storage.session.get(null);

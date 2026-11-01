@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.10.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.10.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -92,16 +92,16 @@ mobile) and real Search Console pages; an e2e Copy check without a clipboard
 grant; the coverage report (#74).
 
 ### 1.10.2: the Google results page shows the right numbers, and Analyze stays on Google (patch)
-- [ ] The pooled "Score N · M captures" dropped (an average grade for the whole host across every account, "No score yet · 0 captures" for nearly every site); the bar below the whole result, with the organic position on it and the position counting everything in its tooltip, matching the exports
-- [ ] People Also Ask containers rejected (no fake results); a result the parser can't place keeps its slot as "unknown site", so later positions don't shift; "Absolute" counts earlier pages' organic results instead of adding `start`
-- [ ] Saved real pages for local pack, videos, top stories, signed-out AI Overview and mobile, each checked against Google's order
-- [ ] Analyze stays on Google (owner, 2026-11-01): the page opens in a background tab, that tab is analyzed by its ID (never the active tab), its on-page checklist line appears under the result with "Open report"; all-sites access asked once from an extension page; the bar and both caches refresh after; a second click reuses the tab
-- [ ] Collect matches repeats on the result link; exports gain "URL known" and the place name
-- [ ] 403 and 429 get their own messages; a visible notice when no results are read
-- [ ] 6 metros renamed to Google's names; Compare opens both tabs from the worker
-- [ ] "Web results only" checked against Google's current filter (`udm=14`); `www.google.co.in` replaces `www.google.in`, which redirects (India gets nothing today)
-- [ ] Search Console: tab switches through `webNavigation.onHistoryStateUpdated`; searches with country and personalisation off
-- [ ] Nothing new sent; the bar stops calling `quick-batch`
+- [x] The pooled "Score N · M captures" dropped (an average grade for the whole host across every account, "No score yet · 0 captures" for nearly every site); the bar below the whole result, with the organic position on it and the position counting everything in its tooltip, matching the exports
+- [x] People Also Ask containers rejected (no fake results); a result the parser can't place keeps its slot as "unknown site", so later positions don't shift; "Absolute" counts earlier pages' organic results instead of adding `start`
+- [ ] Saved real pages for local pack, videos, top stories, signed-out AI Overview and mobile, each checked against Google's order (not collected in 1.10.2: the built-in browser's page tools weren't available to the session that built it, and Google answered the automated Chromium with a CAPTCHA; moved to the tooling item above)
+- [x] Analyze stays on Google (owner, 2026-11-01): the page opens in a background tab, that tab is analyzed by its ID (never the active tab), its on-page checklist line appears under the result with "Open report"; all-sites access asked once from an extension page; the bar and both caches refresh after; a second click reuses the tab
+- [x] Collect matches repeats on the result link; exports gain "URL known" and the place name
+- [x] A visible notice when no results are read. 403 and 429: the bar no longer asks SEO Bandwagon anything, so nothing on the results page can get either; their messages come with 1.11.0's figures
+- [x] 6 metros renamed to Google's names; Compare opens both tabs from the worker
+- [x] "Web results only" checked against Google's current filter (`udm=14`); `www.google.co.in` replaces `www.google.in`, which redirects (India gets nothing today)
+- [x] Search Console: tab switches through `webNavigation.onHistoryStateUpdated`; searches with country and personalisation off
+- [x] Nothing new sent; the bar stops calling `quick-batch`
 
 ### 1.10.3: the account features work for a normal user (patch)
 - [ ] `hasApiKey` exported; "connected" means a verified key; caches cleared on Connect; 429/503/offline is not "signed out"
@@ -128,6 +128,7 @@ grant; the coverage report (#74).
 - [ ] Link and traffic figures labelled as DataForSEO's (0–100 rank scale); no authority score of our own; the checklist never worded as a ranking factor
 - [ ] Signed out of Google, a row known only by its site gets the site's figures and "sign in to Google to see page figures"; no request to Google
 - [ ] Signed out of SEO Bandwagon: position and Analyze, and "Connect free to see figures"
+- [ ] A 403 (a key without the `serp` scope: Reconnect) and a 429 (the hourly limit) each get their own words under the results, never "Could not reach SEO Bandwagon" (moved from 1.10.2, whose bar makes no request)
 - [ ] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast
 - [ ] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
 - [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically (default) or on a click
@@ -230,6 +231,122 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 
 **Not in 2.0.0:** the extension's own interface in other languages; the crowdsourced rank-checker extension; writing content on the
 website (the extension's part is "Add to my keywords" and the content gaps).
+
+---
+
+## Changelog — v1.10.2 (2026-11-01)
+
+The Google results page shows the right numbers, and Analyze stays on Google
+(owner, 2026-11-01: "Make sure that the SERP feature gets addressed, it
+doesn't show correct numbers and our analyze buttons don't quite work the way
+I want them to"; asked what Analyze should do, "Stay on Google"). Store
+submission A, alone. Built from the audit of 1.10.1 in the vault's
+`03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
+
+- **The pooled figure goes** (`src/overlay/serp-overlay.js`). Each bar showed
+  "Score N · M captures" from `POST /api/domain/quick-batch`: our on-page grade
+  averaged over the whole host and every account's captures, "No score yet ·
+  0 captures" for nearly every site, read beside a ranking as if it were a
+  ranking factor. The bar now shows the result's **organic position**
+  (`#3`), and its tooltip the **position counting everything on the page**
+  (each ad, the AI Overview, People also ask, maps, videos and any other
+  block: `assignPagePositions` in `src/lib/serp.js`, read from the page's own
+  blocks rather than a list of features, one level into blocks Google wraps
+  several results in). Both are the same numbers as Copy results, the CSV and
+  Collect. The bar sits **below the whole result** (its `[data-rpos]` unit
+  with the sitelinks, or the block holding the description: `row._end`), not
+  between title and description. It sends nothing: the stats queue, its
+  page cache, `src/lib/serp-stats.js` with its 10-minute worker cache and the
+  worker's `serpStats` handler are gone (`api.js`'s `quickBatch` stays,
+  uncalled). So the audit's stale-cache and 403/429 findings on the bar have
+  nothing left to act on; the 403/429 words move to 1.11.0's figures.
+- **Positions are right** (`src/lib/serp.js`). People also ask is a rejected
+  container (`.related-question-pair`, `[data-initq]`, `[jsname="yEVEwb"]`),
+  so an opened question's source adds no result. A result whose Google
+  redirect the parser can't place keeps its slot as `siteUnknown` ("unknown
+  site" on the bar, no URL or domain in the export) when it has a URL line or
+  a site name; a link with neither is still a sitelink and dropped. Until now
+  it was dropped and every later position moved up. "Absolute position
+  (approx.)" counts the organic results on the earlier pages a person added to
+  Collect (`SBWSerpCollect.earlierOrganic`, 10 for a page not added), not
+  `start` + position.
+- **Analyze stays on Google** (`src/lib/serp-analyze.js`, new). The click goes
+  to the worker (`serpAnalyze`), which opens the result in a background tab
+  beside the results page (`active: false`), waits for the page it lands on
+  (past Google's redirects, and only a committed http(s) page), analyzes that
+  tab by its ID with the popup's own analyzer files and `analyze` message
+  (`analyzeTabById`, the same `SBWAnalysisErrors` words), stores it in the tab
+  cache, badges the tab and saves the capture as the popup does. The outcome
+  goes back to the results page (`serpAnalysis`), which puts one line under
+  the result: "On-page checklist: 82/100 (B) · 3 issues" with **Open report**
+  (switches to the tab and opens the popup on its stored analysis), or what
+  went wrong with **Open tab**. Its tooltip says the checklist is not a
+  ranking factor. Without the optional all-sites access the first click opens
+  the extension's own small window (`src/access/access.html`, with
+  `ALL_URLS_REASON`): Allow analyzes every waiting result, Not now (or
+  closing it) tells the page. A second click on the same result reuses its
+  tab (`serpAnalyzeTabs` in session storage); several quick clicks each get
+  their own tab and line. The context menu's "Analyze linked page" and the new
+  tab's scan box keep `src/lib/analyze-link.js`. 1.12.0 replaces the tab with
+  a row built from the page's HTML.
+- **Collect** matches repeats on the result's link (`matchKey`: the URL when
+  Google shows it, else the href Google rendered, which the overlay now sends
+  as `link`). Signed out, two results from one site share their home address
+  and the second was dropped (the audit's 3 rows in, 2 kept). Exports gain
+  **Position counting everything**, **URL known** ("yes", "site only", "no")
+  and **Place name** (the canonical name inside a `w+CAIQICI…` uule,
+  `placeFromUule`; the Location column keeps the encoded string), appended
+  after "Collection notes" so no column moves.
+- **Location tools.** Six of the 54 metro names are not in Google's geotargets
+  list (developers.google.com, the 2026-10-06 file, checked name by name):
+  Dallas-Fort Worth, Fort Myers-Cape Coral, Minneapolis-St. Paul,
+  Raleigh-Durham, Sarasota-Bradenton and Tampa-St. Petersburg, so a search with
+  their uule silently used the searcher's own place. Each is now its principal
+  city, an active City target, in the label and the uule. "San Francisco Bay
+  Area" (a Region) and "St. George" (a City) are in the list as written.
+  "Compare in two tabs" asks the worker (`serpOpenSearches`, only `/search`
+  on the overlay's own hosts, read from the manifest) to open both; two
+  `window.open` calls from one click opened one.
+- **Web results only** accepts Google's Web filter as `udm=14` or `udm=web`
+  (it looked for `udm=web` only), and Collect keys both as one filter. Which
+  one Google's tab row writes today is not settled: the press since May 2024
+  says `udm=14`, one 2026 source says the tab now writes `udm=web`. The live
+  page that would have settled it answered with a CAPTCHA.
+- **India.** `https://www.google.co.in/search*` replaces
+  `https://www.google.in/search*`, which only redirects, in the content-script
+  matches, the popup's and `sbw-data.js`'s host lists.
+  `chrome.management.getPermissionWarningsByManifest` (Chrome for Testing
+  151) gives the same four warnings for 1.10.1's manifest, this one, and one
+  without India: "Read and change your data on search.google.com,
+  seobandwagon.com, and www.google.com", "Replace the page you see when opening
+  a new tab", "Read your browsing history", "Manage your apps, extensions, and
+  themes".
+- **No-results notice.** A page with result headings that yields no rows says
+  so in the toolbar, not only in the console (#44), and the notice goes once
+  a rescan reads results.
+- **Search Console.** Tab switches reach the runner through the worker's
+  `webNavigation.onHistoryStateUpdated` (`gscNavigated`). The runner's patch
+  of `history.pushState` never fired: it ran in the content script's isolated
+  world, which the page's own calls don't reach. A row's search opens with
+  `pws=0` and, for a property on a country-code domain, that country's `gl`
+  (`propertyCountry`, read from `resource_id`; `uk` is `gb`, generic endings
+  such as .co, .io, .eu name none).
+- **Verified** with `npm test`, the offline Collect spec (which now also pins
+  the approximate count), and a stand-in for live Google: the unpacked build
+  in a visible Chromium 156 on the saved `seo bandwagon` page, served at
+  `www.google.com/search` by a local HTTPS server that answered every host,
+  so nothing reached the network. Bars #1–#5 read 1, 3, 5, 6 and 7 counting
+  everything, each below its result; Analyze kept Google the active, focused
+  tab, opened one background tab per result, reused it on a second click and
+  put the checklist line under each result; the access window showed the
+  reason and Not now closed it. A live Google search in that Chromium got a
+  CAPTCHA and was not retried. Chrome's own permission prompt can't be
+  clicked from automation, so the granted half ran on a copy whose manifest
+  grants `<all_urls>` at install.
+- No new permission (the access window uses `chrome.windows`, which needs
+  none); no install-warning change. **Data use:** less is sent, since the bare
+  result domains no longer go to `quick-batch`; an Analyze capture is saved
+  and synced as the popup's always was.
 
 ---
 

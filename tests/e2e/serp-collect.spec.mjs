@@ -24,7 +24,8 @@
 //   3. Adding a page again replaces it rather than appending its rows.
 //   4. The export is one CSV of every kept row, each tagged with its page:
 //      absolute positions run 1..n while no earlier page is missing, are
-//      blank with a note after the skipped page, and no URL appears twice.
+//      blank with a note after the skipped page, and no URL appears twice;
+//      the approximate one counts the earlier pages' organic results (1.10.2).
 
 import { test, expect, chromium } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -179,6 +180,13 @@ test('collect pages: add pages 1, 2 and 4 from saved Google results and export o
         expect(r['Absolute position']).toBe('');
         expect(r['Collection notes']).toMatch(/After a page that was not added/);
       }
+
+      // 1.10.2: the approximate one counts the earlier pages' organic
+      // results (page 3, never added, as Google's 10), not start + position.
+      const approx = (r) => Number(r['Absolute position (approx.)']) - Number(r['Position']);
+      expect([...new Set(p1.map(approx))]).toEqual([0]);
+      expect([...new Set(p2.map(approx))]).toEqual([ADDS[1]]);
+      expect([...new Set(p4.map(approx))]).toEqual([ADDS[1] + ADDS[2] + 10]);
 
       const urls = rows.map((r) => r['URL']);
       expect(new Set(urls).size).toBe(urls.length);

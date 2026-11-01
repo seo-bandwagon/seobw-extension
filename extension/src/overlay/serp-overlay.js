@@ -1,25 +1,31 @@
 // SEO Bandwagon — SERP overlay content script (Task 6 rewrite)
 //
 // Runs on Google search results pages (see manifest.json's content_scripts
-// entry for the exact host list — nine Google TLDs). Additive only, per the
+// entry for the exact host list — ten Google domains). Additive only, per the
 // ledger ruling: this never hides, moves, covers, or restyles an ad or any
-// Google UI. `.sbw-serp-bar` elements are appended AFTER each organic
-// result block (never inside the title/URL area); `.sbw-serp-tools` is
-// appended once, after the results container, never before it. Nothing is
-// ever inserted near an ad — src/lib/serp.js's parseResults() already
-// excludes every block under [data-text-ad]/#tads/#bottomads/
-// [aria-label*="Ads" i], so this script never even sees an ad row to act on.
+// Google UI. `.sbw-serp-bar` elements are appended AFTER each whole organic
+// result (1.10.2: below its description and sitelinks, not between title and
+// description); `.sbw-serp-tools` is appended once, after the results
+// container, never before it. Nothing is ever inserted near an ad —
+// src/lib/serp.js's parseResults() already excludes every block under
+// [data-text-ad]/#tads/#bottomads/[aria-label*="Ads" i], so this script never
+// even sees an ad row to act on.
 //
-// This is an isolated-world content script: it has no fetch/chrome.storage
-// access of its own beyond what chrome.* itself exposes to a content
-// script, and per the ledger it must never call fetch() directly anyway —
-// every third-party-shaped request goes through the worker (its 'serpStats'
-// handler, src/lib/serp-stats.js, backed by src/lib/api.js's quickBatch,
-// which sends nothing without an API key). Only bare domains
-// (SBWSerp.bareDomain output) ever go into that message — never the query
-// text, never a title or snippet. Result rows and PAA questions never
-// leave the browser at all: "Copy results"/"Export CSV"/"Copy PAA" write to
-// the clipboard or a local file download, nothing else.
+// 1.10.2: nothing on this page goes to SEO Bandwagon. Until then each bar
+// showed "Score N · M captures" from POST /api/domain/quick-batch: an
+// on-page grade averaged over the whole host and every account's captures,
+// "No score yet · 0 captures" for nearly every site, and read beside a
+// ranking as if it were a ranking factor. The bar shows the result's
+// position instead: the organic position, and in its tooltip the position
+// counting everything on the page, the same numbers as Copy results, the
+// CSV and Collect. Result rows and PAA questions never leave the browser:
+// "Copy results"/"Export CSV"/"Copy PAA" write to the clipboard or a local
+// file download, nothing else.
+//
+// Analyze (1.10.2, owner 2026-11-01: "Stay on Google") hands the result to
+// the worker, which opens it in a background tab, analyzes that tab and
+// sends the outcome back here: one line under the result with the page's
+// on-page checklist and "Open report" (src/lib/serp-analyze.js).
 //
 // Legacy behavior deleted outright, not disabled, per the ledger ruling on
 // the old collection/analysis endpoints: fetchDomainData(),
@@ -34,37 +40,18 @@
   // file (manifest content_scripts order), do nothing rather than throw.
   if (!globalThis.SBWSerp) return;
 
-  const MAX_BATCH = 20; // quick-batch's own per-request cap
   const DEBOUNCE_MS = 500;
-  const PENDING_TEXT = '—'; // em dash — "not looked up yet"
 
   const processedBlocks = new WeakSet();
   let toolbarEl = null;
   let mutationTimer = null;
-
-  // Fix round 1, items 4/5/6: the stats pipeline is a single queue rather
-  // than a one-shot per-scan fetch.
-  //   - `pendingRows` holds every row not yet resolved (looked up in cache
-  //     or answered by a quick-batch request). A scan appends to it
-  //     unconditionally — it is never dropped just because a request
-  //     happens to be in flight (item 4).
-  //   - `statsRequestInFlight` gates re-entrancy: only one drainQueue() pass
-  //     runs at a time; its `finally` re-checks the queue so rows queued
-  //     mid-flight, or left over from a >20-domain chunk (item 6), get
-  //     picked up by the next pass automatically.
-  //   - The per-domain cache (item 5) means a domain already resolved this
-  //     page-load is never re-requested, even for a brand-new row.
-  let pendingRows = [];
-  let statsRequestInFlight = false;
 
   function resultsContainer() {
     return document.querySelector('#search') || document.querySelector('#rcnt') || document.body;
   }
 
   // Read only to build the location-simulator URL — never placed in a
-  // request body or message payload. See the module comment: quick-batch
-  // only ever receives bare domains. (Fix round 1, item 5: the stats cache
-  // itself is keyed by domain now, not by this query string at all.)
+  // request body or message payload.
   function currentQuery() {
     try {
       return new URLSearchParams(window.location.search).get('q') || '';
@@ -73,131 +60,158 @@
     }
   }
 
-  // #50: domains resolved on this page load, so a row that reappears (or a
-  // rescan) never asks again. The cross-page cache lives in the worker
-  // (src/lib/serp-stats.js): a content script may not use
-  // chrome.storage.session, which is why the old cache here never worked.
-  const resolvedStats = new Map(); // domain -> quick stat (may be null)
-
-  // The only network-shaped call this script makes, and it isn't one: it
-  // sends bare domains to the worker, which owns the cache, the API key
-  // check and the fetch (service-worker.js 'serpStats' -> SBWSerpStats).
-  function requestStats(domains) {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'serpStats', domains }, (reply) => {
-        void chrome.runtime.lastError;
-        resolve(reply || { ok: false, code: 'network' });
-      });
-    });
-  }
-
   // ---------- bars ----------
+
+  function positionTitle(row) {
+    const parts = [`Organic position ${row.position} on this page.`];
+    if (row.pagePosition) {
+      parts.push(`Counting everything on the page (ads, AI Overview, People also ask, maps, videos and the other blocks above it): ${row.pagePosition}.`);
+    }
+    return parts.join(' ');
+  }
 
   function makeBar(row) {
     const bar = document.createElement('div');
     bar.className = 'sbw-serp-bar';
 
+    const posEl = document.createElement('span');
+    posEl.className = 'sbw-serp-pos';
+    posEl.textContent = '#' + row.position;
+    posEl.title = positionTitle(row);
+    posEl.setAttribute('aria-label', posEl.title);
+    bar.appendChild(posEl);
+
     const domainEl = document.createElement('span');
     domainEl.className = 'sbw-serp-domain';
-    domainEl.textContent = row.domain;
+    if (row.siteUnknown) {
+      domainEl.textContent = 'unknown site';
+      domainEl.title = "Google links this result through a redirect that doesn't name its site. It keeps its place, so the positions after it stay right.";
+    } else {
+      domainEl.textContent = row.domain;
+      if (row.urlResolved === false) {
+        domainEl.title = "Only the site is known: Google's link hides the page's address.";
+      }
+    }
     bar.appendChild(domainEl);
-
-    const statEl = document.createElement('span');
-    statEl.className = 'sbw-serp-stat';
-    statEl.textContent = PENDING_TEXT;
-    bar.appendChild(statEl);
 
     const analyzeLink = document.createElement('a');
     analyzeLink.className = 'sbw-serp-analyze';
-    // Fix round 1, item 16 (controller ruling): a plain link to the result,
-    // with no marker hash appended — README already describes this as
-    // "opens the result in a new tab", and nothing in the popup consumes
-    // such a marker.
     // row._href is the link as Google rendered it; for a /goto result
-    // row.url can be just the site's origin (see SBWSerp.parseResults).
+    // row.url can be just the site's origin, or empty for an unknown site
+    // (see SBWSerp.parseResults).
     analyzeLink.href = row._href || row.url;
     analyzeLink.target = '_blank';
     analyzeLink.rel = 'noopener noreferrer';
     analyzeLink.textContent = 'Analyze';
-    // 1.8.4: a plain click opens the result and analyzes it there (the
-    // worker's SBWAnalyzeLink, the same flow as the context menu's "Analyze
-    // linked page"). Ctrl/Cmd/Shift/Alt and middle clicks stay the browser's.
-    // If the extension was reloaded under this page, sendMessage throws and
-    // the link opens as a plain link.
+    analyzeLink.title = 'Opens this result in a background tab and checks its on-page SEO; you stay here.';
+    // A plain click hands the result to the worker (serpAnalyze). Ctrl/Cmd/
+    // Shift/Alt and middle clicks stay the browser's. If the extension was
+    // reloaded under this page, sendMessage throws and the link opens as a
+    // plain link.
     analyzeLink.addEventListener('click', (e) => {
       if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      const key = row._key || analyzeLink.href;
       try {
-        chrome.runtime.sendMessage({ action: 'analyzeResult', url: analyzeLink.href }, () => void chrome.runtime.lastError);
+        chrome.runtime.sendMessage({ action: 'serpAnalyze', url: analyzeLink.href, key }, (reply) => {
+          if (chrome.runtime.lastError || !reply) {
+            showAnalysis(key, { state: 'error', code: 'unavailable' });
+            return;
+          }
+          showAnalysis(key, reply);
+        });
       } catch (err) {
         return;
       }
       e.preventDefault();
+      showAnalysis(key, { state: 'working' });
     });
     bar.appendChild(analyzeLink);
 
-    return { bar, statEl };
+    return bar;
   }
 
-  // Fix round 1, item 10: three distinct stat states, each with its own
-  // text (never the old "Score —" placeholder once anything has actually
-  // resolved):
-  //   - `quick === null`               -> "No data" (server has nothing)
-  //   - `quick` resolved, avgScore null -> "No score yet · N captures"
-  //   - `quick` resolved, avgScore set  -> "Score N [· M captures]"
-  //   - not yet resolved / awaiting a later chunk -> PENDING_TEXT ("—")
-  // Passing `undefined` (rather than calling this at all) is how a row
-  // stays at its initial pending state — see drainQueue().
-  function renderStat(statEl, quick) {
-    statEl.removeAttribute('title');
-    if (quick === null) {
-      statEl.textContent = 'No data';
-      return;
-    }
-    if (quick && typeof quick === 'object') {
-      if (typeof quick.avgScore === 'number') {
-        const parts = [`Score ${quick.avgScore}`];
-        if (typeof quick.sampleSize === 'number' && quick.sampleSize > 0) {
-          parts.push(`${quick.sampleSize} capture${quick.sampleSize === 1 ? '' : 's'}`);
-        }
-        statEl.textContent = parts.join(' · ');
-        return;
-      }
-      const captures = typeof quick.sampleSize === 'number' ? quick.sampleSize : 0;
-      statEl.textContent = `No score yet · ${captures} capture${captures === 1 ? '' : 's'}`;
-      return;
-    }
-    statEl.textContent = PENDING_TEXT;
+  // ---------- the analysis line under a result (1.10.2) ----------
+  //
+  // One line per result, under its bar, once Analyze was clicked. Keyed by
+  // the result (row._key), so a rescan that rebuilds rows finds it again.
+  const analysisLines = new Map(); // key -> { el, tabId }
+  const barsByKey = new Map(); // key -> bar
+
+  const CHECKLIST_TITLE = "SEO Bandwagon's on-page checklist for this page: title, description, headings, images, links, schema and the other checks in the report. " +
+    'It is not a ranking factor and does not predict where a page ranks.';
+
+  const ERROR_TEXT = {
+    timeout: "The page didn't finish loading within a minute.",
+    closed: 'The tab was closed before the page was analyzed.',
+    unreadable: "Couldn't analyze this page.",
+    invalid_url: 'This result has no link to open.',
+    unavailable: 'SEO Bandwagon was updated or reloaded. Reload this page to analyze.',
+    failed: "Couldn't analyze this page."
+  };
+
+  function openButton(label, tabId, report) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sbw-serp-open';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      try {
+        chrome.runtime.sendMessage({ action: 'serpAnalysisOpen', tabId, report }, () => void chrome.runtime.lastError);
+      } catch (e) { /* extension reloaded */ }
+    });
+    return btn;
   }
 
-  // Worker bridge failed, or the reply otherwise couldn't be used — distinct
-  // from "No data" (which means the server answered and has nothing) and
-  // from the pending placeholder (which means no request has resolved yet).
-  function renderUnavailable(statEl) {
-    statEl.textContent = 'Unavailable';
-    statEl.title = 'Could not reach SEO Bandwagon';
+  function lineFor(key) {
+    let entry = analysisLines.get(key);
+    if (entry && entry.el.isConnected) return entry;
+    const bar = barsByKey.get(key);
+    if (!bar || !bar.isConnected) return null;
+    const el = document.createElement('div');
+    el.className = 'sbw-serp-analysis';
+    el.setAttribute('role', 'status');
+    bar.insertAdjacentElement('afterend', el);
+    entry = { el, tabId: null };
+    analysisLines.set(key, entry);
+    return entry;
   }
 
-  // no_key/unauthorized — the common case for a signed-out user (production
-  // returns 401 with no key stored). Renders cleanly, once, no retry.
-  // The link goes to the site's connect page (`connectUrl`, built by the
-  // worker), never to an extension page: this anchor sits in google.com, and
-  // Chrome blocks a web page's link to options.html ("This page has been
-  // blocked by Chrome") because nothing in the manifest is web-accessible.
-  // Without a usable URL the words stay, unlinked.
-  function renderNoAccount(statEl, connectUrl) {
-    statEl.removeAttribute('title');
-    if (typeof connectUrl !== 'string' || !/^https?:\/\//.test(connectUrl)) {
-      statEl.textContent = 'Connect your account';
-      return;
+  function showAnalysis(key, msg) {
+    const entry = lineFor(key);
+    if (!entry || !msg) return;
+    const { el } = entry;
+    el.textContent = '';
+    el.removeAttribute('title');
+    el.removeAttribute('data-state');
+    if (typeof msg.tabId === 'number') entry.tabId = msg.tabId;
+    const text = (t) => {
+      const span = document.createElement('span');
+      span.className = 'sbw-serp-analysis-text';
+      span.textContent = t;
+      el.appendChild(span);
+      return span;
+    };
+    el.setAttribute('data-state', msg.state || '');
+
+    if (msg.state === 'working') {
+      text('Analyzing in a background tab…');
+    } else if (msg.state === 'needs_access') {
+      text('Allow access in the SEO Bandwagon window that opened, and this result is analyzed; you stay on Google.');
+    } else if (msg.state === 'declined') {
+      text('Analyze needs access to other sites to read the page. Click Analyze to ask again.');
+    } else if (msg.state === 'done') {
+      const score = typeof msg.score === 'number' ? `${msg.score}/100${msg.grade ? ` (${msg.grade})` : ''}` : 'done';
+      const issues = typeof msg.issues === 'number'
+        ? ` · ${msg.issues} issue${msg.issues === 1 ? '' : 's'}`
+        : '';
+      const label = text(`On-page checklist: ${score}${issues}`);
+      label.title = CHECKLIST_TITLE;
+      if (typeof entry.tabId === 'number') el.appendChild(openButton('Open report', entry.tabId, true));
+    } else {
+      const words = ERROR_TEXT[msg.code] || ERROR_TEXT.failed;
+      text(msg.title ? `${words} ${msg.title}.` : words);
+      if (typeof entry.tabId === 'number' && msg.code !== 'closed') el.appendChild(openButton('Open tab', entry.tabId, false));
     }
-    statEl.textContent = '';
-    const link = document.createElement('a');
-    link.className = 'sbw-serp-connect';
-    link.href = connectUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = 'Connect your account';
-    statEl.appendChild(link);
   }
 
   // ---------- scan + process ----------
@@ -219,6 +233,7 @@
   // #41). Say so once per page in the console, instead of every export
   // silently coming out empty. The flag lives on the document, not in this
   // script, so a second copy injected after an extension reload stays quiet.
+  // 1.10.2: and on the page itself, in the toolbar (showUnreadNotice).
   function warnIfUnparsed(rowCount) {
     if (rowCount || document.__sbwWarnedUnparsed || !hasOrganicContainerH3()) return;
     document.__sbwWarnedUnparsed = true;
@@ -229,108 +244,33 @@
       ' Google redirect links). Google\'s results markup may have changed.');
   }
 
+  // 1.10.2: a page with result headings that yields no rows says so where
+  // the person looks, not only in the console. Hidden again once a rescan
+  // reads results.
+  function showUnreadNotice(rowCount) {
+    if (!toolbarEl) return;
+    const notice = toolbarEl.querySelector('[data-role="unread-notice"]');
+    if (!notice) return;
+    notice.hidden = !!rowCount || !hasOrganicContainerH3();
+  }
+
   function processResults() {
     const rows = globalThis.SBWSerp.parseResults(document);
     warnIfUnparsed(rows.length);
-    const newRows = [];
 
     rows.forEach((row) => {
       const block = row._el;
       if (!block || processedBlocks.has(block)) return;
       processedBlocks.add(block);
-      const { bar, statEl } = makeBar(row);
-      block.insertAdjacentElement('afterend', bar);
-      row._statEl = statEl;
-      newRows.push(row);
+      const bar = makeBar(row);
+      (row._end || block).insertAdjacentElement('afterend', bar);
+      barsByKey.set(row._key || bar.querySelector('a').href, bar);
     });
 
     if (rows.length || hasOrganicContainerH3()) {
       renderToolbar();
       updateToolbarCounts(rows.length);
-    }
-
-    if (newRows.length) {
-      enqueueRows(newRows);
-    }
-  }
-
-  // Fix round 1, items 4/5/6: queue-based stats pipeline.
-  //
-  // A scan always enqueues its new rows, never drops them — a request
-  // already in flight just means drainQueue() no-ops immediately and its
-  // own `finally` re-invokes drainQueue() once it settles, picking up
-  // whatever arrived in the meantime (item 4). Rows are resolved from the
-  // per-domain cache first (item 5); whatever's left is split into
-  // successive batches of at most MAX_BATCH unique domains — never
-  // truncated, just deferred to the next pass (item 6), during which the
-  // deferred rows' bars stay at PENDING_TEXT rather than flipping to
-  // "No data".
-
-  function enqueueRows(rows) {
-    pendingRows.push(...rows);
-    drainQueue();
-  }
-
-  async function drainQueue() {
-    if (statsRequestInFlight) return; // this pass's `finally` will re-drain
-    if (!pendingRows.length) return;
-
-    // Claimed synchronously, before any await, so a rescan that fires while
-    // this function is still resolving the cache (i.e. before the network
-    // request even starts) can't start a second concurrent pass.
-    statsRequestInFlight = true;
-    try {
-      const rowsThisPass = pendingRows.splice(0, pendingRows.length);
-
-      const stillNeeded = [];
-      for (const row of rowsThisPass) {
-        if (resolvedStats.has(row.domain)) {
-          if (row._statEl) renderStat(row._statEl, resolvedStats.get(row.domain));
-        } else {
-          stillNeeded.push(row);
-        }
-      }
-      if (!stillNeeded.length) return;
-
-      const domains = [];
-      const seen = new Set();
-      stillNeeded.forEach((row) => {
-        if (!seen.has(row.domain)) {
-          seen.add(row.domain);
-          domains.push(row.domain);
-        }
-      });
-      const chunk = domains.slice(0, MAX_BATCH);
-      const chunkSet = new Set(chunk);
-      const rowsInChunk = stillNeeded.filter((row) => chunkSet.has(row.domain));
-      const rowsForLater = stillNeeded.filter((row) => !chunkSet.has(row.domain));
-      // Deferred rows go back on the queue for the next pass (this pass's
-      // `finally`, below) — they stay at PENDING_TEXT until then.
-      if (rowsForLater.length) pendingRows.push(...rowsForLater);
-
-      const reply = await requestStats(chunk);
-      if (!reply || reply.ok === false) {
-        const code = reply && reply.code;
-        if (code === 'no_key' || code === 'unauthorized') {
-          rowsInChunk.forEach((row) => { if (row._statEl) renderNoAccount(row._statEl, reply.connectUrl); });
-        } else {
-          rowsInChunk.forEach((row) => { if (row._statEl) renderUnavailable(row._statEl); });
-        }
-        return; // no retry this pass, per the brief
-      }
-
-      const payload = reply.data || { results: {}, invalid: [] };
-      const results = payload.results || {};
-      chunk.forEach((domain) => {
-        resolvedStats.set(domain, Object.prototype.hasOwnProperty.call(results, domain) ? results[domain] : null);
-      });
-      rowsInChunk.forEach((row) => {
-        const has = Object.prototype.hasOwnProperty.call(results, row.domain);
-        renderStat(row._statEl, has ? results[row.domain] : null);
-      });
-    } finally {
-      statsRequestInFlight = false;
-      if (pendingRows.length) drainQueue();
+      showUnreadNotice(rows.length);
     }
   }
 
@@ -546,8 +486,8 @@
       return typed || select.value || '';
     }
 
-    function openLocation(canonical) {
-      const url = globalThis.SBWSerp.buildSearchUrl({
+    function locationUrl(canonical) {
+      return globalThis.SBWSerp.buildSearchUrl({
         q: currentQuery(),
         gl: glInput.value.trim(),
         hl: hlInput.value.trim(),
@@ -555,7 +495,10 @@
         domain: window.location.hostname,
         uule: canonical ? globalThis.SBWSerp.uule(canonical) : undefined
       });
-      window.open(url, '_blank', 'noopener');
+    }
+
+    function openLocation(canonical) {
+      window.open(locationUrl(canonical), '_blank', 'noopener');
     }
 
     const openBtn = document.createElement('button');
@@ -569,9 +512,17 @@
     compareBtn.type = 'button';
     compareBtn.className = 'sbw-btn';
     compareBtn.textContent = 'Compare in two tabs';
+    // 1.10.2: the worker opens both. Two window.open() calls from one click
+    // opened one tab, since Chrome allows a page one pop-up per click.
     compareBtn.addEventListener('click', () => {
-      openLocation(resolvedCanonical());
-      openLocation(compareSelect.value);
+      const urls = [locationUrl(resolvedCanonical()), locationUrl(compareSelect.value)];
+      try {
+        chrome.runtime.sendMessage({ action: 'serpOpenSearches', urls }, (reply) => {
+          if (chrome.runtime.lastError || !reply || !reply.ok) flashLabel(compareBtn, 'Could not open the tabs');
+        });
+      } catch (e) {
+        openLocation(resolvedCanonical()); // extension reloaded under this page
+      }
     });
     wrap.appendChild(compareBtn);
 
@@ -591,7 +542,7 @@
   // The worker keeps what was added in session storage and combines it
   // (src/lib/serp-collect.js): one list, deduped by URL, with an absolute
   // position. Nothing is sent anywhere.
-  let collected = { rows: [], summary: null, line: '' };
+  let collected = { rows: [], summary: null, line: '', earlierOrganic: undefined };
 
   function collectAsk(op, extra) {
     return new Promise((resolve) => {
@@ -608,7 +559,12 @@
 
   function showCollected(reply) {
     if (!reply || reply.error === 'unavailable' || reply.error === 'no-query') return;
-    collected = { rows: reply.rows || [], summary: reply.summary, line: reply.line || '' };
+    collected = {
+      rows: reply.rows || [],
+      summary: reply.summary,
+      line: reply.line || '',
+      earlierOrganic: typeof reply.earlierOrganic === 'number' ? reply.earlierOrganic : undefined
+    };
     if (!toolbarEl) return;
     const line = toolbarEl.querySelector('[data-role="collect-line"]');
     if (line) line.textContent = collected.line;
@@ -627,16 +583,21 @@
     return btn;
   }
 
-  // The Web tab as Google links it on this page (udm=web today); never built
-  // by hand, so it follows whatever Google uses. Looked up on the click: the
-  // Web tab sits in the tab row's "More" menu, filled in after load.
+  // The Web tab as Google links it on this page; never built by hand, so it
+  // follows whatever Google uses. Looked up on the click: the Web tab sits in
+  // the tab row's "More" menu, filled in after load. 1.10.2: Google's Web
+  // filter is `udm=14`; until then only `udm=web` was looked for, which
+  // Google's tab row doesn't use, so the button said "No Web tab on this
+  // page". Both are accepted.
+  const WEB_FILTER_UDM = ['14', 'web'];
+
   function onWebOnlyPage() {
-    return (new URLSearchParams(window.location.search).get('udm') || '').toLowerCase() === 'web';
+    return WEB_FILTER_UDM.includes((new URLSearchParams(window.location.search).get('udm') || '').toLowerCase());
   }
 
   function webOnlyLink() {
     const a = [...document.querySelectorAll('a[href*="udm="]')].find((x) => {
-      try { return new URL(x.href, location.href).searchParams.get('udm') === 'web'; } catch (e) { return false; }
+      try { return WEB_FILTER_UDM.includes((new URL(x.href, location.href).searchParams.get('udm') || '').toLowerCase()); } catch (e) { return false; }
     });
     return a ? a.href : null;
   }
@@ -658,7 +619,9 @@
       const reply = await collectAsk('add', {
         page: {
           start: now.start,
-          rows: rows.map((r) => Object.assign({}, r)),
+          // `link`, the href Google rendered, tells apart two results whose
+          // URL is only their site's home address (SBWSerpCollect.matchKey).
+          rows: rows.map((r) => Object.assign({}, r, { link: r._href || r.url })),
           context: { capturedAt: now.capturedAt, resultStats: now.resultStats, relatedSearches: now.relatedSearches, paa: now.paa }
         }
       });
@@ -725,6 +688,14 @@
     return wrap;
   }
 
+  // This page's search context, with the organic results counted on the
+  // earlier pages added to Collect, for "Absolute position (approx.)".
+  function pageContext() {
+    const ctx = globalThis.SBWSerp.searchContext(window.location, document);
+    if (typeof collected.earlierOrganic === 'number') ctx.earlierOrganic = collected.earlierOrganic;
+    return ctx;
+  }
+
   function renderToolbar() {
     if (toolbarEl) return; // one per page
     const container = resultsContainer();
@@ -732,6 +703,15 @@
 
     toolbarEl = document.createElement('div');
     toolbarEl.className = 'sbw-serp-tools';
+
+    const notice = document.createElement('div');
+    notice.className = 'sbw-serp-notice';
+    notice.setAttribute('data-role', 'unread-notice');
+    notice.setAttribute('role', 'status');
+    notice.hidden = true;
+    notice.textContent = "SEO Bandwagon couldn't read the results on this page, so there are no bars and nothing to copy or export. " +
+      'Google may have changed its layout; please let us know at seobandwagon.com.';
+    toolbarEl.appendChild(notice);
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
@@ -752,7 +732,7 @@
         return;
       }
       // Same columns as the CSV (SBWSerp.resultsToTsv), so a paste and a file agree.
-      copyText(globalThis.SBWSerp.resultsToTsv(rows, globalThis.SBWSerp.searchContext(window.location, document)), copyBtn);
+      copyText(globalThis.SBWSerp.resultsToTsv(rows, pageContext()), copyBtn);
     });
     toolbarEl.appendChild(copyBtn);
 
@@ -766,7 +746,7 @@
         flashLabel(exportBtn, 'No results found');
         return;
       }
-      const ctx = globalThis.SBWSerp.searchContext(window.location, document);
+      const ctx = pageContext();
       downloadCsv(globalThis.SBWSerp.resultsToCsv(rows, ctx), ctx.query, ctx.page);
     });
     toolbarEl.appendChild(exportBtn);
@@ -827,9 +807,14 @@
   }
 
   // #56: the popup asks what this page actually yielded, instead of
-  // promising bars it can't see.
+  // promising bars it can't see. 1.10.2: the worker reports each Analyze
+  // here ('serpAnalysis').
   if (chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (msg && msg.action === 'serpAnalysis' && typeof msg.key === 'string') {
+        showAnalysis(msg.key, msg);
+        return;
+      }
       if (!msg || msg.action !== 'serpStatus') return;
       const root = document.querySelector('#rso') || document.querySelector('#search');
       sendResponse({

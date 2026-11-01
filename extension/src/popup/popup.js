@@ -63,7 +63,7 @@ function section(id, title, badgeHtml, body, open) {
 const GOOGLE_SERP_HOSTS = new Set([
   'www.google.com', 'www.google.co.uk', 'www.google.ca', 'www.google.com.au',
   'www.google.de', 'www.google.fr', 'www.google.es', 'www.google.it',
-  'www.google.nl', 'www.google.in'
+  'www.google.nl', 'www.google.co.in'
 ]);
 
 function isGoogleSerpUrl(url) {

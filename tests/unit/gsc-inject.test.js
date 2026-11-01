@@ -178,3 +178,20 @@ describe('SBWGscInject', () => {
     expect(G.searchUrl('a b & c')).toBe('https://www.google.com/search?q=a%20b%20%26%20c');
   });
 });
+
+describe('propertyCountry (1.10.2): a row\'s search opens in the property\'s country', () => {
+  const at = (id) => G.propertyCountry({ search: '?resource_id=' + encodeURIComponent(id) + '&breakdown=query' });
+
+  it('reads a country-code domain property or URL-prefix property', () => {
+    expect(at('sc-domain:example.co.uk')).toBe('gb');
+    expect(at('https://www.example.de/')).toBe('de');
+    expect(at('sc-domain:shop.example.ca')).toBe('ca');
+  });
+
+  it('names no country for a generic ending, or none at all', () => {
+    for (const id of ['sc-domain:example.com', 'https://example.org/', 'https://example.io/', 'sc-domain:example.co', 'https://example.eu/', '']) {
+      expect(at(id)).toBe('');
+    }
+    expect(G.propertyCountry({ search: '' })).toBe('');
+  });
+});

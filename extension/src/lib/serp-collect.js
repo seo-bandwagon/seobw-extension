@@ -8,11 +8,18 @@
 // what was added and combines it:
 //   - pages are ordered by Google's offset (`start=`), whatever order they
 //     were added in;
-//   - a URL that already appeared on an earlier page is a repeat (pages
-//     overlap and reshuffle between loads) and is left out of the list;
+//   - a result that already appeared on an earlier page is a repeat (pages
+//     overlap and reshuffle between loads) and is left out of the list.
+//     1.10.2: matched on the result's link (`matchKey`): its URL when Google
+//     shows it, else the link Google rendered. Signed out, Google links most
+//     results through an opaque redirect and only the site's home address is
+//     known, so two results from one site looked like one and the second
+//     was dropped;
 //   - every kept row gets an absolute position, counted in page order. It's
 //     exact while every page before it was added, and blank after a missing
-//     page (the approximate `start + position` column is still there);
+//     page. The approximate column counts the organic results on the earlier
+//     pages, 10 for a page that wasn't added (`earlierOrganic`; until 1.10.2
+//     it was Google's offset plus the position);
 //   - adding a page again replaces it, and the rows whose position changed
 //     say from where: the "second pass" that shows how stable the results are.
 // The worker keeps collections in chrome.storage.session
@@ -34,7 +41,8 @@
   const PAGE_SIZE = 10; // Google's `start` step; only used to name a page
 
   // The search a page belongs to: the same query, market and filter. Pages of
-  // "Web results only" (udm=web) and of all results never mix.
+  // "Web results only" and of all results never mix. Google's Web filter has
+  // been written both `udm=14` and `udm=web` (1.10.2): one filter, one key.
   function collectionKey(search) {
     const p = new URLSearchParams(String(search || '').replace(/^\?/, ''));
     const q = (p.get('q') || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -44,7 +52,7 @@
       gl: (p.get('gl') || '').toLowerCase(),
       hl: (p.get('hl') || '').toLowerCase(),
       uule: p.get('uule') || '',
-      udm: (p.get('udm') || '').toLowerCase()
+      udm: (p.get('udm') || '').toLowerCase().replace(/^14$/, 'web')
     });
   }
 
@@ -56,13 +64,33 @@
     return Math.floor((Number(start) || 0) / PAGE_SIZE) + 1;
   }
 
+  // What makes two rows the same result. A row whose URL is only the site's
+  // home address (`urlResolved: false`) or isn't known at all
+  // (`siteUnknown`) is told apart by its link; the overlay adds `link`, the
+  // href Google rendered, to every row it sends.
+  function matchKey(r) {
+    if (!r) return '';
+    if (r.url && r.urlResolved !== false && !r.siteUnknown) return r.url;
+    return r.link || r.url || '';
+  }
+
+  // Organic results on the pages before `start`: each added page's own
+  // count, and Google's 10 for one that wasn't added.
+  function earlierOrganic(collection, start) {
+    const page = pageNumber(start);
+    const added = new Map(((collection && collection.pages) || []).map(p => [p.page, p.rows.length]));
+    let n = 0;
+    for (let k = 1; k < page; k++) n += added.has(k) ? added.get(k) : PAGE_SIZE;
+    return n;
+  }
+
   // `page`: { start, rows: [{ position, url, domain, title, … }], context: { capturedAt, resultStats, … } }
   // → { collection, added: 'new' | 'replaced', moved, error? }
   function addPage(collection, page, now = Date.now()) {
     const c = collection && Array.isArray(collection.pages) ? collection : emptyCollection(collection && collection.key);
     const start = Math.max(0, Number(page && page.start) || 0);
     const rows = (page && Array.isArray(page.rows) ? page.rows : [])
-      .filter(r => r && r.url)
+      .filter(r => matchKey(r))
       .map((r, i) => Object.assign({}, r, { position: Number(r.position) || i + 1 }));
     if (!rows.length) return { collection: c, error: 'empty' };
 
@@ -71,9 +99,9 @@
 
     let moved = 0;
     if (existing) {
-      const before = new Map(existing.rows.map(r => [r.url, r.position]));
+      const before = new Map(existing.rows.map(r => [matchKey(r), r.position]));
       rows.forEach(r => {
-        const was = before.get(r.url);
+        const was = before.get(matchKey(r));
         if (was === undefined) { r.previously = 'new'; moved += 1; }
         else if (was !== r.position) { r.previously = was; moved += 1; }
       });
@@ -99,7 +127,7 @@
   // result stats, related searches, PAA), so one export describes each page.
   function combine(collection) {
     const pages = (collection && collection.pages ? collection.pages.slice() : []).sort((a, b) => a.start - b.start);
-    const seen = new Map(); // url -> page number it was kept from
+    const seen = new Map(); // matchKey -> page number it was kept from
     const out = [];
     const missing = [];
     let absolute = 0;
@@ -113,9 +141,11 @@
       if (pg.page > expected) exact = false;
       expected = pg.page + 1;
       let pageRepeats = 0;
+      const before = earlierOrganic(collection, pg.start);
       pg.rows.forEach(r => {
-        if (seen.has(r.url)) { pageRepeats += 1; return; }
-        seen.set(r.url, pg.page);
+        const key = matchKey(r);
+        if (seen.has(key)) { pageRepeats += 1; return; }
+        seen.set(key, pg.page);
         absolute += 1;
         const notes = [];
         if (!exact) notes.push('After a page that was not added: absolute position unknown');
@@ -125,6 +155,7 @@
           page: pg.page,
           start: pg.start,
           absoluteExact: exact ? absolute : '',
+          absoluteApprox: before + r.position,
           notes: notes.join('; ')
         }));
       });
@@ -154,5 +185,5 @@
     return parts.join(' · ') + '.';
   }
 
-  return { MAX_PAGES, collectionKey, emptyCollection, addPage, removePage, combine, describe, pageNumber };
+  return { MAX_PAGES, collectionKey, emptyCollection, addPage, removePage, combine, describe, pageNumber, matchKey, earlierOrganic };
 });

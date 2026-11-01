@@ -411,6 +411,10 @@ const HREFLANG_FETCHED = [
   }
 ];
 
+// chrome.runtime.onMessage listeners, so the worker's pushed messages (the
+// SERP overlay's 'serpAnalysis') can reach a preview page.
+const RUNTIME_LISTENERS = [];
+
 window.chrome = {
   runtime: {
     lastError: null,
@@ -505,7 +509,7 @@ window.chrome = {
     },
     getURL: p => p,
     getManifest: () => MANIFEST,
-    onMessage: { addListener() {} },
+    onMessage: { addListener(fn) { RUNTIME_LISTENERS.push(fn); } },
     openOptionsPage() { console.log('[preview] would open options page'); }
   },
   storage: {
@@ -708,29 +712,25 @@ function handleMessage(msg) {
       return { ok: true, presetId: msg.presetId || 'default' };
     case 'getUserAgent':
       return { presetId: PREVIEW_STATE === 'render-ua' ? 'googlebot-desktop' : 'default' };
-    // SERP overlay (Task 6, src/overlay/serp-overlay.js) — the generic
-    // worker bridge (service-worker.js's `request.action === 'sbwFetch'`
-    // handler) the content script routes every domain-stats lookup through.
-    // preview/serp.html's fixture SERP has two organic results
-    // (first-result.example, second-result.example); this mirrors the real
-    // POST /api/domain/quick-batch response shape (results/invalid) so
-    // SBWSerp/serp-overlay.js's own rendering — not this stub — decides
-    // what each bar shows, including the "no data" branch for a domain the
-    // server has nothing on.
-    case 'sbwFetch':
-      if (msg.path === '/domain/quick-batch') {
-        return {
-          ok: true, status: 200, code: 'ok',
-          data: {
-            results: {
-              'first-result.example': { avgScore: 82, sampleSize: 4, schemaPercentage: 60, age: '2 years' },
-              'second-result.example': null
-            },
-            invalid: []
-          }
-        };
-      }
-      return { ok: false, status: 0, data: null, retryAfter: null, code: 'network' };
+    // SERP overlay (src/overlay/serp-overlay.js). 1.10.2: the bars send
+    // nothing to SEO Bandwagon; Analyze hands the result to the worker,
+    // which opens it in a background tab and pushes the outcome back as a
+    // 'serpAnalysis' message (src/lib/serp-analyze.js). Here the first
+    // result's analysis finishes after a moment; any other says the page
+    // couldn't be analyzed, so preview/serp.html shows both lines.
+    case 'serpAnalyze': {
+      const done = /first-result/.test(msg.url || '');
+      setTimeout(() => RUNTIME_LISTENERS.forEach(fn => fn(done
+        ? { action: 'serpAnalysis', key: msg.key, state: 'done', tabId: 1, score: 82, grade: 'B', issues: 3 }
+        : { action: 'serpAnalysis', key: msg.key, state: 'error', code: 'unreadable', title: 'PDF FILE', tabId: 2 }, {}, () => {})), 900);
+      return { ok: true, state: 'working' };
+    }
+    case 'serpAnalysisOpen':
+      console.log('[preview] would switch to tab', msg.tabId, msg.report ? 'and open its report' : '');
+      return { ok: true };
+    case 'serpOpenSearches':
+      console.log('[preview] would open', msg.urls);
+      return { ok: true, opened: (msg.urls || []).length };
     default: return {};
   }
 }

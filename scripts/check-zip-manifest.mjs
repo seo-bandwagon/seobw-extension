@@ -4,8 +4,8 @@
 //
 // Scope (deliberately narrow — see task-8-brief.md section A): every local
 // path referenced by manifest.json itself, plus every local <script src>/
-// <link href> in the five HTML entry points (popup, options, history,
-// sidepanel, panel), plus the relative `import ... from` graph of any ES
+// <link href> in the six HTML entry points (popup, options, history,
+// sidepanel, panel, access), plus the relative `import ... from` graph of any ES
 // module those pages load (panel.js imports theme-sync.js). This does NOT walk chrome.scripting.executeScript file lists
 // inside service-worker.js/popup.js (e.g. lib/content-analysis.js,
 // lib/dom-extraction.js, src/content/analyzer.js) — those are a separate,
@@ -37,7 +37,8 @@ const HTML_ENTRY_POINTS = [
   'src/options/options.html',
   'src/history/history.html',
   'src/sidepanel/sidepanel.html',
-  'src/panel/panel.html'
+  'src/panel/panel.html',
+  'src/access/access.html'
 ];
 
 function isLocal(ref) {

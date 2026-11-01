@@ -203,7 +203,10 @@ a local development server. Never requested otherwise.
 use)** — never requested at install. Requested only when you click "Allow
 access to check other sites" in the Link Check, Indexability, Hreflang, or
 Rendering section, or "Allow access to analyze other tabs" in the side
-panel's Page checks or the popup opened by "Analyze linked page". The
+panel's Page checks or the popup opened by "Analyze linked page", or (from
+1.10.2) "Allow access" in the extension's own small window that the first
+Analyze click on a Google results page opens: Analyze reads that result in a
+background tab, which Chrome allows only with this access. The
 consent text shown at request time, verbatim
 (`ALL_URLS_REASON` in `src/lib/perms.js`):
 
@@ -223,22 +226,27 @@ pre-existing since 1.5.1) — adds two small "open in Google Search" icons to
 each row of a Performance report's Queries tab, and, when a report compares
 two date ranges, small percent-change badges on the metric cards and inside
 each row's Difference cell. Everything here reads the report table already
-rendered on the page; nothing is fetched or sent anywhere.
+rendered on the page; nothing is fetched or sent anywhere. From 1.10.2 a
+row's search opens with personalisation off (`pws=0`) and, for a property on
+a country-code domain, that country (`gl`), and the icons follow a report tab
+switch through the already-declared `webNavigation`.
 
 **Content-script match on Google's own results pages** (`https://www.google.com/search*`
-and the same path on nine other Google TLDs) — this is a declared
-content-script match, not a host permission, so it is granted at install like
-any other content script rather than requested at first use. We recognize
-this widens the install-time permission warning to cover 10 Google search
-hosts, on top of the search.google.com and seobandwagon.com access the
-extension already has, and justify it plainly: the
-script only reads the organic results already rendered on the page, sends
-nothing but the bare domain names of those results to our own API (never the
-search query, never a title or snippet), and is additive-only — it appends a
-small stats bar and a toolbar, and never hides, moves, covers, or restyles
-any existing content, including ads. Nothing is fetched from Google by the
-extension itself; the stats lookup goes through our own background service
-worker to our own API.
+and the same path on nine other Google domains; India's is
+`www.google.co.in` from 1.10.2, which leaves the install warning unchanged)
+— this is a declared content-script match, not a host permission, so it is
+granted at install like any other content script rather than requested at
+first use. We recognize this widens the install-time permission warning to
+cover 10 Google search hosts, on top of the search.google.com and
+seobandwagon.com access the extension already has, and justify it plainly:
+the script only reads the organic results already rendered on the page and
+shows each one's position; from 1.10.2 it sends nothing to our API (until
+then, the bare domain names of the results). It is additive-only — it
+appends a small bar under each result and a toolbar, and never hides,
+moves, covers, or restyles any existing content, including ads. Nothing is
+fetched from Google by the extension itself. Its Analyze button opens the
+result the user clicked in a background tab and checks that page in the
+browser, as the popup does.
 
 **`management`** (1.9.5) — reads the list of installed themes with
 `chrome.management.getAll()` to find out whether SEO Bandwagon's own Neon Night
@@ -325,10 +333,9 @@ with the reasoning behind each:
 - **Personal communications — No.**
 - **Location — No.**
 - **Web history — Yes.** Each synced capture carries the URL and timestamp of
-  a page the user chose to analyze. Separately, the results-overlay lookup
-  sends the bare domain names of search results currently displayed on a
-  Google results page — domains shown, not a browsing history and not pages
-  visited.
+  a page the user chose to analyze. (Until 1.10.2 the results overlay also
+  sent the bare domain names of the results shown on a Google results page;
+  from 1.10.2 it sends nothing.)
 - **User activity — No.**
 - **Website content — Yes.** Extracted metadata of the pages a user chooses
   to analyze (title, meta tags, headings, links, images, structured-data type
