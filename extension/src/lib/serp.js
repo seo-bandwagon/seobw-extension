@@ -119,6 +119,14 @@
   // [data-subtree="aimc"], and its "AI Mode reply for …" h3 has no link of
   // its own, so it borrowed the answer's first citation and became a result
   // (tests/fixtures/serp-google-social-profiles.html).
+  //
+  // 1.10.2: People also ask. An expanded question shows its answer's source
+  // as an h3 with a link and a URL line, which passed every other check, so
+  // each question opened added a result and moved every later one down.
+  // `.related-question-pair` wraps each question; `[data-initq]` and
+  // `[jsname="yEVEwb"]` the whole block (both attributes, not obfuscated
+  // classes).
+  const PAA_CONTAINER_SELECTOR = '.related-question-pair, [data-initq], [jsname="yEVEwb"]';
   const REJECTED_CONTAINER_SELECTOR = [
     '[data-attrid*="Overview" i]',
     '[data-subtree="aimc"]',
@@ -130,7 +138,8 @@
     '.commercial-unit-desktop-top',
     '.commercial-unit-desktop-rhs',
     '.cu-container',
-    '[data-pla]'
+    '[data-pla]',
+    PAA_CONTAINER_SELECTOR
   ].join(', ');
 
   function isRejectedContainer(el) {
@@ -423,20 +432,120 @@
     return !detail.displayUrl && !detail.siteName;
   }
 
+  // The whole result, for the overlay's bar to go under: the unit that wraps
+  // it with its sitelinks, or else the block that also holds the
+  // description. Until 1.10.2 the bar went after the tight title block, so it
+  // split each result between its title and its description.
+  function resultEnd(block, unit) {
+    return unit || resultContainer(block);
+  }
+
+  // ============================================
+  // Position counting everything on the page
+  // ============================================
+  //
+  // The organic position skips everything that isn't a web result. This one
+  // counts what a searcher scrolls past to reach the result: each ad above
+  // the results, then each block of the results list (AI Overview, People
+  // also ask, a map, videos, top stories…), each web result one. It is read
+  // from the page's own blocks, not from a list of features, so a feature
+  // Google adds still counts; a heading alone (Google's hidden "Search
+  // Results" labels) does not.
+  const AD_UNIT_SELECTOR = '[data-text-ad], .commercial-unit-desktop-top, .cu-container';
+  const NOT_SHOWN_TEXT = 'h1, h2, script, style, noscript, template, [class^="sbw-"], [class*=" sbw-"]';
+
+  function isShown(el) {
+    if (typeof el.checkVisibility === 'function' && !el.checkVisibility()) return false;
+    if (el.closest && el.closest('[hidden], [aria-hidden="true"]')) return false;
+    return !/display\s*:\s*none/i.test(el.getAttribute('style') || '');
+  }
+
+  function showsSomething(el) {
+    if (!el || el.nodeType !== 1 || !isShown(el)) return false;
+    if (el.matches && el.matches(NOT_SHOWN_TEXT)) return false;
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll(NOT_SHOWN_TEXT).forEach((n) => n.remove());
+    return cleanText(clone).length > 0;
+  }
+
+  // The search features a block can hold beside one web result.
+  const FEATURE_SELECTOR = [
+    '[data-attrid*="Overview" i]',
+    '[data-subtree="aimc"]',
+    'g-scrolling-carousel',
+    '[aria-label*="Top stories" i]',
+    '[aria-label*="Videos" i]',
+    'g-section-with-header',
+    PAA_CONTAINER_SELECTOR
+  ].join(', ');
+
+  function topMost(list) {
+    const els = Array.from(list);
+    return els.filter((el) => !els.some((other) => other !== el && other.contains(el)));
+  }
+
+  // Sets `pagePosition` on each row. `heads` are the rows' h3s, in the same
+  // (page) order. Everything counted is put in page order and numbered:
+  // each ad (top or bottom, wherever Google puts it), each web result, and
+  // each other block of the results list, or above it inside #search (the
+  // AI Overview has been there). Google wraps several results in one block
+  // at times (the AI Overview and four results in one, signed in: the
+  // social-profiles fixture), so a block holding two or more results is
+  // read one level down; a block holding one counts its features too.
+  function assignPagePositions(root, scanRoot, rows, heads) {
+    const items = heads.map((el, k) => ({ el, row: rows[k] }));
+    const ads = root && root.querySelectorAll
+      ? topMost(root.querySelectorAll(AD_UNIT_SELECTOR)).filter(isShown)
+      : [];
+    ads.forEach((el) => items.push({ el }));
+    const count = (el, list) => list.filter((x) => el.contains(x)).length;
+
+    function block(el) {
+      const results = count(el, heads);
+      if (results >= 2) {
+        Array.from(el.children).forEach(block);
+      } else if (results === 1) {
+        topMost(el.querySelectorAll(FEATURE_SELECTOR)).forEach((f) => {
+          if (!heads.some((h) => f.contains(h)) && showsSomething(f)) items.push({ el: f });
+        });
+      } else if (!count(el, ads) && showsSomething(el)) {
+        items.push({ el });
+      }
+    }
+
+    if (scanRoot && scanRoot.children) Array.from(scanRoot.children).forEach(block);
+    if (scanRoot && scanRoot.id === 'rso' && scanRoot.closest && scanRoot.closest('#search')) {
+      for (let node = scanRoot; node && node.id !== 'search'; node = node.parentElement) {
+        for (let s = node.previousElementSibling; s; s = s.previousElementSibling) block(s);
+      }
+    }
+
+    items.sort((a, b) => (a.el.compareDocumentPosition(b.el) & 4 ? -1 : 1)); // 4: b follows a
+    items.forEach((item, i) => { if (item.row) item.row.pagePosition = i + 1; });
+  }
+
   // DOM-tolerant extraction of organic results from a Google results page
   // root. Candidates are blocks containing a result link (direct, or one of
   // Google's redirects — see resolveResultUrl) with an h3
   // descendant; anything inside an ad container, a non-organic surface
-  // (AI Overview/carousels/shopping), or a sponsored-labelled block is
-  // skipped, as is anything nested inside, or sharing a result unit with, an
-  // already-accepted result (sitelinks). Dedupes by URL. Ignores
-  // PAA/video/news carousels — see parsePaa() for questions.
+  // (AI Overview/carousels/shopping/People also ask), or a
+  // sponsored-labelled block is skipped, as is anything nested inside, or
+  // sharing a result unit with, an already-accepted result (sitelinks).
+  // Dedupes by URL. See parsePaa() for questions.
+  //
+  // 1.10.2: a result whose Google redirect the parser can't place (no
+  // destination, breadcrumb or known site name) keeps its slot as an
+  // "unknown site" row (`siteUnknown`, no URL or domain), so every result
+  // after it keeps its position. Until then it was dropped and the rest
+  // moved up. It must still look like a result: a URL line or a site name
+  // (a sitelink has neither).
   function parseResults(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return [];
     const scanRoot = organicScanRoot(root);
     if (!scanRoot || typeof scanRoot.querySelectorAll !== 'function') return [];
 
     const rows = [];
+    const heads = [];
     const seenUrls = new Set();
     const acceptedBlocks = [];
     const acceptedUnits = new Set();
@@ -472,20 +581,29 @@
       if (unit && acceptedUnits.has(unit)) return;
 
       const target = resolveResultUrl(anchor, block);
-      const domain = target && bareDomain(target.url);
-      if (!domain) return;
-      if (seenUrls.has(target.key)) return;
+      // resolveResultUrl returns null only for a Google redirect it can't
+      // place. A link it did resolve to Google's own navigation (a search,
+      // the maps host) is no result at all.
+      const domain = target ? bareDomain(target.url) : '';
+      if (target && !domain) return;
+      const key = target ? target.key : anchor.getAttribute('href');
+      if (!key || seenUrls.has(key)) return;
       if (!hasQualifyingContent(block)) return;
-      if (isSitelink(block, unit, domain, rows[rows.length - 1])) return;
+      if (target && isSitelink(block, unit, domain, rows[rows.length - 1])) return;
+      if (!target) {
+        const shown = extractResultDetail(block);
+        if (!shown.displayUrl && !shown.siteName) return;
+      }
 
-      seenUrls.add(target.key);
+      seenUrls.add(key);
       acceptedBlocks.push(block);
       if (unit) acceptedUnits.add(unit);
 
       position += 1;
       const title = (h3.textContent || '').trim();
-      const row = { position, url: target.url, domain, title };
-      if (!target.resolved) row.urlResolved = false;
+      const row = { position, url: target ? target.url : '', domain, title };
+      if (!target) row.siteUnknown = true;
+      else if (!target.resolved) row.urlResolved = false;
       const rawSnippet = extractSnippet(block);
       if (rawSnippet) {
         const split = splitDatePrefix(rawSnippet);
@@ -507,9 +625,16 @@
       // `url` may be only the site's origin, but Google's redirect still
       // opens the actual page.
       Object.defineProperty(row, '_href', { value: anchor.href, enumerable: false });
+      // What tells this result apart from the others on the page (the
+      // destination when known, else the link itself), and the element the
+      // overlay's bar goes after: below the whole result (1.10.2).
+      Object.defineProperty(row, '_key', { value: key, enumerable: false });
+      Object.defineProperty(row, '_end', { value: resultEnd(block, unit), enumerable: false });
       rows.push(row);
+      heads.push(h3);
     });
 
+    assignPagePositions(root, scanRoot, rows, heads);
     return rows;
   }
 
@@ -605,6 +730,9 @@
       country: params.get('gl') || '',
       language: params.get('hl') || '',
       location: params.get('uule') || '',
+      // The place that location stands for, readable (1.10.2): the Location
+      // column holds Google's encoded string.
+      place: placeFromUule(params.get('uule')),
       page: Number.isFinite(start) && start > 0 ? Math.floor(start / 10) + 1 : 1,
       // Google's own result offset for this page (`start=`), so a row's
       // position can be read as an approximate overall rank (#45).
@@ -650,23 +778,48 @@
     ['Related searches', 'relatedSearches'],
     ['People also ask', 'paa'],
     // #45: Google ignores &num=, so depth means paging, and Position restarts
-    // at 1 on every page. Google's offset plus Position is the overall rank,
-    // approximately: Google's pages don't always hold exactly 10 organic
-    // results. Appended last so existing column positions don't move.
+    // at 1 on every page. Appended last so existing column positions don't
+    // move. 1.10.2: the organic results counted on the earlier pages a
+    // person added (src/lib/serp-collect.js), plus Position. Until then it
+    // was Google's offset (`start=`) plus Position, wrong whenever a page
+    // held other than 10 organic results; an earlier page that wasn't added
+    // still counts as 10, which is why it stays "approx.".
     ['Absolute position (approx.)', 'absolutePosition'],
     // 1.8.0 (#45): the exact overall rank, counted across the pages a person
     // added (src/lib/serp-collect.js), with repeats from earlier pages left
     // out. On page 1 alone it's the position; blank where it can't be known
     // (a later page on its own, or after a page that wasn't added).
     ['Absolute position', 'absoluteExact'],
-    ['Collection notes', 'notes']
+    ['Collection notes', 'notes'],
+    // 1.10.2, appended for the same reason. The overlay bar's tooltip shows
+    // the first: the position counting ads and every other block on the page.
+    ['Position counting everything', 'pagePosition'],
+    // "yes", "site only" (Google's redirect hides the page, only the site is
+    // known) or "no" (an unknown site, which keeps its place).
+    ['URL known', 'urlKnown'],
+    ['Place name', 'place']
   ];
 
-  // A collected row carries its own page's `start`; a single page uses ctx's.
+  // Google's page size, for an earlier page nobody added.
+  const PAGE_SIZE = 10;
+
+  // A collected row carries its own count (`absoluteApprox`); a single page
+  // uses the earlier pages' organic count the overlay looked up
+  // (`ctx.earlierOrganic`), or 10 a page when none was added.
   function absolutePosition(row, ctx) {
+    if (row && row.absoluteApprox !== undefined) return row.absoluteApprox;
     const pos = Number(row && row.position);
-    const start = row && row.start !== undefined ? Number(row.start) : Number(ctx && ctx.start);
-    return Number.isFinite(pos) && pos > 0 ? (start || 0) + pos : '';
+    if (!(Number.isFinite(pos) && pos > 0)) return '';
+    const earlier = ctx && typeof ctx.earlierOrganic === 'number' && Number.isFinite(ctx.earlierOrganic)
+      ? ctx.earlierOrganic
+      : Math.floor((Number(ctx && ctx.start) || 0) / PAGE_SIZE) * PAGE_SIZE;
+    return earlier + pos;
+  }
+
+  function urlKnown(row) {
+    if (!row) return '';
+    if (row.siteUnknown) return 'no';
+    return row.urlResolved === false ? 'site only' : 'yes';
   }
 
   function exactPosition(row, ctx) {
@@ -677,6 +830,7 @@
   function cellValue(row, ctx, key) {
     if (key === 'absolutePosition') return absolutePosition(row, ctx);
     if (key === 'absoluteExact') return exactPosition(row, ctx);
+    if (key === 'urlKnown') return urlKnown(row);
     const value = row && key in row ? row[key] : ctx[key];
     return value === undefined || value === null ? '' : value;
   }
@@ -733,6 +887,29 @@
     const name = String(canonicalName || '');
     const idx = name.length % 64;
     return 'w+CAIQICI' + UULE_KEY[idx] + base64NoPad(name);
+  }
+
+  function fromBase64(b64) {
+    if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
+    return decodeURIComponent(escape(atob(b64)));
+  }
+
+  // The canonical name inside a `w+CAIQICI…` uule, the form uule() writes
+  // and Google's own location links use; '' for any other form (Google's
+  // `a+…` form carries coordinates, not a name) or a string that doesn't
+  // decode. The key letter is the name's length, which checks the decode.
+  // Read out of a URL, the `+` may arrive as a space.
+  function placeFromUule(value) {
+    const m = /^w[+ ]CAIQICI(.)(.+)$/.exec(String(value || '').trim());
+    if (!m) return '';
+    try {
+      const b64 = m[2].replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
+      const name = fromBase64(b64 + '==='.slice((b64.length + 3) % 4));
+      if (!name || /[\u0000-\u001f�]/.test(name)) return '';
+      return UULE_KEY[name.length % 64] === m[1] ? name : '';
+    } catch (e) {
+      return '';
+    }
   }
 
   // ============================================
@@ -792,6 +969,22 @@
     'Washington DMV': 'Washington'
   };
 
+  // 1.10.2: six roster names that are metro areas, not places in Google's
+  // geotargets list (developers.google.com/google-ads/api/data/geotargets,
+  // the 2026-10-06 file), so a search with their uule silently used the
+  // searcher's own location. Each becomes its principal city, an active City
+  // target, in the label as well as the uule, so the menu says where the
+  // search really comes from. The other 48 names are in the list as written
+  // ("San Francisco Bay Area" is a Region; "St. George" a City).
+  const GOOGLE_PLACE_NAMES = {
+    'Dallas-Fort Worth': 'Dallas',
+    'Fort Myers-Cape Coral': 'Fort Myers',
+    'Minneapolis-St. Paul': 'Minneapolis',
+    'Raleigh-Durham': 'Raleigh',
+    'Sarasota-Bradenton': 'Sarasota',
+    'Tampa-St. Petersburg': 'Tampa'
+  };
+
   const METROS = [
     ['Albuquerque', 'NM'],
     ['Atlanta', 'GA'],
@@ -849,7 +1042,8 @@
     ['Washington DMV', 'DC']
   ];
 
-  const PRESET_LOCATIONS = METROS.map(([name, state]) => {
+  const PRESET_LOCATIONS = METROS.map(([metro, state]) => {
+    const name = GOOGLE_PLACE_NAMES[metro] || metro;
     const stateName = STATE_NAMES[state] || state;
     const canonicalCity = CANONICAL_NAME_OVERRIDES[name] || name;
     return {
@@ -873,6 +1067,7 @@
     PRESET_LOCATIONS,
     guardCell,
     absolutePosition,
+    placeFromUule,
     FORMULA_PREFIX_RE
   };
 });

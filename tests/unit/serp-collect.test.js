@@ -115,3 +115,45 @@ describe('limits', () => {
     expect(C.addPage(C.emptyCollection('k'), page(0, [])).error).toBe('empty');
   });
 });
+
+describe('1.10.2: repeats matched on the result link, and absolute counts from earlier pages', () => {
+  const siteOnly = (link, position) => ({ position, url: 'https://same-site.example/', domain: 'same-site.example', urlResolved: false, link });
+
+  it('keeps two results from one site that are known only by their home address', () => {
+    const { collection } = C.addPage(C.emptyCollection('k'), { start: 0, rows: [siteOnly('/goto?url=CAESone', 1), siteOnly('/goto?url=CAEStwo', 2)] });
+    expect(C.combine(collection).rows.map((r) => r.position)).toEqual([1, 2]);
+  });
+
+  it('still drops a known URL that repeats on a later page', () => {
+    let c = C.addPage(C.emptyCollection('k'), { start: 0, rows: [{ position: 1, url: 'https://a.example/x', domain: 'a.example', link: 'https://a.example/x' }] }).collection;
+    c = C.addPage(c, { start: 10, rows: [{ position: 1, url: 'https://a.example/x', domain: 'a.example', link: 'https://a.example/x' }] }).collection;
+    expect(C.combine(c).summary.repeats).toBe(1);
+  });
+
+  it('keeps an unknown site, matched on its link', () => {
+    const unknown = { position: 1, url: '', domain: '', siteUnknown: true, link: '/goto?url=CAESabc' };
+    const { collection, error } = C.addPage(C.emptyCollection('k'), { start: 0, rows: [unknown] });
+    expect(error).toBeUndefined();
+    expect(C.combine(collection).rows).toHaveLength(1);
+  });
+
+  it('counts the organic results of the earlier pages, and 10 for a page not added', () => {
+    const page = (start, n) => ({ start, rows: Array.from({ length: n }, (_, i) => ({ position: i + 1, url: `https://s${start}-${i}.example/`, domain: 'x' })) });
+    let c = C.addPage(C.emptyCollection('k'), page(0, 7)).collection;
+    c = C.addPage(c, page(10, 9)).collection;
+    c = C.addPage(c, page(30, 8)).collection; // page 3 skipped
+    const rows = C.combine(c).rows;
+    const first = (pg) => rows.find((r) => r.page === pg);
+    expect([first(1).absoluteApprox, first(2).absoluteApprox, first(4).absoluteApprox]).toEqual([1, 8, 7 + 9 + 10 + 1]);
+    expect(C.earlierOrganic(c, 10)).toBe(7);
+    expect(C.earlierOrganic(c, 20)).toBe(16);
+    expect(C.earlierOrganic(C.emptyCollection('k'), 20)).toBe(20);
+  });
+});
+
+describe('1.10.2: Google\'s Web filter is one filter, written udm=14 or udm=web', () => {
+  it('puts pages of either into one collection, apart from all results', () => {
+    expect(C.collectionKey('?q=crm&udm=14')).toBe(C.collectionKey('?q=crm&udm=web'));
+    expect(C.collectionKey('?q=crm&udm=14')).not.toBe(C.collectionKey('?q=crm'));
+  });
+});

@@ -30,12 +30,14 @@
     setTimeout(() => el.remove(), 9000);
   }
 
+  // 1.10.2: searches open in the property's country, with personalisation
+  // off (the worker adds pws=0), closer to what the report counts.
   const handlers = {
     open(query) {
-      chrome.runtime.sendMessage({ action: 'openSearch', query });
+      chrome.runtime.sendMessage({ action: 'openSearch', query, gl: inject.propertyCountry(location) });
     },
     openPrivate(query) {
-      chrome.runtime.sendMessage({ action: 'openIncognitoSearch', query }, (res) => {
+      chrome.runtime.sendMessage({ action: 'openIncognitoSearch', query, gl: inject.propertyCountry(location) }, (res) => {
         if (chrome.runtime.lastError) return;
         if (res && res.ok && res.incognito === false) {
           hint(
@@ -167,8 +169,10 @@
   // change that follows may be recycled rows the own-node filter treats as
   // ours. Without this the icons survived the tab switch until some unrelated
   // mutation happened to fire. Watch navigation directly instead of hoping
-  // for a mutation: popstate for back/forward, and a patch on pushState /
-  // replaceState for the tab clicks themselves.
+  // for a mutation: popstate for back/forward, and for the tab clicks the
+  // worker's webNavigation.onHistoryStateUpdated ('gscNavigated'). Until
+  // 1.10.2 this patched history.pushState, but a content script runs in an
+  // isolated world: the page's own pushState calls never reached the patch.
   function onNavigated() {
     // Strip immediately rather than waiting for the next frame, so the icons
     // never render over a table that is no longer Queries.
@@ -177,19 +181,11 @@
   }
 
   window.addEventListener('popstate', onNavigated);
-  if (!window.__seoBwGscHistoryPatched) {
-    Object.defineProperty(window, '__seoBwGscHistoryPatched', { value: true, configurable: true, enumerable: false, writable: true });
-    for (const name of ['pushState', 'replaceState']) {
-      const original = history[name];
-      if (typeof original !== 'function') continue;
-      history[name] = function () {
-        const result = original.apply(this, arguments);
-        try { window.dispatchEvent(new Event('seo-bw-gsc-navigated')); } catch (e) { /* ignore */ }
-        return result;
-      };
-    }
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.action === 'gscNavigated') onNavigated();
+    });
   }
-  window.addEventListener('seo-bw-gsc-navigated', onNavigated);
 
   runScan();
 })();

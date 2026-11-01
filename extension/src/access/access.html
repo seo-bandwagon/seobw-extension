@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>SEO Bandwagon: analyze from Google results</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/theme-mode.js"></script>
+  <link rel="stylesheet" href="../styles/popup.css">
+</head>
+<body class="page-options page-access">
+  <div class="container">
+    <h1>
+      <img src="../icons/icon48.png" alt="">
+      SEO Bandwagon
+    </h1>
+    <p class="subtitle">Analyze from Google results</p>
+
+    <div class="section">
+      <div class="section-title">Allow access to analyze other tabs</div>
+      <p class="access-lead">Analyze opens the result in a background tab, so you stay on Google, and checks the page in that tab. Chrome lets the extension read a tab you didn't click its icon on only with access to all sites. This is asked once: after that, every Analyze runs straight through.</p>
+      <p class="help-text" id="accessReason"></p>
+      <div class="btn-row">
+        <button type="button" id="accessAllow">Allow access</button>
+        <button type="button" id="accessNotNow" class="secondary">Not now</button>
+      </div>
+      <div class="status" id="accessStatus" role="status"></div>
+    </div>
+  </div>
+  <script src="../lib/perms.js"></script>
+  <script src="access.js"></script>
+</body>
+</html>

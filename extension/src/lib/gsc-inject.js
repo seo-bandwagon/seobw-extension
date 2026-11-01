@@ -141,6 +141,36 @@
     return 'https://www.google.com/search?q=' + encodeURIComponent(query);
   }
 
+  // Country-code endings Google treats as generic, not as a country
+  // (Search Central, "Managing multi-regional and multilingual sites"), and
+  // .eu, which is a region.
+  const GENERIC_CCTLDS = new Set(['ad', 'as', 'bz', 'cc', 'cd', 'co', 'dj', 'fm', 'io', 'la', 'me', 'ms', 'nu', 'sc', 'sr', 'su', 'tv', 'tk', 'ws', 'eu', 'ai']);
+
+  /**
+   * The property's country, as Google's `gl` code, or '' (1.10.2).
+   *
+   * Read from the report's own URL: `resource_id` is the property, either
+   * `sc-domain:example.co.uk` or a URL-prefix property's address. A
+   * country-code domain names its country (`uk` is `gb`); a generic ending
+   * (.com, .org, .io…) names none, and the search keeps Google's default.
+   */
+  function propertyCountry(loc) {
+    let id = '';
+    try {
+      id = new URLSearchParams((loc && loc.search) || '').get('resource_id') || '';
+    } catch (e) {
+      return '';
+    }
+    let host = '';
+    if (/^sc-domain:/i.test(id)) host = id.slice(10);
+    else {
+      try { host = new URL(id).hostname; } catch (e) { return ''; }
+    }
+    const tld = (host.toLowerCase().replace(/\.$/, '').split('.').pop() || '');
+    if (!/^[a-z]{2}$/.test(tld) || GENERIC_CCTLDS.has(tld)) return '';
+    return tld === 'uk' ? 'gb' : tld;
+  }
+
   function svg(paths) {
     const el = document.createElementNS(SVG_NS, 'svg');
     el.setAttribute('viewBox', '0 0 24 24');
@@ -225,7 +255,7 @@
     '.' + ICON_CLASS + ':hover{background:rgba(245,55,150,.12);color:#c2185b}' +
     '.seo-bw-gsc-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;background:#000022;color:#f5f5f5;font:13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,34,.35);max-width:520px}';
 
-  const api = { ICON_GROUP, ICON_CLASS, CSS, isDataRow, isNumericCell, extractQuery, searchUrl, injectRow, injectAll, removeAll, isQueriesView, dataTableHeader, makeButton };
+  const api = { ICON_GROUP, ICON_CLASS, CSS, isDataRow, isNumericCell, extractQuery, searchUrl, propertyCountry, injectRow, injectAll, removeAll, isQueriesView, dataTableHeader, makeButton };
   root.SBWGscInject = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

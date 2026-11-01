@@ -62,21 +62,52 @@ describe('gsc-serp runner — Queries-only icons, compare math everywhere', () =
     applySpy.mockRestore();
   });
 
-  it('a pushState tab switch strips the icons with no DOM mutation at all', async () => {
+  it('a tab switch the worker reports strips the icons with no DOM mutation at all', async () => {
     // The regression this closes: Search Console changes the URL when you
     // click Pages, and the DOM change that follows can be recycled rows the
     // own-node filter reads as ours — so the observer never fired and the
     // icons sat on the Pages tab until something unrelated mutated.
-    buildReport();
-    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
-    await loadRunner();
-    await frame();
-    await macrotask();
-    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+    // 1.10.2: the page's pushState is seen by the worker
+    // (webNavigation.onHistoryStateUpdated), which sends 'gscNavigated'. The
+    // runner's old patch of history.pushState never fired on the real page:
+    // a content script's isolated world doesn't see the page's own calls.
+    const listeners = [];
+    globalThis.chrome = { runtime: { onMessage: { addListener: (fn) => listeners.push(fn) }, sendMessage: vi.fn() } };
+    const nativePushState = window.history.pushState;
+    try {
+      buildReport();
+      window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+      await loadRunner();
+      await frame();
+      await macrotask();
+      expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+      expect(window.history.pushState).toBe(nativePushState);
 
-    // Navigate only. Nothing touches the table.
-    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=page');
-    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+      // Navigate only. Nothing touches the table, and nothing happens until
+      // the worker says so.
+      window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=page');
+      expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+      listeners.forEach((fn) => fn({ action: 'gscNavigated', url: location.href }, {}, () => {}));
+      expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+    } finally {
+      delete globalThis.chrome;
+    }
+  });
+
+  it('opens a row\'s search in the property\'s country, through the worker (1.10.2)', async () => {
+    const sent = [];
+    globalThis.chrome = { runtime: { onMessage: { addListener: () => {} }, sendMessage: (msg) => sent.push(msg), lastError: undefined } };
+    try {
+      buildReport();
+      window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=sc-domain%3Aexample.co.uk&breakdown=query');
+      await loadRunner();
+      await frame();
+      await macrotask();
+      document.querySelector('.' + G.ICON_CLASS).click();
+      expect(sent[0]).toEqual({ action: 'openSearch', query: 'roofing repair denver', gl: 'gb' });
+    } finally {
+      delete globalThis.chrome;
+    }
   });
 
   it('popstate (back/forward) is handled the same way', async () => {
