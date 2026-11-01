@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-10-31
+> Last Updated: 2026-11-01
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -227,12 +227,18 @@ action first; until then none of it is sent:
 
 | Release | What starts leaving the device, and only after the user accepts |
 |---|---|
-| 1.12.0 | Full result URLs on a Google results page (today only bare domains), for the link figures and the results table; signed in only |
+| 1.11.0 | Full result URLs on a Google results page (today only bare domains), for the figures under each result and, from 1.12.0, the results table; signed in only |
 | 1.13.0 | The search text, for keyword volume and difficulty, and from 1.15.0 for the user's own Search Console figures for that search |
 | 1.16.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
 | 1.18.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
 
-*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one.*
+*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one. 2026-11-01: the Google results page comes first, so the result URLs move from 1.12.0 to 1.11.0.*
+
+1.12.0's Analyze on Google sends nothing new to us: on a click the extension
+fetches the result's own page from the user's browser, without cookies,
+under the existing optional all-sites access. It adds the `offscreen`
+permission (Chrome and Edge) to run the analyzer, which shows no warning;
+measured first like any manifest change.
 
 No release on that road should add an install warning; any host or
 content-script change is measured with `getPermissionWarningsByManifest`
@@ -262,14 +268,14 @@ and when. Keep it in step with the table above.
 ## Other stores from 2.0.0
 
 Owner, 2026-10-31: "When we launch 2.0.0 I want to have Edge and Firefox
-versions." Plan in ROADMAP.md → "The road to 2.0.0" (1.10.6, 1.10.7, 2.0.0);
+versions." Plan in ROADMAP.md → "The road to 2.0.0" (1.13.2, 1.13.3, 2.0.0);
 reasoning in the SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
 Nothing is listed in either store yet; this section gets each store's fields
 when its listing is written, as the sections above do for Chrome.
 
 | | Microsoft Edge Add-ons | Firefox Add-ons (AMO) |
 |---|---|---|
-| Package | `npm run zip -- --target edge` (from 1.10.6): the Chrome manifest without `key`, the new-tab override and `management` | `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
+| Package | `npm run zip -- --target edge` (from 1.13.2): the Chrome manifest without `key`, the new-tab override and `management` | `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
 | Listing rules | Policy 1.1.2: the extension and listing name no other browser; reviewer test account (1.3.1); certification up to seven business days | Data consent: `required: ["none"]`; the optional categories follow the data-use table above (see the vault design's consent map); every send is gated on the user's choice |
 | Item ID | Assigned at the first upload; the site's Connect uses a bridge, so it doesn't need it | Ours, in `gecko.id` |
 | Publishing | `scripts/edge-publish.mjs` (Edge Add-ons API v1.1) uploads; the owner presses Publish in Partner Center (the API has no staged publish). The product and its first listing are created by hand | `web-ext sign --channel=listed`; listed versions go live after the automated check |
