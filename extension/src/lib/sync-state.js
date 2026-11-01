@@ -39,8 +39,17 @@
     }
 
     if (result.code === 'unauthorized' || result.code === 'forbidden') {
-      // Never retried automatically — the key itself is the problem.
+      // Not retried with this key, which is the problem. 1.10.3: no longer
+      // skipped for good either: requeueAuthSkipped() puts it back in the
+      // queue once a key verifies again (src/lib/api.js).
       return { status: 'skipped', error: result.code };
+    }
+
+    if (result.status >= 400 && result.status < 500 && result.code !== 'rate_limited') {
+      // 1.10.3: any other 4xx (a 400 for a payload the site refuses, a 404,
+      // a 413) gives the same answer every time, so it is not retried.
+      // Until then a 400 was posted five times over a day.
+      return { status: 'failed', error: 'rejected', httpStatus: result.status };
     }
 
     if (result.code === 'rate_limited') {
@@ -104,6 +113,17 @@
     return sync;
   }
 
+  // 1.10.3: a capture the site refused for the key (401, or 403 for a key
+  // without the captures scope) goes back in the queue once a key verifies,
+  // so a reconnect sends what the old key could not. Anything else passes
+  // through unchanged.
+  function releaseAuthSkipped(sync) {
+    if (sync && sync.status === 'skipped' && (sync.error === 'unauthorized' || sync.error === 'forbidden')) {
+      return initialSync();
+    }
+    return sync;
+  }
+
   const SBWSyncNamespace = {
     RETRY_BASE_MS: 15 * 60 * 1000,    // 15 minutes
     RETRY_MAX_MS: 6 * 60 * 60 * 1000, // 6 hours
@@ -113,7 +133,8 @@
     isDue,
     pickDue,
     resetFailed,
-    unskipLegacy
+    unskipLegacy,
+    releaseAuthSkipped
   };
 
   return SBWSyncNamespace;

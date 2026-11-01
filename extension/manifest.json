@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.10.2",
-  "version_name": "1.10.2 — Google results show each result's position, and Analyze checks a result in a background tab while you stay on Google",
+  "version": "1.10.3",
+  "version_name": "1.10.3 — Your account works on every device: connected means a key that checked out, and citations, history and the side panel tell the truth",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtZAOayFSIT1ebcFQjdmZB8rKiW3kl64OevZCBgQv/JUA0ZJf9O6zTzp7OhFkZmDJ19bvluKLAw6nFt7BHsymh6Z+Ldg5u2gu30HGjH3FTWV0VLSiIx/vtaotfUEARGlIkYjSJQ+VUqGrqjjlVFJyZVwz20TtSIxU/P5m3gQDGbZrgH48qTss1YiBQ7n9jCtKMVhTNz3yv/g2KHFoBV+cSZ29RK3pNB8GTINSQddBiLaEcuLIPxyv9WyTZhWYI4JNDFsM+isLH5VuEg9oWKy+//MDE7RiojrkPfSXh2Q3qlGLYs9La82w4pTZjhGg2fTrIsj1R92Hu20tF3qME4bF5QIDAQAB",
   "permissions": [

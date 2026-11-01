@@ -52,7 +52,7 @@ export function hostOf(url) {
   try { return new URL(url).hostname; } catch { return ''; }
 }
 
-/** Bare host, matching how quickDomain keys history server-side. */
+/** Bare host, matching how the site keys a capture's domain. */
 export function domainOf(url) {
   return hostOf(url).replace(/^www\./, '');
 }
@@ -373,11 +373,16 @@ export async function analyzeTab(tab, { save = true } = {}) {
 /* ------------------------------ account state ----------------------------- */
 
 /**
- * What the surfaces show in their account line, as one of six states. This
- * reads stored keys only — it sends no request, so a surface can paint it
- * before anything else resolves. `verify()` below is the opt-in check.
+ * What the surfaces show in their account line. This reads stored keys only —
+ * it sends no request, so a surface can paint it before anything else
+ * resolves. `verifyAccount()` below is the opt-in check.
  *
- * `state` is one of: 'connected' · 'no_key' · 'invalid' · 'collection_off'.
+ * `state` is one of: 'connected' · 'unverified' · 'no_key' · 'invalid' ·
+ * 'collection_off'. 1.10.3: connected means a stored key that verified
+ * (`sbwKeyStatus` 'valid', see api.js). A key with no status yet, which is
+ * how a second device starts (the key is in chrome.storage.sync, the status
+ * in chrome.storage.local), is 'unverified' until its first answered call;
+ * until 1.10.3 this read the missing `SBW.hasApiKey` and so said signed out.
  * The remaining wire states (`forbidden`, `rate_limited`, `unavailable`,
  * `network`) belong to whichever call produced them and are surfaced there —
  * see the state matrix in docs/API-INVENTORY.md.
@@ -385,21 +390,23 @@ export async function analyzeTab(tab, { save = true } = {}) {
 export async function accountState() {
   const SBW = api();
   const stored = await chrome.storage.local.get(['sbwUser', 'sbwKeyStatus']);
-  let connected = stored.sbwKeyStatus === 'valid';
+  let hasKey = false;
   let collecting = true;
   if (SBW) {
-    try { connected = connected || (await SBW.hasApiKey()); } catch { /* keep */ }
+    try { hasKey = await SBW.hasApiKey(); } catch { /* keep */ }
     try { collecting = await SBW.isDataCollectionEnabled(); } catch { /* keep */ }
   }
   const user = stored.sbwUser && stored.sbwUser.data;
-  const invalid = stored.sbwKeyStatus === 'invalid';
+  const connected = hasKey && stored.sbwKeyStatus === 'valid';
 
   let state = 'no_key';
-  if (invalid) state = 'invalid';
+  if (!hasKey) state = 'no_key';
+  else if (stored.sbwKeyStatus === 'invalid') state = 'invalid';
   else if (!collecting) state = 'collection_off';
   else if (connected) state = 'connected';
+  else state = 'unverified';
 
-  return { state, connected, collecting, email: (user && (user.email || user.name)) || null };
+  return { state, connected, collecting, email: (connected && user && (user.email || user.name)) || null };
 }
 
 /* ---------------------------- account progress --------------------------- */
@@ -441,7 +448,10 @@ export function progressResult(res, origin) {
 export async function accountProgress({ now = Date.now(), force = false } = {}) {
   const SBW = api();
   if (!SBW || typeof SBW.progress !== 'function') return { state: 'signed_out' };
-  const account = await accountState();
+  let account = await accountState();
+  // A key this device has not checked yet (a second device): one /v1/me
+  // first, so the cards load on every device the key reached.
+  if (account.state === 'unverified') account = await verifyAccount({ now });
   if (account.state !== 'connected') return { state: 'signed_out' };
 
   if (!force) {
@@ -454,6 +464,14 @@ export async function accountProgress({ now = Date.now(), force = false } = {}) 
     } catch { /* no session storage: ask */ }
   }
 
+  // A paint that starts while another's request is out shares it.
+  if (!progressing) progressing = fetchProgress(SBW, now).finally(() => { progressing = null; });
+  return progressing;
+}
+
+let progressing = null;
+
+async function fetchProgress(SBW, now) {
   let origin = 'https://seobandwagon.com';
   try { origin = (await SBW.getApiSettings()).apiUrl.replace(/\/api$/, ''); } catch { /* default */ }
   let res;
@@ -553,13 +571,18 @@ export function auditDetail(row, now = Date.now()) {
 /** How long a verified key is trusted before another /v1/me round trip. */
 export const VERIFY_TTL_MS = 10 * 60 * 1000;
 
+let verifying = null; // one /v1/me at a time: a new tab's paints overlap
+
 /**
  * Opt-in key check. accountState() never validates, so a revoked key would
  * keep reading as connected until some other call happened to 401. This asks
  * /v1/me at most once per TTL, reusing the same `sbwUser` cache the options
  * page and citations tab already write — no new storage key, and no request
- * at all when there is no key or collection is off.
+ * at all when there is no key or collection is off. An unverified key (a
+ * second device) is always asked; a 429, 503 or the network leaves the state
+ * as it was, never signed out.
  */
+
 export async function verifyAccount({ now = Date.now(), force = false } = {}) {
   const SBW = api();
   if (!SBW) return { checked: false, code: 'network' };
@@ -571,8 +594,13 @@ export async function verifyAccount({ now = Date.now(), force = false } = {}) {
 
   const { sbwUser } = await chrome.storage.local.get('sbwUser');
   const fresh = sbwUser && typeof sbwUser.at === 'number' && now - sbwUser.at < VERIFY_TTL_MS;
-  if (fresh && !force) return { checked: false, code: 'ok', ...base, cached: true };
+  if (fresh && !force && base.state !== 'unverified') return { checked: false, code: 'ok', ...base, cached: true };
 
+  if (!verifying) verifying = verifyOnce(SBW, base, now).finally(() => { verifying = null; });
+  return verifying;
+}
+
+async function verifyOnce(SBW, base, now) {
   const res = await SBW.verifyKey();
   if (res.ok) {
     await chrome.storage.local.set({ sbwUser: { data: res.data, at: now } });

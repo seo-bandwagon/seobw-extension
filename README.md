@@ -1,12 +1,12 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.10.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.10.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
 ## What it does
 
-- **SEO Analysis** — score ring (0–100, A–F grade) with four sub-scores (Meta, Content, Links, Tech), page meta with a SERP preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), heading structure, link and image audit with on-page highlighting, content stats and n-grams, tech stack detection, and a domain-history strip showing this domain's and URL's past captures.
+- **SEO Analysis** — score ring (0–100, A–F grade) with four sub-scores (Meta, Content, Links, Tech), page meta with a SERP preview, Core Web Vitals (LCP/INP/CLS/FCP/TTFB), heading structure, link and image audit with on-page highlighting, content stats and n-grams, tech stack detection, and a page-history strip showing your account's earlier captures of this page.
 - **Link Check** — probes every link on the page (status groups, on-page highlighting, CSV export); needs the optional "check other sites" permission.
 - **Indexability** — the page's redirect chain, response headers, and X-Robots-Tag, combined with its meta robots/canonical, into an indexable/not-indexable verdict; also traces any URL you type.
 - **Hreflang** — validates every declared `hreflang` tag (BCP 47 form, duplicates, self-reference, x-default) and, on request, fetches each alternate to confirm it links back.
@@ -36,7 +36,7 @@ Search "SEO Bandwagon" in the Chrome Web Store, or use the one-click "Connect Ch
 
 ## Connect your account
 
-Citations, Link Building, domain history, and capture sync all need an API key.
+Citations, Link Building, page history, and capture sync all need an API key.
 
 - **One-click**: visit [seobandwagon.com/dashboard/api-keys](https://seobandwagon.com/dashboard/api-keys) with the extension installed and click "Connect Chrome extension." The site messages the extension directly (`externally_connectable`) and saves the key for you.
 - **Manual**: mint a key on the same page, then paste it into the extension's Options page and click Verify.
@@ -125,7 +125,7 @@ are bundled in `src/styles/fonts/` because MV3 blocks remote `font-src`.
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
 | `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically). The consent text shown at request time, verbatim (`ALL_URLS_REASON` in `src/lib/perms.js`): *"To check links, hreflang alternates and redirects, and to compare a page's raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page."* |
 
-The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, a `--seobandwagon.netlify.app` deploy preview, or `http://localhost`/`http://127.0.0.1` (any port). Every other host is rejected client-side before it's ever saved.
+The Advanced API URL field (Options page) is an allowlist, not "any URL": `seobandwagon.com` and any of its subdomains, or `http://localhost`/`http://127.0.0.1` (any port). The Netlify deploy-preview hosts were dropped in 1.10.3: the site no longer runs on Netlify. Every other host is rejected client-side before it's ever saved.
 
 There is no `identity` permission and no OAuth — connecting an account is just an API key.
 
@@ -320,7 +320,7 @@ it's marked as shown and never appears again (`chrome.storage.local`, key
 
 ## Privacy
 
-Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, domain history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
+Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, page history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
 
 **A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 

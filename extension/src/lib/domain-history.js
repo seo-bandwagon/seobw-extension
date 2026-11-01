@@ -1,19 +1,27 @@
-// SEO Bandwagon — Domain history summarizer
+// SEO Bandwagon — Page history summarizer (the popup's history strip)
 //
 // Pure logic, no chrome/fetch dependency, so it's fully unit-testable and
 // shareable between the popup and (later) any other surface that wants a
-// "what do we already know about this domain/URL" strip.
+// "what do we already know about this URL" strip.
 //
 // Dual-export pattern (see src/lib/api.js / src/lib/sync-state.js): attaches
 // to `globalThis.SBWDomainHistory` when loaded as a classic <script>, and
 // exports via CommonJS when loaded by Vitest / Node.
 //
-// Inputs come from two server calls (src/lib/api.js: SBW.quickDomain /
-// SBW.capturesForUrl):
-//   quick    = { domain, avgWordCount, schemaPercentage, avgScore, age, sampleSize }
-//              nulls + sampleSize 0 when the domain has never been seen.
-//   captures = { url, domain, totalCaptures, captures: [{ id, createdAt,
+// Input comes from one server call (src/lib/api.js: SBW.capturesForUrl):
+//   captures = { url, domain, totalCaptures, captures: [{ id, url, createdAt,
 //              overallScore | seoScore: { score }, ... }] }
+//
+// 1.10.3:
+// - Only this page's captures count. The route falls back to the account's
+//   captures of other pages on the domain when the page has none, and the
+//   strip showed those as this URL's history; now each capture's own `url`
+//   must be this page (samePage below), and the line says "this page".
+// - No "Domain avg": it came from GET /api/domain/:domain/quick, whose
+//   `domain_stats` pools every account's captures of the host (the table has
+//   no user column), the same pooled figure 1.10.2 took off the Google
+//   results bar. The popup no longer asks for it; nothing on the website
+//   changed.
 
 (function (factory) {
   var api = factory();
@@ -71,6 +79,31 @@
     return n >= 0 ? `+${n}` : `${n}`;
   }
 
+  // A page address as the captures route matches it: http and https, with
+  // and without `www.`, with and without a trailing slash are one page; the
+  // query counts, the fragment does not. '' for anything unparseable.
+  function pageKey(url) {
+    if (!url) return '';
+    try {
+      const u = new URL(/^https?:\/\//i.test(String(url)) ? url : `https://${url}`);
+      const path = u.pathname.length > 1 ? u.pathname.replace(/\/+$/, '') : '';
+      return `${u.hostname.toLowerCase().replace(/^www\./, '')}${path}${u.search}`;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function samePage(a, b) {
+    const ka = pageKey(a);
+    return !!ka && ka === pageKey(b);
+  }
+
+  // The route's answer cut to the captures of `pageUrl` itself.
+  function onlyThisPage(captures, pageUrl) {
+    const list = ((captures && captures.captures) || []).filter(c => c && samePage(c.url, pageUrl));
+    return { captures: list, totalCaptures: list.length };
+  }
+
   // Drops any capture the server returned that was actually created at/after
   // `excludeSince` (minus a skew allowance) — i.e. the capture the popup's
   // own autoSaveCapture()/syncCapture() just posted for *this* analysis,
@@ -94,18 +127,13 @@
     return { captures: kept, totalCaptures: Math.max(0, total - excludedCount) };
   }
 
-  function buildDomainLine(quick) {
-    if (!quick || !quick.sampleSize) return null;
-    return `Domain avg ${Math.round(quick.avgScore)} · ${plural(quick.sampleSize, 'capture')}`;
-  }
-
   function buildUrlLine(captures, currentScore, excludeSince) {
     if (!captures || !captures.totalCaptures) return { urlLine: null, delta: null };
 
     const filtered = excludeJustPosted(captures, excludeSince);
     if (!filtered.totalCaptures) return { urlLine: null, delta: null };
 
-    const base = plural(filtered.totalCaptures, 'prior capture');
+    const base = `This page: ${plural(filtered.totalCaptures, 'earlier capture')}`;
     const last = newestCapture(filtered.captures);
     const lastScore = captureScore(last);
 
@@ -121,22 +149,23 @@
     return { urlLine: `${base} · last ${lastScore} (${signed(delta)})`, delta };
   }
 
+  // pageUrl: the page the popup analyzed; only its own captures count.
   // excludeSince: ms timestamp of when the current analysis started (see
   // popup.js's loadDomainHistory). Optional — omitting it disables the
   // just-posted filter (used by callers that don't have a race to guard
   // against, and by existing tests that predate it).
-  function summarize({ quick, captures, currentScore, excludeSince } = {}) {
-    const domainLine = buildDomainLine(quick);
-    const { urlLine, delta } = buildUrlLine(captures, currentScore, excludeSince);
-    const hasHistory = !!(domainLine || urlLine);
-
-    return { domainLine, urlLine, delta, hasHistory };
+  function summarize({ captures, pageUrl, currentScore, excludeSince } = {}) {
+    const own = onlyThisPage(captures, pageUrl);
+    const { urlLine, delta } = buildUrlLine(own, currentScore, excludeSince);
+    return { urlLine, delta, hasHistory: !!urlLine };
   }
 
   return {
     CACHE_TTL_MS,
     cacheKey,
     isFresh,
+    pageKey,
+    samePage,
     summarize
   };
 });

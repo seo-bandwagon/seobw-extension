@@ -358,7 +358,7 @@ body {
   flex: none;
 }
 
-/* Domain history strip — quick stats + prior captures, under the score ring */
+/* Page history strip — this page's earlier captures, under the score ring */
 .domain-history {
   padding: 9px 14px;
   border-bottom: 1px solid var(--hairline);

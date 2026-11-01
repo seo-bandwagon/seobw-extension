@@ -89,6 +89,7 @@ function renderTools(url) {
 const ACCOUNT_LINES = {
   connected: (email) =>
     email ? `Connected as ${email}. Captures sync.` : 'Connected. Captures sync.',
+  unverified: () => 'Your API key is on this device; it is checked the first time it is used. Every check above works either way.',
   no_key: () => 'Signed out. Every check above still works, on this device.',
   invalid: () => 'Your API key was rejected. Reconnect in settings to sync again.',
   collection_off: () => 'Connected, but capture sync is off in settings.',
@@ -104,7 +105,8 @@ async function renderAccount() {
 /** Retry anything the account never received. Silent unless it did something. */
 async function runDrain() {
   const { state } = await accountState();
-  if (state !== 'connected') return;
+  // An unverified key (a second device) is checked by this very drain.
+  if (state !== 'connected' && state !== 'unverified') return;
   const line = drainLine(await drainPending({ max: 20 }));
   if (!line) return;
   $('pnSync').textContent = line;

@@ -114,9 +114,7 @@
     }
 
     if (res.ok) {
-      if (settings.apiKey) {
-        chrome.storage.local.set({ sbwKeyStatus: 'valid' });
-      }
+      if (settings.apiKey) await noteKeyValid();
       return { ok: true, status: res.status, data, retryAfter: null, code: 'ok' };
     }
 
@@ -168,6 +166,51 @@
   }
 
   // ============================================
+  // The account on this device (1.10.3)
+  // ============================================
+  //
+  // "Connected" is a stored key that verified: `sbwKeyStatus` 'valid' in
+  // chrome.storage.local, written here on a key's first answered call. The
+  // key itself is in chrome.storage.sync, so a second device has the key
+  // and no status until its first call (sbw-data.js's 'unverified' state).
+
+  // The first answered call with a key that was not known to be good (a
+  // second device, or a reconnect after the caches were cleared) records it,
+  // and puts captures the old key was refused for back in the queue.
+  async function noteKeyValid() {
+    try {
+      const { sbwKeyStatus } = await chrome.storage.local.get('sbwKeyStatus');
+      if (sbwKeyStatus === 'valid') return;
+      await chrome.storage.local.set({ sbwKeyStatus: 'valid' });
+      await requeueAuthSkipped();
+    } catch (e) {
+      // Best effort: the call's own answer is what matters to its caller.
+    }
+  }
+
+  // What belongs to one account and must not outlive it: the key's status,
+  // the /v1/me answer, the chosen citations business, and the session caches
+  // of the new tab's progress (sbw-data.js) and the popup's page history
+  // (`dh:` keys, src/lib/domain-history.js). Cleared on every Connect, every
+  // key change and Disconnect, so a new key never reads an old one's answers.
+  const ACCOUNT_LOCAL_KEYS = ['sbwKeyStatus', 'sbwUser', 'cfSelectedBusiness'];
+  const ACCOUNT_SESSION_KEYS = ['sbwProgress'];
+  const ACCOUNT_SESSION_PREFIX = 'dh:';
+
+  async function clearAccountCaches() {
+    await chrome.storage.local.remove(ACCOUNT_LOCAL_KEYS);
+    const session = chrome.storage.session;
+    if (!session) return;
+    try {
+      const all = await session.get(null);
+      const keys = Object.keys(all || {}).filter(k => k.startsWith(ACCOUNT_SESSION_PREFIX));
+      await session.remove(ACCOUNT_SESSION_KEYS.concat(keys));
+    } catch (e) {
+      // No session storage in this context: nothing cached there to clear.
+    }
+  }
+
+  // ============================================
   // Captures / domain
   // ============================================
 
@@ -189,11 +232,6 @@
   async function capturesForUrl(url) {
     if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/v1/captures', { query: { url } });
-  }
-
-  async function quickDomain(domain) {
-    if (!(await hasApiKey())) return noKeyResult();
-    return sbwFetch(`/domain/${encodeURIComponent(domain)}/quick`);
   }
 
   // The account's rank tracking summary and derived tasks, for the new tab
@@ -249,9 +287,9 @@
 
   // Drains up to `max` due captures (oldest first), sequentially. Stops
   // early on a rate limit (429), an outage (503), an auth problem
-  // (missing/invalid key), or data collection being off — those affect
-  // every remaining item the same way, so there's no point burning through
-  // the rest of the batch.
+  // (missing/invalid key, or a key without the captures scope), or data
+  // collection being off — those affect every remaining item the same way,
+  // so there's no point burning through the rest of the batch.
   async function drainPendingCaptures({ max = 20, now = Date.now() } = {}) {
     const items = await chrome.storage.local.get(null);
     const captures = Object.entries(items)
@@ -274,8 +312,8 @@
       else if (result.status === 'duplicate') duplicates++;
 
       if (result.code === 'rate_limited' || result.code === 'unavailable' ||
-          result.code === 'unauthorized' || result.code === 'no_key' ||
-          result.code === 'collection_off') {
+          result.code === 'unauthorized' || result.code === 'forbidden' ||
+          result.code === 'no_key' || result.code === 'collection_off') {
         stoppedOn = result.code;
         nextAt = result.nextAt || null;
         break;
@@ -283,6 +321,24 @@
     }
 
     return { sent, synced, duplicates, stoppedOn, nextAt };
+  }
+
+  // Captures refused for the key (SBWSync.releaseAuthSkipped) back to
+  // pending, once a key verifies. The drainer's next run sends them; the
+  // Connect handler (service-worker.js) runs it straight away. Pages that
+  // load this file without sync-state.js have nothing to requeue.
+  async function requeueAuthSkipped() {
+    if (typeof SBWSync === 'undefined' || !SBWSync.releaseAuthSkipped) return 0;
+    const items = await chrome.storage.local.get(null);
+    const updates = {};
+    Object.entries(items).forEach(([key, data]) => {
+      if (!key.startsWith('capture_') || !data || !data.sync) return;
+      const next = SBWSync.releaseAuthSkipped(data.sync);
+      if (next !== data.sync) updates[key] = Object.assign({}, data, { sync: next });
+    });
+    const keys = Object.keys(updates);
+    if (keys.length) await chrome.storage.local.set(updates);
+    return keys.length;
   }
 
   // One-time stamp for captures saved before this feature existed. These are
@@ -541,14 +597,17 @@
     getApiSettings,
     isDataCollectionEnabled,
     sbwFetch,
+    hasApiKey,
+    clearAccountCaches,
+    ACCOUNT_LOCAL_KEYS,
     verifyKey,
     postCapture,
     capturesForUrl,
-    quickDomain,
     progress,
     quickBatch,
     syncCapture,
     drainPendingCaptures,
+    requeueAuthSkipped,
     markLegacyPending,
     lb,
     ct,

@@ -25,8 +25,13 @@ describe('isValidApiUrl', () => {
     expect(SBWOptions.isValidApiUrl('https://api.seobandwagon.com')).toBe(true);
   });
 
-  it('accepts a Netlify deploy-preview host for this site', () => {
-    expect(SBWOptions.isValidApiUrl('https://deploy-preview-123--seobandwagon.netlify.app/api')).toBe(true);
+  it('rejects the retired Netlify deploy-preview hosts (1.10.3: the site left Netlify)', () => {
+    expect(SBWOptions.isValidApiUrl('https://deploy-preview-123--seobandwagon.netlify.app/api')).toBe(false);
+    expect(SBWOptions.isValidApiUrl('https://main--seobandwagon.netlify.app')).toBe(false);
+  });
+
+  it('accepts the staging Worker', () => {
+    expect(SBWOptions.isValidApiUrl('https://cf.seobandwagon.com/api')).toBe(true);
   });
 
   it('accepts http://localhost, with or without a port', () => {

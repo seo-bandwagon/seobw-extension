@@ -71,7 +71,7 @@ Section badges (`1 WARNING`, `INP POOR`, `1 BROKEN`) were also derived per secti
 
 ## 5. Smaller open questions
 
-- **Recent checks panel (1a idle)** reads "Last 3 checks · this business" but is backed by the 3 most recent **citations**, not a check history. There's no NAP-check log — repeated checks of the same listing overwrite nothing and record nothing until you file.
+- **Recent checks panel (1a idle)** read "Last 3 checks · this business" but was backed by the first 3 **citations** in the site's priority order, not a check history. There's no NAP-check log — repeated checks of the same listing overwrite nothing and record nothing until you file. *1.10.3: relabelled "Latest citations · this business", newest first.*
 - **Signed-out proof strip (1k)** shows `40 DIRECTORIES / NAP MATCH SCORING / 1-CLICK PROOF CAPTURE`. The mockup's numbers were placeholders; these are the real capabilities. Worth a copy pass.
 - **`Start free →`** links to `seobandwagon.com/citationforge` — that page needs to exist.
 - **Keyboard shortcuts** — 1h (action list) showed keyboard hints; 1g won, so no shortcuts ship. Worth adding for Check NAP.

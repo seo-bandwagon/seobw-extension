@@ -178,9 +178,9 @@ describe('pollUntilDone', () => {
 });
 
 describe('citationStatusFromScore', () => {
-  it('is active when there is no score to judge', () => {
-    expect(SBWCitations.citationStatusFromScore(null)).toBe('active');
-    expect(SBWCitations.citationStatusFromScore(undefined)).toBe('active');
+  it('has no status without a score (1.10.3: an unchecked filing was saved as active)', () => {
+    expect(SBWCitations.citationStatusFromScore(null)).toBeNull();
+    expect(SBWCitations.citationStatusFromScore(undefined)).toBeNull();
   });
 
   it('is active at or above 80%, inconsistent below it', () => {
@@ -225,25 +225,32 @@ describe('buildCitationPayload', () => {
     expect(payload.status).toBe('inconsistent');
   });
 
-  it('defaults to active with null fields when there is no NAP result at all', () => {
-    const payload = SBWCitations.buildCitationPayload({
+  it('builds nothing without a NAP check: an unchecked listing is not filed (1.10.3)', () => {
+    expect(SBWCitations.buildCitationPayload({
       directoryName: 'Unknown Site', directoryUrl: 'https://example.com/biz', now
+    })).toBeNull();
+    expect(SBWCitations.buildCitationPayload({
+      directoryName: 'Yelp', directoryUrl: 'https://yelp.com/biz/x', nap: null, scoreTotal: null, now
+    })).toBeNull();
+  });
+
+  it('keeps a 0% score: zero is a checked listing that matches nothing', () => {
+    const payload = SBWCitations.buildCitationPayload({
+      directoryName: 'Yelp', directoryUrl: 'https://yelp.com/biz/x', nap: null, scoreTotal: 0, now
     });
-    expect(payload.status).toBe('active');
-    expect(payload.found_name).toBeNull();
-    expect(payload.nap_match_score).toBeNull();
+    expect(payload).toMatchObject({ status: 'inconsistent', nap_match_score: 0 });
   });
 
   it('notes a locally-downloaded screenshot only when screenshotDownloaded is true', () => {
     const withShot = SBWCitations.buildCitationPayload({
       directoryName: 'Yelp', directoryUrl: 'https://yelp.com/biz/x',
-      nap: null, scoreTotal: null, screenshotDownloaded: true, now
+      nap: null, scoreTotal: 0.9, screenshotDownloaded: true, now
     });
     expect(withShot.notes).toBe('Filed from the extension on 2026-09-03 — screenshot downloaded locally');
 
     const without = SBWCitations.buildCitationPayload({
       directoryName: 'Yelp', directoryUrl: 'https://yelp.com/biz/x',
-      nap: null, scoreTotal: null, screenshotDownloaded: false, now
+      nap: null, scoreTotal: 0.9, screenshotDownloaded: false, now
     });
     expect(without.notes).toBe('Filed from the extension on 2026-09-03');
   });
@@ -259,5 +266,85 @@ describe('screenshotFilename', () => {
 
   it('falls back to "page" for an unparseable URL', () => {
     expect(SBWCitations.screenshotFilename('not a url', now)).toBe('citation-page-2026-09-03.png');
+  });
+});
+
+/* ------------------------------ 1.10.3 ------------------------------ */
+
+describe('signedInAfterVerify (1.10.3)', () => {
+  it('only a refused key, or none, is signed out', () => {
+    expect(SBWCitations.signedInAfterVerify({ ok: true, code: 'ok' })).toBe(true);
+    expect(SBWCitations.signedInAfterVerify({ ok: false, status: 401, code: 'unauthorized' })).toBe(false);
+    expect(SBWCitations.signedInAfterVerify({ ok: false, status: 0, code: 'no_key' })).toBe(false);
+    expect(SBWCitations.signedInAfterVerify(null)).toBe(false);
+  });
+
+  it('a 429, a 503, the network or a 500 keeps the user signed in', () => {
+    for (const code of ['rate_limited', 'unavailable', 'network', 'error', 'forbidden']) {
+      expect(SBWCitations.signedInAfterVerify({ ok: false, code })).toBe(true);
+    }
+  });
+});
+
+describe('ctErrorMessage — no key', () => {
+  it('says to connect, not "no_key"', () => {
+    expect(SBWCitations.ctErrorMessage('no_key', 'no_key')).toMatch(/Connect your SEO Bandwagon account/);
+  });
+});
+
+describe('campaignOutcome (1.10.3)', () => {
+  it('a failed campaign says failed, not "Campaign complete"', () => {
+    expect(SBWCitations.campaignOutcome('failed')).toMatch(/^Campaign failed/);
+    expect(SBWCitations.campaignOutcome('completed')).toBe('Campaign complete');
+  });
+
+  it('anything else is still running', () => {
+    expect(SBWCitations.campaignOutcome('running')).toMatch(/Still running/);
+    expect(SBWCitations.campaignOutcome(undefined)).toMatch(/Still running/);
+  });
+});
+
+describe('napScore and averageNapPct (1.10.3)', () => {
+  // The site returns nap_match_score, a numeric column, as a string.
+  const rows = [
+    { nap_match_score: '0.850' },
+    { nap_match_score: '0.650' },
+    { nap_match_score: null },
+    { nap_match_score: '' },
+    { nap_match_score: 'n/a' }
+  ];
+
+  it('reads the string the site sends as a number', () => {
+    expect(SBWCitations.napScore(rows[0])).toBe(0.85);
+    expect(SBWCitations.napScore({ nap_match_score: 0.5 })).toBe(0.5);
+    expect(SBWCitations.napScore({ nap_match_score: '0' })).toBe(0);
+    expect(SBWCitations.napScore(rows[2])).toBeNull();
+    expect(SBWCitations.napScore(rows[3])).toBeNull();
+    expect(SBWCitations.napScore(rows[4])).toBeNull();
+  });
+
+  it('averages two string scores to a number, where the old sum read "NaN%"', () => {
+    const old = rows.filter(c => c.nap_match_score != null).slice(0, 2);
+    const oldAvg = Math.round(old.reduce((s, c) => s + c.nap_match_score, 0) / old.length * 100);
+    expect(Number.isNaN(oldAvg)).toBe(true); // the 1.10.2 footer's arithmetic
+    expect(SBWCitations.averageNapPct(rows)).toBe(75);
+  });
+
+  it('is null when no citation has a score', () => {
+    expect(SBWCitations.averageNapPct([{ nap_match_score: null }])).toBeNull();
+    expect(SBWCitations.averageNapPct([])).toBeNull();
+  });
+});
+
+describe('latestCitations (1.10.3)', () => {
+  it('the newest three by last check or filing, not the site\'s priority order', () => {
+    const list = [
+      { id: 'a', priority_rank: 1, created_at: '2026-01-01T00:00:00Z' },
+      { id: 'b', priority_rank: 2, created_at: '2026-03-01T00:00:00Z', last_checked_at: '2026-10-30T00:00:00Z' },
+      { id: 'c', priority_rank: 3, created_at: '2026-10-01T00:00:00Z' },
+      { id: 'd', priority_rank: null, created_at: '2026-10-31T00:00:00Z' }
+    ];
+    expect(SBWCitations.latestCitations(list, 3).map(c => c.id)).toEqual(['d', 'b', 'c']);
+    expect(list.map(c => c.id)).toEqual(['a', 'b', 'c', 'd']); // not sorted in place
   });
 });

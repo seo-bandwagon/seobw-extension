@@ -32,18 +32,18 @@ const FX = {
   },
 
   citations: [
-    { id: 'c1', directory_name: 'Yelp', directory_url: 'https://yelp.com/biz/northside-dental', status: 'inconsistent', nap_match_score: 0.62, last_checked_at: '2026-08-12T14:00:00', created_at: '2026-08-01T10:00:00', found_name: 'Northside Dental', found_phone: '(512) 555-0134' },
-    { id: 'c2', directory_name: 'Better Business Bureau', directory_url: 'https://bbb.org/us/tx/austin/profile/northside', status: 'active', nap_match_score: 0.97, last_checked_at: '2026-08-11T09:00:00', created_at: '2026-07-30T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
-    { id: 'c3', directory_name: 'Yellow Pages', directory_url: 'https://yellowpages.com/austin-tx/mip/northside', status: 'active', nap_match_score: 0.91, last_checked_at: '2026-08-10T09:00:00', created_at: '2026-07-29T10:00:00', found_name: 'Northside Dental Co', found_phone: '(512) 555-0134' },
-    { id: 'c4', directory_name: 'Foursquare', directory_url: 'https://foursquare.com/v/northside', status: 'inconsistent', nap_match_score: 0.48, last_checked_at: '2026-08-09T09:00:00', created_at: '2026-07-28T10:00:00', found_name: 'Northside Dental Partners', found_phone: '(512) 555-9999' },
-    { id: 'c5', directory_name: 'Apple Maps', directory_url: 'https://maps.apple.com/northside', status: 'active', nap_match_score: 0.88, last_checked_at: '2026-08-08T09:00:00', created_at: '2026-07-27T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
+    { id: 'c1', directory_name: 'Yelp', directory_url: 'https://yelp.com/biz/northside-dental', status: 'inconsistent', nap_match_score: '0.62', last_checked_at: '2026-08-12T14:00:00', created_at: '2026-08-01T10:00:00', found_name: 'Northside Dental', found_phone: '(512) 555-0134' },
+    { id: 'c2', directory_name: 'Better Business Bureau', directory_url: 'https://bbb.org/us/tx/austin/profile/northside', status: 'active', nap_match_score: '0.97', last_checked_at: '2026-08-11T09:00:00', created_at: '2026-07-30T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
+    { id: 'c3', directory_name: 'Yellow Pages', directory_url: 'https://yellowpages.com/austin-tx/mip/northside', status: 'active', nap_match_score: '0.91', last_checked_at: '2026-08-10T09:00:00', created_at: '2026-07-29T10:00:00', found_name: 'Northside Dental Co', found_phone: '(512) 555-0134' },
+    { id: 'c4', directory_name: 'Foursquare', directory_url: 'https://foursquare.com/v/northside', status: 'inconsistent', nap_match_score: '0.48', last_checked_at: '2026-08-09T09:00:00', created_at: '2026-07-28T10:00:00', found_name: 'Northside Dental Partners', found_phone: '(512) 555-9999' },
+    { id: 'c5', directory_name: 'Apple Maps', directory_url: 'https://maps.apple.com/northside', status: 'active', nap_match_score: '0.88', last_checked_at: '2026-08-08T09:00:00', created_at: '2026-07-27T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
     { id: 'c6', directory_name: 'MapQuest', directory_url: 'https://mapquest.com/us/tx/austin/northside', status: 'missing', nap_match_score: null, last_checked_at: null, created_at: '2026-07-26T10:00:00', found_name: null, found_phone: null },
-    { id: 'c7', directory_name: 'Manta', directory_url: 'https://manta.com/c/northside', status: 'active', nap_match_score: 0.84, last_checked_at: '2026-08-06T09:00:00', created_at: '2026-07-25T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
-    { id: 'c8', directory_name: 'Healthgrades', directory_url: 'https://healthgrades.com/dentist/northside', status: 'active', nap_match_score: 0.95, last_checked_at: '2026-08-05T09:00:00', created_at: '2026-07-24T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
-    { id: 'c9', directory_name: 'Citysearch', directory_url: 'https://citysearch.com/profile/northside', status: 'inconsistent', nap_match_score: 0.66, last_checked_at: '2026-08-04T09:00:00', created_at: '2026-07-23T10:00:00', found_name: 'Northside Dental', found_phone: '(512) 555-0100' },
-    { id: 'c10', directory_name: 'Nextdoor', directory_url: 'https://nextdoor.com/pages/northside', status: 'active', nap_match_score: 0.9, last_checked_at: '2026-08-03T09:00:00', created_at: '2026-07-22T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
-    { id: 'c11', directory_name: 'Hotfrog', directory_url: 'https://hotfrog.com/company/northside', status: 'active', nap_match_score: 0.81, last_checked_at: '2026-08-02T09:00:00', created_at: '2026-07-21T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
-    { id: 'c12', directory_name: 'Alignable', directory_url: 'https://alignable.com/austin-tx/northside', status: 'active', nap_match_score: 0.87, last_checked_at: '2026-08-01T09:00:00', created_at: '2026-07-20T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' }
+    { id: 'c7', directory_name: 'Manta', directory_url: 'https://manta.com/c/northside', status: 'active', nap_match_score: '0.84', last_checked_at: '2026-08-06T09:00:00', created_at: '2026-07-25T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
+    { id: 'c8', directory_name: 'Healthgrades', directory_url: 'https://healthgrades.com/dentist/northside', status: 'active', nap_match_score: '0.95', last_checked_at: '2026-08-05T09:00:00', created_at: '2026-07-24T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
+    { id: 'c9', directory_name: 'Citysearch', directory_url: 'https://citysearch.com/profile/northside', status: 'inconsistent', nap_match_score: '0.66', last_checked_at: '2026-08-04T09:00:00', created_at: '2026-07-23T10:00:00', found_name: 'Northside Dental', found_phone: '(512) 555-0100' },
+    { id: 'c10', directory_name: 'Nextdoor', directory_url: 'https://nextdoor.com/pages/northside', status: 'active', nap_match_score: '0.9', last_checked_at: '2026-08-03T09:00:00', created_at: '2026-07-22T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
+    { id: 'c11', directory_name: 'Hotfrog', directory_url: 'https://hotfrog.com/company/northside', status: 'active', nap_match_score: '0.81', last_checked_at: '2026-08-02T09:00:00', created_at: '2026-07-21T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' },
+    { id: 'c12', directory_name: 'Alignable', directory_url: 'https://alignable.com/austin-tx/northside', status: 'active', nap_match_score: '0.87', last_checked_at: '2026-08-01T09:00:00', created_at: '2026-07-20T10:00:00', found_name: 'Northside Dental Co.', found_phone: '(512) 555-0134' }
   ],
 
   campaigns: [
@@ -56,19 +56,20 @@ const FX = {
   napDrift: { name: 'Northside Dental', address: '412 Burnet Road, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com/offers', source: 'json-ld' },
   napPerfect: { name: 'Northside Dental Co.', address: '412 Burnet Rd, Suite 200, Austin, TX 78757', phone: '(512) 555-0134', website: 'https://northsidedental.com', source: 'json-ld' },
 
-  // Domain history (Task 3 / Task 7 `domain-history` state): SBW.quickDomain /
-  // SBW.capturesForUrl fixtures. capturedAt is fixed well in the past so it
-  // clears summarize()'s just-posted skew window regardless of when the
-  // preview loads.
-  quickDomain: { domain: 'northsidedental.com', avgWordCount: 780, schemaPercentage: 40, avgScore: 71, age: '6 months', sampleSize: 5 },
+  // Page history (the `domain-history` state): the SBW.capturesForUrl
+  // fixture. createdAt is fixed well in the past so it clears summarize()'s
+  // just-posted skew window regardless of when the preview loads. cap4 is
+  // another page on the domain, which the route can return and the strip
+  // leaves out (1.10.3), so the line reads 3 earlier captures.
   capturesForUrl: {
     url: 'https://northsidedental.com/austin/family-dentistry',
     domain: 'northsidedental.com',
-    totalCaptures: 3,
+    totalCaptures: 4,
     captures: [
-      { id: 'cap1', createdAt: '2026-08-13T10:00:00.000Z', overallScore: 70 },
-      { id: 'cap2', createdAt: '2026-07-30T10:00:00.000Z', overallScore: 66 },
-      { id: 'cap3', createdAt: '2026-07-16T10:00:00.000Z', overallScore: 62 }
+      { id: 'cap1', url: 'https://northsidedental.com/austin/family-dentistry', createdAt: '2026-08-13T10:00:00.000Z', overallScore: 70 },
+      { id: 'cap4', url: 'https://northsidedental.com/', createdAt: '2026-08-10T10:00:00.000Z', overallScore: 91 },
+      { id: 'cap2', url: 'https://www.northsidedental.com/austin/family-dentistry/', createdAt: '2026-07-30T10:00:00.000Z', overallScore: 66 },
+      { id: 'cap3', url: 'http://northsidedental.com/austin/family-dentistry', createdAt: '2026-07-16T10:00:00.000Z', overallScore: 62 }
     ]
   },
 
@@ -179,6 +180,9 @@ const TAB_URLS = {
   // or the fixture would look stale and the `indexability-chain` state
   // would render as if nothing had been captured.
   'indexability-chain': 'https://northsidedental.com/austin/family-dentistry',
+  // 1.10.3: the page-history strip counts only captures of the tab's own
+  // page, so this state's tab is the page FX.capturesForUrl holds.
+  'domain-history': 'https://northsidedental.com/austin/family-dentistry',
   // Task 6, item D: popup.js's isGoogleSerpUrl() gate — this must match
   // GOOGLE_SERP_HOSTS + a /search path exactly, or the notice never renders
   // and the popup falls through to the normal analyzer bootstrap instead.
@@ -188,6 +192,7 @@ const TAB_URLS = {
 const TAB_TITLES = {
   'main-unknown': 'Some Page',
   'indexability-chain': 'Family Dentistry in North Austin | Northside Dental Co.',
+  'domain-history': 'Family Dentistry in North Austin | Northside Dental Co.',
   'serp-page': 'plumbers near austin - Google Search',
   default: 'Northside Dental Co. - Yelp'
 };
@@ -789,13 +794,9 @@ function installSbwStubs() {
   // themed panel agrees with what the rest of the preview is pretending.
   SBW.hasApiKey = () => delay(PREVIEW_STATE !== 'signed-out' && PREVIEW_STATE !== 'key-missing', 0);
   SBW.isDataCollectionEnabled = () => delay(PREVIEW_STATE !== 'collection-off', 0);
-  // Domain history (popup.js's loadDomainHistory, `domain-history` state):
-  // every other state gets an empty/never-seen response so the strip stays
-  // hidden without touching real network stubs.
-  SBW.quickDomain = () => delay({
-    ok: true, status: 200, code: 'ok',
-    data: PREVIEW_STATE === 'domain-history' ? FX.quickDomain : { domain: null, avgWordCount: null, schemaPercentage: null, avgScore: null, age: null, sampleSize: 0 }
-  });
+  // Page history (popup.js's loadDomainHistory, `domain-history` state):
+  // every other state gets an empty/never-seen response so the strip reads
+  // "no earlier captures" without touching real network stubs.
   SBW.capturesForUrl = () => delay({
     ok: true, status: 200, code: 'ok',
     data: PREVIEW_STATE === 'domain-history' ? FX.capturesForUrl : { url: null, domain: null, totalCaptures: 0, captures: [] }

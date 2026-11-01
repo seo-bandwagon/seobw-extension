@@ -50,9 +50,26 @@
         return 'SEO Bandwagon is temporarily unavailable';
       case 'network':
         return "Can't reach SEO Bandwagon — check your connection";
+      case 'no_key':
+        return 'Connect your SEO Bandwagon account in the extension options first';
       default:
         return safeFallback;
     }
+  }
+
+  // ============================================
+  // Review buttons — POST /api/link-building/prospects/review
+  // ============================================
+
+  // The review buttons an outlet card shows for its status. The route
+  // changes only 'qualified' and 'held' rows (anything else answers
+  // `updated: 0`), so 1.10.3 shows Approve/Hold/Reject on qualified, Approve/
+  // Reject on held (holding it again changes nothing), and none on approved
+  // or candidate outlets. Until then all three showed on every card.
+  function outletActions(status) {
+    if (status === 'qualified') return ['approve', 'hold', 'reject'];
+    if (status === 'held') return ['approve', 'reject'];
+    return [];
   }
 
   // ============================================
@@ -164,6 +181,7 @@
 
   return {
     lbErrorMessage,
+    outletActions,
     outletAddMessage,
     pitchReviewErrorMessage,
     pitchCardModel,

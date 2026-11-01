@@ -71,8 +71,10 @@ function cfSetStatus(msg, type) {
 
 // "Signed in" = an API key is stored AND the cached (or freshly verified)
 // /v1/me result says the key is good. sbwKeyStatus is set by sbwFetch()
-// itself (src/lib/api.js) on every 401/2xx, so a stale 'invalid' short-
-// circuits without another round trip.
+// itself (src/lib/api.js) on a 401 and on a key's first good answer, so a
+// stale 'invalid' short-circuits without another round trip. 1.10.3: a 429,
+// a 503 or no connection is not "signed out" (SBWCitations.signedInAfterVerify);
+// the businesses call that follows says what went wrong.
 async function checkSignedIn() {
   const settings = await SBW.getApiSettings();
   if (!settings.apiKey) return { signedIn: false };
@@ -85,7 +87,7 @@ async function checkSignedIn() {
   }
 
   const res = await SBW.verifyKey();
-  if (!res.ok) return { signedIn: false };
+  if (!res.ok) return { signedIn: SBWCitations.signedInAfterVerify(res), user: null };
 
   await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
   return { signedIn: true, user: res.data };
@@ -163,14 +165,14 @@ function renderSignedOut(el) {
       <div class="signed-out-body">
         <div class="signed-out-mark">SB</div>
         <div class="signed-out-title">CHECK EVERY LISTING<br>WITHOUT LEAVING THE PAGE</div>
-        <div class="signed-out-sub">Connect your SEO Bandwagon account to compare a directory listing to your master NAP, capture proof, and log the citation in one click.</div>
+        <div class="signed-out-sub">Connect your SEO Bandwagon account to check a directory listing against your business's name, address, phone and website, and file it with your citations. Proof screenshots download to this computer.</div>
         <button class="signed-out-cta" id="cfConnect">CONNECT YOUR ACCOUNT</button>
         <div class="signed-out-note">No API key yet? <span class="link" id="cfSignup">Create one →</span></div>
       </div>
       <div class="proof-strip">
         <div class="proof-stat"><div class="proof-stat-v">40</div><div class="proof-stat-k">Directories</div></div>
         <div class="proof-stat"><div class="proof-stat-v">NAP</div><div class="proof-stat-k">Match scoring</div></div>
-        <div class="proof-stat"><div class="proof-stat-v">1-CLICK</div><div class="proof-stat-k">Proof capture</div></div>
+        <div class="proof-stat"><div class="proof-stat-v">PNG</div><div class="proof-stat-k">Proof download</div></div>
       </div>
     </div>`;
 
@@ -191,7 +193,7 @@ function renderPicker(el, businesses) {
   el.innerHTML = `
     <div class="picker">
       <div class="picker-title">PICK A BUSINESS</div>
-      <div class="picker-sub">Every check, proof, and report is filed against one business.</div>
+      <div class="picker-sub">The listings you check and file are compared with this business's record.</div>
       ${businesses.map(b => `
         <button class="picker-row" data-id="${esc(b.id)}">
           <span class="picker-mark">${esc(initials(b.name))}</span>
@@ -254,7 +256,7 @@ async function renderMain(el) {
         <button class="act-tile" id="cfReport">
           <span class="act-tile-glyph">⚑</span>
           <span class="act-tile-title">REPORT</span>
-          <span class="act-tile-sub">Log this citation to the campaign</span>
+          <span class="act-tile-sub">Check this listing and file it with your citations</span>
         </button>
       </div>
       <button class="cf-shot-visible" id="cfShotVisible">Visible area only</button>
@@ -332,18 +334,23 @@ function sentence(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+// 1.10.3: these are the business's citations (filed here, or found by a
+// campaign), newest first, not a log of checks: a check is recorded only
+// when it is filed. Until then the label said "Last 3 checks" over the
+// first three by the site's priority order.
 function renderIdle(zone) {
   if (!cfRecent.length) {
     zone.innerHTML = `<div class="recent">
-      <div class="recent-label">No checks filed yet · this business</div>
-      <div class="recent-row"><span class="recent-dir">Run a NAP check to start the record.</span></div>
+      <div class="recent-label">No citations filed yet · this business</div>
+      <div class="recent-row"><span class="recent-dir">Check a listing and file it to start the record.</span></div>
     </div>`;
     return;
   }
   zone.innerHTML = `<div class="recent">
-    <div class="recent-label">Last ${cfRecent.length} check${cfRecent.length === 1 ? '' : 's'} · this business</div>
+    <div class="recent-label">Latest citation${cfRecent.length === 1 ? '' : 's'} · this business</div>
     ${cfRecent.map(c => {
-      const pct = c.nap_match_score != null ? Math.round(c.nap_match_score * 100) : null;
+      const score = SBWCitations.napScore(c);
+      const pct = score != null ? Math.round(score * 100) : null;
       return `<div class="recent-row">
         <span class="recent-dir">${esc(c.directory_name)}</span>
         <span class="recent-date">${esc(fmtDate(c.last_checked_at || c.created_at))}</span>
@@ -371,14 +378,25 @@ function renderAlert(zone, r) {
   if (r.retryVisible) document.getElementById('cfShotVisibleRetry').addEventListener('click', runVisibleShot);
 }
 
+function listWords(names) {
+  return names.join(', ').replace(/, ([^,]*)$/, ' and $1');
+}
+
+// 1.10.3: a field the listing does not show is "not found", not "differs";
+// a website is compared only when both the record and the listing have one.
 function renderNap(zone, r) {
   const pct = Math.round(r.score.total * 100);
-  const drift = r.fields.filter(f => f.pct < 80).length;
+  const drifting = r.fields.filter(f => f.compared && f.pct < 80);
+  const drift = drifting.length;
   const verdict = drift === 0 ? 'EVERYTHING MATCHES' : `${drift} FIELD${drift > 1 ? 'S' : ''} DRIFTING`;
-  const driftNames = r.fields.filter(f => f.pct < 80).map(f => f.k.toLowerCase());
+  const missing = drifting.filter(f => !f.found).map(f => f.k.toLowerCase());
+  const differ = drifting.filter(f => f.found).map(f => f.k.toLowerCase());
+  const parts = [];
+  if (differ.length) parts.push(`${listWords(differ)} differ${differ.length === 1 ? 's' : ''} from your master record`);
+  if (missing.length) parts.push(`${listWords(missing)} ${missing.length === 1 ? 'is' : 'are'} not on this listing`);
   const sub = drift === 0
-    ? 'This listing matches your master record on every field we compare.'
-    : sentence(`${driftNames.join(', ').replace(/, ([^,]*)$/, ' and $1')} differ${drift === 1 ? 's' : ''} from your master record.`);
+    ? 'This listing matches your master record on every field compared.'
+    : sentence(parts.join('; ') + '.');
 
   zone.innerHTML = `<div class="cf-card">
     <div class="nap-head">
@@ -392,10 +410,10 @@ function renderNap(zone, r) {
     </div>
     ${r.fields.map(f => `
       <div class="nap-field">
-        <span class="nap-dot" style="background:${statusColor(f.pct)}"></span>
+        <span class="nap-dot" style="background:${f.compared ? statusColor(f.pct) : 'var(--paper-40)'}"></span>
         <span class="nap-field-k">${esc(f.k)}</span>
-        <span class="nap-field-v" title="${esc(f.found || 'not found')}">${esc(f.found || '— not found —')}</span>
-        <span class="badge-mono ${statusClass(f.pct)}">${f.pct}%</span>
+        <span class="nap-field-v" title="${esc(f.found || f.note || 'not found')}">${esc(f.found || f.note || '— not found —')}</span>
+        ${f.compared ? `<span class="badge-mono ${statusClass(f.pct)}">${f.pct}%</span>` : '<span class="badge-mono">—</span>'}
       </div>`).join('')}
     <div class="nap-foot">
       <button class="btn-fill" id="cfNapReport">FILE THIS CITATION</button>
@@ -439,8 +457,10 @@ function renderProof(zone, r) {
 
 /* ---------- actions ---------- */
 
-async function runNapCheck() {
-  cfResult = { kind: 'loading', label: 'Reading listing…' };
+// Reads the listing and scores it against the business's record. Resolves
+// to the NAP result, or null after showing why the page could not be read.
+async function checkListing(label) {
+  cfResult = { kind: 'loading', label: label || 'Reading listing…' };
   renderResult();
 
   const nap = await send({ action: 'extractNap', tabId: cfTab.id });
@@ -452,7 +472,7 @@ async function runNapCheck() {
       body: nap?.error || 'No NAP block found. Try scrolling to the business info, then check again.'
     };
     renderResult();
-    return;
+    return null;
   }
 
   const canonical = {
@@ -462,15 +482,24 @@ async function runNapCheck() {
     website: cfBiz.website || ''
   };
   const score = computeNapMatchScore(canonical, nap);
+  const websiteNote = !canonical.website ? 'not in your master record' : '';
 
   const fields = [
-    { k: 'Name', found: nap.name, pct: Math.round(score.breakdown.name * 100) },
-    { k: 'Address', found: nap.address, pct: Math.round(score.breakdown.address * 100) },
-    { k: 'Phone', found: nap.phone, pct: Math.round(score.breakdown.phone * 100) },
-    { k: 'Website', found: nap.website, pct: Math.round(score.breakdown.website * 100) }
+    { k: 'Name', found: nap.name, pct: Math.round(score.breakdown.name * 100), compared: true },
+    { k: 'Address', found: nap.address, pct: Math.round(score.breakdown.address * 100), compared: true },
+    { k: 'Phone', found: nap.phone, pct: Math.round(score.breakdown.phone * 100), compared: true },
+    // Compared only when both sides have one; a listing without the record's
+    // website is "not on this listing", one the record lacks is not judged.
+    { k: 'Website', found: nap.website, pct: Math.round(score.breakdown.website * 100), compared: !!canonical.website, note: nap.website ? '' : websiteNote }
   ];
 
-  cfResult = { kind: 'nap', score, fields, nap };
+  return { kind: 'nap', score, fields, nap };
+}
+
+async function runNapCheck() {
+  const r = await checkListing();
+  if (!r) return;
+  cfResult = r;
   renderResult();
 }
 
@@ -598,30 +627,32 @@ function imageDims(dataUrl) {
   });
 }
 
-async function runReport(napResult, screenshotDownloadedArg) {
-  if (!cfDir && !napResult) {
-    // Unknown site with no check run — warn but still allow
-    cfResult = {
-      kind: 'alert', tone: 'warning',
-      title: 'UNKNOWN SITE',
-      body: "This isn't a directory we track. Filing it anyway — you can still download a proof screenshot."
-    };
-    renderResult();
-  }
-
-  cfSetStatus('Filing citation…');
-
+// 1.10.3: every filing carries a NAP check. REPORT without one runs it
+// first, so a citation's status comes from its score. Until then an
+// unchecked filing was saved as "active" (matching), and the site has no
+// status for an unchecked listing; a page the check cannot read is not filed.
+async function runReport(napResultArg, screenshotDownloadedArg) {
   const screenshotDownloaded = screenshotDownloadedArg != null
     ? screenshotDownloadedArg
     : !!(cfResult && cfResult.kind === 'proof' && cfResult.downloaded);
 
+  let napResult = napResultArg;
+  if (!napResult) {
+    napResult = await checkListing(cfDir ? 'Checking the listing before filing…' : 'Not a tracked directory: checking it before filing…');
+    if (!napResult) return; // checkListing has said why; nothing filed
+  }
+
+  cfSetStatus('Filing citation…');
+
   const payload = SBWCitations.buildCitationPayload({
     directoryName: cfDir ? cfDir.name : hostOf(cfTab.url),
     directoryUrl: cfTab.url,
-    nap: napResult?.nap || null,
-    scoreTotal: napResult?.score?.total ?? null,
+    nap: napResult.nap,
+    scoreTotal: napResult.score.total,
     screenshotDownloaded
   });
+
+  if (!payload) { cfSetStatus('Run Check NAP first', 'error'); return; }
 
   try {
     await SBW.ct.createCitation(cfBiz.id, payload);
@@ -653,7 +684,7 @@ async function loadSidecarData() {
       SBW.ct.citations(cfBiz.id)
     ]);
     cfStats = stats;
-    cfRecent = citations.slice(0, 3);
+    cfRecent = SBWCitations.latestCitations(citations, 3);
 
     const foot = document.getElementById('cfFootStat');
     if (foot) {
@@ -680,7 +711,7 @@ async function switchBusiness() {
 async function disconnect() {
   if (!confirm('Disconnect your SEO Bandwagon account?')) return;
   await chrome.storage.sync.set({ apiKey: '' });
-  await chrome.storage.local.remove(['sbwUser', 'sbwKeyStatus', CF_STORE_KEY]);
+  await SBW.clearAccountCaches(); // every per-account cache, the chosen business among them
   cfBiz = null;
   cfResult = null;
   cfRecent = [];
