@@ -302,8 +302,15 @@ text in its `store/LISTING.md`, packaged by its `npm run zip`:
 
 | Item | Status | Item ID |
 |------|--------|---------|
-| SEO Bandwagon — Neon Night | Published 2026-09-08, category Dark & Black; 1.0.1. Listing updated 2026-10-28 with five screenshots (seobw-themes `store/neon-night-1-new-tab.png` to `-5-side-panel.png`) | `bomhiblgnbmpgbddhocomnbijdkmpbhl` |
-| SEO Bandwagon — Neon Day | Published 2026-09-08, category Other; 1.0.1. Listing updated 2026-10-28 with five screenshots (seobw-themes `store/neon-day-1-new-tab.png` to `-5-side-panel.png`) | `ldifldabjbffldoekbebpickddaiiggm` |
+| SEO Bandwagon — Neon Night | Published 2026-09-08, category Dark & Black; 1.0.1. Listing updated 2026-10-28 with five screenshots (seobw-themes `store/neon-night-1-new-tab.png` to `-5-side-panel.png`), and again 2026-10-30, both at 1.0.1. **1.0.2 submitted 2026-11-01**, staged publish (run `41332069953`, seobw-themes `f24e9ae`): PENDING_REVIEW. Same images; the version moves with every upload from now on | `bomhiblgnbmpgbddhocomnbijdkmpbhl` |
+| SEO Bandwagon — Neon Day | Published 2026-09-08, category Other; 1.0.1. Listing updated 2026-10-28 with five screenshots (seobw-themes `store/neon-day-1-new-tab.png` to `-5-side-panel.png`), and again 2026-11-01, both at 1.0.1. **1.0.2 submitted 2026-11-01**, staged publish (run `41332073322`, seobw-themes `f24e9ae`): PENDING_REVIEW. Same images; the version moves with every upload from now on | `ldifldabjbffldoekbebpickddaiiggm` |
+
+A theme's version goes up with every upload to its store item, a listing
+update included (owner, 2026-11-01: "The themes are supposed to get updated
+version numbers when we udpated the package and upload new shit to the
+store"). Bump its `manifest.json` in seobw-themes, then run that repo's
+`store-submit.yml`; a listing change saved in the dashboard goes out with
+that submission.
 
 Both ids are in `THEME_IDS` in `extension/src/lib/theme-mode.js`, so the
 extension's options page shows its theme links from 1.6.0 on.
