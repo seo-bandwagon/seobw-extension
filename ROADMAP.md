@@ -55,12 +55,17 @@ SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
 The releases below are in shipping order, and a version number never goes
 back: if one release's website work is late, it and the ones after it wait.
 Within each stage the Google results page comes first, then the account, then
-the popup. Store submissions group them: **A** 1.10.2–1.10.6, **B**
-1.10.7–1.13.0, **C** 1.14.0–1.15.0 (with the Firefox gate), **D**
-1.16.0–2.0.0 (owner, 2026-10-23). Renumbered 2026-10-31: 1.9.5, 1.10.0 and
-1.10.1 shipped the Neon and rank-drops new tab first, so the patches start at
-1.10.2 and the minors at 1.11.0. Every release builds and lints the Chrome,
-Edge and Firefox packages from 1.10.6 on. Every release also updates `CHROMEWEBSTORE.md`,
+the popup. Since 2026-11-01 the Google results page comes first and is
+finished in four releases, 1.10.2 to 1.13.0, before every other surface
+(owner: "Make sure that the SERP feature gets addressed ... Keywords
+Everywhere and SEOQuake both have much better SERP features and that is
+unacceptable"); 1.10.3 and 1.10.4 sit between them because the figures need
+them. Store submissions group them: **A** 1.10.2 alone, **B** 1.10.3–1.11.0,
+**C** 1.12.0–1.13.0, **D** 1.13.1–1.15.0 (with the Firefox gate), **E**
+1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
+and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
+1.11.0. Every release builds and lints the Chrome, Edge and Firefox packages
+from 1.13.2 on. Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -86,14 +91,17 @@ stories, forums, `udm=web`, signed-out AI Overview, a non-English Google,
 mobile) and real Search Console pages; an e2e Copy check without a clipboard
 grant; the coverage report (#74).
 
-### 1.10.2: the Google results page stops misleading (patch)
-- [ ] Bar below the whole result, with position and Analyze; "Score N · M captures" dropped
-- [ ] People Also Ask containers rejected (no fake results)
-- [ ] 6 metros renamed to Google's names; Compare opens both tabs from the worker
+### 1.10.2: the Google results page shows the right numbers, and Analyze stays on Google (patch)
+- [ ] The pooled "Score N · M captures" dropped (an average grade for the whole host across every account, "No score yet · 0 captures" for nearly every site); the bar below the whole result, with the organic position on it and the position counting everything in its tooltip, matching the exports
+- [ ] People Also Ask containers rejected (no fake results); a result the parser can't place keeps its slot as "unknown site", so later positions don't shift; "Absolute" counts earlier pages' organic results instead of adding `start`
+- [ ] Saved real pages for local pack, videos, top stories, signed-out AI Overview and mobile, each checked against Google's order
+- [ ] Analyze stays on Google (owner, 2026-11-01): the page opens in a background tab, that tab is analyzed by its ID (never the active tab), its on-page checklist line appears under the result with "Open report"; all-sites access asked once from an extension page; the bar and both caches refresh after; a second click reuses the tab
 - [ ] Collect matches repeats on the result link; exports gain "URL known" and the place name
 - [ ] 403 and 429 get their own messages; a visible notice when no results are read
-- [ ] `www.google.co.in` replaces `www.google.in`, which redirects (India gets nothing today)
+- [ ] 6 metros renamed to Google's names; Compare opens both tabs from the worker
+- [ ] "Web results only" checked against Google's current filter (`udm=14`); `www.google.co.in` replaces `www.google.in`, which redirects (India gets nothing today)
 - [ ] Search Console: tab switches through `webNavigation.onHistoryStateUpdated`; searches with country and personalisation off
+- [ ] Nothing new sent; the bar stops calling `quick-batch`
 
 ### 1.10.3: the account features work for a normal user (patch)
 - [ ] `hasApiKey` exported; "connected" means a verified key; caches cleared on Connect; 429/503/offline is not "signed out"
@@ -115,7 +123,40 @@ grant; the coverage report (#74).
 - [ ] Decorative `alt=""` apart from missing alt; word count falls back to the body
 - [ ] Tech stack probed in the page's own world (`world: 'MAIN'`, no new permission)
 
-### 1.10.5: the checks panels are right (patch)
+### 1.11.0: figures under every result, and the results page redrawn
+- [ ] One line under each result, figures chosen in settings: the page's referring domains, backlinks, rank, traffic and ranking keywords; the site's rank, referring domains, traffic and ranking keywords; domain age with registrar and dates on hover; your own on-page checklist where you captured the page
+- [ ] Link and traffic figures labelled as DataForSEO's (0–100 rank scale); no authority score of our own; the checklist never worded as a ranking factor
+- [ ] Signed out of Google, a row known only by its site gets the site's figures and "sign in to Google to see page figures"; no request to Google
+- [ ] Signed out of SEO Bandwagon: position and Analyze, and "Connect free to see figures"
+- [ ] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast
+- [ ] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
+- [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically (default) or on a click
+- [ ] The popup on a results page: the search's features, exports, settings, account state, plan and the day's allowance; at the limit the bars say so and link to upgrading
+- [ ] Exports gain the figures, the search's features, AI Overview citations, result type
+- [ ] Your own sites highlighted: every Search Console property the account granted (a local list until 1.14.0 links the account)
+- [ ] About 20 more Google domains; dates, ratings and ad labels per language; Search Console in other languages (1.8.4's warning names ten Google domains as one host, so this likely adds no warning; measured first)
+- [ ] The consent module (moved from 1.10.7): each data flow mapped to a Firefox category; every send checks category granted and flow accepted; accept buttons in Options
+- [ ] Data use: full result URLs sent (today: domains); disclosure, store answers and `/privacy` change
+- [ ] Website `POST /api/v1/serp/metrics` under a `serp` scope (older keys show Reconnect): DataForSEO bulk links (one call per search if `bulk_pages_summary` covers pages and domains, measured first) and `bulk_traffic_estimation`; domain age from RDAP; a 30-day cache; a `serp_metrics` daily allowance; a spend ledger with a monthly ceiling
+- [ ] Allowances (owner, 2026-10-23; starting values 2026-11-01): free 20 searches with figures a day, Pro 250, $100 a month site-wide, all config values checked against the measured cost (about $0.035–$0.06 an uncached search)
+
+### 1.12.0: Analyze on Google, and the results table
+- [ ] Analyze opens a row under the result, on Google (owner, 2026-11-01): title and description with pixel lengths, H1, word count, schema types, canonical, indexable, status and redirects, hreflang, technologies, AI crawlers blocked in robots.txt, llms.txt, the on-page checklist
+- [ ] The page's HTML fetched without cookies under the all-sites access; the popup's analyzer runs in an offscreen document on Chrome and Edge (`offscreen`, no warning; measured first) and the background page on Firefox; no tab opens; "Full report" opens the rendered analysis
+- [ ] "Analyze top 10": every row and the table's on-page columns in one click, three pages at a time
+- [ ] The Market Samurai-style table at the panel's place: position, title/URL, result type, the search's words in title, URL and description, title length, date, page and site link and traffic figures, domain age, word count, schema, the on-page checklist; cells coloured against the search's median or your pinned page; columns chosen and sortable; same columns in the export
+- [ ] Your page pinned as a comparison row (the account's site, or a typed URL)
+- [ ] AI Overview sources with the same figures and their own export
+- [ ] Signed out of Google, a row Google hides asks to sign in to Google or open it; no request to Google
+
+### 1.13.0: keyword data on Google, into the account (#68)
+- [ ] On a click or automatically: volume, difficulty, CPC, competition and trend under the search box; volumes for related searches and People Also Ask
+- [ ] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet)
+- [ ] If the rank tracker already tracks the search, your result shows its position history
+- [ ] Website: keyword metrics and keyword write routes under the `keywords` scope, added to `EXTENSION_SCOPES` (older keys get a 403 and show Reconnect)
+- [ ] Data use: sends the search text; its own first-use disclosure
+
+### 1.13.1: the checks panels are right (patch, was 1.10.5)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -125,7 +166,7 @@ grant; the coverage report (#74).
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
 
-### 1.10.6: build targets for Chrome, Edge and Firefox (patch)
+### 1.13.2: build targets for Chrome, Edge and Firefox (patch, was 1.10.6)
 Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0).
 - [ ] `npm run zip -- --target chrome|edge|firefox`: each manifest is the shared one plus a per-target overlay under `scripts/`, so a change for one store never forces a bump; `check:zip` reads the packaged manifest
 - [ ] Edge and Firefox overlays leave out the new-tab override and `management` (the Neon themes are Chrome Web Store items); Firefox adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain
@@ -133,37 +174,11 @@ Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0)
 - [ ] `utm_source` per browser: `chrome_extension`, `edge_extension`, `firefox_extension`
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
 
-### 1.10.7: shared pieces for three browsers (patch)
-Merged after submission A uploads, and before any new data flow.
+### 1.13.3: Connect bridge and one panel opener (patch, was 1.10.7)
+The consent module moved to 1.11.0.
 - [ ] The Connect bridge: a content script on seobandwagon.com's api-keys and welcome paths, top frame only, origin and `event.source` checked, replies on a `MessageChannel` port; `externally_connectable` stays for Chrome and Edge
-- [ ] A consent module: each data flow mapped to a Firefox category; every send checks category granted and flow accepted; on Firefox data collection starts off; accept buttons in Options (Firefox's prompt closes the popup)
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
 - [ ] Website: the messaging tries the bridge first, then `sendMessage(EXTENSION_ID)`
-
-### 1.11.0: the Google results page, redrawn
-- [ ] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast; one compact line per result
-- [ ] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
-- [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically or on a click
-- [ ] The popup on a results page: the search's features, exports, settings, account state
-- [ ] Exports gain the search's features, AI Overview citations, result type
-- [ ] Your own sites highlighted: every Search Console property the account granted (a local setting until 1.14.0 links the account)
-- [ ] About 20 more Google domains; dates, ratings and ad labels per language; Search Console in other languages (1.8.4's warning names ten Google domains as one host, so this likely adds no warning; measured first)
-
-### 1.12.0: figures on every result, and the results table
-- [ ] Website `POST /api/v1/serp/metrics`: page referring domains and page rank (the two the grade study supports), domain rank and referring domains (context), domain age from the existing whois lookup; DataForSEO bulk endpoints, cached; per-plan daily cap
-- [ ] Figures on each bar
-- [ ] The Market Samurai-style table at the panel's place: position, title/URL, result type, query words in title and URL, title length, date, the link figures, domain age, word count, the on-page checklist; cells coloured against the search's median or your pinned page; columns chosen and sortable; same columns in the export
-- [ ] AI Overview sources with the same figures
-- [ ] Plan and the day's allowance shown; at the limit the table says so and links to upgrading
-- [ ] Allowances (owner, 2026-10-23): free accounts with a daily cap, Pro higher, a site-wide monthly ceiling; numbers set in this release's design
-- [ ] Signed out of Google, a row known only by its site gets domain figures and "sign in to Google to see page figures"; no request to Google
-- [ ] Data use: full result URLs sent (today: domains); disclosure, store answers and `/privacy` change
-
-### 1.13.0: keyword data on Google, into the account (#68)
-- [ ] On a click: volume, difficulty, CPC and trend for the search; volumes for related searches and People Also Ask
-- [ ] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet)
-- [ ] Website: keyword metrics and keyword write routes under the `keywords` scope (extension keys lack it today: a 403 shows Reconnect)
-- [ ] Data use: sends the search text; its own first-use disclosure
 
 ### 1.14.0: onboarding after feature releases
 The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
@@ -211,7 +226,7 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 - [ ] Store listing, screenshots, tiles and video; every data-use answer; the website's extension pages true
 - [ ] `lib/` under `src/lib/`
 - [ ] **Edge and Firefox launch** (owner, 2026-10-31): Firefox wiring (`sidebar_action` with one sidebar page that follows the active tab, the consent prompts); `scripts/edge-publish.mjs` (upload only; the owner presses Publish) and `web-ext sign` for AMO; first listings on Edge Add-ons and AMO; the full check on all three; the API key in `storage.local`
-- [ ] Firefox gate, held at submission C with a `web-ext run` smoke test on every surface: if the sidebar or consent gating can't pass, Firefox follows 2.0.0 instead of holding it, and no copy mentions Firefox until it is live
+- [ ] Firefox gate, held at submission D with a `web-ext run` smoke test on every surface: if the sidebar or consent gating can't pass, Firefox follows 2.0.0 instead of holding it, and no copy mentions Firefox until it is live
 
 **Not in 2.0.0:** the extension's own interface in other languages; the crowdsourced rank-checker extension; writing content on the
 website (the extension's part is "Add to my keywords" and the content gaps).
@@ -1542,8 +1557,8 @@ place on "The road to 2.0.0" above: #68 in 1.13.0, #67 in 1.15.0, #69–#71 in
 
 - **An authority score of our own** (a DA/PA/DR of our making): it needs a
   proprietary link index, and the Bandwagon Score stays an April Fool's joke.
-  Link figures from DataForSEO, labelled as theirs, are in from 1.12.0 (owner,
-  2026-10-17 and 2026-10-23); this non-goal used to rule out all authority
+  Link figures from DataForSEO, labelled as theirs, are in from 1.11.0 (owner,
+  2026-10-17, 2026-10-23 and 2026-11-01); this non-goal used to rule out all authority
   metrics.
 - **A runtime build step or runtime dependencies** — the extension ships as
   plain files from `extension/` with no bundler and no npm packages, and that is
