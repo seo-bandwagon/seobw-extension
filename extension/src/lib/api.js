@@ -208,6 +208,18 @@
       const all = await session.get(null);
       const keys = Object.keys(all || {}).filter(k => ACCOUNT_SESSION_PREFIXES.some(p => k.startsWith(p)));
       await session.remove(ACCOUNT_SESSION_KEYS.concat(keys));
+      // Pages added to Collect keep their rows, without the figures the old
+      // account was given (its own checklist among them).
+      const collected = {};
+      Object.entries(all || {}).forEach(([k, v]) => {
+        if (!k.startsWith('serpCollect::') || !v || !Array.isArray(v.pages)) return;
+        collected[k] = Object.assign({}, v, {
+          pages: v.pages.map(p => Object.assign({}, p, {
+            rows: (p.rows || []).map(r => { const c = Object.assign({}, r); delete c.figures; return c; })
+          }))
+        });
+      });
+      if (Object.keys(collected).length) await session.set(collected);
     } catch (e) {
       // No session storage in this context: nothing cached there to clear.
     }

@@ -41,6 +41,20 @@ describe('what is asked for', () => {
     expect(F.requestItem(row({ url: 'https://blog.alpha.example/x', domain: 'alpha.example' })).url).toBe('https://blog.alpha.example/x');
   });
 
+  it('never sends the search: Google\'s own results lose their query, other sites any parameter holding it', () => {
+    const q = 'emergency plumber austin';
+    expect(F.requestItem(row({ url: 'https://books.google.com/books?id=abc&dq=emergency+plumber+austin', domain: 'books.google.com' }), q).url)
+      .toBe('https://books.google.com/books');
+    expect(F.requestItem(row({ url: 'https://scholar.google.com/scholar?q=x', domain: 'scholar.google.com' }), q).url)
+      .toBe('https://scholar.google.com/scholar');
+    expect(F.requestItem(row({ url: 'https://alpha.example/search?s=Emergency+Plumber+Austin&page=2', domain: 'alpha.example' }), q).url)
+      .toBe('https://alpha.example/search?page=2');
+    expect(F.requestItem(row({ url: 'https://alpha.example/p?id=7', domain: 'alpha.example' }), q).url).toBe('https://alpha.example/p?id=7');
+    const all = F.requestItems([row({ url: 'https://www.google.com/books/edition/X/abc?gbpv=1&dq=emergency+plumber+austin', domain: 'google.com' })], q);
+    // What the worker posts is { url, domain }; the key stays in the browser.
+    expect(JSON.stringify(all.map(({ url, domain }) => ({ url, domain })))).not.toMatch(/plumber/);
+  });
+
   it('asks 10 results a call, the route\'s limit', () => {
     const items = Array.from({ length: 23 }, (_, i) => ({ key: String(i) }));
     expect(F.batches(items, F.MAX_PER_CALL).map((b) => b.length)).toEqual([10, 10, 3]);

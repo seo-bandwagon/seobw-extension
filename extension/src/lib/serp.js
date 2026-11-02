@@ -278,37 +278,56 @@
 
   // 1.11.0: the same stamp as the other Googles write it, read before the
   // dash (em or en). Each form is a date shape, not "a few words with a
-  // digit", so "10 best tools — …" stays a description:
-  //   a day, a month by name, a year: "28. März 2025", "28 mars 2025",
-  //     "28 de mar. de 2025", "28 mrt 2025" (the month checked against
-  //     MONTH_STEMS);
-  //   all digits: "28.03.2025", "28/03/2025", "2025/03/28", "2025年3月28日";
+  // digit", so "10 best tools — …", "For 30 years — …" and "1.10.20 —
+  // release notes" stay descriptions:
+  //   a day, a month by its name or the abbreviation Google prints, a year:
+  //     "28. März 2025", "28 mars 2025", "28 de mar. de 2025", "28 mrt
+  //     2025" (the month must be one of MONTHS, whole);
+  //   all digits, with a real day and month and a four-digit year:
+  //     "28.03.2025", "28/03/2025", "2025/03/28", "2025年3月28日";
   //   how long ago: "vor 6 Tagen", "il y a 6 jours", "hace 6 días", "há 6
   //     dias", "för 6 dagar sedan", "6 giorni fa", "6 dagen geleden", "6 dni
   //     temu", "6 päivää sitten", "6 gün önce", "6 日前".
-  const MONTH_STEMS = new Set([
-    'jan', 'feb', 'fév', 'fev', 'mär', 'mar', 'apr', 'avr', 'abr', 'mai', 'may', 'mag', 'mei', 'maj', 'jun', 'jui',
-    'giu', 'jul', 'lug', 'aug', 'ago', 'aoû', 'aou', 'sep', 'set', 'okt', 'oct', 'ott', 'out', 'nov', 'dez', 'dec',
-    'dic', 'déc', 'des', 'ene', 'gen', 'tam', 'hel', 'maa', 'huh', 'tou', 'kes', 'hei', 'elo', 'syy', 'lok', 'mar',
-    'jou', 'sty', 'lut', 'kwi', 'cze', 'lip', 'sie', 'wrz', 'paź', 'paz', 'lis', 'gru', 'oca', 'şub', 'nis', 'haz',
-    'tem', 'ağu', 'eyl', 'eki', 'kas', 'ara', 'mrt'
-  ]);
+  const MONTHS = new Set((
+    // German, French, Spanish, Italian, Dutch, Portuguese
+    'januar jan februar feb märz mär april apr mai juni jun juli jul august aug september sept sep oktober okt november nov dezember dez ' +
+    'janvier janv février févr mars avril avr juin juillet juil août septembre octobre oct novembre décembre déc ' +
+    'enero ene febrero marzo mar abril abr mayo may junio julio agosto ago septiembre set octubre noviembre diciembre dic ' +
+    'gennaio gen febbraio aprile maggio mag giugno giu luglio lug settembre ottobre ott dicembre ' +
+    'januari februari maart mrt mei augustus december dec ' +
+    'janeiro fevereiro fev março abril maio junho julho setembro outubro out novembro dezembro ' +
+    // Polish (genitive and short), Swedish, Danish and Norwegian, Finnish, Turkish
+    'stycznia sty lutego lut marca kwietnia kwi maja maj czerwca cze lipca lip sierpnia sie września wrz października paź listopada lis grudnia gru ' +
+    'augusti marts ' +
+    'tammikuuta helmikuuta maaliskuuta huhtikuuta toukokuuta kesäkuuta heinäkuuta elokuuta syyskuuta lokakuuta marraskuuta joulukuuta ' +
+    'ocak şubat mart nisan mayıs haziran temmuz ağustos eylül ekim kasım aralık'
+  ).split(' '));
   const DASH = '\\s+[\\u2014\\u2013]\\s+';
-  const NAMED_DATE_RE = new RegExp('^(\\d{1,2}\\.?\\s+(?:de\\s+)?(\\p{L}{3,10})\\.?,?\\s+(?:de\\s+)?\\d{4})' + DASH, 'u');
-  const NUMERIC_DATE_RE = new RegExp('^(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}|\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}\\.?|\\d{4}年\\d{1,2}月\\d{1,2}日)' + DASH.replace('\\s+[', '\\s*['), 'u');
+  const NAMED_DATE_RE = new RegExp('^(\\d{1,2}\\.?\\s+(?:de\\s+)?(\\p{L}{3,12})\\.?,?\\s+(?:de\\s+)?\\d{4})' + DASH, 'u');
+  const NUMERIC_DATE_RE = new RegExp('^((\\d{1,2})[./-](\\d{1,2})[./-](\\d{4})|(\\d{4})[./-](\\d{1,2})[./-](\\d{1,2})\\.?|\\d{4}年\\d{1,2}月\\d{1,2}日)' + DASH.replace('\\s+[', '\\s*['), 'u');
   const RELATIVE_DATE_RE = new RegExp('^(' +
-    '(?:vor|il y a|hace|há|för|for)\\s+\\d+\\s+\\p{L}+(?:\\s+(?:sedan|siden))?' +
-    '|\\d+\\s+\\p{L}+\\s+(?:fa|geleden|temu|sitten|önce|siden|sedan|lalu|ago)' +
+    '(?:vor|il y a|hace|há)\\s+\\d+\\s+\\p{L}+' +
+    '|(?:för|for)\\s+\\d+\\s+\\p{L}+\\s+(?:sedan|siden)' +
+    '|\\d+\\s+\\p{L}+\\s+(?:fa|geleden|temu|sitten|önce|lalu|ago)' +
     '|\\d+\\s*(?:秒|分|時間|日|週間|か月|ヶ月|年)前' +
     ')' + DASH.replace('\\s+[', '\\s*['), 'iu');
+
+  function realDate(m) {
+    // dd.mm.yyyy (or dd/mm, mm/dd) or yyyy.mm.dd: a day 1-31 and a month
+    // 1-12 one way round, and a year from 1990 on.
+    const [a, b, y] = m[2] ? [+m[2], +m[3], +m[4]] : m[5] ? [+m[7], +m[6], +m[5]] : [1, 1, 2000];
+    const dayMonth = (a >= 1 && a <= 31 && b >= 1 && b <= 12) || (b >= 1 && b <= 31 && a >= 1 && a <= 12);
+    return dayMonth && y >= 1990 && y <= 2100;
+  }
 
   /** `{ date, rest }` — `date` is '' when the description carries no stamp. */
   function splitDatePrefix(text) {
     const s = text || '';
-    const m = DATE_PREFIX_RE.exec(s) || NUMERIC_DATE_RE.exec(s) || RELATIVE_DATE_RE.exec(s);
+    const numeric = NUMERIC_DATE_RE.exec(s);
+    const m = DATE_PREFIX_RE.exec(s) || (numeric && realDate(numeric) ? numeric : null) || RELATIVE_DATE_RE.exec(s);
     if (m) return { date: m[1], rest: s.slice(m[0].length) };
     const named = NAMED_DATE_RE.exec(s);
-    if (named && MONTH_STEMS.has(named[2].slice(0, 3).toLowerCase())) {
+    if (named && MONTHS.has(named[2].toLowerCase())) {
       return { date: named[1], rest: s.slice(named[0].length) };
     }
     return { date: '', rest: s };

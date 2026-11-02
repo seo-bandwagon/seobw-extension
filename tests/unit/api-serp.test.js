@@ -82,3 +82,19 @@ describe('every send asks the consent module', () => {
     expect(Object.keys(session)).toEqual(['other']);
   });
 });
+
+describe('a new account and pages added to Collect', () => {
+  it('keeps the collected rows and drops the figures the old account was given', async () => {
+    chromeWith();
+    const session = {
+      'serpCollect::q=crm': { key: 'q=crm', pages: [{ start: 0, rows: [{ url: 'https://a.example/', figures: { checklist: { score: 92 } } }] }], updatedAt: 1 }
+    };
+    globalThis.chrome.storage.session = {
+      get: vi.fn(async () => JSON.parse(JSON.stringify(session))),
+      remove: vi.fn(async () => {}),
+      set: vi.fn(async (o) => Object.assign(session, o))
+    };
+    await SBW.clearAccountCaches();
+    expect(session['serpCollect::q=crm'].pages[0].rows).toEqual([{ url: 'https://a.example/' }]);
+  });
+});

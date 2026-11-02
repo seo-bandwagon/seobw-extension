@@ -1177,3 +1177,76 @@ describe('1.11.0: the open page follows Options', () => {
     delete window.chrome.storage.onChanged;
   });
 });
+
+describe('1.11.0 review: retries, cosmetic settings, a new account', () => {
+  it('asks again after a 429, after Retry-After, and says "Try again" meanwhile', async () => {
+    // Rate limited for the first 3 s; earlier tests' copies of the overlay
+    // may ask too, so the answer goes by the clock, not by a count.
+    const limitedUntil = Date.now() + 3000;
+    let calls = 0;
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') {
+        calls += 1;
+        setTimeout(() => cb(Date.now() < limitedUntil ? { state: 'error', code: 'rate_limited', retryAfter: 5, results: {} }
+          : { state: 'ok', results: Object.fromEntries(msg.items.map((i) => [i.key, { page: { rank: 40 }, domain: null, whois: null, checklist: null }])), plan: 'free', allowance: null, lookups: 'done', notice: null }), 5);
+        return;
+      }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const box = () => barFor('alpha.example').querySelector('[data-role="figures"]');
+    expect(box().textContent).toBe('Too many figure requests in a minute. They load again shortlyTry again');
+    const before = calls;
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(calls).toBeGreaterThan(before);
+    // An earlier test's copy of the overlay may draw a bar of its own for
+    // the same result; this copy's bar is the one that now has figures.
+    const all = Array.from(document.querySelectorAll('.sbw-serp-bar')).filter((b) => b.querySelector('.sbw-serp-domain').textContent === 'alpha.example');
+    expect(all.some((b) => b.querySelector('[data-role="figures"]').textContent.includes('rank 40'))).toBe(true);
+  });
+
+  it('folding the panel never sends the figures again', async () => {
+    let changed = null;
+    window.chrome.storage.local = { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') { setTimeout(() => cb({ state: 'error', code: 'forbidden', results: {} }), 5); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const before = sentMessages.filter((m) => m.action === 'serpFigures').length;
+    changed({ serpSettings: { newValue: { collapsed: true } } }, 'local');
+    changed({ serpSettings: { newValue: { collapsed: false, placement: 'top' } } }, 'local');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sentMessages.filter((m) => m.action === 'serpFigures').length).toBe(before);
+    delete window.chrome.storage.onChanged;
+  });
+
+  it('a new account drops the old one\'s figures from the open page', async () => {
+    let changed = null;
+    window.chrome.storage.local = { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    let account = 'old';
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') {
+        const checklist = account === 'old' ? { score: 92, capturedAt: '2026-10-28' } : null;
+        setTimeout(() => cb({ state: 'ok', results: Object.fromEntries(msg.items.map((i) => [i.key, { page: null, domain: null, whois: null, checklist }])), plan: 'free', allowance: null, lookups: 'done', notice: null }), 5);
+        return;
+      }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('alpha.example').textContent).toContain('your checklist 92/100');
+    account = 'new';
+    changed({ apiKey: { newValue: 'sbw_new' } }, 'sync');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('alpha.example').textContent).not.toContain('your checklist');
+    delete window.chrome.storage.onChanged;
+  });
+});

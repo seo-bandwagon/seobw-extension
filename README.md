@@ -277,7 +277,9 @@ action; the consent module, `src/lib/consent.js`, checks it before every
 send), the address and site of each result on a Google results page you
 open, up to 10 a call, to `POST /api/v1/serp/metrics`, for the figures.
 Never the search terms, and never a request to Google: a result Google
-hides behind a redirect is sent by its site alone. Without both, nothing is
+hides behind a redirect is sent by its site alone, a result on one of
+Google's own hosts (Books, Scholar…) without its query string, and any
+other address without a parameter that holds the search's words. Without both, nothing is
 sent (1.10.2 sent nothing; until then, with an account, the bare domain
 names went to `POST /api/domain/quick-batch`). An analysis from Analyze is
 saved and synced exactly as the popup's is (with an account connected and

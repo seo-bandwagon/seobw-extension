@@ -87,8 +87,8 @@
   // "Forespørgsler", "Søk", "Kyselyt", "Sorgular", "クエリ". Checked against
   // the selected tab and the table's first header, never against data.
   // Japanese has no spaces between words, so its names match anywhere.
-  const OTHER_DIMENSION = /(^|[^\p{L}])(page|url|countr|device|appearance|date|filter|seite|land|länder|gerät|darstellung|datum|pays|appareil|apparence|date|pági|pagin|país|paes|país|dispositi|aspecto|aparência|fecha|data|pagina|landen|apparat|weergave|strony|kraj|urządz|wygląd|sidor|sider|länder|enhet|enheter|visning|dato|sivu|maa|laite|sayfa|ülke|cihaz|tarih)|ページ|国|デバイス|検索での見え方|日付/iu;
-  const QUERY_DIMENSION = /(^|[^\p{L}])(quer|search term|keyword|suchanfrage|anfrage|requête|requete|consulta|zoekopdracht|zapytan|sökfråg|forespørgsl|søk|kysely|sorgu)|クエリ|検索キーワード/iu;
+  const OTHER_DIMENSION = /(^|[^\p{L}])(page|url|countr|device|appearance|date|filter|seite|land|länder|gerät|darstellung|datum|pays|appareil|apparence|date|pági|pagin|país|paes|país|dispositi|aspecto|aparência|fecha|data|pagina|landen|apparat|weergave|strony|kraj|urządz|wygląd|sidor|sider|länder|enhet|enheter|visning|dato|sivu|maa|laite|sayfa|ülke|cihaz|tarih|utseende)|ページ|国|デバイス|検索での見え方|日付/iu;
+  const QUERY_DIMENSION = /(^|[^\p{L}])(quer|search term|keyword|suchanfrage|anfrage|requête|requete|consulta|zoekopdracht|zapytan|sökfråg|forespørgsl|søkeord|kysely|sorgu)|クエリ|検索キーワード/iu;
 
   /**
    * Is the report currently showing the Queries dimension?
@@ -118,11 +118,14 @@
 
     // 2. The selected tab itself. This is the most direct statement of what
     //    the user is looking at, and it does not depend on the table.
+    // 1.11.0: another dimension's name wins over a query word in the same
+    // label, so a compound such as "Søkeutseende" (search appearance) is
+    // never Queries; a label in neither list abstains.
     const tab = root.querySelector('[role="tab"][aria-selected="true"]');
     if (tab) {
       const label = (tab.textContent || '').trim();
-      if (QUERY_DIMENSION.test(label)) return true;
       if (OTHER_DIMENSION.test(label)) return false;
+      if (QUERY_DIMENSION.test(label)) return true;
     }
 
     // 3. The first header of the table that actually holds data rows — not
@@ -130,8 +133,8 @@
     const th = dataTableHeader(root);
     if (th) {
       const label = (th.textContent || '').trim();
-      if (QUERY_DIMENSION.test(label)) return true;
       if (OTHER_DIMENSION.test(label)) return false;
+      if (QUERY_DIMENSION.test(label)) return true;
     }
 
     // 4. Unknown. Do not inject.

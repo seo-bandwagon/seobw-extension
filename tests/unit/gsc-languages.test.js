@@ -19,7 +19,8 @@ describe('the Queries tab in Search Console\'s languages', () => {
   it.each(['Queries', 'Suchanfragen', 'Requêtes', 'Consultas', 'Query', 'Zoekopdrachten', 'Zapytania', 'Sökfrågor', 'Forespørgsler', 'Kyselyt', 'Sorgular', 'クエリ'])(
     'knows %j as Queries', (label) => { expect(view(label)).toBe(true); });
 
-  it.each(['Pages', 'Seiten', 'Páginas', 'Pagine', 'Strony', 'Länder', 'Pays', 'Geräte', 'Appareils', 'ページ', '国', 'デバイス'])(
+  it.each(['Pages', 'Seiten', 'Páginas', 'Pagine', 'Strony', 'Länder', 'Pays', 'Geräte', 'Appareils', 'ページ', '国', 'デバイス',
+    'Søkeutseende', 'Utseende i søk', 'Search appearance'])(
     'does not take %j for Queries', (label) => { expect(view(label)).toBe(false); });
 });
 

@@ -66,6 +66,12 @@
   const askedKeys = new Set();
   let figState = { state: 'idle' };
   let figuresWanted = false; // "Load figures" was clicked (load on a click)
+  // Answers that may pass (a 429, the site busy, offline) are asked again
+  // on their own, a few times: after Retry-After, or 30 s, 60 s, 90 s.
+  const RETRY_CODES = ['rate_limited', 'unavailable', 'network', 'error'];
+  const MAX_RETRIES = 3;
+  let retries = 0;
+  let retryTimer = null;
 
   // 1.11.0: #rso before #rcnt, so a page without #search still gets the
   // panel beside its results rather than after <body>.
@@ -73,8 +79,10 @@
     return document.querySelector('#search') || document.querySelector('#rso') || document.querySelector('#rcnt') || document.body;
   }
 
-  // Read only to build the location-simulator URL — never placed in a
-  // request body or message payload.
+  // Read only to build the location-simulator URL, and (1.11.0) to keep the
+  // search out of the result addresses the figures ask for
+  // (SBWSerpFigures.requestItem) — never placed in a request body or
+  // message payload itself.
   function currentQuery() {
     try {
       return new URLSearchParams(window.location.search).get('q') || '';
@@ -293,7 +301,10 @@
       box.setAttribute('data-state', st);
       if (words.action === 'connect') box.appendChild(actionButton(words.text, 'connect'));
       else if (words.action === 'settings') box.appendChild(actionButton('Turn on figures', 'settings', words.text + '.'));
-      else box.appendChild(el('span', 'sbw-fig-note', words.text));
+      else {
+        box.appendChild(el('span', 'sbw-fig-note', words.text));
+        if (RETRY_CODES.includes(code)) box.appendChild(actionButton('Try again', 'load'));
+      }
       return;
     }
     if (pendingKeys.has(row._key) || st === 'loading') {
@@ -327,7 +338,7 @@
     if (force) askedKeys.clear();
     const rows = Array.from(rowsByKey.values())
       .filter((r) => !figuresByKey.has(r._key) && !pendingKeys.has(r._key) && !askedKeys.has(r._key));
-    const items = F.requestItems(rows);
+    const items = F.requestItems(rows, currentQuery());
     if (!items.length) { renderAllFigures(); return; }
     items.forEach((i) => { pendingKeys.add(i.key); askedKeys.add(i.key); });
     if (figState.state === 'idle' || figState.state === 'error') figState = { state: 'loading' };
@@ -342,12 +353,27 @@
       } else if (reply.state === 'error') {
         Object.entries(reply.results || {}).forEach(([key, figures]) => figuresByKey.set(key, figures));
         figState = { state: 'error', code: reply.code, retryAfter: reply.retryAfter };
+        scheduleRetry(items, reply.code, reply.retryAfter);
       } else {
         figState = { state: reply.state };
       }
       renderAllFigures();
     });
     if (!sent) items.forEach((i) => pendingKeys.delete(i.key));
+  }
+
+  // A 429, a busy site or no connection: ask again for the results that got
+  // nothing, after Retry-After or a growing pause, at most MAX_RETRIES times
+  // a page.
+  function scheduleRetry(items, code, retryAfter) {
+    if (!RETRY_CODES.includes(code) || retries >= MAX_RETRIES || retryTimer) return;
+    retries += 1;
+    const wait = code === 'rate_limited' && Number(retryAfter) > 0 ? Number(retryAfter) * 1000 : 30000 * retries;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      items.forEach((i) => { if (!figuresByKey.has(i.key)) askedKeys.delete(i.key); });
+      loadFigures(false);
+    }, wait);
   }
 
   // ---------- the analysis line under a result (1.10.2) ----------
@@ -965,6 +991,7 @@
       box.textContent = words.text + '.';
       if (words.action === 'connect') actions.appendChild(actionButton(figState.state === 'no_key' ? 'Connect free' : 'Reconnect', 'connect'));
       if (words.action === 'settings') actions.appendChild(actionButton('Turn on figures', 'settings'));
+      if (figState.state === 'error' && RETRY_CODES.includes(figState.code)) actions.appendChild(actionButton('Try again', 'load'));
       short = figState.state === 'no_key' ? 'Connect free to see figures' : '';
     } else if (settings.load === 'click' && !figuresWanted) {
       box.textContent = 'Figures load when you ask for them.';
@@ -1119,7 +1146,9 @@
   function applySettings(next) {
     const before = settings;
     settings = next;
-    askedKeys.clear();
+    // Only a change to what is asked for asks again; folding the panel,
+    // moving it or changing its look never re-sends anything.
+    if (before.overlay !== next.overlay || before.figuresOn !== next.figuresOn || before.load !== next.load) askedKeys.clear();
     if (!settings.overlay) {
       document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-tools').forEach((n) => n.remove());
       toolbarEl = null;
@@ -1210,8 +1239,11 @@
             applySettings(Settings.normalize(changes[Settings.STORAGE_KEY].newValue));
           } else if ((area === 'local' && changes.sbwConsent) || (area === 'sync' && changes.apiKey)) {
             // Figures accepted or withdrawn in Options, or an account
-            // connected: the open page asks again, without a reload.
+            // connected: the open page asks again, without a reload. A new
+            // account never shows the old one's figures (its checklist).
             askedKeys.clear();
+            if (area === 'sync') figuresByKey.clear();
+            retries = 0;
             figState = { state: 'idle' };
             if (settings.overlay && settings.figuresOn && (settings.load === 'auto' || figuresWanted)) loadFigures(false);
             else renderAllFigures();

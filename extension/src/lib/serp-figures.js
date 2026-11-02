@@ -38,13 +38,44 @@
 
   // ---------- the request ----------
 
+  // Google's own properties (Books, Scholar, Maps…) carry the search in
+  // their links (`dq=`, `q=`): their results are asked for without a query.
+  const GOOGLE_HOST_RE = /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2,3})?$/i;
+
+  function words(text) {
+    return String(text || '').toLowerCase().replace(/\+/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  }
+
+  // The address without anything that carries the search: on any site, a
+  // parameter whose value holds the search's words (a site's own search
+  // page that ranks, a tracking link); on Google's own hosts, the whole
+  // query string.
+  function withoutSearch(u, query) {
+    if (GOOGLE_HOST_RE.test(u.hostname)) {
+      u.search = '';
+      return u;
+    }
+    const q = words(query);
+    if (!q) return u;
+    const keep = new URLSearchParams();
+    u.searchParams.forEach((value, name) => {
+      const v = words(value);
+      if (!(v && (v.includes(q) || (q.length > 3 && q.includes(v) && v.length > 3)))) keep.append(name, value);
+    });
+    const rest = keep.toString();
+    u.search = rest ? '?' + rest : '';
+    return u;
+  }
+
   /**
    * What one result is asked for: `{ key, url, domain }`. `key` tells the
    * results apart on the page (the parser's `_key`). A row Google hid behind
    * a redirect (`urlResolved: false`) is asked for by its site only; a row
-   * whose site is unknown is not asked for at all.
+   * whose site is unknown is not asked for at all. `query` is the search,
+   * read only to keep it out of the address (withoutSearch); it is never
+   * sent.
    */
-  function requestItem(row) {
+  function requestItem(row, query) {
     if (!row || row.siteUnknown || !row.domain) return null;
     const key = row._key || row.url || row.domain;
     if (row.urlResolved === false) return { key, url: null, domain: row.domain };
@@ -55,17 +86,17 @@
       if ((u.protocol === 'http:' || u.protocol === 'https:') && !u.username && !u.password &&
           (host === row.domain || host.endsWith('.' + row.domain))) {
         u.hash = '';
-        url = u.href;
+        url = withoutSearch(u, query).href;
       }
     } catch (e) { /* not an address: the site's figures only */ }
     return { key, url, domain: row.domain };
   }
 
-  function requestItems(rows) {
+  function requestItems(rows, query) {
     const seen = new Set();
     const out = [];
     (rows || []).forEach((row) => {
-      const item = requestItem(row);
+      const item = requestItem(row, query);
       if (!item || seen.has(item.key)) return;
       seen.add(item.key);
       out.push(item);

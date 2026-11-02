@@ -285,6 +285,18 @@ Spec: the vault's `03_Wiki/Extension_Roadmap_To_2_0_Design.md`, "1.11.0".
   again and redrew every half second. The observer now ignores our own
   nodes (the copy textarea and download link included), and a test fails if
   either fix is removed.
+- **Found in review before release:** a result on one of Google's own hosts
+  (Books, Scholar) carries the search in its link (`dq=`, `q=`), so those
+  addresses go without their query string, and on any site a parameter
+  holding the search's words is left out: the search never leaves. A 429,
+  a busy site or no connection is asked again on its own (after Retry-After,
+  or 30, 60 and 90 s) with "Try again" meanwhile, and folding, moving or
+  restyling the panel never re-sends anything. Descriptions such as "For 30
+  years — …" or "1.10.20 — …" are no longer cut as dates: months must be
+  whole names, numeric dates real ones with a four-digit year. In Search
+  Console another tab's name wins over a query word ("Søkeutseende"). A new
+  account clears the old one's figures from open pages and from collected
+  rows.
 - **Settings** (`src/lib/serp-settings.js`, `src/lib/serp-settings-ui.js`):
   "Google results" in Options and in the popup: the overlay on or off, the
   panel's place, the look, figures on or off, loaded with the page (default)

@@ -1197,6 +1197,7 @@ describe('1.11.0: dates, ratings and ad labels in each Google\'s language', () =
     ['6 giorni fa — Un CRM.', '6 giorni fa', 'Un CRM.'],
     ['6 dagen geleden — Een CRM.', '6 dagen geleden', 'Een CRM.'],
     ['för 6 dagar sedan — Ett CRM.', 'för 6 dagar sedan', 'Ett CRM.'],
+    ['for 6 dage siden — Et CRM.', 'for 6 dage siden', 'Et CRM.'],
     ['6 dni temu — CRM.', '6 dni temu', 'CRM.'],
     ['6 日前 — CRM', '6 日前', 'CRM']
   ])('splits the stamp off %j', (text, date, rest) => {
@@ -1206,7 +1207,12 @@ describe('1.11.0: dates, ratings and ad labels in each Google\'s language', () =
   it.each([
     '10 best tools 2025 — a list.',
     '10 Tipps für 2025 — eine Liste.',
-    'Top 5 — what we use.'
+    'Top 5 — what we use.',
+    'For 30 years — we have helped families.',
+    '5 Marketing 2025 — a plan.',
+    '10 Outdoor 2024 – gear.',
+    '1.10.20 — Release notes.',
+    '99/99/2025 — not a date.'
   ])('leaves a description that only starts with a number alone: %j', (text) => {
     expect(S.splitDatePrefix(text)).toEqual({ date: '', rest: text });
   });
