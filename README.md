@@ -1,1 +1,1 @@
-Screenshots for seo-bandwagon/seobw-extension's 1.11.0 PR only; not part of the extension. The figures in them are made-up test values (tests/fixtures/serp-metrics), not DataForSEO's figures for these sites. Delete this branch once the PR is merged.
+Screenshots for seo-bandwagon/seobw-extension's 1.11.0 and 1.12.0 PRs only; not part of the extension. The figures in the 1.11.0 ones are made-up test values (tests/fixtures/serp-metrics); the 1.12.0 ones show saved test pages served locally. Delete this branch once both PRs are merged.
