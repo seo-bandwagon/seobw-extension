@@ -71,12 +71,16 @@ describe('the market', () => {
   const loc = (search, hostname) => ({ search, hostname });
   const doc = (lang) => ({ documentElement: { getAttribute: () => lang } });
 
-  it('reads gl= and hl= first', () => {
-    expect(K.marketOf(loc('?q=x&gl=DE&hl=de-AT', 'www.google.com'), doc('en'))).toEqual({ gl: 'de', hl: 'de' });
+  it('reads gl= and hl= first, and keeps the language\'s region: the rank tracker files pt-BR and pt-PT apart', () => {
+    expect(K.marketOf(loc('?q=x&gl=DE&hl=de-AT', 'www.google.com'), doc('en'))).toEqual({ gl: 'de', hl: 'de-AT' });
+    expect(K.marketOf(loc('?q=x&hl=pt_br', 'www.google.com.br'), doc('pt'))).toEqual({ gl: 'br', hl: 'pt-BR' });
+    expect(K.languageOf('es-419')).toBe('es-419');
+    expect(K.languageOf('zh-tw')).toBe('zh-TW');
+    expect(K.languageOf('not a language')).toBe('');
   });
 
   it('falls back to the Google\'s own country and the page\'s language; google.com names no country', () => {
-    expect(K.marketOf(loc('?q=x', 'www.google.co.uk'), doc('en-GB'))).toEqual({ gl: 'gb', hl: 'en' });
+    expect(K.marketOf(loc('?q=x', 'www.google.co.uk'), doc('en-GB'))).toEqual({ gl: 'gb', hl: 'en-GB' });
     expect(K.marketOf(loc('?q=x', 'www.google.com.au'), doc(''))).toEqual({ gl: 'au' });
     expect(K.marketOf(loc('?q=x', 'www.google.com'), doc('en'))).toEqual({ hl: 'en' });
     expect(K.countryOfHost('www.google.co.jp')).toBe('jp');
@@ -124,6 +128,13 @@ describe('the answer', () => {
     expect(K.standing(answer('unsupported-market')).lookups).toBe('unsupported_market');
     expect(K.lookupNotice(K.standing(answer('unsupported-market')))).toMatchObject({ kind: 'unsupported_market', upgrade: false });
     expect(K.standing({ lookups: 'bogus' }).lookups).toBeNull();
+  });
+
+  it('says "this week" if the site counts keyword data by the week (allowance.period, still the owner\'s choice)', () => {
+    const s = K.standing({ plan: 'free', allowance: { limit: 50, used: 50, remaining: 0, period: 'week' }, lookups: 'limit_reached' });
+    expect(K.allowanceLine(s)).toBe('Free plan: 0 of 50 searches with new keyword data left this week (UTC).');
+    expect(K.lookupNotice(s).text).toMatch(/^This week’s 50 searches with new keyword data are used/);
+    expect(K.standing({ allowance: { limit: 10, used: 1, remaining: 9, period: 'day' } }).allowance).toEqual({ limit: 10, used: 1, remaining: 9 });
   });
 });
 

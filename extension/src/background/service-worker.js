@@ -634,6 +634,7 @@ const serpKeywords = SBWSerpKeywordsService.createSerpKeywordsService({
   consent: (flow, opts) => SBWConsent.check(flow, opts),
   post: (body) => SBW.keywordMetrics(body),
   add: (body) => SBW.addKeyword(body),
+  account: async () => (await SBW.getApiSettings()).apiKey || '',
   storage: chrome.storage.session
 });
 

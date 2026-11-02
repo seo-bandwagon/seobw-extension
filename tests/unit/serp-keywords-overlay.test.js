@@ -23,7 +23,7 @@ const answer = (name) => JSON.parse(readFileSync(resolve(__dirname, '../fixtures
 // The worker's answer to 'serpKeywords', as the service builds it.
 function serviceAnswer(name) {
   const data = answer(name);
-  const s = globalThis.SBWSerpFigures.standing(data);
+  const s = K.standing(data);
   return {
     state: 'ok',
     results: K.resultsByKeyword(data),
@@ -102,6 +102,9 @@ async function load() {
 }
 
 const strip = () => document.querySelector('.sbw-serp-keywords');
+// What a person's click on "Show keyword data" does. jsdom's own click() is
+// untrusted, as a page script's would be, and sends nothing (tested below).
+const ask = () => globalThis.SBWSerpKeywordsView.load();
 
 // A CSV as rows of cells, quotes and all.
 function parseCsv(text) {
@@ -186,8 +189,11 @@ describe('the first-use disclosure', () => {
     replies.serpKeywordsReady = { hasKey: true, accepted: false };
     freshDom('q=crm', ['alpha.example']);
     await load();
-    buttonNamed('Show keyword data').click();
+    ask();
     await vi.advanceTimersByTimeAsync(20);
+    // Not opened by the person's own click: the yes doesn't take the focus,
+    // so a keystroke meant for Google's search box can't land on it.
+    expect(document.activeElement).not.toBe(strip().querySelector('[data-role="kw-yes"]'));
     const disclosure = strip().querySelector('[data-role="kw-disclosure"]');
     expect(disclosure.textContent).toContain('Keyword data sends SEO Bandwagon the words of this search');
     expect(disclosure.textContent).toContain('Never a result’s address with them, and never a request to Google');
@@ -195,8 +201,40 @@ describe('the first-use disclosure', () => {
     strip().querySelector('[data-role="kw-yes"]').click();
     await vi.advanceTimersByTimeAsync(20);
     expect(sent.some((m) => m.action === 'serpKeywordsAccept' || m.action === 'serpKeywords')).toBe(false);
+    // "Not now" is a click on our own button that sends nothing; jsdom's
+    // click reaches it.
     buttonNamed('Not now').click();
     expect(strip().textContent).toContain('Keyword data is off: it sends this search to SEO Bandwagon.');
+  });
+
+  it('a page script\'s click on "Show keyword data", "Turn on keyword data" or "Try again" sends nothing and opens nothing', async () => {
+    freshDom('q=crm', ['alpha.example']);
+    await load();
+    buttonNamed('Show keyword data').click();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(sent.some((m) => m.action === 'serpKeywords')).toBe(false);
+    replies.serpKeywords = { state: 'error', code: 'unavailable', results: {}, tracked: null };
+    ask();
+    await vi.advanceTimersByTimeAsync(20);
+    buttonNamed('Try again').click();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(sent.filter((m) => m.action === 'serpKeywords')).toHaveLength(1);
+  });
+
+  it('after "Not now", a yes given elsewhere sends nothing from this page', async () => {
+    replies.serpKeywordsReady = { hasKey: true, accepted: false };
+    const changed = [];
+    freshDom('q=crm', ['alpha.example']);
+    window.chrome.storage.onChanged = { addListener: (fn) => changed.push(fn) };
+    await load();
+    ask();
+    await vi.advanceTimersByTimeAsync(20);
+    buttonNamed('Not now').click();
+    replies.serpKeywordsReady = { hasKey: true, accepted: true };
+    changed.forEach((fn) => fn({ sbwConsent: { newValue: { keywordData: { acceptedAt: 'x', version: 1 } } } }, 'local'));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sent.some((m) => m.action === 'serpKeywords')).toBe(false);
+    expect(strip().textContent).toContain('Keyword data is off');
   });
 });
 
@@ -204,7 +242,7 @@ describe('with keyword data', () => {
   async function shown(q = 'q=best+crm+for+nonprofits&gl=us&hl=en') {
     freshDom(q, ['alpha.example', 'example.org']);
     await load();
-    buttonNamed('Show keyword data').click();
+    ask();
     await vi.advanceTimersByTimeAsync(30);
   }
 
@@ -284,7 +322,7 @@ describe('limits and refusals: keyword data says so, and nothing else stops', ()
     replies.serpKeywords = reply;
     freshDom('q=best+crm+for+nonprofits', ['alpha.example']);
     await load();
-    buttonNamed('Show keyword data').click();
+    ask();
     await vi.advanceTimersByTimeAsync(30);
   }
 
@@ -310,14 +348,41 @@ describe('limits and refusals: keyword data says so, and nothing else stops', ()
     expect(sent.at(-1)).toEqual({ action: 'serpOpen', page: 'connect' });
   });
 
-  it('offline: says so, offers Try again, and asks again on its own after 30 s', async () => {
+  it('offline: says so, offers Try again, and asks again on its own after 30 s, the same request', async () => {
     await shownWith({ state: 'error', code: 'network', results: {}, tracked: null });
     expect(strip().textContent).toContain('Offline: no keyword data until SEO Bandwagon can be reached');
     expect(buttonNamed('Try again')).toBeTruthy();
+    // A question People also ask opens meanwhile is not in the retry.
+    const q = document.createElement('div');
+    q.setAttribute('data-q', 'Is HubSpot free for nonprofits?');
+    document.querySelector('#rso').appendChild(q);
     replies.serpKeywords = serviceAnswer('done');
     await vi.advanceTimersByTimeAsync(30_100);
-    expect(sent.filter((m) => m.action === 'serpKeywords')).toHaveLength(2);
+    const asks = sent.filter((m) => m.action === 'serpKeywords');
+    expect(asks).toHaveLength(2);
+    expect(asks[1].paa).toEqual(asks[0].paa);
     expect(strip().querySelector('[data-kw="volume"]').textContent).toBe('2.9K searches/mo');
+  });
+
+  it('a server error (500) is never asked again on its own: it may have counted already', async () => {
+    await shownWith({ state: 'error', code: 'error', results: {}, tracked: null });
+    expect(strip().textContent).toContain('Keyword data didn’t load');
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(sent.filter((m) => m.action === 'serpKeywords')).toHaveLength(1);
+  });
+
+  it('a retry pending when the person asks again is dropped, not sent as well', async () => {
+    await shownWith({ state: 'error', code: 'unavailable', results: {}, tracked: null });
+    replies.serpKeywords = serviceAnswer('limit-reached');
+    ask();
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(sent.filter((m) => m.action === 'serpKeywords')).toHaveLength(2);
+  });
+
+  it('a country DataForSEO has no keyword data for says so', async () => {
+    await shownWith(Object.assign(serviceAnswer('unsupported-market'), { results: {} }));
+    expect(strip().textContent).toContain('No keyword data for this Google’s country yet.');
+    expect(strip().querySelector('[data-role="kw-allowance"]').textContent).toContain('DataForSEO has no keyword data for this Google’s country yet');
   });
 });
 
@@ -326,7 +391,7 @@ describe('the tracked search', () => {
     replies.serpKeywords = serviceAnswer('tracked');
     freshDom('q=best+crm+for+nonprofits', ['alpha.example', 'blog.example.org']);
     await load();
-    buttonNamed('Show keyword data').click();
+    ask();
     await vi.advanceTimersByTimeAsync(30);
     expect(strip().querySelector('[data-role="kw-tracked"]').textContent).toContain('example.org: #4, ▲ 5 since 2026-10-05');
     const bars = document.querySelectorAll('.sbw-serp-bar');

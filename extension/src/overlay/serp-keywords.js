@@ -35,7 +35,9 @@
   if (!S || !K || !F || !Settings) return;
 
   const DEBOUNCE_MS = 600;
-  const RETRY_CODES = ['rate_limited', 'unavailable', 'network', 'error'];
+  // Only what passes on its own (a 429, the site busy, offline): a 500 may
+  // have counted against the allowance already, so it waits for a click.
+  const RETRY_CODES = ['rate_limited', 'unavailable', 'network'];
   const MAX_RETRIES = 3;
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -55,6 +57,7 @@
   const adds = new Map();   // keyword → { state, trackers?, code? }
   let pendingYes = null;    // what the disclosure's yes goes on to do
   let accepting = false;    // the yes is on its way to the worker
+  let epoch = 0;            // raised when the account changes: older answers are dropped
   let retries = 0;
   let retryTimer = null;
   let rescanTimer = null;
@@ -81,6 +84,12 @@
     if (cls) n.className = cls;
     if (text !== undefined) n.textContent = text;
     return n;
+  }
+
+  // A click the person made. A page script's click (or another extension's)
+  // is not trusted, and never sends anything or says yes.
+  function trusted(e) {
+    return !!(e && e.isTrusted === true);
   }
 
   function button(label, cls, onClick, title) {
@@ -257,15 +266,23 @@
       head.appendChild(button('Connect free', 'sbw-btn', () => openPage('connect'), 'Connect a free SEO Bandwagon account to see keyword data.'));
     } else if (st === 'needs_consent' || st === 'declined') {
       searchBox.appendChild(el('span', 'sbw-fig-note', 'Keyword data is off: it sends this search to SEO Bandwagon.'));
-      head.appendChild(button('Turn on keyword data', 'sbw-btn', () => showDisclosure(() => load(true))));
+      head.appendChild(button('Turn on keyword data', 'sbw-btn', (e) => { if (trusted(e)) showDisclosure(() => load(true), true); }));
     } else if (st === 'error') {
       const words = K.errorWords(state.code);
       searchBox.appendChild(el('span', 'sbw-fig-note', words.text + '.'));
       if (words.action === 'connect') head.appendChild(button('Reconnect', 'sbw-btn', () => openPage('connect')));
-      if (words.action === 'retry') head.appendChild(button('Try again', 'sbw-btn', () => load(true)));
+      if (words.action === 'retry') head.appendChild(button('Try again', 'sbw-btn', (e) => { if (trusted(e)) load(true, { focus: true }); }));
+    } else if (st === 'ok') {
+      // Answered, but nothing for the search itself: why.
+      const n = standing && standing.notice;
+      searchBox.appendChild(el('span', 'sbw-fig-note', !n ? `${K.SOURCE} has no figures for this search.`
+        : n.kind === 'limit_reached' ? 'No keyword data: the limit is reached.'
+          : n.kind === 'paused' ? 'New keyword data paused until next month.'
+            : n.kind === 'unsupported_market' ? 'No keyword data for this Google’s country yet.'
+              : 'No keyword data this time.'));
     } else if (st !== 'consent') {
       searchBox.appendChild(el('span', 'sbw-fig-note', 'Monthly searches, difficulty, CPC, competition and trend for this search, and volumes for its related searches and People also ask.'));
-      head.appendChild(button('Show keyword data', 'sbw-btn', () => load(true),
+      head.appendChild(button('Show keyword data', 'sbw-btn', (e) => { if (trusted(e)) load(true, { focus: true }); },
         'Sends this search, its related searches and People also ask questions to SEO Bandwagon for DataForSEO’s figures.'));
     }
 
@@ -284,12 +301,15 @@
 
   // ---------- the first-use disclosure ----------
 
-  function showDisclosure(then) {
+  // `focus` only inside the person's own click: a disclosure opened any
+  // other way never takes the focus, so a keystroke meant for Google's
+  // search box can't land on its yes.
+  function showDisclosure(then, focus) {
     pendingYes = then;
     state = { state: 'consent' };
     render();
     const yes = strip && strip.querySelector('[data-role="kw-yes"]');
-    if (yes) yes.focus();
+    if (yes && focus === true) yes.focus();
   }
 
   function disclosure() {
@@ -303,7 +323,11 @@
     yes.setAttribute('data-role', 'kw-yes');
     row.appendChild(yes);
     row.appendChild(button('Not now', 'sbw-btn', () => {
+      // Ends what the click asked for: a yes given later elsewhere sends
+      // nothing from this page until it is clicked again.
       pendingYes = null;
+      wanted = false;
+      cancelRetry();
       state = { state: 'declined' };
       render();
     }));
@@ -337,26 +361,33 @@
 
   // ---------- loading ----------
 
-  function load(force) {
+  // `force`: the person asked (a click, or the popup). `opts.same`: a retry
+  // sends what was asked before, never questions opened since. `opts.focus`:
+  // called inside the person's own click.
+  function load(force, opts) {
+    const o = opts || {};
     if (force) wanted = true;
-    asked = currentRequest();
+    if (!o.same || !asked.search) asked = currentRequest();
     if (!enabled()) { render(); return; }
     if (inFlight) return;
+    cancelRetry();
     if (ready && !ready.hasKey) { state = { state: 'no_key' }; render(); return; }
-    if (ready && !ready.accepted && force) { showDisclosure(() => load(true)); return; }
+    if (ready && !ready.accepted && force) { showDisclosure(() => load(true), o.focus === true); return; }
     inFlight = true;
     state = { state: 'loading' };
     render();
     const g = market();
+    const mine = epoch;
     const sent = send({
       action: 'serpKeywords',
       query: query(),
-      related: S.parseRelatedSearches(document),
-      paa: S.parsePaa(document),
+      related: asked.items.filter((it) => it.source === 'related').map((it) => it.text),
+      paa: asked.items.filter((it) => it.source === 'paa').map((it) => it.text),
       gl: g.gl,
       hl: g.hl
     }, (reply, failed) => {
       inFlight = false;
+      if (mine !== epoch) { render(); return; } // another account's answer
       if (failed || !reply) {
         state = { state: 'error', code: 'reloaded' };
       } else if (reply.state === 'ok' || reply.state === 'error') {
@@ -372,7 +403,7 @@
         }
       } else if (reply.state === 'needs_consent') {
         ready = Object.assign({}, ready || {}, { accepted: false });
-        if (wanted) { showDisclosure(() => load(true)); return; }
+        if (force) { showDisclosure(() => load(true)); return; }
         state = { state: 'needs_consent' };
       } else if (reply.state === 'no_key') {
         ready = Object.assign({}, ready || {}, { hasKey: false });
@@ -393,20 +424,30 @@
     if (!RETRY_CODES.includes(code) || retries >= MAX_RETRIES || retryTimer) return;
     retries += 1;
     const wait = code === 'rate_limited' && Number(retryAfter) > 0 ? Number(retryAfter) * 1000 : 30000 * retries;
-    retryTimer = setTimeout(() => { retryTimer = null; load(false); }, wait);
+    retryTimer = setTimeout(() => { retryTimer = null; load(false, { same: true }); }, wait);
+  }
+
+  // Any new send, a "Not now", a withdrawal or another account ends a
+  // pending retry.
+  function cancelRetry() {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = null;
   }
 
   // ---------- "Add to my keywords" ----------
 
+  // From a click (`e`, trusted only) or from the yes it waited for.
   function addKeyword(item, trackerId, e) {
-    if (e && e.isTrusted === false) return;
-    if (ready && !ready.accepted) { showDisclosure(() => addKeyword(item, trackerId)); return; }
+    if (e !== undefined && !trusted(e)) return;
+    if (ready && !ready.accepted) { showDisclosure(() => addKeyword(item, trackerId), true); return; }
+    const mine = epoch;
     adds.set(item.keyword, { state: 'working' });
     render();
     const g = market();
     const msg = { action: 'serpKeywordAdd', keyword: item.keyword, gl: g.gl, hl: g.hl };
     if (trackerId !== null && trackerId !== undefined) msg.trackerId = trackerId;
     send(msg, (reply, failed) => {
+      if (mine !== epoch) { adds.delete(item.keyword); render(); return; }
       const r = failed || !reply ? { state: 'error', code: 'reloaded' } : reply;
       if (r.state === 'needs_consent') {
         adds.delete(item.keyword);
@@ -599,9 +640,9 @@
     // Questions Google opened after the data came: theirs on a click, so
     // opening People also ask never spends the allowance by itself.
     if (state.state === 'ok') {
-      const fresh = currentRequest().keywords.filter((k) => !figures.has(k) && !asked.keywords.includes(k));
+      const fresh = moreToAsk();
       if (fresh.length) {
-        const more = button(`Get volumes for ${fresh.length} more`, 'sbw-btn', () => load(true),
+        const more = button(`Get volumes for ${fresh.length} more`, 'sbw-btn', (e) => { if (trusted(e)) load(true, { focus: true }); },
           'People also ask opened more questions; this asks for their keyword data.');
         more.setAttribute('data-more', 'true');
         f.appendChild(more);
@@ -615,6 +656,14 @@
     }
     f.appendChild(button('Settings', 'sbw-panel-link', () => openPage('settings'), 'Keyword data on or off, on a click or with the page, in SEO Bandwagon’s settings.'));
     return f;
+  }
+
+  // Keywords on the page without keyword data that a click may ask for:
+  // questions opened since, and after a lookup that failed or found the site
+  // unavailable, the ones it left without figures.
+  function moreToAsk() {
+    const again = standing && (standing.lookups === 'failed' || standing.lookups === 'unavailable');
+    return currentRequest().keywords.filter((k) => !figures.has(k) && (again || !asked.keywords.includes(k)));
   }
 
   function download(text, name) {
@@ -704,7 +753,7 @@
     decorateBars();
     // New questions after the data came: the foot offers them on a click.
     if (state.state === 'ok' && strip) {
-      const fresh = currentRequest().keywords.some((k) => !figures.has(k) && !asked.keywords.includes(k));
+      const fresh = moreToAsk().length > 0;
       const offered = !!strip.querySelector('[data-role="kw-foot"] button[data-more]');
       if (fresh !== offered) render();
     }
@@ -745,22 +794,32 @@
             // Keyword data accepted or withdrawn in Options, or an account
             // connected: asked again without a reload. A new account never
             // shows the old one's rank history.
-            if (area === 'sync') { tracked = null; standing = null; adds.clear(); }
+            if (area === 'sync') {
+              // Another account: the old one's answers in flight are dropped.
+              epoch += 1;
+              inFlight = false;
+              tracked = null;
+              standing = null;
+              adds.clear();
+            }
+            cancelRetry();
             retries = 0;
             askReady(() => {
               if (state.state === 'loading' || accepting) return;
               const yes = !!(ready && ready.accepted && ready.hasKey);
-              // Said yes in Options while the disclosure was open here: go
-              // on with what it was opened for.
-              if (yes && state.state === 'consent') {
+              // Said yes in Options while the disclosure the person opened
+              // here was waiting: go on with what it was opened for.
+              if (yes && state.state === 'consent' && pendingYes) {
                 const then = pendingYes;
                 pendingYes = null;
                 state = { state: 'idle' };
-                if (then) then(); else load(true);
+                then();
                 return;
               }
-              if (yes && (settings.keywordsLoad === 'auto' || wanted) && state.state !== 'ok') load(false);
-              else { if (state.state !== 'ok' && state.state !== 'consent') state = { state: 'idle' }; render(); }
+              // On a click (the default) a change elsewhere never sends;
+              // with the page, it loads as a new page would.
+              if (yes && settings.keywordsLoad === 'auto' && state.state !== 'ok' && state.state !== 'declined') load(false);
+              else { if (state.state !== 'ok' && state.state !== 'consent' && state.state !== 'declined') state = { state: 'idle' }; render(); }
             });
           }
         });

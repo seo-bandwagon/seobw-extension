@@ -148,19 +148,30 @@
     return last === 'uk' ? 'gb' : last;
   }
 
+  // A language as the site takes it: "pt-BR", "zh-TW", "es-419", "en";
+  // its region kept, since the rank tracker files pt-BR and pt-PT apart.
+  const HL_RE = /^([a-z]{2,3})(?:[-_]([a-z0-9]{2,4}))?$/i;
+
+  function languageOf(v) {
+    const m = HL_RE.exec(String(v || '').trim());
+    if (!m) return '';
+    return m[1].toLowerCase() + (m[2] ? '-' + (/^\d+$/.test(m[2]) ? m[2] : m[2].length === 2 ? m[2].toUpperCase() : m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase()) : '');
+  }
+
   /**
-   * The market of a results page: { gl, hl }, two lowercase letters each, or
-   * absent. `gl=` and `hl=` in its address first, then the Google's own
-   * country and the page's language.
+   * The market of a results page: { gl, hl }, or absent. `gl` two lowercase
+   * letters, `hl` a language with its region ("pt-BR"). `gl=` and `hl=` in
+   * its address first, then the Google's own country and the page's
+   * language.
    */
   function marketOf(loc, doc) {
     let params;
     try { params = new URLSearchParams((loc && loc.search) || ''); } catch (e) { params = new URLSearchParams(); }
-    const two = (v) => { const m = /^([a-z]{2})(?:$|[-_])/i.exec(String(v || '').trim()); return m ? m[1].toLowerCase() : ''; };
+    const two = (v) => { const m = /^([a-z]{2})$/i.exec(String(v || '').trim()); return m ? m[1].toLowerCase() : ''; };
     const out = {};
     const gl = two(params.get('gl')) || countryOfHost(loc && loc.hostname);
     const lang = doc && doc.documentElement ? doc.documentElement.getAttribute('lang') : '';
-    const hl = two(params.get('hl')) || two(lang);
+    const hl = languageOf(params.get('hl')) || languageOf(lang);
     if (gl) out.gl = gl;
     if (hl) out.hl = hl;
     return out;
@@ -211,12 +222,18 @@
   // DataForSEO has no keyword data for.
   const LOOKUPS = ['not_needed', 'done', 'failed', 'limit_reached', 'paused', 'unavailable', 'unsupported_market'];
 
-  /** The answer's `{ plan, allowance, lookups }`, each checked (the figures' standing, plus `unsupported_market`). */
+  /**
+   * The answer's `{ plan, allowance, lookups }`, each checked (the figures'
+   * standing, plus `unsupported_market`, and the allowance's `period`, 'day'
+   * or 'week', should the site count keyword data by the week).
+   */
   function standing(data) {
     const F = figuresLib();
     const s = F ? F.standing(data) : { plan: null, allowance: null, lookups: null };
     const l = data && data.lookups;
-    return Object.assign({}, s, { lookups: LOOKUPS.includes(l) ? l : null });
+    const period = data && data.allowance && data.allowance.period;
+    const allowance = s.allowance && period === 'week' ? Object.assign({}, s.allowance, { period: 'week' }) : s.allowance;
+    return Object.assign({}, s, { allowance, lookups: LOOKUPS.includes(l) ? l : null });
   }
 
   /** The answer's `results`, by keywordOf(keyword). */
@@ -409,8 +426,8 @@
     if (!s || !s.allowance) return '';
     const F = figuresLib();
     const plan = F ? F.planName(s.plan) : '';
-    const { limit, remaining } = s.allowance;
-    return `${plan ? plan + ' plan: ' : ''}${remaining} of ${limit} searches with new keyword data left today (UTC).`;
+    const { limit, remaining, period } = s.allowance;
+    return `${plan ? plan + ' plan: ' : ''}${remaining} of ${limit} searches with new keyword data left ${period === 'week' ? 'this week' : 'today'} (UTC).`;
   }
 
   function lookupNotice(s) {
@@ -419,7 +436,7 @@
     if (lookups === 'limit_reached') {
       return {
         kind: 'limit_reached',
-        text: `Today’s ${s.allowance ? s.allowance.limit + ' ' : ''}searches with new keyword data are used. Keyword data already looked up still shows, and everything else works.`,
+        text: `${s.allowance && s.allowance.period === 'week' ? 'This week’s' : 'Today’s'} ${s.allowance ? s.allowance.limit + ' ' : ''}searches with new keyword data are used. Keyword data already looked up still shows, and everything else works.`,
         upgrade: plan !== 'pro' && plan !== 'enterprise'
       };
     }
@@ -557,6 +574,7 @@
     KEYWORD_CSV_COLUMNS,
     LOOKUPS,
     hasOperator,
+    languageOf,
     lookupOf,
     keywordOf,
     request,

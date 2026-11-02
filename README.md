@@ -356,13 +356,19 @@ keyword data's own yes (its first-use disclosure on Google, "Yes, send my
 searches for keyword data", or "Send my searches for keyword data" in
 Options; the consent module's `keywordData` flow, Firefox's `searchTerms`),
 the **words of the search**, with its related searches and People also ask
-questions as Google shows them (lowercased, punctuation dropped, 50 at
-most), and that Google's country and language (`gl`, `hl`), to
+questions as Google shows them (lowercased, their punctuation kept, 50 at
+most), and that Google's country and language (`gl`, and `hl` with its
+region, such as `pt-BR`), to
 `POST /api/v1/keywords/metrics`, when you click Show keyword data or, if you
 chose it, with each search; and a search you add with "Add to my keywords"
 to `POST /api/v1/keywords`. Never a result's address with them, and never a
-request to Google. This is the first time the extension sends a search's
-words; the figures (above) still never do. Keyword data is kept for the
+request to Google. Only the person's own click sends: a click a page script
+makes on the strip (`isTrusted` false) sends nothing and can't say yes, and
+the disclosure takes the focus only when the person's click opened it. Only
+a 429, a busy site or no connection is asked again on its own (the same
+request, at most three times); a server error waits for a click, since it
+may have counted against the allowance. This is the first time the
+extension sends a search's words; the figures (above) still never do. Keyword data is kept for the
 browser session only (`src/lib/serp-keywords-service.js`).
 
 **Location simulator:** builds a Google search URL with location parameters

@@ -255,9 +255,9 @@ Everywhere charges credits for the volume itself. Uploaded with 1.10.3 to
   data" (the default: each search with new data counts against the day's
   allowance) or with the page, by setting.
 - **Related searches and People Also Ask** each get their volume in the same
-  request, the search first, 50 keywords at most, normalized as the route
-  reads them (lowercase, the "?" dropped; longer than Google Ads takes, 80
-  characters or 10 words, is left out and counted): a small label beside each
+  request, the search first, 50 keywords at most, lowercased with their
+  punctuation kept (longer than Google Ads takes, 80 characters or 10 words
+  in the site's lookup form, is left out and counted): a small label beside each
   on Google's page, and a list in the strip with CPC, difficulty and "+ Add".
   Questions People Also Ask opens later are asked for on a click ("Get
   volumes for N more"), never by themselves. A search with an operator
@@ -281,7 +281,27 @@ Everywhere charges credits for the volume itself. Uploaded with 1.10.3 to
   (`unsupported_market`), and a `gl` or `hl` the site doesn't know (a 400),
   say so; adding at the plan's tracked-keyword limit (a 403 that is not the
   key's scope) offers the upgrade, not Reconnect, and a tracker deleted
-  since it was offered says so; trackers are offered by their label.
+  since it was offered says so; trackers are offered by their label
+  ("United States, mobile"); `hl` keeps its region (`pt-BR`, `zh-TW`), since
+  the rank tracker files them apart, and is asked once more without it if
+  the site doesn't know the region.
+- **Found in review before release, and fixed:** a page script (or another
+  extension) could click "Show keyword data", "Try again" or "Get volumes"
+  and send the search with no person's click, and before the yes, open the
+  disclosure with the focus on its yes, so the next Space typed elsewhere
+  said yes: every button that sends now needs a trusted click, and the yes
+  takes the focus only inside the person's own click. A pending retry was
+  never cancelled, and a server error was retried, so one click could send
+  four times: only a 429, a busy site or offline is retried, the same
+  request (never questions opened since), and any new send, "Not now", a
+  withdrawal or an account change cancels it. "Not now" now ends the
+  click's intent, so a yes given in another tab sends nothing here; on a
+  click (the default), a change made elsewhere never sends. Answers for a
+  previous account are dropped, in the strip and in the worker. A search
+  answered from the session no longer repeats an older answer's "DataForSEO
+  didn't answer"; null stand-ins sent with the limit, the ceiling or a
+  failure are not kept as "no data", so after a failure "Get volumes"
+  offers them again.
 - **Consent** (`keywordData` in `src/lib/consent.js`, Firefox's
   `searchTerms`): the search's words leave the browser for the first time, so
   nothing is sent without a key ("Connect free", up front: the worker reads

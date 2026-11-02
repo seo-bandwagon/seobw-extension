@@ -97,10 +97,37 @@ describe('one request a search', () => {
     expect(storage.data[STATUS_KEY]).toMatchObject({ plan: 'free', lookups: 'done' });
   });
 
-  it('drops a market that isn\'t two letters', async () => {
+  it('drops a market that isn\'t a country and a language', async () => {
     await svc.lookup(Object.assign({}, REQ, { gl: 'USA', hl: '<b>' }));
     expect(post.mock.calls[0][0]).not.toHaveProperty('gl');
     expect(post.mock.calls[0][0]).not.toHaveProperty('hl');
+  });
+
+  it('sends a language with its region, and once more without it if the site doesn\'t know the region', async () => {
+    post.mockResolvedValueOnce({ ok: false, status: 400, data: { error: 'Invalid input', details: { hl: 'not a language the site knows' } }, code: 'error' });
+    const out = await svc.lookup(Object.assign({}, REQ, { gl: 'br', hl: 'pt-BR' }));
+    expect(post.mock.calls.map((c) => c[0].hl)).toEqual(['pt-BR', 'pt']);
+    expect(out.state).toBe('ok');
+  });
+
+  it('an answer that arrives after the account changed is dropped, and nothing of it kept', async () => {
+    let key = 'sbw_a';
+    svc = createSerpKeywordsService({ keywords: K, figures: F, hasKey, consent, post, add, storage, now: () => now, account: async () => key });
+    post.mockImplementation(async () => { key = 'sbw_b'; return okRes(answer('tracked')); });
+    expect(await svc.lookup(REQ)).toMatchObject({ state: 'error', code: 'reloaded', tracked: null });
+    expect(Object.keys(storage.data)).toEqual([]);
+  });
+
+  it('the same search again this session sends nothing, and never repeats an old answer\'s notice', async () => {
+    post.mockResolvedValueOnce(okRes(answer('done')));
+    await svc.lookup(REQ);
+    // A later search whose lookup failed leaves 'failed' as the last answer.
+    post.mockResolvedValueOnce(okRes(Object.assign(answer('done'), { lookups: 'failed', results: [] })));
+    await svc.lookup(Object.assign({}, REQ, { query: 'crm' }));
+    const cached = await svc.lookup(REQ);
+    expect(cached.notice).toBeNull();
+    expect(cached.lookups).toBe('not_needed');
+    expect(post).toHaveBeenCalledTimes(2);
   });
 
   it('the same search again this session sends nothing', async () => {
@@ -140,6 +167,8 @@ describe('the allowance, the ceiling and the refusals', () => {
     expect(out.lookups).toBe('limit_reached');
     expect(out.notice).toMatchObject({ kind: 'limit_reached', upgrade: true });
     expect(out.results['best crm for nonprofits'].volume).toBe(2900);
+    // The rest came back with null figures as stand-ins: not "no data".
+    expect(out.results).not.toHaveProperty('salesforce for nonprofits');
     await svc.lookup(REQ);
     expect(post).toHaveBeenCalledTimes(2);
   });
@@ -148,7 +177,7 @@ describe('the allowance, the ceiling and the refusals', () => {
     post.mockResolvedValue(okRes(answer('paused')));
     const out = await svc.lookup(REQ);
     expect(out.notice).toMatchObject({ kind: 'paused', upgrade: false });
-    expect(out.results['best crm for nonprofits'].volume).toBeNull();
+    expect(out.results).toEqual({});
   });
 
   it('a country DataForSEO has no keyword data for: says so, keeps nothing', async () => {

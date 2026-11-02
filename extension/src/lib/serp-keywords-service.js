@@ -46,6 +46,8 @@
    *   consent(flow, { hasKey }) → Promise<{ ok, reason }>
    *   post(body)   → Promise<sbwFetch result> (SBW.keywordMetrics)
    *   add(body)    → Promise<sbwFetch result> (SBW.addKeyword)
+   *   account()    → Promise<string> the key in use, compared before and
+   *                after a call: an answer for another account is dropped
    *   storage      chrome.storage.session
    *   now()        → ms
    */
@@ -54,6 +56,8 @@
     const F = deps.figures;
     const now = deps.now || (() => Date.now());
 
+    const account = deps.account || (async () => '');
+    const HL_OK = /^[a-z]{2,3}(-[A-Za-z0-9]{2,4})?$/;
     const cacheKey = (mk, keyword) => CACHE_PREFIX + mk + ':' + keyword;
     const trackedKey = (mk, keyword) => TRACKED_PREFIX + mk + ':' + keyword;
 
@@ -121,7 +125,7 @@
 
       const market = {};
       if (typeof r.gl === 'string' && /^[a-z]{2}$/.test(r.gl)) market.gl = r.gl;
-      if (typeof r.hl === 'string' && /^[a-z]{2}$/.test(r.hl)) market.hl = r.hl;
+      if (typeof r.hl === 'string' && HL_OK.test(r.hl)) market.hl = r.hl;
       const mk = K.marketKey(market);
       const search = asked.search.keyword;
       const fresh = !!(opts && opts.fresh);
@@ -137,7 +141,9 @@
       const trackedHit = got[trackedKey(mk, search)];
       let last = await status();
       if (!misses.length && trackedHit && !fresh) {
-        return Object.assign({ state: 'ok', results, tracked: trackedHit.tracked || null }, answerStanding(last));
+        // Nothing asked: the plan and allowance of the last answer, never
+        // its notice (a lookup that failed then is not this one).
+        return Object.assign({ state: 'ok', results, tracked: trackedHit.tracked || null }, answerStanding(Object.assign({}, last, { lookups: 'not_needed' })));
       }
 
       const heldUntil = await hold();
@@ -146,8 +152,16 @@
       }
 
       // The search goes first, as the route reads it, even when it was kept.
-      const body = Object.assign({ keywords: [search].concat(misses.filter((k) => k !== search)) }, market);
-      const res = await deps.post(body);
+      let body = Object.assign({ keywords: [search].concat(misses.filter((k) => k !== search)) }, market);
+      const who = await account();
+      let res = await deps.post(body);
+      // A language's region the site doesn't know ("en-US"): asked once
+      // more in the language alone.
+      if (res && res.status === 400 && market.hl && market.hl.includes('-') && res.data && res.data.details && res.data.details.hl && !res.data.details.gl) {
+        body = Object.assign({}, body, { hl: market.hl.split('-')[0] });
+        res = await deps.post(body);
+      }
+      if (who !== (await account())) return { state: 'error', code: 'reloaded', results: {}, tracked: null };
       if (!res || !res.ok) {
         const details = res && res.status === 400 && res.data && res.data.details;
         const code = details && (details.gl || details.hl) ? 'unsupported_market' : (res && res.code) || 'network';
@@ -163,8 +177,11 @@
 
       const answered = K.resultsByKeyword(data);
       const keep = {};
+      // A search that hit the limit, the ceiling or a failure answers every
+      // keyword with null figures: those are not "no data", and stay unasked.
+      const placeholder = (f) => !F.keepable(s.lookups) && f.volume === null && f.cpc === null && f.competition === null && f.difficulty === null && !f.trend.length;
       body.keywords.forEach((k) => {
-        if (answered[k]) {
+        if (answered[k] && !placeholder(answered[k])) {
           results[k] = answered[k];
           if (F.keepable(s.lookups)) keep[cacheKey(mk, k)] = { figures: answered[k], at: now() };
         }
@@ -190,7 +207,7 @@
       if (!consent.ok) return { state: 'needs_consent', reason: consent.reason };
       const body = { keyword };
       if (typeof r.gl === 'string' && /^[a-z]{2}$/.test(r.gl)) body.gl = r.gl;
-      if (typeof r.hl === 'string' && /^[a-z]{2}$/.test(r.hl)) body.hl = r.hl;
+      if (typeof r.hl === 'string' && HL_OK.test(r.hl)) body.hl = r.hl;
       if (typeof r.trackerId === 'string' || typeof r.trackerId === 'number') body.trackerId = r.trackerId;
       const out = K.addResult(await deps.add(body));
       if (out.state === 'added' || out.state === 'already') {
