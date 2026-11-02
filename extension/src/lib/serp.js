@@ -894,14 +894,29 @@
     return (features || []).map((f) => (f.count ? `${f.label} (${f.count})` : f.label)).join(' | ');
   }
 
+  // 1.13.2, for the AI Overview inclusion study: where the AI Overview is,
+  // and what in it is not the answer. This extension's own bar can land inside
+  // the box (the signed-in social-profiles fixture has one); it is never read.
+  const AI_OVERVIEW_SELECTOR = '[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]';
+  const SBW_OWN_UI_SELECTOR = '[class^="sbw-"], [class*=" sbw-"]';
+  // Google's own "not part of the answer" marker (the source cards and the
+  // side panel), the source chips (buttons), the headings ("AI Mode reply
+  // for …"), and this extension's bar. The inline links stay: the answer's
+  // first words can be a link on the brand.
+  const AI_OVERVIEW_NOT_ANSWER = '[data-ignore-copy], button, [role="button"], h1, h2, h3, ' + SBW_OWN_UI_SELECTOR;
+  // Where a block ends: textContent would run "Tools" into the next "Free Tools:".
+  const AI_OVERVIEW_BLOCKS = 'div, p, li, ul, ol, br, h4, h5, h6, tr, td, th, [role="heading"]';
+  const AI_OVERVIEW_TEXT_MAX = 20000;
+  const AI_OVERVIEW_REDIRECT_PATH_RE = /^\/(goto|url)$/;
+
   function aiOverviewCitations(doc) {
     if (!doc || !doc.querySelectorAll) return [];
     const out = [];
     const seen = new Set();
-    doc.querySelectorAll('[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]').forEach((box) => {
+    doc.querySelectorAll(AI_OVERVIEW_SELECTOR).forEach((box) => {
       box.querySelectorAll('a[href^="http"]').forEach((a) => {
         const domain = bareDomain(a.href);
-        if (!domain) return;
+        if (!domain || a.closest(SBW_OWN_UI_SELECTOR)) return;
         let url = a.href;
         try { const u = new URL(a.href); u.hash = ''; url = u.href; } catch (e) { /* keep as is */ }
         if (seen.has(url)) return;
@@ -911,6 +926,70 @@
       });
     });
     return out;
+  }
+
+  function aiOverviewBoxes(doc) {
+    if (!doc || !doc.querySelectorAll) return [];
+    return topMost(doc.querySelectorAll(AI_OVERVIEW_SELECTOR));
+  }
+
+  // The text directly inside the element, not its children's.
+  function directText(el) {
+    let text = '';
+    el.childNodes.forEach((n) => { if (n.nodeType === 3) text += n.textContent; });
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
+  function aiOverviewBoxText(box) {
+    const clone = box.cloneNode(true);
+    clone.querySelectorAll(AI_OVERVIEW_NOT_ANSWER).forEach((n) => n.remove());
+    // The heading's own words, by exact text: an answer to a definition
+    // search can begin "AI Overviews are …".
+    clone.querySelectorAll('*').forEach((n) => {
+      const own = directText(n);
+      if (own === 'AI Overview' || own.startsWith('AI Mode reply for')) n.remove();
+    });
+    clone.querySelectorAll(AI_OVERVIEW_BLOCKS).forEach((n) => n.after(box.ownerDocument.createTextNode(' ')));
+    return cleanText(clone);
+  }
+
+  // The AI Overview's answer as plain text: one string, whitespace collapsed,
+  // cut at AI_OVERVIEW_TEXT_MAX, '' when the page has none.
+  function aiOverviewText(doc) {
+    return aiOverviewBoxes(doc).map((box) => aiOverviewBoxText(box)).filter(Boolean).join(' ').slice(0, AI_OVERVIEW_TEXT_MAX);
+  }
+
+  // 'none' (no AI Overview on the page), 'empty' (the box is there and has
+  // no text: a placeholder that never loaded) or 'loaded'.
+  function aiOverviewState(doc) {
+    if (!aiOverviewBoxes(doc).length) return 'none';
+    return aiOverviewText(doc) ? 'loaded' : 'empty';
+  }
+
+  function isGoogleRedirect(href) {
+    if (/^\/(goto|url)\?/.test(href)) return true;
+    try {
+      const u = new URL(href);
+      return GOOGLE_SEARCH_HOST_RE.test(u.hostname) && AI_OVERVIEW_REDIRECT_PATH_RE.test(u.pathname);
+    } catch (e) {
+      return false; // a relative or malformed href
+    }
+  }
+
+  // How many of the AI Overview's citations go through a Google redirect
+  // (/goto?url=…, /url?q=…), each once. aiOverviewCitations lists only the
+  // direct links, so this is the count of sources it cannot name. The
+  // attribute is read, not `a.href`: a relative href has no base to resolve
+  // against in a saved page.
+  function aiOverviewRedirectCount(doc) {
+    const seen = new Set();
+    aiOverviewBoxes(doc).forEach((box) => {
+      box.querySelectorAll('a[href]').forEach((a) => {
+        const href = a.getAttribute('href');
+        if (isGoogleRedirect(href) && !a.closest(SBW_OWN_UI_SELECTOR)) seen.add(href);
+      });
+    });
+    return seen.size;
   }
 
   // ============================================
@@ -1370,6 +1449,9 @@
     detectFeatures,
     featureLabels,
     aiOverviewCitations,
+    aiOverviewText,
+    aiOverviewState,
+    aiOverviewRedirectCount,
     RESULT_CSV_COLUMNS
   };
 });

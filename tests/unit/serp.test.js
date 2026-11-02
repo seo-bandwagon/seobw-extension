@@ -1318,3 +1318,71 @@ describe('1.11.0: what the search shows, read from saved Google pages', () => {
     expect(names.some((n) => n.includes(','))).toBe(false);
   });
 });
+
+/* ---------- 1.13.2: the AI Overview's text, state and redirect citations (AI Overview inclusion study) ---------- */
+
+describe('AI Overview text and state (AIO study)', () => {
+  const S = globalThis.SBWSerp;
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const saved = (f) => new JSDOM('<!doctype html><body>' + fs.readFileSync(path.join(__dirname, '../fixtures', f), 'utf8') + '</body>').window.document;
+
+  it('reads the answer from the real signed-in page, without its heading, source chips, cards or side panel', () => {
+    const doc = saved('serp-google-social-profiles.html');
+    expect(S.aiOverviewState(doc)).toBe('loaded');
+    const text = S.aiOverviewText(doc);
+    expect(text.startsWith('SEO Bandwagon is a Seattle-based small business SEO agency')).toBe(true);
+    expect(text).toContain('Core Services & Tools Free Tools:');
+    expect(text.startsWith('AI Overview')).toBe(false);
+    expect(text).not.toContain('AI Mode reply for');
+    expect(text).not.toContain('+4');
+    expect(text).not.toContain('SEO Services That Actually Work');
+    expect(text).not.toContain('Connect your account');
+    expect(text).not.toContain('0 files');
+  });
+
+  it('says none on a page without an overview', () => {
+    const doc = saved('serp-google-goto-links.html');
+    expect(S.aiOverviewState(doc)).toBe('none');
+    expect(S.aiOverviewText(doc)).toBe('');
+    expect(S.aiOverviewRedirectCount(doc)).toBe(0);
+  });
+
+  it('says empty for a box with no text (a placeholder that never loaded)', () => {
+    expect(S.aiOverviewState(parseFragment('<div data-subtree="aimc"><div></div></div>'))).toBe('empty');
+  });
+
+  it('reads nested matches once', () => {
+    const doc = parseFragment('<div data-mcpr><div data-subtree="aimc"><p>Answer text here.</p></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Answer text here.');
+  });
+
+  it('drops the "AI Overview" label but keeps an answer that begins "AI Overviews are"', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><div role="heading"><strong>AI Overview</strong></div>' +
+      '<p>AI Overviews are summaries Google writes.</p></div>');
+    expect(S.aiOverviewText(doc)).toBe('AI Overviews are summaries Google writes.');
+  });
+
+  it('counts each citation that goes through a Google redirect once, and still lists only direct ones', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Answer.</p>' +
+      '<a href="/goto?url=CAESAA1">a</a><a href="/goto?url=CAESAA1">again</a>' +
+      '<a href="https://www.google.com/goto?url=CAESAA2">b</a>' +
+      '<a href="https://example.com/page">c</a></div>');
+    expect(S.aiOverviewRedirectCount(doc)).toBe(2);
+    expect(S.aiOverviewCitations(doc).map((c) => c.url)).toEqual(['https://example.com/page']);
+  });
+
+  it('leaves this extension\'s own bar out of the text, the citations and the redirect count', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Answer.</p>' +
+      '<div class="sbw-serp-bar"><a class="sbw-serp-analyze" href="https://seobandwagon.com/pricing">Analyze</a>' +
+      '<a class="sbw-serp-analyze" href="/url?q=https://example.org/">Analyze</a></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Answer.');
+    expect(S.aiOverviewCitations(doc)).toEqual([]);
+    expect(S.aiOverviewRedirectCount(doc)).toBe(0);
+  });
+
+  it('caps the text at 20,000 characters', () => {
+    const doc = parseFragment(`<div data-subtree="aimc"><p>${'word '.repeat(6000)}</p></div>`);
+    expect(S.aiOverviewText(doc).length).toBe(20000);
+  });
+});
