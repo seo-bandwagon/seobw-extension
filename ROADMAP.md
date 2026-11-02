@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -61,14 +61,14 @@ finished in four releases, 1.10.2 to 1.13.0, before every other surface
 Everywhere and SEOQuake both have much better SERP features and that is
 unacceptable"); 1.10.3 and 1.10.4 sit between them because the figures need
 them. Store submissions group them: **A** 1.10.2 alone; **B and C as one
-upload of 1.13.1** (1.10.3–1.13.1, 1.13.1 joining on 2026-11-02; owner, 2026-11-02: "I think we might skip
+upload of 1.13.2** (1.10.3–1.13.2, 1.13.1 and 1.13.2 joining on 2026-11-02; owner, 2026-11-02: "I think we might skip
 publishing that because these versions are too close together. We could
 probably finish up a few more versions quickly"; until then B was
-1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** 1.13.2–1.15.0 (with the Firefox
+1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** 1.13.3–1.15.0 (with the Firefox
 gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds and lints the Chrome, Edge and Firefox packages
-from 1.13.3 on. Every release also updates `CHROMEWEBSTORE.md`,
+from 1.13.4 on. Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -165,7 +165,13 @@ Owner ruling 2026-11-02: every word the extension shows is American English.
 - [x] "Capture canceled." (was "Capture cancelled."), the one British word the extension showed; comments and test names follow
 - [x] Joins the combined submission, which now uploads 1.13.1
 
-### 1.13.2: the checks panels are right (patch, was 1.10.5, then 1.13.1)
+### 1.13.2: the AI Overview in the export (patch)
+For the AI Overview inclusion study (pilot 2026-11-30).
+- [x] Four columns appended to the results export: `AI Overview state` (none, loaded or empty), `AI Overview text`, `AI Overview citations via Google redirect` and `Extension version`
+- [x] Collect pages keeps every page-level field through one tested list (`SBWSerp.collectContext`), so a new field can't be left out
+- [x] Joins the combined submission, which now uploads 1.13.2
+
+### 1.13.3: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -175,7 +181,7 @@ Owner ruling 2026-11-02: every word the extension shows is American English.
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
 
-### 1.13.3: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2)
+### 1.13.4: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2, then 1.13.3)
 Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0).
 - [ ] `npm run zip -- --target chrome|edge|firefox`: each manifest is the shared one plus a per-target overlay under `scripts/`, so a change for one store never forces a bump; `check:zip` reads the packaged manifest
 - [ ] Edge and Firefox overlays leave out the new-tab override and `management` (the Neon themes are Chrome Web Store items); Firefox adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain
@@ -183,7 +189,7 @@ Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0)
 - [ ] `utm_source` per browser: `chrome_extension`, `edge_extension`, `firefox_extension`
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
 
-### 1.13.4: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3)
+### 1.13.5: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3, then 1.13.4)
 The consent module moved to 1.11.0.
 - [ ] The Connect bridge: a content script on seobandwagon.com's api-keys and welcome paths, top frame only, origin and `event.source` checked, replies on a `MessageChannel` port; `externally_connectable` stays for Chrome and Edge
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
@@ -241,6 +247,32 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.2 (2026-11-02)
+
+The results export carries the AI Overview, for SEO Bandwagon's AI Overview
+inclusion study (pilot 2026-11-30). Four columns are appended at the very
+end of the results CSV and the clipboard export, on every row, so a file
+from before reads the same up to its last column. They are read from the
+results page when the export is run; nothing new is sent anywhere. Joins
+1.10.3 to 1.13.1 in the combined submission, which now uploads 1.13.2.
+
+- **AI Overview state:** `none` (the page has no AI Overview), `loaded` (it
+  has one, with text) or `empty` (the box is there and held no text).
+- **AI Overview text:** the overview's answer as plain text, whitespace
+  collapsed and cut at 20,000 characters. Left out: its heading, the "AI
+  Mode reply for" line, the source chips and the source cards.
+- **AI Overview citations via Google redirect:** how many of the overview's
+  sources link through a Google redirect (`/goto`, `/url`), each counted
+  once. The existing AI Overview citations column can only name the direct
+  links, so this is the count of sources it cannot.
+- **Extension version:** the version of the extension that took the capture,
+  so a file says what wrote it. Empty outside an extension.
+- **Collect pages** now copies the page-level fields through
+  `SBWSerp.collectContext`, the one list of them, so each page's rows keep
+  their own page's values and a new page-level column can't be left out.
+- **No permission, host, content-script, data-use or listing change.**
+  Nothing new is sent anywhere.
 
 ## Changelog — v1.13.0 (2026-11-02)
 

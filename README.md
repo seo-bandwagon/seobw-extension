@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.13.1** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.13.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -333,7 +333,9 @@ and ad labels are read in each Google's own language (1.11.0).
   loaded; and from 1.13.0 the search's **keyword data** (volume, CPC,
   competition, difficulty, trend), the **related searches** and **People
   also ask with volume**, and **Your rank tracker position** on the tracked
-  site's row.
+  site's row; and from 1.13.2, for the AI Overview inclusion study, **AI
+  Overview state** (none, loaded or empty), **AI Overview text**, **AI
+  Overview citations via Google redirect** and **Extension version**.
 
 **What's sent (1.11.0):** with an account connected **and** the figures
 accepted in Options ("Send result addresses and show figures", a specific
