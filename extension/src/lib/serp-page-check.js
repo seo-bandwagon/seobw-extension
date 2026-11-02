@@ -45,11 +45,42 @@
   const GOOGLE_SEARCH_RE = /^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2,3})?$/i;
   const GOOGLE_PATH_RE = /^\/(search|url|goto|imgres|aclk|setprefs|sorry)(\/|$)/i;
 
+  // Hosts that are this computer or the network it sits on: loopback,
+  // private, link-local, shared (CGNAT) and unique-local addresses written
+  // as literals, and names that only resolve inside a network. A result,
+  // its redirect or a pinned address is never fetched there: the page's
+  // own site is on the public web, and the extension's access to all sites
+  // must not reach a router or an internal service.
+  function isPrivateIpv4(host) {
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+    if (!m) return false;
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  }
+
+  function isLocalHost(hostname) {
+    const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+    if (!host) return true;
+    if (host.startsWith('[')) {
+      const v6 = host.slice(1, -1);
+      if (v6 === '::1' || v6 === '::') return true;
+      if (/^(fc|fd)/.test(v6) || /^fe[89ab]/.test(v6)) return true;
+      const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v6);
+      return mapped ? isPrivateIpv4(mapped[1]) : /^::ffff:/.test(v6);
+    }
+    if (isPrivateIpv4(host)) return true;
+    if (/^\d+$/.test(host) || /^0x/i.test(host)) return true; // 2130706433, 0x7f000001
+    if (!host.includes('.')) return true; // "router", "localhost"
+    return /(^|\.)(localhost|local|internal|intranet|lan|home|corp|home\.arpa)$/.test(host);
+  }
+
   function fetchable(url) {
     let u;
     try { u = new URL(url); } catch (e) { return null; }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     if (u.username || u.password) return null;
+    if (isLocalHost(u.hostname)) return null;
     if (GOOGLE_SEARCH_RE.test(u.hostname) && GOOGLE_PATH_RE.test(u.pathname)) return null;
     u.hash = '';
     return u;
@@ -131,8 +162,11 @@
       const res = await deps.fetchText(u.href, { limit: PAGE_LIMIT_BYTES, timeoutMs: PAGE_TIMEOUT_MS });
       const type = String((res.headers && res.headers['content-type']) || '');
       if (type && !HTML_TYPE_RE.test(type)) throw failure('not_html', { contentType: type.split(';')[0], status: res.status });
-      let final;
-      try { final = new URL(res.finalUrl || u.href); } catch (e) { final = u; }
+      // A page that redirected somewhere it may not be fetched from (a
+      // local address, a Google search page) is not read, and neither is
+      // that site's robots.txt or llms.txt.
+      const final = fetchable(res.finalUrl || u.href);
+      if (!final) throw failure('blocked_redirect', { status: res.status });
       const facts = await siteFacts(final.origin);
       const fetchInfo = {
         url: u.href,
@@ -222,7 +256,7 @@
       return pending.length;
     }
 
-    return { check, accessAnswered, fetchable, siteFacts };
+    return { check, accessAnswered, fetchable, siteFacts, isLocalHost };
   }
 
   /**
@@ -270,5 +304,5 @@
     }
   }
 
-  return { createSerpPageCheck, fetchText, ROW_PREFIX, SITE_PREFIX, PENDING_KEY, CONCURRENCY };
+  return { createSerpPageCheck, fetchText, isLocalHost, ROW_PREFIX, SITE_PREFIX, PENDING_KEY, CONCURRENCY };
 });

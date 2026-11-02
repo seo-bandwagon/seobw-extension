@@ -207,7 +207,9 @@ and ad labels are read in each Google's own language (1.11.0).
   HTML with the popup's own analyzer (`src/offscreen/`, `src/lib/page-row.js`;
   the `offscreen` permission, no install warning), and on Firefox the
   background page does. No tab opens, and nothing it reads goes to
-  SEO Bandwagon. The row says the checks are from the page's HTML (no
+  SEO Bandwagon. It never reads a local or private address (loopback,
+  private, link-local, `.local` and the like), nor a page that redirects to
+  one. The row says the checks are from the page's HTML (no
   scripts run); **Full report** opens the page in a new tab with the full
   analysis of it as your browser draws it. Without "access to all sites",
   the first click opens the extension's own small window

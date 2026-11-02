@@ -67,12 +67,38 @@
     return groups;
   }
 
+  // A rule and a path as long as anyone writes them; past these, the rule
+  // or path is cut, so a hostile robots.txt costs no more than a long one.
+  const MAX_RULE = 2048;
+  const MAX_PATH = 4096;
+
+  // `*` matches any run of characters; nothing else is special. A greedy
+  // two-pointer match that backs up only to the last `*`, so it takes at
+  // most rule × path steps (as Google's robots.txt parser does), never the
+  // backtracking a compiled regular expression would on `/*a*a*a…`.
+  function wildcard(pattern, text) {
+    let p = 0;
+    let t = 0;
+    let star = -1;
+    let mark = 0;
+    while (t < text.length) {
+      if (p < pattern.length && pattern[p] !== '*' && pattern[p] === text[t]) { p++; t++; }
+      else if (p < pattern.length && pattern[p] === '*') { star = p++; mark = t; }
+      else if (star !== -1) { p = star + 1; t = ++mark; }
+      else return false;
+    }
+    while (p < pattern.length && pattern[p] === '*') p++;
+    return p === pattern.length;
+  }
+
+  // A rule matches a path that starts with it, or (ending in `$`) the
+  // whole path.
   function ruleMatches(rulePath, path) {
     if (!rulePath) return false;
-    let pattern = rulePath.replace(/[.+?^{}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    const anchored = pattern.endsWith('$');
-    if (anchored) pattern = pattern.slice(0, -1);
-    return new RegExp('^' + pattern + (anchored ? '$' : '')).test(path);
+    let rule = String(rulePath).slice(0, MAX_RULE).replace(/\*+/g, '*');
+    const anchored = rule.endsWith('$');
+    if (anchored) rule = rule.slice(0, -1);
+    return wildcard(anchored ? rule : rule + '*', String(path).slice(0, MAX_PATH));
   }
 
   /** Whether `path` is allowed for `token` by `groups` (parse()'s). */
@@ -104,5 +130,5 @@
     return out;
   }
 
-  return { AI_CRAWLERS, parse, allowed, aiCrawlerStatus };
+  return { AI_CRAWLERS, parse, allowed, aiCrawlerStatus, wildcard, ruleMatches };
 });

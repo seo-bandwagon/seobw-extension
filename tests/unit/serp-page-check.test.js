@@ -121,3 +121,38 @@ describe('Analyze on Google: the fetch', () => {
     expect(notes.find((n) => n[0] === 'p' && n[1] === 'error')[2]).toMatchObject({ code: 'not_html', contentType: 'application/pdf' });
   });
 });
+
+describe('Analyze never reads a local or private address', () => {
+  it.each([
+    'http://localhost/admin', 'http://127.0.0.1:8080/', 'http://10.0.0.1/', 'http://172.20.1.1/', 'http://192.168.1.1/',
+    'http://169.254.169.254/latest/meta-data', 'http://100.64.0.1/', 'http://[::1]/', 'http://[fd00::1]/', 'http://[fe80::1]/',
+    'http://[::ffff:192.168.0.1]/', 'http://2130706433/', 'http://router/', 'http://nas.local/', 'http://db.internal/', 'http://box.home.arpa/'
+  ])('%s is refused before any fetch', async (url) => {
+    await svc.check([{ key: 'x', url }]);
+    await drain();
+    expect(fetched).toEqual([]);
+    expect(notes[0][2]).toMatchObject({ state: 'error', code: 'invalid_url' });
+  });
+
+  it('a page that redirects to a private address is not read, nor that site\'s robots.txt', async () => {
+    const local = createSerpPageCheck({
+      fetchText: async (url) => { fetched.push(url); return { status: 200, finalUrl: 'http://192.168.1.1/', headers: { 'content-type': 'text/html' }, text: '<title>router</title>' }; },
+      analyze: async () => ({}),
+      robots,
+      hasAccess: async () => true,
+      openAccessPage: async () => {},
+      storage: sessionStorage(),
+      notify: (req, msg) => notes.push([req.key, msg.state, msg])
+    });
+    await local.check([{ key: 'r', url: 'https://public.example/go' }]);
+    await drain();
+    expect(fetched).toEqual(['https://public.example/go']);
+    expect(notes.find((n) => n[1] === 'error')[2]).toMatchObject({ code: 'blocked_redirect' });
+  });
+
+  it('public sites pass', () => {
+    expect(svc.isLocalHost('www.example.com')).toBe(false);
+    expect(svc.isLocalHost('8.8.8.8')).toBe(false);
+    expect(svc.isLocalHost('[2001:4860:4860::8888]')).toBe(false);
+  });
+});

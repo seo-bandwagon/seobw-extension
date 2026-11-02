@@ -41,3 +41,21 @@ describe('AI crawlers in robots.txt', () => {
     expect(R.aiCrawlerStatus('user-agent: gptbot # OpenAI\ndisallow: / # all\n', '/').blocked).toEqual(['GPTBot']);
   });
 });
+
+describe('a hostile robots.txt costs no more than a long one', () => {
+  it('a rule of many wildcards against a long path answers at once', () => {
+    const rule = '/' + '*a'.repeat(400) + '$';
+    const path = '/' + 'a'.repeat(3000) + 'b';
+    const t0 = Date.now();
+    expect(R.ruleMatches(rule, path)).toBe(false);
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
+  it('matches as robots.txt does: prefix, * anywhere, $ at the end', () => {
+    expect(R.ruleMatches('/fish', '/fish.html')).toBe(true);
+    expect(R.ruleMatches('/fish$', '/fish.html')).toBe(false);
+    expect(R.ruleMatches('/*.php', '/index.php?x')).toBe(true);
+    expect(R.ruleMatches('/*.php$', '/index.php?x')).toBe(false);
+    expect(R.ruleMatches('/a**b', '/axxb/c')).toBe(true);
+  });
+});

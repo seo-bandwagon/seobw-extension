@@ -394,7 +394,8 @@
     network: "The page couldn't be reached from your browser.",
     not_html: "This result isn't a web page, so there is no HTML to check.",
     unreadable: "Couldn't read this page's HTML.",
-    invalid_url: 'This result has no address to check.',
+    invalid_url: 'This address isn\u2019t one Analyze reads: a local or private address, or a Google page.',
+    blocked_redirect: 'This page redirected to a local or private address, so it wasn\u2019t read.',
     unavailable: 'SEO Bandwagon was updated or reloaded. Reload this page to analyze.',
     failed: "Couldn't check this page."
   };

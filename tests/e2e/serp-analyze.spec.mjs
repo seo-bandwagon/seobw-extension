@@ -5,7 +5,9 @@
 // result Google hides is never fetched, and "Analyze top 10" fills the table.
 //
 // Nothing leaves the runner. The result pages, their robots.txt and llms.txt
-// come from a local server on 127.0.0.1; a results page in Google's markup
+// come from a local server on 127.0.0.1, reached as garden.example (Analyze
+// never reads a local address, so the name stands in for a public site);
+// a results page in Google's markup
 // that links to them is answered at www.google.com/search by the route, and
 // Chromium's resolver points every other host nowhere. The extension is a
 // copy whose manifest adds <all_urls> to host_permissions (as
@@ -63,7 +65,7 @@ test('Analyze on Google: checks from the HTML, offscreen, no tab, no cookies; An
   test.setTimeout(120_000);
   const seen = [];
   const server = await serve(seen);
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const base = `http://garden.example:${server.address().port}`;
 
   const copy = mkdtempSync(join(tmpdir(), 'sbw-ext-'));
   cpSync(EXTENSION, copy, { recursive: true });
@@ -77,7 +79,7 @@ test('Analyze on Google: checks from the HTML, offscreen, no tab, no cookies; An
       `--disable-extensions-except=${copy}`,
       `--load-extension=${copy}`,
       '--no-sandbox',
-      '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'
+      '--host-resolver-rules=MAP garden.example 127.0.0.1, MAP * ~NOTFOUND'
     ]
   });
   // A cookie the page fetch must not carry.

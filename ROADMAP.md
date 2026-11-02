@@ -264,6 +264,14 @@ table asked for on 2026-10-17 and 2026-10-23. Store submission C, with
   never fetched, and a result Google hides from a signed-out user asks to
   sign in to Google or open it. "Full report" opens the page in a new tab
   with the popup's analysis of it as drawn (1.8.4's flow).
+- **Never a local address** (found by the security review before release):
+  a result, its redirect or a pinned address on loopback, a private, link-
+  local or CGNAT range, an IPv6 local range, a bare number, a one-word host
+  or a `.local`/`.internal`-style name is not fetched, and a page that
+  redirects to one is not read, nor that site's robots.txt. robots.txt rules
+  are matched by a linear wildcard matcher (rules cut at 2 KB, paths at
+  4 KB), never compiled into a regular expression a hostile file could make
+  backtrack.
 - **Analyze top 10** in the panel; its line counts what is checked, waiting
   or hidden.
 - **The results table** (`src/lib/serp-table.js`) in the panel, at the top
