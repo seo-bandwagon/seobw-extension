@@ -36,7 +36,7 @@
     'tab-changed': 'You switched tabs, so the capture stopped.',
     'capture-failed': 'Chrome blocked the capture on this page.',
     'canvas-failed': 'This page is too large to stitch into one image in this browser.',
-    'cancelled': 'Capture cancelled.',
+    'cancelled': 'Capture canceled.',
     'no-response': 'The page stopped responding. Reload it and try again.'
   };
 
@@ -129,14 +129,14 @@
         await beforeCapture();
         return await capture(windowId);
       } catch (e) {
-        if (e && e.code) throw e;  // Re-throw tab-changed and cancelled
+        if (e && e.code) throw e;  // Re-throw tab-changed and canceled
         if (!RATE_LIMIT_RE.test(String(e && e.message))) throw captureError('capture-failed', e && e.message);
         await sleep(RATE_LIMIT_WAIT_MS);
         try {
           await beforeCapture();
           return await capture(windowId);
         } catch (e2) {
-          if (e2 && e2.code) throw e2;  // Re-throw tab-changed and cancelled
+          if (e2 && e2.code) throw e2;  // Re-throw tab-changed and canceled
           throw captureError('capture-failed', e2 && e2.message);
         }
       }

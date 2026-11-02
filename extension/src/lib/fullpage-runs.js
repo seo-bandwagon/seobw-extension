@@ -135,7 +135,7 @@
         const key = storeKey(run.tabId);
         await proofs.put(key, shot.blob);
         if (runs.get(run.tabId) !== run) {
-          // Cancelled or closed while the image was being stored.
+          // Canceled or closed while the image was being stored.
           if (!runs.get(run.tabId)) Promise.resolve(proofs.remove(key)).catch(() => {});
           return;
         }

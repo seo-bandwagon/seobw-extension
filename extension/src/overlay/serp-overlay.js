@@ -1173,7 +1173,7 @@
 
   // One table: `recs` its records, `cols` its columns, `pin` the pinned
   // record or null. Cells are marked ▲ above / ▼ below the baseline, never
-  // by colour alone.
+  // by color alone.
   function buildTable(recs, cols, pin, caption) {
     const useInc = settings.compareTo === 'pinned' && pin;
     const base = T.baselines(recs, useInc ? pin : null);

@@ -43,7 +43,7 @@
   --radius-pill: 100px;
 
   /* Semantic layer (added for Night/Day). Components use these; the light block
-     below re-points them. --ink is "the text/foreground brand colour" (off-white
+     below re-points them. --ink is "the text/foreground brand color" (off-white
      on Night, navy on Day); --surface is the page ground; the *-rgb pairs feed
      every alpha stop above so neutrals re-resolve per theme. */
   --ink-rgb: 245, 245, 245;

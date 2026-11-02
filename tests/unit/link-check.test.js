@@ -134,7 +134,7 @@ describe('planChecks', () => {
   // task-1-fix-1-brief item 7: `max: 0` is an explicit "check nothing", not
   // "unset" — `(options && options.max) || DEFAULT` used to treat 0 as
   // falsy and silently fall back to 300.
-  it('honours an explicit max: 0 as zero capacity, not "unset"', () => {
+  it('honors an explicit max: 0 as zero capacity, not "unset"', () => {
     const links = [
       { url: 'https://example.com/a', text: 'a', rel: null, internal: true },
       { url: 'https://example.com/b', text: 'b', rel: null, internal: true }
@@ -193,12 +193,12 @@ describe('pickNext', () => {
   // task-1-fix-1-brief item 7: an explicit 0 must mean zero capacity, not
   // "unset, use the default" — `(options && options.x) || DEFAULT` used to
   // treat { perHost: 0 } / { global: 0 } as falsy and fall back to 2/6.
-  it('honours an explicit perHost: 0 as zero capacity', () => {
+  it('honors an explicit perHost: 0 as zero capacity', () => {
     const queue = [{ url: 'https://a.example/1' }];
     expect(SBWLinkCheck.pickNext(queue, {}, { perHost: 0, global: 6 })).toBeNull();
   });
 
-  it('honours an explicit global: 0 as zero capacity', () => {
+  it('honors an explicit global: 0 as zero capacity', () => {
     const queue = [{ url: 'https://a.example/1' }];
     expect(SBWLinkCheck.pickNext(queue, {}, { perHost: 2, global: 0 })).toBeNull();
   });

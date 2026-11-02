@@ -1,7 +1,7 @@
 // The overlay's look (1.11.0, src/overlay/serp-overlay.css): every text
-// colour of each look meets WCAG AA (4.5:1) on its ground, Bandwagon Pink is
+// color of each look meets WCAG AA (4.5:1) on its ground, Bandwagon Pink is
 // never the ground behind text, and nothing styles Google's own elements.
-// The tokens are read from the stylesheet itself, so a changed colour is
+// The tokens are read from the stylesheet itself, so a changed color is
 // checked here before it ships.
 
 import { describe, it, expect } from 'vitest';
@@ -54,7 +54,7 @@ describe('every look meets WCAG AA', () => {
     });
   });
 
-  it('the Analyze label is the text colour on the bar\'s own ground, not white on pink (3.3:1 in 1.10.x)', () => {
+  it('the Analyze label is the text color on the bar\'s own ground, not white on pink (3.3:1 in 1.10.x)', () => {
     const rule = /\n\.sbw-serp-analyze\s*\{([^}]*)\}/.exec(css)[1];
     expect(rule).toMatch(/color:\s*var\(--sbw-ink\)/);
     expect(rule).toMatch(/background:\s*transparent/);

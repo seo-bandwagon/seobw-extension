@@ -1,6 +1,6 @@
 // SEO Bandwagon — Options page pure logic
 //
-// Pure logic backing src/options/options.js: API URL validation/normalisation
+// Pure logic backing src/options/options.js: API URL validation/normalization
 // for the Advanced section, and mapping a SBW.verifyKey() result to the
 // status message + CSS class the page shows. No chrome/fetch/DOM dependency
 // here — that wiring (chrome.storage, chrome.permissions, chrome.tabs) stays
@@ -26,7 +26,7 @@
   const API_DEFAULT_URL = 'https://seobandwagon.com/api';
 
   // ============================================
-  // Advanced API URL: validation + normalisation
+  // Advanced API URL: validation + normalization
   // ============================================
 
   // Accepts an http:// URL to localhost/127.0.0.1 (the two hosts the

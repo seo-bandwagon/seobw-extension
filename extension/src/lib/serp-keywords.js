@@ -28,7 +28,7 @@
 // itself, so it goes only with its own consent (src/lib/consent.js,
 // `keywordData`, Firefox's `searchTerms`), accepted with a specific yes.
 // Copy rules: volume, cost per click, competition, difficulty and trend are
-// labelled as DataForSEO's; the rank history is the person's own tracker's.
+// labeled as DataForSEO's; the rank history is the person's own tracker's.
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWSerpKeywords` when loaded as a content script, classic
@@ -79,7 +79,7 @@
   /**
    * The site's lookup form of a keyword (website `lookupForm`): lowercase,
    * apostrophes dropped, a question mark and other punctuation read as a
-   * space, a full stop ending a word dropped. Two shown texts with one
+   * space, a period ending a word dropped. Two shown texts with one
    * lookup form are one keyword; past 80 characters or 10 words in it,
    * Google Ads has none.
    */

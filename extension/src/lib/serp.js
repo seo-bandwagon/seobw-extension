@@ -77,7 +77,7 @@
   // "Ads".
   //
   // #94: the aria-label matches used to be CSS substring matches, so an
-  // ancestor labelled "Downloads", "Threads" or "Leads" made every result in
+  // ancestor labeled "Downloads", "Threads" or "Leads" made every result in
   // it an ad. The selector now only finds candidates; the label must contain
   // "Ads" or "Sponsored" as a whole word (AD_LABEL_RE).
   const AD_CONTAINER_SELECTOR = '[data-text-ad], #tads, #tadsb, #bottomads, ' +
@@ -648,7 +648,7 @@
   // Google's redirects — see resolveResultUrl) with an h3
   // descendant; anything inside an ad container, a non-organic surface
   // (AI Overview/carousels/shopping/People also ask), or a
-  // sponsored-labelled block is skipped, as is anything nested inside, or
+  // sponsored-labeled block is skipped, as is anything nested inside, or
   // sharing a result unit with, an already-accepted result (sitelinks).
   // Dedupes by URL. See parsePaa() for questions.
   //

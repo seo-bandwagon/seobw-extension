@@ -39,7 +39,7 @@ function fakes() {
   const capture = opts => {
     const d = deferred();
     opts.signal.addEventListener('abort', () => {
-      const e = new Error('Capture cancelled.'); e.code = 'cancelled'; d.reject(e);
+      const e = new Error('Capture canceled.'); e.code = 'cancelled'; d.reject(e);
     });
     captures.push(Object.assign(d, { opts }));
     return d.promise;

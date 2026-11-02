@@ -1007,7 +1007,7 @@ describe('absolute position (approx.) column (#45)', () => {
 describe('ads are matched by whole-word aria-labels (#94)', () => {
   const result = (domain) => `<div class="g"><div><a href="https://${domain}/x"><h3>A result on ${domain}</h3></a><cite>${domain}</cite></div></div>`;
 
-  it('keeps results under a container labelled "Downloads", "Threads" or "Leads"', () => {
+  it('keeps results under a container labeled "Downloads", "Threads" or "Leads"', () => {
     const doc = parseFragment(`
       <div aria-label="Downloads">${result('one.example')}</div>
       <div aria-label="Threads">${result('two.example')}</div>
@@ -1246,7 +1246,7 @@ describe('1.11.0: dates, ratings and ad labels in each Google\'s language', () =
   });
 
   it.each(['Anzeigen', 'Annonces', 'Anuncios', 'Annunci', 'Advertenties', 'Reklamy', 'Annonser', '広告', 'Gesponsert'])(
-    'treats a container labelled %j as ads', (label) => {
+    'treats a container labeled %j as ads', (label) => {
       expect(S.isAdLabel(label)).toBe(true);
     });
 

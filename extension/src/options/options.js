@@ -1,7 +1,7 @@
 // SEO Bandwagon — Options page
 //
 // Wiring for src/options/options.html. Pure logic (API URL validation/
-// normalisation, verify-result → message/class) lives in
+// normalization, verify-result → message/class) lives in
 // src/lib/options-logic.js (SBWOptions) so it's unit-testable without
 // chrome/DOM. The "signed in" cache (sbwUser / sbwKeyStatus, 10-minute TTL)
 // is the same shape and freshness check the popup's Citations tab uses

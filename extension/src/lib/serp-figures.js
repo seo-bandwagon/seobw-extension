@@ -14,7 +14,7 @@
 // what became of the paid lookups (`lookups`).
 //
 // Copy rules (vault Extension_Roadmap_To_2_0_Design, 1.11.0): link and
-// traffic figures are labelled as DataForSEO's, on its 0 to 100 rank scale;
+// traffic figures are labeled as DataForSEO's, on its 0 to 100 rank scale;
 // no authority score of our own; the checklist is the person's "on-page
 // checklist", never worded or placed as a ranking factor.
 //

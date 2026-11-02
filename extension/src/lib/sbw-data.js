@@ -304,7 +304,7 @@ async function saveCapture(data) {
 }
 
 /**
- * Analyse a tab through the extension's own pipeline: cache first, then inject
+ * Analyze a tab through the extension's own pipeline: cache first, then inject
  * the analyzer and ask for it. Stores the result in the tab cache, paints the
  * toolbar badge and saves the capture, same as the toolbar popup does.
  */

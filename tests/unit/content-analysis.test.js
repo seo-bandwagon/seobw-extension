@@ -483,7 +483,7 @@ describe('words in every language (1.10.4)', () => {
     expect(cleanText('Привет 👋 мир ©')).toBe('Привет мир');
   });
 
-  it('counts sentences ending in CJK full stops', () => {
+  it('counts sentences ending in CJK periods', () => {
     expect(countSentences('一つ目。二つ目！三つ目？')).toBe(3);
   });
 });

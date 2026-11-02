@@ -1,5 +1,5 @@
 // SEO Bandwagon — Search Console compare-mode math (pure functions, testable)
-// + DOM layer that injects % change, direction-aware colouring, sort/filter/
+// + DOM layer that injects % change, direction-aware coloring, sort/filter/
 // copy tools and visible-row totals onto a Performance report that is
 // comparing two date ranges.
 //
@@ -552,7 +552,7 @@
 
   // Compact relative change for the row badge: "▲ 10%", "▼ 100%", "▲ new"
   // (previous was 0), "0%" when unchanged. Position is lower-is-better, so
-  // the colour comes from isBetter(), not from the arrow's direction.
+  // the color comes from isBetter(), not from the arrow's direction.
   function formatPctBadge(kind, cur, prev) {
     if (!isNum(cur) || !isNum(prev)) return null;
     const better = isBetter(kind, cur, prev);

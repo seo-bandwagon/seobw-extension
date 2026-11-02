@@ -287,7 +287,7 @@ describe('captureFullPage', () => {
       expect(h.log).toContain('fpRestore');
     });
 
-    it('stops at once when cancelled while waiting on the page', async () => {
+    it('stops at once when canceled while waiting on the page', async () => {
       vi.useFakeTimers();
       const controller = new AbortController();
       const h = harness({ signal: controller.signal });

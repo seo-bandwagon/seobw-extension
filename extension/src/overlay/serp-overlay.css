@@ -12,11 +12,11 @@
  *   dark          Night: Midnight Navy ground, Off-White text
  *   light         Day: Off-White ground, Midnight Navy text
  *   google-light  Match Google on Google's light page: Google's own ground
- *   google-dark   and on its dark page; Google's text colours and font
+ *   google-dark   and on its dark page; Google's text colors and font
  * 1.13.0: the keyword strip above the results and the small volume label
  * beside each related search and People also ask question take the same
  * tokens (`.sbw-serp-keywords`, `.sbw-kw-badge`).
- * Every text colour meets WCAG AA (4.5:1) on its ground; the pairs are
+ * Every text color meets WCAG AA (4.5:1) on its ground; the pairs are
  * checked in tests/unit/serp-overlay-look.test.js. Bandwagon Pink is the
  * accent only: the rule down each bar's left edge, borders, links and the
  * own-site mark, never a ground behind text (the Analyze label on a pink
@@ -848,7 +848,7 @@
   cursor: pointer;
 }
 
-/* A table sets its own colour and size: a page in quirks mode doesn't pass
+/* A table sets its own color and size: a page in quirks mode doesn't pass
    them into one. Sized to its words, not stretched across the strip. */
 .sbw-kw-table {
   width: auto;

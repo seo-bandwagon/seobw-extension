@@ -120,7 +120,7 @@ describe('links to seobandwagon.com in the shipped pages', () => {
     expect(untagged).toEqual([]);
   });
 
-  // tool-links.js builds third-party URLs from the analysed page's own
+  // tool-links.js builds third-party URLs from the analyzed page's own
   // origin (its sitemap.xml, robots.txt), which is not our site, so this
   // looks only for our paths and for openDashboardPath's old `origin + path`.
   it('opens no dashboard path by gluing it onto an origin', () => {
