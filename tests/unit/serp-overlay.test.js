@@ -13,6 +13,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 await import('../../extension/src/lib/serp.js');
+await import('../../extension/src/lib/serp-figures.js');
+await import('../../extension/src/lib/serp-settings.js');
 
 let sentMessages;
 let sendMessageImpl;
@@ -106,15 +108,27 @@ afterEach(() => {
 
 /* ---------- 1.10.2: nothing goes to SEO Bandwagon from Google ---------- */
 
-describe('1.10.2: the results page sends nothing to SEO Bandwagon', () => {
-  it('asks the worker for nothing on load but what Collect already holds', async () => {
+describe('the results page sends only what the figures need, and never the search', () => {
+  // 1.10.2 sent nothing from Google. 1.11.0 asks the worker for figures,
+  // which sends nothing without a key and the figures accepted in Options
+  // (tests/unit/serp-figures-service.test.js); what it is asked for is each
+  // result's address and site, never the search terms.
+  it('asks the worker for Collect and for the figures of each result, and nothing else', async () => {
     window.history.pushState({}, '', '/search?q=confidential+search+terms&gl=us&hl=en');
     freshDom(['alpha.example', 'beta.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     // serpCollect 'get' reads session storage in the worker; it sends nothing.
-    expect(sentMessages.map((m) => [m.action, m.op])).toEqual([['serpCollect', 'get']]);
+    expect(sentMessages.map((m) => [m.action, m.op])).toEqual([['serpCollect', 'get'], ['serpFigures', undefined]]);
     expect(sentMessages.some((m) => m.action === 'serpStats')).toBe(false);
+    const figures = sentMessages.find((m) => m.action === 'serpFigures');
+    expect(figures.items.map(({ url, domain }) => ({ url, domain }))).toEqual([
+      { url: 'https://alpha.example/page-0', domain: 'alpha.example' },
+      { url: 'https://beta.example/page-1', domain: 'beta.example' }
+    ]);
+    // Collect keys its session storage by the search, in the worker; the
+    // figures, which leave the browser, carry no part of it.
+    expect(JSON.stringify(figures)).not.toMatch(/confidential/);
   });
 
   it('never touches chrome.storage from the content script (#50)', async () => {
@@ -645,12 +659,14 @@ describe('1.7.7 SERP toolbar fixes', () => {
     await vi.advanceTimersByTimeAsync(50);
     button('Copy results').click();
     const [header, r1, r2] = copied.split('\n');
-    expect(header.split('\t').slice(-6)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes',
+    // 1.11.0's columns follow these six.
+    const end = header.split('\t').indexOf('Result type');
+    expect(header.split('\t').slice(end - 6, end)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes',
       'Position counting everything', 'URL known', 'Place name']);
     // Page 1 wasn't added to Collect: it counts as Google's 10.
-    expect([r1.split('\t').at(-6), r2.split('\t').at(-6)]).toEqual(['11', '12']);
+    expect([r1.split('\t').at(end - 6), r2.split('\t').at(end - 6)]).toEqual(['11', '12']);
     // Page 2 on its own: the exact overall rank can't be known.
-    expect([r1.split('\t').at(-5), r2.split('\t').at(-5)]).toEqual(['', '']);
+    expect([r1.split('\t').at(end - 5), r2.split('\t').at(end - 5)]).toEqual(['', '']);
   });
 
   it('1.10.2: counts page 1\'s organic results, once page 1 was added to Collect', async () => {
@@ -663,8 +679,9 @@ describe('1.7.7 SERP toolbar fixes', () => {
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     button('Copy results').click();
-    const [, r1, r2] = copied.split('\n');
-    expect([r1.split('\t').at(-6), r2.split('\t').at(-6)]).toEqual(['8', '9']);
+    const [header, r1, r2] = copied.split('\n');
+    const at = header.split('\t').indexOf('Absolute position (approx.)');
+    expect([r1.split('\t').at(at), r2.split('\t').at(at)]).toEqual(['8', '9']);
   });
 
   it('#56: answers the popup with what the page actually yielded', async () => {
@@ -676,7 +693,10 @@ describe('1.7.7 SERP toolbar fixes', () => {
     await vi.advanceTimersByTimeAsync(50);
     let reply = null;
     handler({ action: 'serpStatus' }, {}, (r) => { reply = r; });
-    expect(reply).toEqual({ rows: 1, headings: 1, questions: 1 });
+    expect(reply).toMatchObject({ rows: 1, headings: 1, questions: 1 });
+    // 1.11.0: and what the popup's results panel shows.
+    expect(reply.features.map((f) => f.key)).toContain('people_also_ask');
+    expect(reply.figures).toMatchObject({ loaded: 0 });
     expect(handler({ action: 'somethingElse' }, {}, () => {})).toBeUndefined();
   });
 });
@@ -809,5 +829,424 @@ describe('#45: collecting result pages', () => {
     const at = (l, name) => l.split('\t')[header.split('\t').indexOf(name)];
     expect(lines.map((l) => [at(l, 'URL'), at(l, 'URL known')])).toEqual([
       ['https://same-site.example/', 'site only'], ['https://same-site.example/', 'site only'], ['https://other.example/page-3', 'yes']]);
+  });
+});
+
+/* ---------- 1.11.0: figures under each result, the panel, the look ---------- */
+
+describe('1.11.0: figures under each result', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const answer = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/serp-metrics', name + '.json'), 'utf8'));
+  const F = globalThis.SBWSerpFigures;
+  const figuresText = (domain) => barFor(domain).querySelector('[data-role="figures"]').textContent;
+  const panelButton = (label) => Array.from(document.querySelectorAll('.sbw-serp-tools button')).find((b) => b.textContent.startsWith(label));
+
+  // The worker's answer to 'serpFigures', as the service gives it for the
+  // saved route answer `name`, or a state of its own.
+  function figuresReply(reply) {
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') {
+        const r = typeof reply === 'function' ? reply(msg) : reply;
+        setTimeout(() => cb(r), 5);
+        return;
+      }
+      defaultSendMessageImpl(msg, cb);
+    };
+  }
+
+  function okReply(name, msg) {
+    const data = answer(name);
+    const results = {};
+    msg.items.forEach((item, i) => { results[item.key] = F.resultFigures(data.results[i]); });
+    const s = F.standing(data);
+    return Object.assign({ state: 'ok', results }, s, { notice: F.lookupNotice(s) });
+  }
+
+  function storageLocal(settings) {
+    window.chrome.storage.local = { get: vi.fn(async () => ({ serpSettings: settings })), set: vi.fn(async () => {}) };
+  }
+
+  it('shows the page\'s and the site\'s figures, labelled DataForSEO\'s, with domain age and your checklist', async () => {
+    figuresReply((msg) => okReply('done', msg));
+    freshDom(['alpha.example', 'beta.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const text = figuresText('alpha.example');
+    expect(text).toContain('Page412 ref. domains9.1K backlinksrank 382.3K visits/mo');
+    expect(text).toContain('Siterank 6115.2K ref. domains');
+    const source = barFor('alpha.example').querySelector('.sbw-fig-source');
+    expect(source.hidden).toBe(false);
+    expect(source.textContent).toBe('DataForSEO');
+    expect(text).toContain('age 28y 1m');
+    expect(text).toContain('your checklist 92/100');
+    const age = barFor('alpha.example').querySelector('[data-figure="domainAge"]');
+    expect(age.title).toMatch(/Registered 1998-09-15, registrar Example Registrar, Inc\., expires 2028-09-14/);
+    expect(source.title).toMatch(/0 to 100/);
+    expect(document.querySelector('[data-role="figures-line"]').textContent).toMatch(/Free plan: 17 of 20 searches with new figures left today/);
+  });
+
+  it('signed out of Google, a row known only by its site: the site\'s figures and "sign in to Google to see page figures"', async () => {
+    figuresReply((msg) => okReply('done', msg));
+    window.history.pushState({}, '', '/search?q=x');
+    const gotoBlock = `<div class="g"><div><a href="/goto?url=CAEShidden"><h3>Hidden</h3></a><cite>https://beta.example › page</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div></div></div>`;
+    document.body.innerHTML = `<div id="search"><div id="rso">${resultBlock('alpha.example', 0)}${gotoBlock}</div></div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const sent = sentMessages.find((m) => m.action === 'serpFigures');
+    expect(sent.items[1]).toMatchObject({ url: null, domain: 'beta.example' });
+    expect(figuresText('beta.example')).toContain('Siterank 44830 ref. domains');
+    expect(figuresText('beta.example')).toContain('sign in to Google to see page figures');
+    expect(figuresText('beta.example')).not.toMatch(/Page/);
+  });
+
+  it('signed out of SEO Bandwagon: position and Analyze, and "Connect free to see figures"', async () => {
+    figuresReply({ state: 'no_key' });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const bar = barFor('alpha.example');
+    expect(bar.querySelector('.sbw-serp-pos').textContent).toBe('#1');
+    expect(bar.querySelector('.sbw-serp-analyze')).not.toBeNull();
+    const connect = bar.querySelector('[data-role="figures"] button');
+    expect(connect.textContent).toBe('Connect free to see figures');
+    connect.click();
+    expect(sentMessages.at(-1)).toEqual({ action: 'serpOpen', page: 'connect' });
+  });
+
+  it('figures not accepted yet: "Turn on figures", which opens Settings', async () => {
+    figuresReply({ state: 'needs_consent', reason: 'not_accepted' });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const btn = barFor('alpha.example').querySelector('[data-role="figures"] button');
+    expect(btn.textContent).toBe('Turn on figures');
+    expect(btn.title).toMatch(/send each result’s address/);
+    btn.click();
+    expect(sentMessages.at(-1)).toEqual({ action: 'serpOpen', page: 'settings' });
+  });
+
+  it('a 403 (a key without the serp scope) says Reconnect', async () => {
+    figuresReply({ state: 'error', code: 'forbidden', results: {} });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(figuresText('alpha.example')).toMatch(/^Reconnect to see figures/);
+    expect(document.querySelector('[data-role="figures-actions"]').textContent).toBe('Reconnect');
+  });
+
+  it('offline: says so on the bar; position, Analyze and the exports still work', async () => {
+    figuresReply({ state: 'error', code: 'network', results: {} });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(figuresText('alpha.example')).toMatch(/^Offline/);
+    expect(figuresText('alpha.example')).not.toMatch(/Could not reach/i);
+    expect(panelButton('Copy results').textContent).toBe('Copy results (1)');
+  });
+
+  it('the allowance reached: the bar and the panel say so and link to upgrading; cached figures stay', async () => {
+    figuresReply((msg) => okReply('limit-reached', msg));
+    freshDom(['alpha.example']);
+    window.history.pushState({}, '', '/search?q=x');
+    const gotoBlock = `<div class="g"><div><a href="/goto?url=CAEShidden"><h3>Hidden</h3></a><cite>https://beta.example › page</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div></div></div>`;
+    document.querySelector('#search').insertAdjacentHTML('beforeend', gotoBlock);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(figuresText('alpha.example')).toBe('No figures: today’s limit is reachedUpgrade');
+    expect(figuresText('beta.example')).toContain('rank 44'); // from the site's cache
+    expect(document.querySelector('[data-role="figures-line"]').textContent).toMatch(/searches with new figures are used/);
+    panelButton('Upgrade for more figures').click();
+    expect(sentMessages.at(-1)).toEqual({ action: 'serpOpen', page: 'upgrade' });
+  });
+
+  it('paused at the monthly ceiling: says so, with no upgrade', async () => {
+    figuresReply((msg) => okReply('paused', msg));
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(figuresText('alpha.example')).toBe('New figures paused until next month');
+    expect(document.querySelector('[data-role="figures-line"]').textContent).toMatch(/paused for everyone until next month/);
+    expect(panelButton('Upgrade')).toBeUndefined();
+  });
+
+  it('figures on a click: nothing asked until "Show figures" or "Load figures"', async () => {
+    storageLocal({ load: 'click' });
+    figuresReply((msg) => okReply('done', msg));
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sentMessages.some((m) => m.action === 'serpFigures')).toBe(false);
+    barFor('alpha.example').querySelector('[data-role="figures"] button').click();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(sentMessages.filter((m) => m.action === 'serpFigures')).toHaveLength(1);
+    expect(figuresText('alpha.example')).toContain('412 ref. domains');
+  });
+
+  it('asks once per result: a page that keeps changing does not ask again after an error', async () => {
+    figuresReply({ state: 'error', code: 'error', results: {} });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const asked = () => sentMessages.filter((m) => m.action === 'serpFigures').length;
+    // Google redraws something beside the results, again and again. (An
+    // earlier test's copy of the overlay still watches document.body and
+    // asks once for itself, so the count is read after the first redraw.)
+    document.querySelector('#search').insertAdjacentHTML('beforeend', '<div class="google-redraw"></div>');
+    await vi.advanceTimersByTimeAsync(1500);
+    const once = asked();
+    expect(once).toBeGreaterThanOrEqual(1);
+    for (let i = 0; i < 4; i++) {
+      document.querySelector('#search').insertAdjacentHTML('beforeend', '<div class="google-redraw"></div>');
+      await vi.advanceTimersByTimeAsync(700);
+    }
+    expect(asked()).toBe(once);
+  });
+
+  it('our own redraws never cause a rescan', async () => {
+    figuresReply((msg) => okReply('done', msg));
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    // Let every rescan the page's own setup scheduled run first.
+    await vi.advanceTimersByTimeAsync(1500);
+    const parse = vi.spyOn(globalThis.SBWSerp, 'parseResults');
+    panelButton('Copy results').click(); // flashes its label: a change inside the panel
+    await vi.advanceTimersByTimeAsync(2000);
+    // The click itself parses once; no rescan follows it.
+    expect(parse.mock.calls.length).toBeLessThanOrEqual(1);
+    parse.mockRestore();
+  });
+
+  it('figures turned off in settings: no figures asked, no figures shown', async () => {
+    storageLocal({ figuresOn: false });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sentMessages.some((m) => m.action === 'serpFigures')).toBe(false);
+    expect(figuresText('alpha.example')).toBe('');
+  });
+
+  it('the overlay turned off: no bars, no panel, nothing asked', async () => {
+    storageLocal({ overlay: false });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('.sbw-serp-bar')).toBeNull();
+    expect(document.querySelector('.sbw-serp-tools')).toBeNull();
+    expect(sentMessages).toEqual([]);
+  });
+
+  it('exports carry each result\'s figures, its type and the search\'s features', async () => {
+    figuresReply((msg) => okReply('done', msg));
+    let copied = null;
+    document.execCommand = vi.fn(() => { copied = document.querySelector('textarea[aria-hidden="true"]').value; return true; });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    panelButton('Copy results').click();
+    const [header, line] = copied.split('\n');
+    const cell = (name) => line.split('\t')[header.split('\t').indexOf(name)];
+    expect(cell('Result type')).toBe('web');
+    expect(cell('Page referring domains (DataForSEO)')).toBe('412');
+    expect(cell('Site rank 0-100 (DataForSEO)')).toBe('61');
+    expect(cell('Domain age (RDAP)')).toBe('28y 1m');
+    expect(cell('Registrar (RDAP)')).toBe('Example Registrar, Inc.');
+    expect(cell('Your on-page checklist')).toBe('92');
+    delete document.execCommand;
+  });
+});
+
+describe('1.11.0: the panel and the look', () => {
+  function storageLocal(settings) {
+    window.chrome.storage.local = { get: vi.fn(async () => ({ serpSettings: settings })), set: vi.fn(async () => {}) };
+  }
+  const groups = () => Array.from(document.querySelectorAll('.sbw-serp-tools .sbw-group')).map((g) => g.getAttribute('data-group'));
+
+  it('is one panel with groups: Figures, Export, People also ask, Collect pages, Location', async () => {
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(groups()).toEqual(['figures', 'export', 'paa', 'collect', 'location']);
+    expect(document.querySelector('.sbw-serp-tools').getAttribute('aria-label')).toBe('SEO Bandwagon');
+    // No <h3> of ours: the parser reads h3s as result headings.
+    expect(document.querySelectorAll('.sbw-serp-tools h3')).toHaveLength(0);
+  });
+
+  it('sits below the results by default, and above them by setting, in the page\'s flow', async () => {
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('#search').nextElementSibling.classList.contains('sbw-serp-tools')).toBe(true);
+    document.body.innerHTML = '';
+
+    storageLocal({ placement: 'top' });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const panel = document.querySelector('#search').previousElementSibling;
+    expect(panel.classList.contains('sbw-serp-tools')).toBe(true);
+    expect(panel.getAttribute('data-placement')).toBe('top');
+  });
+
+  it('folds to its header line, and remembers it', async () => {
+    const set = vi.fn(async () => {});
+    window.chrome.storage.local = { get: vi.fn(async () => ({})), set };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const toggle = document.querySelector('.sbw-panel-toggle');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('.sbw-panel-body').hidden).toBe(true);
+    expect(set).toHaveBeenCalledWith({ serpSettings: expect.objectContaining({ collapsed: true }) });
+  });
+
+  it('Match Google follows Google\'s own light or dark page; Night and Day are fixed', async () => {
+    freshDom(['alpha.example']);
+    document.body.style.backgroundColor = 'rgb(31, 31, 31)';
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('.sbw-serp-bar').getAttribute('data-sbw-look')).toBe('google-dark');
+    expect(document.querySelector('.sbw-serp-tools').getAttribute('data-sbw-look')).toBe('google-dark');
+    document.body.innerHTML = '';
+
+    document.body.style.backgroundColor = 'rgb(255, 255, 255)';
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('.sbw-serp-bar').getAttribute('data-sbw-look')).toBe('google-light');
+    document.body.innerHTML = '';
+
+    storageLocal({ look: 'dark' });
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('.sbw-serp-bar').getAttribute('data-sbw-look')).toBe('dark');
+    document.body.style.backgroundColor = '';
+  });
+
+  it('marks your own sites on their bars, from the list in Options', async () => {
+    storageLocal({ ownSites: ['beta.example'] });
+    freshDom(['alpha.example', 'beta.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('beta.example').getAttribute('data-own')).toBe('true');
+    expect(barFor('beta.example').querySelector('.sbw-serp-own').textContent).toBe('Your site');
+    expect(barFor('alpha.example').hasAttribute('data-own')).toBe(false);
+  });
+
+  it('answers the popup\'s exports', async () => {
+    let handler = null;
+    window.chrome.runtime.onMessage = { addListener: (fn) => { handler = fn; } };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    let csv = null;
+    handler({ action: 'serpExport', kind: 'csv' }, {}, (r) => { csv = r; });
+    expect(csv.filename).toMatch(/^serp-plumbers-near-austin-p1-/);
+    expect(csv.text).toContain('Result type');
+    let ai = 'unset';
+    handler({ action: 'serpExport', kind: 'ai' }, {}, (r) => { ai = r; });
+    expect(ai).toEqual({ text: null });
+  });
+});
+
+describe('1.11.0: the open page follows Options', () => {
+  it('asks again as soon as the figures are accepted, without a reload', async () => {
+    let changed = null;
+    window.chrome.storage.local = { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    let accepted = false;
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') { setTimeout(() => cb(accepted ? { state: 'ok', results: {}, plan: 'free', allowance: null, lookups: 'done', notice: null } : { state: 'needs_consent' }), 5); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('alpha.example').querySelector('[data-role="figures"]').textContent).toBe('Turn on figures');
+    accepted = true;
+    changed({ sbwConsent: { newValue: { serpFigures: { acceptedAt: 'x', version: 1 } } } }, 'local');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sentMessages.filter((m) => m.action === 'serpFigures')).toHaveLength(2);
+    expect(barFor('alpha.example').querySelector('[data-role="figures"]').textContent).toBe('No figures for this result yet');
+    delete window.chrome.storage.onChanged;
+  });
+});
+
+describe('1.11.0 review: retries, cosmetic settings, a new account', () => {
+  it('asks again after a 429, after Retry-After, and says "Try again" meanwhile', async () => {
+    // Rate limited for the first 3 s; earlier tests' copies of the overlay
+    // may ask too, so the answer goes by the clock, not by a count.
+    const limitedUntil = Date.now() + 3000;
+    let calls = 0;
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') {
+        calls += 1;
+        setTimeout(() => cb(Date.now() < limitedUntil ? { state: 'error', code: 'rate_limited', retryAfter: 5, results: {} }
+          : { state: 'ok', results: Object.fromEntries(msg.items.map((i) => [i.key, { page: { rank: 40 }, domain: null, whois: null, checklist: null }])), plan: 'free', allowance: null, lookups: 'done', notice: null }), 5);
+        return;
+      }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const box = () => barFor('alpha.example').querySelector('[data-role="figures"]');
+    expect(box().textContent).toBe('Too many figure requests in a minute. They load again shortlyTry again');
+    const before = calls;
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(calls).toBeGreaterThan(before);
+    // An earlier test's copy of the overlay may draw a bar of its own for
+    // the same result; this copy's bar is the one that now has figures.
+    const all = Array.from(document.querySelectorAll('.sbw-serp-bar')).filter((b) => b.querySelector('.sbw-serp-domain').textContent === 'alpha.example');
+    expect(all.some((b) => b.querySelector('[data-role="figures"]').textContent.includes('rank 40'))).toBe(true);
+  });
+
+  it('folding the panel never sends the figures again', async () => {
+    let changed = null;
+    window.chrome.storage.local = { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') { setTimeout(() => cb({ state: 'error', code: 'forbidden', results: {} }), 5); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const before = sentMessages.filter((m) => m.action === 'serpFigures').length;
+    changed({ serpSettings: { newValue: { collapsed: true } } }, 'local');
+    changed({ serpSettings: { newValue: { collapsed: false, placement: 'top' } } }, 'local');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sentMessages.filter((m) => m.action === 'serpFigures').length).toBe(before);
+    delete window.chrome.storage.onChanged;
+  });
+
+  it('a new account drops the old one\'s figures from the open page', async () => {
+    let changed = null;
+    window.chrome.storage.local = { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    let account = 'old';
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') {
+        const checklist = account === 'old' ? { score: 92, capturedAt: '2026-10-28' } : null;
+        setTimeout(() => cb({ state: 'ok', results: Object.fromEntries(msg.items.map((i) => [i.key, { page: null, domain: null, whois: null, checklist }])), plan: 'free', allowance: null, lookups: 'done', notice: null }), 5);
+        return;
+      }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('alpha.example').textContent).toContain('your checklist 92/100');
+    account = 'new';
+    changed({ apiKey: { newValue: 'sbw_new' } }, 'sync');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(barFor('alpha.example').textContent).not.toContain('your checklist');
+    delete window.chrome.storage.onChanged;
   });
 });

@@ -39,7 +39,21 @@
   // inside the first cell (tooltip spans), so a naive textContent read
   // returned "https://example.com/p/ Copy URL to clipboard Open in new tab
   // Inspect URL" — that whole string went into the Google search.
-  const ACTION_LABEL = /^(copy\b|open\b|inspect\b|filter\b|view\b)/i;
+  // 1.11.0: and the same labels in Search Console's other languages
+  // (German, French, Spanish, Italian, Dutch, Portuguese, Polish, Swedish,
+  // Danish, Norwegian, Finnish, Turkish, Japanese).
+  const ACTION_LABEL = new RegExp('^(' + [
+    'copy', 'open', 'inspect', 'filter', 'view',
+    'kopieren', 'öffnen', 'prüfen', 'url prüfen', 'ansehen',
+    'copier', 'ouvrir', 'inspecter', 'filtrer', 'afficher',
+    'copiar', 'abrir', 'inspeccionar', 'inspecionar', 'filtrar', 'ver',
+    'copia', 'apri', 'controlla', 'ispeziona', 'filtra', 'visualizza',
+    'kopiëren', 'openen', 'inspecteren', 'filteren', 'bekijken',
+    'kopiuj', 'otwórz', 'sprawdź', 'filtruj', 'wyświetl',
+    'kopiera', 'öppna', 'granska', 'kopiér', 'kopier', 'åbn', 'åpne', 'undersøg', 'inspiser',
+    'kopioi', 'avaa', 'tarkasta', 'kopyala', 'aç', 'incele',
+    'コピー', '開く', '検査', 'url を検査', 'フィルタ'
+  ].join('|') + ')(?=$|[^\\p{L}])', 'iu');
 
   // Prefer a [title] (GSC puts the full, untruncated query/URL there); skip
   // titles that belong to action buttons (native or ours) and titles that
@@ -66,8 +80,15 @@
   // positive "not Queries" answer, which is stronger than failing to match
   // /quer/i — "Top pages" and "Top queries" both contain neither word's stem
   // in some locales, so we look for a known dimension either way.
-  const OTHER_DIMENSION = /\b(page|url|countr|device|appearance|date|filter)/i;
-  const QUERY_DIMENSION = /\b(quer|search term|keyword)/i;
+  // 1.11.0: each in Search Console's other languages too. A stem, not a
+  // word: "Seiten", "Pages", "Páginas", "Pagine", "Pagina's", "Strony",
+  // "Sidor", "Sider", "Sivut", "Sayfalar", "ページ"; "Suchanfragen",
+  // "Requêtes", "Consultas", "Zoekopdrachten", "Zapytania", "Sökfrågor",
+  // "Forespørgsler", "Søk", "Kyselyt", "Sorgular", "クエリ". Checked against
+  // the selected tab and the table's first header, never against data.
+  // Japanese has no spaces between words, so its names match anywhere.
+  const OTHER_DIMENSION = /(^|[^\p{L}])(page|url|countr|device|appearance|date|filter|seite|land|länder|gerät|darstellung|datum|pays|appareil|apparence|date|pági|pagin|país|paes|país|dispositi|aspecto|aparência|fecha|data|pagina|landen|apparat|weergave|strony|kraj|urządz|wygląd|sidor|sider|länder|enhet|enheter|visning|dato|sivu|maa|laite|sayfa|ülke|cihaz|tarih|utseende)|ページ|国|デバイス|検索での見え方|日付/iu;
+  const QUERY_DIMENSION = /(^|[^\p{L}])(quer|search term|keyword|suchanfrage|anfrage|requête|requete|consulta|zoekopdracht|zapytan|sökfråg|forespørgsl|søkeord|kysely|sorgu)|クエリ|検索キーワード/iu;
 
   /**
    * Is the report currently showing the Queries dimension?
@@ -97,11 +118,14 @@
 
     // 2. The selected tab itself. This is the most direct statement of what
     //    the user is looking at, and it does not depend on the table.
+    // 1.11.0: another dimension's name wins over a query word in the same
+    // label, so a compound such as "Søkeutseende" (search appearance) is
+    // never Queries; a label in neither list abstains.
     const tab = root.querySelector('[role="tab"][aria-selected="true"]');
     if (tab) {
       const label = (tab.textContent || '').trim();
-      if (QUERY_DIMENSION.test(label)) return true;
       if (OTHER_DIMENSION.test(label)) return false;
+      if (QUERY_DIMENSION.test(label)) return true;
     }
 
     // 3. The first header of the table that actually holds data rows — not
@@ -109,8 +133,8 @@
     const th = dataTableHeader(root);
     if (th) {
       const label = (th.textContent || '').trim();
-      if (QUERY_DIMENSION.test(label)) return true;
       if (OTHER_DIMENSION.test(label)) return false;
+      if (QUERY_DIMENSION.test(label)) return true;
     }
 
     // 4. Unknown. Do not inject.

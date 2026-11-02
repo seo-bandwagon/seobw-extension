@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js');
+importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-settings.js');
 
 // 1.10.2: the results overlay sends nothing to SEO Bandwagon. Its bar showed
 // "Score N · M captures" from POST /api/domain/quick-batch, an on-page grade
@@ -504,6 +504,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     serpCollectHandle(request).then(sendResponse, (e) => sendResponse({ error: String((e && e.message) || e) }));
     return true;
   }
+
+  // 1.11.0: the figures under each result. The overlay sends
+  // [{ key, url, domain }] (SBWSerpFigures.requestItems); the service sends
+  // nothing without a key and the figures accepted in Options
+  // (src/lib/serp-figures-service.js).
+  if (request.action === 'serpFigures' && sender.tab) {
+    serpFigures.lookup(Array.isArray(request.items) ? request.items : [], { fresh: request.fresh === true })
+      .then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
+    return true;
+  }
+
+  // The popup on a results page: the plan, the allowance and `lookups` of
+  // the last answer this session.
+  if (request.action === 'serpFiguresStatus') {
+    serpFigures.status().then(sendResponse, () => sendResponse(null));
+    return true;
+  }
+
+  // A bar's or the panel's link to one of our pages. A page on google.com
+  // can't link to the extension's own pages (nothing is web-accessible), so
+  // the worker opens them, and seobandwagon.com's, beside the results.
+  if (request.action === 'serpOpen' && sender.tab) {
+    openSerpPage(request.page, sender.tab).then(sendResponse, () => sendResponse({ ok: false }));
+    return true;
+  }
+});
+
+// The pages a results-page link opens: Connect (a key, or one with the
+// `serp` scope), upgrading, and the Google results section of Options.
+async function openSerpPage(page, tab) {
+  let url;
+  if (page === 'settings') {
+    url = chrome.runtime.getURL('src/options/options.html#google-results');
+  } else if (page === 'connect' || page === 'upgrade') {
+    const settings = await SBW.getApiSettings();
+    const origin = new URL(settings.apiUrl).origin;
+    url = SBWSiteLinks.siteUrl(origin, page === 'connect' ? '/dashboard/api-keys' : '/pricing', 'serp_overlay');
+  } else {
+    return { ok: false };
+  }
+  await chrome.tabs.create({ url, windowId: tab.windowId, index: tab.index + 1, openerTabId: tab.id });
+  return { ok: true };
+}
+
+const serpFigures = SBWSerpFiguresService.createSerpFiguresService({
+  figures: SBWSerpFigures,
+  hasKey: () => SBW.hasApiKey(),
+  consent: (flow, opts) => SBWConsent.check(flow, opts),
+  post: (results) => SBW.serpMetrics(results),
+  storage: chrome.storage.session
 });
 
 // --- Broken-link checker: one run per tab, outliving the popup (#47) ---

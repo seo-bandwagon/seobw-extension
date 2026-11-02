@@ -66,6 +66,11 @@ const GOOGLE_SERP_HOSTS = new Set([
   'www.google.com', 'www.google.co.uk', 'www.google.ca', 'www.google.com.au',
   'www.google.de', 'www.google.fr', 'www.google.es', 'www.google.it',
   'www.google.nl', 'www.google.co.in',
+  'www.google.com.br', 'www.google.com.mx', 'www.google.co.jp', 'www.google.pl',
+  'www.google.se', 'www.google.no', 'www.google.dk', 'www.google.fi',
+  'www.google.be', 'www.google.at', 'www.google.ch', 'www.google.ie',
+  'www.google.co.nz', 'www.google.co.za', 'www.google.pt', 'www.google.com.tr',
+  'www.google.com.sg', 'www.google.com.ph', 'www.google.com.ar', 'www.google.co.id',
 ]);
 
 export function isGoogleSerpUrl(url) {

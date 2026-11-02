@@ -1,0 +1,26 @@
+{
+  "source": "DataForSEO",
+  "rankScale": "one_hundred",
+  "market": { "locationCode": 2840, "languageCode": "en" },
+  "plan": "free",
+  "allowance": { "limit": 20, "used": 3, "remaining": 17 },
+  "lookups": "done",
+  "results": [
+    {
+      "url": "https://alpha.example/page-0",
+      "host": "alpha.example",
+      "page": { "referringDomains": 412, "backlinks": 9134, "rank": 38, "etv": 2310.4, "keywords": 840, "fetchedAt": "2026-11-01T12:00:00Z" },
+      "domain": { "referringDomains": 15200, "backlinks": 1203000, "rank": 61, "etv": 482000, "keywords": 91000, "fetchedAt": "2026-11-01T12:00:00Z" },
+      "whois": { "domain": "alpha.example", "createdDate": "1998-09-15T04:00:00Z", "registrar": "Example Registrar, Inc.", "expiresDate": "2028-09-14T04:00:00Z", "age": "28y 1m", "source": "RDAP" },
+      "checklist": { "score": 92, "capturedAt": "2026-10-28T09:30:00Z" }
+    },
+    {
+      "url": null,
+      "host": "beta.example",
+      "page": null,
+      "domain": { "referringDomains": 830, "backlinks": 22100, "rank": 44, "etv": 15100, "keywords": 3200, "fetchedAt": "2026-11-01T12:00:00Z" },
+      "whois": { "domain": "beta.example", "createdDate": "2015-03-02T00:00:00Z", "registrar": null, "expiresDate": null, "age": "11y 7m", "source": "RDAP" },
+      "checklist": null
+    }
+  ]
+}

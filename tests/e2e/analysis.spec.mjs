@@ -132,19 +132,28 @@ test('analysis in the browser: the page\'s own globals, and Web Vitals in a back
     });
 
     await test.step('Web Vitals: the same page in a background tab gets "No data", not a number', async () => {
+      // A page in front, and the tab behind it in the same window. Without a
+      // window, Chrome puts a new tab in the last focused one, which after the
+      // step above closed its page could be a new window where the tab is the
+      // one shown (seen about one run in three, here and in CI).
+      const front = await context.newPage();
+      await front.goto(`${base}/tech`);
+      await front.bringToFront();
+      const frontWindow = await worker.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].windowId, `${base}/tech`);
       const url = `${base}/lcp?background=1`;
-      const tabId = await worker.evaluate(async (u) => {
-        const tab = await chrome.tabs.create({ url: u, active: false });
+      const tabId = await worker.evaluate(async ({ u, windowId }) => {
+        const tab = await chrome.tabs.create({ url: u, active: false, windowId });
         for (let i = 0; i < 100; i++) {
           if ((await chrome.tabs.get(tab.id)).status === 'complete') break;
           await new Promise((r) => setTimeout(r, 100));
         }
         return tab.id;
-      }, url);
+      }, { u: url, windowId: frontWindow });
       const data = await analyze(tabId);
       expect(data.webVitals).toMatchObject({ loadedHidden: true, lcp: null, fcp: null, cls: null });
       expect(data.webVitals.ttfb).toBeGreaterThanOrEqual(0);
       await worker.evaluate((id) => chrome.tabs.remove(id), tabId);
+      await front.close();
     });
 
     await test.step('a saved Japanese page, laid out: its words counted, readability not scored', async () => {

@@ -987,17 +987,20 @@ describe('absolute position (approx.) column (#45)', () => {
     const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x&start=10' }));
     const [header, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
     const cols = header.split(',');
-    expect(cols.slice(-6)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes',
+    // 1.11.0's columns come after these six, so they end where 'Result type' starts.
+    const end = cols.indexOf('Result type');
+    expect(cols.slice(end - 6, end)).toEqual(['Absolute position (approx.)', 'Absolute position', 'Collection notes',
       'Position counting everything', 'URL known', 'Place name']);
     expect(cols.slice(0, 3)).toEqual(['Query', 'Position', 'URL']);
-    expect(first.split(',').at(-6)).toBe('11');
-    expect(second.split(',').at(-6)).toBe('12');
+    expect(first.split(',').at(end - 6)).toBe('11');
+    expect(second.split(',').at(end - 6)).toBe('12');
   });
 
   it('on page 1 the exact absolute position is the position (#45)', () => {
     const csv = SBWSerp.resultsToCsv(rows, SBWSerp.searchContext({ search: '?q=x' }));
-    const [, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
-    expect([first.split(',').at(-5), second.split(',').at(-5)]).toEqual(['1', '2']);
+    const [header, first, second] = csv.replace(/^\uFEFF/, '').trim().split('\r\n');
+    const at = header.split(',').indexOf('Absolute position');
+    expect([first.split(',').at(at), second.split(',').at(at)]).toEqual(['1', '2']);
   });
 });
 
@@ -1172,5 +1175,146 @@ describe('metro names Google knows (1.10.2)', () => {
 
   it('keeps no hyphenated metro name', () => {
     expect(SBWSerp.PRESET_LOCATIONS.filter((l) => /-/.test(l.canonical))).toEqual([]);
+  });
+});
+
+/* ---------- 1.11.0: other Googles, search features, AI Overview sources, result type ---------- */
+
+describe('1.11.0: dates, ratings and ad labels in each Google\'s language', () => {
+  const S = globalThis.SBWSerp;
+
+  it.each([
+    ['28. März 2025 — Die besten Tools.', '28. März 2025', 'Die besten Tools.'],
+    ['28 mars 2025 — Les meilleurs outils.', '28 mars 2025', 'Les meilleurs outils.'],
+    ['28 de mar. de 2025 — As melhores.', '28 de mar. de 2025', 'As melhores.'],
+    ['28 mrt 2025 — De beste.', '28 mrt 2025', 'De beste.'],
+    ['28.03.2025 — Die besten Tools.', '28.03.2025', 'Die besten Tools.'],
+    ['2025/03/28 — ベスト', '2025/03/28', 'ベスト'],
+    ['2025年3月28日 — ベスト', '2025年3月28日', 'ベスト'],
+    ['vor 6 Tagen — Ein CRM.', 'vor 6 Tagen', 'Ein CRM.'],
+    ['il y a 6 jours — Un CRM.', 'il y a 6 jours', 'Un CRM.'],
+    ['hace 6 días — Un CRM.', 'hace 6 días', 'Un CRM.'],
+    ['6 giorni fa — Un CRM.', '6 giorni fa', 'Un CRM.'],
+    ['6 dagen geleden — Een CRM.', '6 dagen geleden', 'Een CRM.'],
+    ['för 6 dagar sedan — Ett CRM.', 'för 6 dagar sedan', 'Ett CRM.'],
+    ['for 6 dage siden — Et CRM.', 'for 6 dage siden', 'Et CRM.'],
+    ['6 dni temu — CRM.', '6 dni temu', 'CRM.'],
+    ['6 日前 — CRM', '6 日前', 'CRM']
+  ])('splits the stamp off %j', (text, date, rest) => {
+    expect(S.splitDatePrefix(text)).toEqual({ date, rest });
+  });
+
+  it.each([
+    '10 best tools 2025 — a list.',
+    '10 Tipps für 2025 — eine Liste.',
+    'Top 5 — what we use.',
+    'For 30 years — we have helped families.',
+    '5 Marketing 2025 — a plan.',
+    '10 Outdoor 2024 – gear.',
+    '1.10.20 — Release notes.',
+    '99/99/2025 — not a date.'
+  ])('leaves a description that only starts with a number alone: %j', (text) => {
+    expect(S.splitDatePrefix(text)).toEqual({ date: '', rest: text });
+  });
+
+  it.each([
+    ['Rated 4.8 out of 5,', '4.8/5'],
+    ['Bewertung: 4,5 von 5', '4.5/5'],
+    ['Note : 4,5 sur 5', '4.5/5'],
+    ['Valoración: 4,5 de 5', '4.5/5'],
+    ['Valutazione: 4,5 su 5', '4.5/5'],
+    ['Beoordeling: 4,5 van 5', '4.5/5'],
+    ['Classificação: 4,5 de 5', '4.5/5'],
+    ['Ocena: 4,5 z 5', '4.5/5']
+  ])('reads the star rating %j', (label, rating) => {
+    expect(S.parseRating(label)).toBe(rating);
+  });
+
+  it('reads no rating from a label that only has two numbers', () => {
+    expect(S.parseRating('Photo 1 of 5')).toBe('');
+    expect(S.parseRating('Foto 1 de 5')).toBe('');
+    expect(S.parseRating('Rated 7 out of 5')).toBe('');
+  });
+
+  it('finds a German result\'s rating in its own words', () => {
+    const doc = new JSDOM(`<!doctype html><body><div id="search">
+      <div class="g"><div><a href="https://de.example/"><h3>Ergebnis</h3></a><cite>https://de.example</cite>
+      <span role="img" aria-label="Bewertung: 4,7 von 5"></span>
+      <div data-sncf="1">Eine Beschreibung, lang genug für das Ergebnis, mit mehr als vierzig Zeichen.</div></div></div>
+    </div></body>`).window.document;
+    expect(S.parseResults(doc)[0].rating).toBe('4.7/5');
+  });
+
+  it.each(['Anzeigen', 'Annonces', 'Anuncios', 'Annunci', 'Advertenties', 'Reklamy', 'Annonser', '広告', 'Gesponsert'])(
+    'treats a container labelled %j as ads', (label) => {
+      expect(S.isAdLabel(label)).toBe(true);
+    });
+
+  it.each(['Downloads', 'Threads', 'Leads', 'Why this ad?', 'Ad choices', 'Road trips', 'Reklamationen'])(
+    'does not treat %j as ads', (label) => {
+      expect(S.isAdLabel(label)).toBe(false);
+    });
+
+  it('drops a German ad marked only by its leading "Anzeige ·"', () => {
+    const doc = new JSDOM(`<!doctype html><body><div id="search">
+      <div class="g"><div><span>Anzeige · </span><a href="https://ad.example/"><h3>Werbung</h3></a><cite>https://ad.example</cite>
+      <div>Eine Beschreibung, lang genug für das Ergebnis, mit mehr als vierzig Zeichen.</div></div></div>
+      <div class="g"><div><a href="https://org.example/"><h3>Organisch</h3></a><cite>https://org.example</cite>
+      <div>Eine Beschreibung, lang genug für das Ergebnis, mit mehr als vierzig Zeichen.</div></div></div>
+    </div></body>`).window.document;
+    expect(S.parseResults(doc).map((r) => r.domain)).toEqual(['org.example']);
+  });
+});
+
+describe('1.11.0: what the search shows, read from saved Google pages', () => {
+  const S = globalThis.SBWSerp;
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const saved = (f) => new JSDOM('<!doctype html><body>' + fs.readFileSync(path.join(__dirname, '../fixtures', f), 'utf8') + '</body>').window.document;
+
+  it('signed in, "seo bandwagon": an AI Overview and one ad', () => {
+    expect(S.detectFeatures(saved('serp-google-social-profiles.html'))).toEqual([
+      { key: 'ai_overview', label: 'AI Overview' },
+      { key: 'ads', label: 'Ads', count: 1 }
+    ]);
+  });
+
+  it('"best crm for nonprofits": People also ask and related searches', () => {
+    expect(S.detectFeatures(saved('serp-google-commercial-query.html')).map((f) => f.key)).toEqual(['people_also_ask', 'related_searches']);
+  });
+
+  it('lists the pages the AI Overview cites, each once, without Google\'s own links', () => {
+    const cites = S.aiOverviewCitations(saved('serp-google-social-profiles.html'));
+    expect(cites).toHaveLength(9);
+    expect(cites[0]).toMatchObject({ url: 'https://seobandwagon.com/pricing', domain: 'seobandwagon.com' });
+    expect(cites.every((c) => !/google\./.test(c.domain) && !c.url.includes('#'))).toBe(true);
+  });
+
+  it('puts the features and the AI Overview sources on every exported row', () => {
+    const doc = saved('serp-google-social-profiles.html');
+    const ctx = S.searchContext({ search: '?q=seo+bandwagon' }, doc);
+    expect(ctx.features).toBe('AI Overview | Ads (1)');
+    expect(ctx.aiCitations.split(' | ')).toHaveLength(9);
+  });
+
+  it('gives each result its type', () => {
+    expect(S.parseResults(saved('serp-google-social-profiles.html')).map((r) => [r.domain, r.type])).toEqual([
+      ['seobandwagon.com', 'web'], ['linkedin.com', 'social'], ['yelp.com', 'web'], ['instagram.com', 'social'], ['facebook.com', 'social']
+    ]);
+    expect(S.parseResults(saved('serp-google-commercial-query.html'))[0]).toMatchObject({ domain: 'reddit.com', type: 'forum' });
+  });
+
+  it('reads a video by its duration and a PDF by Google\'s label', () => {
+    expect(S.resultType({ domain: 'example.com', url: 'https://example.com/report.pdf' })).toBe('pdf');
+    const doc = new JSDOM('<div><span>12:04</span></div>').window.document;
+    expect(S.resultType({ domain: 'example.com', url: 'https://example.com/' }, doc.body.firstChild)).toBe('video');
+    expect(S.resultType({ domain: 'youtube.com', url: 'https://youtube.com/watch?v=1' })).toBe('video');
+  });
+
+  it('names the figures\' sources in the export columns, and writes no column with a comma', () => {
+    const names = S.RESULT_CSV_COLUMNS.map((c) => c[0]);
+    expect(names.filter((n) => /Page|Site/.test(n) && /referring|backlinks|rank|traffic|keywords/i.test(n)).every((n) => n.endsWith('(DataForSEO)'))).toBe(true);
+    expect(names.filter((n) => /Domain age|Registered|Registrar|Expires/.test(n)).every((n) => n.endsWith('(RDAP)'))).toBe(true);
+    expect(names.some((n) => n.includes(','))).toBe(false);
   });
 });

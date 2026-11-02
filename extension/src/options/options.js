@@ -187,7 +187,58 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireLink('linkCitations', () => openDashboardPath('/dashboard/citations'));
   wireLink('linkLinkBuilding', () => openDashboardPath('/dashboard/link-building'));
   initNewTab();
+  initGoogleResults();
 });
+
+/* Google results (1.11.0): the results-page settings, the figures' consent
+   and your own sites. A link from a results page lands on #google-results. */
+async function initGoogleResults() {
+  const section = document.getElementById('google-results');
+  if (!section || !globalThis.SBWSerpSettingsUI) return;
+  SBWSerpSettingsUI.render(document.getElementById('serpSettings'), { idPrefix: 'opt' });
+  if (location.hash === '#google-results') section.scrollIntoView();
+
+  const status = document.getElementById('serpConsentStatus');
+  const accept = document.getElementById('serpConsentAccept');
+  const withdraw = document.getElementById('serpConsentWithdraw');
+  async function paintConsent() {
+    const record = await SBWConsent.acceptance('serpFigures');
+    const hasKey = await SBW.hasApiKey();
+    accept.hidden = !!record;
+    withdraw.hidden = !record;
+    if (record) {
+      const when = record.acceptedAt ? new Date(record.acceptedAt).toLocaleDateString() : '';
+      status.textContent = `On since ${when}: result addresses are sent for figures.` +
+        (hasKey ? '' : ' Connect your account above to see them.');
+    } else {
+      status.textContent = 'Not turned on: nothing is sent.';
+    }
+  }
+  // The specific action that accepts sending result addresses; it also turns
+  // the figures on, since that is what the person asked for.
+  accept.addEventListener('click', async () => {
+    const ok = await SBWConsent.accept('serpFigures');
+    if (ok) await SBWSerpSettings.save({ overlay: true, figuresOn: true });
+    paintConsent();
+  });
+  withdraw.addEventListener('click', async () => {
+    await SBWConsent.withdraw('serpFigures');
+    paintConsent();
+  });
+  paintConsent();
+
+  const sites = document.getElementById('ownSites');
+  const sitesStatus = document.getElementById('ownSitesStatus');
+  sites.value = (await SBWSerpSettings.load()).ownSites.join('\n');
+  document.getElementById('saveOwnSites').addEventListener('click', async () => {
+    const list = SBWSerpSettings.parseSiteList(sites.value);
+    const saved = await SBWSerpSettings.save({ ownSites: list });
+    sites.value = saved.ownSites.join('\n');
+    setStatus(sitesStatus, saved.ownSites.length
+      ? `Saved ${saved.ownSites.length} site${saved.ownSites.length === 1 ? '' : 's'}.`
+      : 'No sites saved.', 'success');
+  });
+}
 
 /* New tab (1.9.5): which page a new tab opens, saved on change. */
 async function initNewTab() {

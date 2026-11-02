@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.10.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.11.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -121,7 +121,7 @@ are bundled in `src/styles/fonts/` because MV3 blocks remote `font-src`.
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
 | `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
-| `content_scripts` matches: `https://www.google.com/search*` and the same path on nine other Google domains (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.co.in`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, shows each one's position, and copies results/PAA questions to your clipboard or a CSV only when you click. From 1.10.2 it sends nothing to `seobandwagon.com` (until then, the bare domains of the results, for a per-site stat). It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use. Its Analyze button reads the result in a background tab, which needs the optional `<all_urls>` permission below; the extension asks for it once, from its own window, when Analyze is first clicked. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` only redirects there, so the overlay never ran in India); the install warning is unchanged (measured with `getPermissionWarningsByManifest`) |
+| `content_scripts` matches: `https://www.google.com/search*` and the same path on 29 other Google domains (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.co.in`, and from 1.11.0 `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, shows each one's position and, from 1.11.0, its figures, and copies results/PAA questions to your clipboard or a CSV only when you click. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the search) to `seobandwagon.com` for the figures; otherwise it sends nothing (1.10.2 sent nothing; until then, the bare domains of the results, for a per-site stat). The twenty domains added in 1.11.0 left the install warning unchanged (measured with `getPermissionWarningsByManifest`: Chrome names every `www.google.*` host as www.google.com). It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use. Its Analyze button reads the result in a background tab, which needs the optional `<all_urls>` permission below; the extension asks for it once, from its own window, when Analyze is first clicked. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` only redirects there, so the overlay never ran in India); the install warning is unchanged (measured with `getPermissionWarningsByManifest`) |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
 | `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically). The consent text shown at request time, verbatim (`ALL_URLS_REASON` in `src/lib/perms.js`): *"To check links, hreflang alternates and redirects, and to compare a page's raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page."* |
 
@@ -174,11 +174,12 @@ sent anywhere — there is no network call involved at all.
 
 ## SERP overlay
 
-On a Google results page (google.com and nine other Google domains — see
+On a Google results page (google.com and 29 other Google domains — see
 the Permissions table below), the extension appends one small bar under each
-organic result and a toolbar under the results list. It never touches an ad
-or any Google UI — additive only, always: nothing is hidden, moved, covered,
-or restyled.
+organic result and one SEO Bandwagon panel below the results list, or above
+it by setting. It never touches an ad or any Google UI — additive only,
+always: nothing is hidden, moved, covered, or restyled. Dates, star ratings
+and ad labels are read in each Google's own language (1.11.0).
 
 **What's injected:**
 
@@ -204,11 +205,49 @@ or restyled.
   waiting results are analyzed and every later click runs straight through.
   A second click on a result reuses its tab; several quick clicks each get
   their own. Ctrl/Cmd/Shift and middle clicks open the link as a plain link.
+- **Figures** (1.11.0, the owner's "metrics on the SERP page"): the bar's
+  second row, with the figures chosen in settings: the **page**'s referring
+  domains, backlinks, rank, estimated traffic and ranking keywords; the
+  **site**'s rank, referring domains, traffic and ranking keywords; **domain
+  age**, with registrar, created and expiry dates on hover; and **your own
+  on-page checklist** where you captured that page. Link and traffic figures
+  are DataForSEO's, its rank on a 0 to 100 scale, labelled so; domain age is
+  RDAP's; there is no authority score of ours, and the checklist is never
+  called a ranking factor. They come from `POST /api/v1/serp/metrics` (the
+  key's `serp` scope; up to 10 results a call) through the worker
+  (`src/lib/serp-figures-service.js`), which keeps them for the browser
+  session only. Signed out of Google, a result known only by its site gets
+  the site's figures and "sign in to Google to see page figures"; no
+  request goes to Google to find its page. Signed out of SEO Bandwagon, the
+  bar shows position and Analyze and "Connect free to see figures". A key
+  made before the scope says Reconnect; too many requests in a minute, the
+  site being busy and offline each have their own words. The panel shows the
+  plan and what is left of the day's allowance (free 20 searches with new
+  figures a day, Pro 250); at the limit, or with new figures paused at the
+  site-wide monthly ceiling, the bars and the panel say so and offer the
+  upgrade where it helps, and nothing else stops working.
+- **Your own sites** (a list in Options, until 1.14.0 fills it from the
+  account) are marked "Your site" on their bars.
+- **The look**: the extension's own tokens, in Match Google (follows Google's
+  own light or dark page, in Google's font), Night or Day; every text colour
+  meets WCAG AA (`tests/unit/serp-overlay-look.test.js`). Pink is an accent
+  only: the rule down each bar's edge, never a ground behind text.
 - When the parser reads no results from a page that has result headings,
-  a notice in the toolbar says so (the console warning of #44 stays).
-- A toolbar with **Copy results (N)** (TSV to clipboard), **Export CSV**,
-  **Copy PAA (N)** (People-also-ask questions, to clipboard), and the
-  location simulator.
+  a notice in the panel says so (the console warning of #44 stays).
+- **The panel** (1.11.0; was the toolbar): one collapsible SEO Bandwagon
+  panel, below or above the results by setting (#53; above, it pushes them
+  down), with groups: **Figures** (the plan and allowance, Load figures when
+  they load on a click), **Export** (**Copy results (N)**, TSV to clipboard,
+  and **Export CSV**), **People also ask** (**Copy PAA (N)**), **Collect
+  pages** and **Location** (the simulator).
+- **Settings** ("Google results" in Options and in the popup): the overlay
+  on or off, the panel's place, the look, figures on or off, loaded with the
+  page (the default) or on a click, and which figures show. Changes reach an
+  open results page at once (`src/lib/serp-settings.js`).
+- **The popup on a results page** is that page's panel: what the search
+  shows (AI Overview, local pack, People also ask, ads, shopping, videos and
+  the rest), the exports (and the AI Overview's sources), the account, the
+  figures and the allowance, and the settings (`src/popup/serp-panel.js`).
 - **Collect pages** (1.8.0, #45): Google ignores `&num=`, so a top 50 is five
   pages. **Add page N** adds the page you're on; **Next page →** is Google's
   own Next link and **Web results only** Google's own Web tab (`udm=14`; a
@@ -226,15 +265,27 @@ or restyled.
   by the worker (cleared with the browser) and never sent anywhere.
 - Every export ends with **Position counting everything**, **URL known**
   ("yes", "site only" or "no") and **Place name** (the location the
-  simulator's `uule` stands for, readable).
+  simulator's `uule` stands for, readable), then from 1.11.0 **Result type**
+  (web, video, forum, social, pdf), **Your site**, the search's **Search
+  features** and **AI Overview citations**, and each figure in a column of
+  its own, named for its source (DataForSEO or RDAP), blank where it wasn't
+  loaded.
 
-**What's sent:** nothing, from 1.10.2. Until then, with an account
-connected, the bare domain names of the results shown went to
-`POST /api/domain/quick-batch` for the bar's stat. An analysis from Analyze
-is saved and synced exactly as the popup's is (with an account connected
-and data collection on). Extracted results and PAA questions never
-leave the browser at all — Copy/Export only ever touch your clipboard or a
-local file download.
+**What's sent (1.11.0):** with an account connected **and** the figures
+accepted in Options ("Send result addresses and show figures", a specific
+action; the consent module, `src/lib/consent.js`, checks it before every
+send), the address and site of each result on a Google results page you
+open, up to 10 a call, to `POST /api/v1/serp/metrics`, for the figures.
+Never the search terms, and never a request to Google: a result Google
+hides behind a redirect is sent by its site alone, a result on one of
+Google's own hosts (Books, Scholar…) without its query string, and any
+other address without a parameter that holds the search's words. Without both, nothing is
+sent (1.10.2 sent nothing; until then, with an account, the bare domain
+names went to `POST /api/domain/quick-batch`). An analysis from Analyze is
+saved and synced exactly as the popup's is (with an account connected and
+data collection on). Extracted results and PAA questions never leave the
+browser at all — Copy/Export only ever touch your clipboard or a local file
+download.
 
 **Location simulator:** builds a Google search URL with location parameters
 (`uule`, `gl`, `hl`, optionally `pws=0` to turn off personalization) from a
@@ -320,7 +371,7 @@ it's marked as shown and never appears again (`chrome.storage.local`, key
 
 ## Privacy
 
-Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected AND the data-collection toggle (Options / popup footer) is on** — both conditions, not either. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, page history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
+Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected.** With one, two things can be sent, each only on its own switch: your analyses while the data-collection toggle (Options / popup footer) is on, and, from 1.11.0, the addresses of the results on a Google results page after you accept the figures in Options (see "SERP overlay" above). Both go through the consent module (`src/lib/consent.js`), which maps each to the data categories Firefox asks about and, on Chrome and Edge, reads those switches. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, page history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
 
 **A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 
@@ -344,7 +395,7 @@ Apart from the fields listed above as stripped, nothing else is trimmed or summa
 
 **Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot, whether full page or visible area, is never part of that payload — it only ever saves to your device. From 1.7.8 a full-page proof is built in the extension's background worker, so closing the popup doesn't stop it, and the finished image (a JPEG) is kept in the extension's own browser storage (IndexedDB) for that tab until you dismiss it, take another, close the tab or restart the browser.
 
-**On Google search pages the extension sends nothing (from 1.10.2); the results list and questions are copied only when you click, and Analyze checks a result in your own browser.** See "SERP overlay" above for the full breakdown and the location simulator's copy rules.
+**On Google search pages the extension sends each result's address and site for the figures, and only with an account connected and the figures accepted in Options (from 1.11.0; 1.10.2 sent nothing); never the search, and never a request to Google. The results list and questions are copied only when you click, and Analyze checks a result in your own browser.** See "SERP overlay" above for the full breakdown and the location simulator's copy rules.
 
 **Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per request (the HEAD and, when needed, a GET retry each get their own). This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. From 1.7.6 a check keeps running in the extension's background worker when the popup closes, and its progress and results are kept in the browser's session storage (`chrome.storage.session`) for that tab until the tab closes, the check is cancelled or re-run, or the browser restarts. Chrome Web Store links are never fetched (Chrome doesn't allow it) and show as "Can't check". Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
 
@@ -415,10 +466,15 @@ extension/               # the only folder that ships (load unpacked from here; 
                              # planner, caps and the proof label), fullpage-capture.js (the full-page
                              # screenshot loop: rate limit, Cancel, restore; runs in the worker),
                              # fullpage-runs.js (one capture per tab, outliving the popup),
-                             # proof-store.js (finished proofs in IndexedDB)
-    options/                # Settings page (API key, Advanced endpoint, dashboard links)
+                             # proof-store.js (finished proofs in IndexedDB), consent.js (1.11.0:
+                             # every send's data category and acceptance), serp-figures.js (the figures
+                             # under each Google result: request, words, allowance), serp-figures-service.js
+                             # (the worker's figures calls and session cache), serp-settings.js and
+                             # serp-settings-ui.js (the "Google results" settings)
+    options/                # Settings page (API key, Advanced endpoint, dashboard links, Google results)
     overlay/                # SERP overlay content script (see "SERP overlay" above)
-    popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section)
+    popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section);
+                             # serp-panel.js (1.11.0: the popup on a Google results page)
                              # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
                              # + hreflang.js (Hreflang section — tag table, return-tag check)
                              # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)
@@ -458,6 +514,7 @@ Three layers of automated test cover this extension, plus a manual dev harness:
 | Integration | vitest + JSDOM + fixture HTML | `tests/integration/` | Every PR + push |
 | E2E canary | Playwright + real Chromium + real prod; loads `extension/` and injects popup.js's own file list. With the `SBW_CANARY_KEY` secret (an `sbw_` key with the `captures` scope) it uploads a real capture; without it, it checks the no-key refusal and production's 401 | `tests/e2e/canary.spec.mjs` | Weekly cron + push to main |
 | E2E Collect pages | Playwright + real Chromium, offline; loads `extension/`, answers `www.google.com/search` from the saved pages in `tests/fixtures`, blocks every other request, and clicks the results overlay through Add page 1, Next, Add page 2 (twice), Add page 4 and Export collected CSV. No network, no secrets | `tests/e2e/serp-collect.spec.mjs` | Every PR + push |
+| E2E figures on Google | Playwright + real Chromium, offline; saved Google pages, and `POST /api/v1/serp/metrics` answered from `tests/fixtures/serp-metrics`: signed out sends nothing, the Options button accepts, the figures, plan and allowance show, a second look is answered from the session, then a 403, the allowance reached, the monthly pause and offline, a result hidden behind `/goto`, and the panel moved to the top. `SBW_SCREENSHOTS=<dir>` also saves the four looks | `tests/e2e/serp-figures.spec.mjs` | Every PR + push |
 
 CI workflows in `.github/workflows/`. The weekly canary auto-creates a GitHub issue on scheduled failure.
 

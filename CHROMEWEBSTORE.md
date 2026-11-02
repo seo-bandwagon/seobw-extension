@@ -17,9 +17,10 @@ Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-11-01 17:08 UTC: Googl
 update server (what Chrome installs from) returns **1.10.2**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-**1.10.2 published 2026-11-01; nothing in review.** 1.10.3 and 1.10.4 are
-built and not submitted: they go to the store with 1.11.0 as one upload of
-1.11.0 (submission B). With that upload, paste the detailed description from
+**1.10.2 published 2026-11-01; nothing in review.** 1.10.3, 1.10.4 and
+1.11.0 are built and not submitted: they go to the store as one upload of
+1.11.0 (submission B). Every dashboard text that upload must change is under
+**"To paste with submission B"** below, paste-ready. With that upload, paste the detailed description from
 `docs/CWS-LISTING.md` §2: 1.10.4 changed its ON-PAGE ANALYSIS paragraphs
 (each issue with what to change and its points, the preview measured in
 pixels, every H1 to H6 with skipped and empty headings flagged, decorative
@@ -157,7 +158,7 @@ per-permission fields.
 | `http://localhost/*`, `http://127.0.0.1/*` | optional_host_permissions | Requested only if the Advanced API URL points at a local dev server. |
 | `<all_urls>` | optional_host_permissions | Requested on first use of Link Check, Indexability, Hreflang or Rendering, with the consent text in `extension/src/lib/perms.js`; from 1.10.2 also on the first Analyze click on a Google results page, from the extension's own small window with the same text, because Analyze reads the result in a background tab. Cookieless fetches; nothing read on those sites is sent to us. |
 | `https://search.google.com/search-console/*` | content_scripts | Queries-tab "open in Google Search" icons and compare-mode percent badges, computed from the table already on the page. Nothing fetched or sent. From 1.10.2 the search opens with `pws=0` and the property's country (a country-code domain's `gl`), and a report tab switch is seen through the already-declared `webNavigation`. |
-| `https://www.google.com/search*` + 9 other Google domains | content_scripts | Results overlay: appends a bar under each result (its position, and Analyze) and a toolbar, never hides or moves anything including ads. From 1.10.2 it sends nothing to our API (until then, bare result domains, never the query). The CSV and clipboard exports stay entirely on the device and carry each result's own snippet plus the search context read from the URL — none of it is transmitted. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` redirects); install warning measured unchanged. |
+| `https://www.google.com/search*` + 29 other Google domains | content_scripts | Results overlay: appends a bar under each result (its position, figures and Analyze) and one panel below or above the results, never hides or moves anything including ads. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the query) for the figures under it; otherwise nothing (1.10.2 sent nothing; until then, bare result domains). 1.11.0 adds twenty Google domains (`.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`): `getPermissionWarningsByManifest` (Chrome for Testing 156) gives the same four warnings before and after. Dashboard text: "To paste with submission B". The CSV and clipboard exports stay entirely on the device and carry each result's own snippet plus the search context read from the URL — none of it is transmitted. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` redirects); install warning measured unchanged. |
 | `externally_connectable` → `https://seobandwagon.com/*` | manifest key | Lets the dashboard's "Connect Chrome extension" button hand over a freshly minted API key. No other origin can message the extension. |
 | `chrome_url_overrides.newtab` → `src/newtab/newtab.html` | manifest key | 1.9.0. The new tab page lists the user's recent analyses with score changes and the first issue found, all read from `chrome.storage.local`; signed out it sends no request on open, and with an account connected it reads the account's rank tracking summary and derived tasks (`GET /api/extension/progress`) at most every 10 minutes. It has no web search box. Its scan box opens a typed site in that tab and the popup analyzes it. Owner ruling 2026-10-18, reversing the 2026-09-07 one. From 1.9.5 it shows only with Neon Night or Neon Day installed (or the Always setting); otherwise it hands the tab to Chrome's own new tab before drawing anything. |
 | `management` | permissions | 1.9.5. `chrome.management.getAll()` tells the new tab, popup and settings whether SEO Bandwagon's Neon Night or Neon Day theme is installed and on; the dashboard shows only then. Nothing it reads leaves the browser; it never enables, disables or removes anything. Owner ruling 2026-10-26, reversing the 2026-09-07 one. |
@@ -200,9 +201,10 @@ requires no account.
 ### Data Collection
 
 **Does the extension collect user data?** Yes — only with an account
-connected and the data-collection setting on. Signed out, it sends nothing at
-all (the Google results overlay sent nothing signed out from 1.7.7, and sends
-nothing to SEO Bandwagon at all from 1.10.2).
+connected, and each flow on its own switch: analyses with the data-collection
+setting on; from 1.11.0, the addresses of the results on a Google results page
+after the user accepts the figures in Options (`src/lib/consent.js` checks
+both before every send). Signed out, it sends nothing at all.
 
 From 1.7.4 a first install opens our welcome page in a tab, and removing the
 extension opens a one-question survey page. Both are ordinary visits to
@@ -218,9 +220,9 @@ install id, setting or usage leaves with either, so no data-use answer changes.
 | Authentication info | Yes | Yes, to seobandwagon.com only | The user's own API key, as a Bearer header | No |
 | Personal communications | No | — | — | No |
 | Location | No | — | — | No |
-| Web history | Yes | Yes, to seobandwagon.com only | URL + timestamp of pages the user chose to analyze (until 1.10.2 also the bare domains shown on a Google results page) | No |
+| Web history | Yes | Yes, to seobandwagon.com only | URL + timestamp of pages the user chose to analyze | No |
 | User activity | No | — | — | No |
-| Website content | Yes | Yes, to seobandwagon.com only | Extracted metadata of analyzed pages (title, meta, headings, links, images, structured-data type and property names, technical facts). Never structured-data values. | No |
+| Website content | Yes | Yes, to seobandwagon.com only | Extracted metadata of analyzed pages (title, meta, headings, links, images, structured-data type and property names, technical facts). Never structured-data values. From 1.11.0, after the user accepts it in the extension's settings, the result links on a Google results page the user opens, for the figures under each result; never the search | No |
 
 Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
@@ -233,7 +235,7 @@ action first; until then none of it is sent:
 
 | Release | What starts leaving the device, and only after the user accepts |
 |---|---|
-| 1.11.0 | Full result URLs on a Google results page (from 1.10.2 nothing; before it, bare domains), for the figures under each result and, from 1.12.0, the results table; signed in only |
+| 1.11.0 | Full result URLs on a Google results page (from 1.10.2 nothing; before it, bare domains), for the figures under each result and, from 1.12.0, the results table; signed in only. **Built in 1.11.0:** accepted with "Send result addresses and show figures" in Options; the table above, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy say so |
 | 1.13.0 | The search text, for keyword volume and difficulty, and from 1.15.0 for the user's own Search Console figures for that search |
 | 1.16.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
 | 1.18.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
@@ -254,6 +256,85 @@ first.
 - [x] Data is NOT sold to third parties
 - [x] Data is NOT used for purposes unrelated to the extension's core functionality
 - [x] Data is NOT used for creditworthiness or lending purposes
+
+## To paste with submission B
+
+Every Chrome Web Store dashboard field the upload of 1.11.0 (with 1.10.3 and
+1.10.4) must change, each paste-ready. Paste them with the upload, before
+submitting for review; the privacy policy's extension section must be live on
+seobandwagon.com/privacy first (website PR for 1.11.0's result addresses).
+
+**1. Privacy practices → Host permission justification: the Google results
+content scripts.** Stale since 1.10.2 (it says bare result domains are sent).
+Replace the Google results paragraph with this (998 of 1,000 characters):
+
+```
+Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install like any content script, not a host permission. Chrome names every www.google host as www.google.com, so the install warning is unchanged. The script reads the organic results already on the page and adds a bar under each result and one panel below or above them; it never hides, moves, covers or restyles anything, including ads. With an account connected, and only after the user turns figures on in the extension's settings, it sends the address and site of each result shown (up to 10 at a time, never the search terms) to seobandwagon.com, which answers with each result's link, traffic and domain-age figures and the user's own on-page checklist score. Otherwise it sends nothing. It never fetches Google pages: a result Google hides behind a redirect is sent by its site alone. Analyze checks a clicked result in a background tab in the user's browser.
+```
+
+**2. Privacy practices → data usage, Web history.** Stale since 1.10.2 (it
+names the bare domains on a Google results page). Stays ticked; its text:
+
+```
+The address and time of each page the user chooses to analyze, saved to the user's own SEO Bandwagon account while the data-collection setting is on.
+```
+
+**3. Privacy practices → data usage, Website content (the result URLs).** Stays
+ticked; 1.11.0 adds the result links. Its text:
+
+```
+Extracted metadata of the pages the user chooses to analyze (title, meta tags, headings, links, images, structured-data type and property names, technical facts; never structured-data values). From 1.11.0, after the user turns figures on in the extension's settings, the address and site of each result on a Google results page the user opens, up to 10 at a time, to look up that result's link, traffic and domain-age figures. Never the search terms.
+```
+
+The other categories and the three certifications do not change: the result
+addresses are links on a page (Website content), not pages the user visited
+(Web history), and nothing identifies the user beyond the key already declared
+under Authentication information.
+
+**4. Single purpose.** Names the figures (992 of 1,000 characters;
+`docs/CWS-LISTING.md` §4):
+
+```
+SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, so the user can see what the page gets right and what it is missing. In one click it scores the page and lists what it found in the title and description, headings, links, images, structured data, canonical and hreflang tags, indexability and redirects, and compares the raw HTML with the rendered page. On Google results pages it numbers each result, shows its link, traffic and domain-age figures, and analyzes any of them in one click. With an account connected, it saves those analyses to the user's own SEO Bandwagon account, checks the user's local business citations against the user's own business record, and lists the user's link-building prospects and placements. On its new tab page, shown with its Neon themes or when chosen in settings, it summarizes the user's recent analyses, the first issue found and the rank changes of the user's own tracked keywords. Its findings export as files the user saves.
+```
+
+**5. Detailed description.** Paste the whole block in `docs/CWS-LISTING.md` §2.
+These paragraphs are what changed since the live text (the live text also
+lacks the NEW TAB paragraph, never pasted):
+
+ON-PAGE ANALYSIS, 1.10.4 (two paragraphs):
+
+```
+ON-PAGE ANALYSIS
+Open the popup anywhere for a score from 0 to 100, a letter grade and four sub-scores covering meta tags, content, links and technical setup. The score is a checklist: it starts at 100 and each issue takes off its own points. Beneath it is the list of issues it found, such as a missing H1 or a title that runs too long, each with what to change and the points it costs, so you know what to look at first. The grade also appears on the toolbar icon, so you can tell how it did without opening anything.
+
+The analysis goes well past the headline number. You get a preview of how the listing could look in results, with the title and meta description measured in pixels and cut where results usually cut them. The heading outline shows every H1 to H6 in order, flags a level that is skipped or a heading left empty, and one click highlights them where they sit. Links are split into internal and external and marked when they carry nofollow, sponsored or user-generated attributes. Images without alt text are counted apart from decorative ones, which carry an empty alt on purpose, and can be highlighted where they sit. The content view gives the word count in any language, the reading level of English text and the phrases used most often, which helps you see what the text is really about. A technical view shows where the canonical tag points, reads the robots and Googlebot directives, catches a title, description or canonical repeated in the head, checks the declared language, viewport and character set, and flags insecure resources on a secure page along with images that only load as you scroll. Loading and layout speed are reported as your own browser measured them on this visit, using the Core Web Vitals that Google publishes, so the numbers reflect a real visit rather than a lab estimate, and a measure the visit did not give says so instead of guessing. The extension also names the technology behind the site, such as the content management system, the framework or the analytics in use.
+```
+
+RESULTS PAGE OVERLAY, 1.11.0:
+
+```
+RESULTS PAGE OVERLAY
+On Google's results pages, a bar under each organic listing shows its position and, with a free account, figures for that listing: the referring domains, backlinks, link rank and estimated traffic of the listing and of its site, how old the domain is, with its registrar and dates when you point at it, and your own checklist score where you analyzed it. Link and traffic figures come from DataForSEO and the domain dates from the registries' public records, and each figure says where it came from. You choose which figures show, whether they load with the page or when you ask, and the look: matching the results in light or dark, Night or Day. A free account gets a daily allowance of figures, and the panel shows what is left of it. Sites you list in Settings are marked as yours. Signed out, the bars show positions and nothing is sent. One panel below the results, or above them if you prefer, copies the listings to your clipboard as a table or exports them to a spreadsheet, with each listing's type, its figures and the features shown with them, such as an AI overview or a map pack. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Dates, ratings and ad labels are read in the language the results are in. Results pages can also be collected one at a time: add each page with a click, move on with the next-page link, and the pages you added become one list with repeats removed and an exact overall position for every listing, ready to copy or export. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
+```
+
+SEARCH CONSOLE HELPERS, 1.11.0 (any of its languages):
+
+```
+SEARCH CONSOLE HELPERS
+Inside Search Console's performance report, in any of its languages, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
+```
+
+PRIVACY, 1.11.0:
+
+```
+PRIVACY
+No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
+```
+
+**Not text, but due with this upload:** store screenshot 4 shows the 1.9.4
+bars ("Score 90 · 1 capture") and toolbar, which 1.10.2 removed and 1.11.0
+redrew; re-shoot it in `store-assets/1.11.0/` before submitting.
 
 ## Privacy Policy
 
@@ -342,6 +423,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.11.0 | 2026-11-01 | 1.10.4 plus **figures under every Google result** (the owner's "metrics on the SERP page", 2026-11-01; the last of store submission B). **Figures:** one bar under each result with its position, then, chosen in settings, the page's referring domains, backlinks, rank, traffic and ranking keywords and the site's rank, referring domains, traffic and ranking keywords (DataForSEO's, rank on its 0 to 100 scale, labelled so), the domain's age with registrar and dates on hover (RDAP), and the user's own on-page checklist where they captured the page; no authority score of ours. From `POST /api/v1/serp/metrics` (key scope `serp`; a key without it shows Reconnect), 10 results a call, kept for the browser session only. Signed out of Google, a result known only by its site gets the site's figures and "sign in to Google to see page figures", with no request to Google; signed out of SEO Bandwagon, position, Analyze and "Connect free to see figures". The plan and the day's allowance (free 20 searches with new figures, Pro 250) show in the panel; at the limit or paused at the monthly ceiling the bars say so and offer the upgrade where it helps. **The panel:** the toolbar becomes one collapsible panel with groups (Figures, Export, People also ask, Collect pages, Location), below or above the results by setting (#53). **Look:** the extension's tokens in Match Google, Night or Day, WCAG AA (Analyze was 3.3:1, white on pink). **Settings:** a "Google results" section in Options and the popup. **Popup on a results page:** the search's features, exports, account, plan and allowance, settings. **Exports** gain each result's type, its figures, the search's features and the AI Overview's sources. **Your own sites** marked, from a list in Options. **Other Googles:** 20 more domains, dates, ratings and ad labels in each one's language, Search Console in its other languages. **Consent module** (`src/lib/consent.js`): every send checks its data category (Firefox's, or today's switch on Chrome and Edge) and its acceptance. **Install warning:** unchanged, measured (the same four warnings with 10 and with 30 Google domains). **Data use: new** — the result addresses on a Google results page, after the user accepts them in Options, never the search; Website content's purpose, the content-script justification, the single purpose and the description change (see "To paste with submission B"). | Not submitted (submission B, with 1.10.3 and 1.10.4) |
 | 1.10.4 | 2026-11-01 | 1.10.3 plus **the score and the page analysis tell the truth** (the second of store submission B). **One list of checks** behind the score, the four sub-scores, the page-checks panel and the new tab's next fix: 18 checks whose points add up to 100, so https, mixed content and noindex count in the score as well as the sub-scores (an http or noindex page could score 100). The score is an on-page checklist, 100 minus the points its issues cost; every issue in the popup shows its fix and its points. **Words in every language** (a Russian or Japanese page counted 0 words and read "Thin content"); readability scored for English pages only; JSON-LD, Microdata and RDFa all count as structured data. **Page Meta:** the canonical as its URL, pointing to itself or elsewhere; the Googlebot meta; repeated title, description and canonical tags; lang, viewport and charset; the result preview cut by pixel width. **Core Web Vitals** measured as the spec measures them, "No data" where the visit gave none (a background tab gets no LCP), "measured on this visit". **Headings:** the full ordered H1 to H6 tree with skipped and empty headings flagged. **Images:** an empty alt is decorative, not missing; the word count reads the body when the main region is tiny. **Tech stack** read in the page's own world with one `executeScript` (`world: 'MAIN'`) from the worker, under the `scripting` permission it already has: the Facebook Pixel, Nuxt and Vue are found, and Tag Manager is not reported as Analytics. No permission, host, content-script or install-warning change (the manifest differs by its version only). **Data use:** nothing new is sent; a synced capture carries more on-page facts of the same page in the fields it already has. Detailed description: ON-PAGE ANALYSIS updated in `docs/CWS-LISTING.md`, to paste with submission B. | Not submitted (submission B, with 1.10.3 and 1.11.0) |
 | 1.10.3 | 2026-11-01 | 1.10.2 plus **the account features work for a normal user** (the first of store submission B). **Connection:** the API module exports `hasApiKey`, which the new tab and the page-checks panel read; without it a second device (the key arrives through Chrome sync, the key's status doesn't) read as signed out. "Connected" now means a key that verified; a key with no answer yet reads "Checking key" and is checked once with `/v1/me`. Every Connect, key change, Disconnect and API address change clears the account's caches (key status, `/v1/me` answer, chosen business, the new tab's progress, the popup's page history). A 429, a 503 or no connection is no longer "signed out" in the Citations tab and the side panel. **Capture sync:** a capture refused for the key is sent again after a reconnect, instead of never; any other 4xx is not retried (a 400 was posted five times). **Page history** (the popup's strip, was "Domain history"): only this page's own captures, labelled "This page"; the "Domain avg" line is gone, and with it the popup's `GET /api/domain/:domain/quick` request (its figure pooled every account's captures). **Citations:** the listing's own website is read (JSON-LD `url`, Microdata `url` and the fallback were the directory's page) and compared by host, without `https://`; every schema.org business subtype (Dentist, Plumber…) is read; REPORT runs the NAP check first, so nothing is filed unchecked (it was filed as "active"); the signed-out and picker copy no longer promise proof filed with the citation; "Last 3 checks" is "Latest citations", newest first. **Side panel:** the average is a number ("NaN%" with two scored citations); a failed campaign says failed; Approve/Hold/Reject only on qualified and held outlets; Link Building has its own not-connected words. **Options:** the Advanced API address no longer accepts the retired `--seobandwagon.netlify.app` hosts. No permission, host, content-script or install-warning change. **Data use:** less is sent (no domain lookup from the popup); no dashboard answer changes. | Not submitted (submission B, with 1.10.4 and 1.11.0) |
 | 1.10.2 | 2026-11-01 | 1.10.1 plus **the Google results page shows the right numbers, and Analyze stays on Google** (owner, 2026-11-01; store submission A, alone). The bar under each result drops "Score N · M captures" (an on-page grade averaged over the whole host and every account's captures, "No score yet · 0 captures" for nearly every site) and its `quick-batch` lookup: it shows the organic position, with the position counting everything on the page in its tooltip, the same as Copy results, the CSV and Collect, and it sits below the whole result instead of between title and description. People also ask answers no longer count as results; a result the parser can't place keeps its slot as "unknown site"; "Absolute position (approx.)" counts the earlier pages' organic results. **Analyze** opens the result in a background tab, analyzes that tab by its ID and puts the on-page checklist line under the result with "Open report"; without all-sites access it asks once from the extension's own window (`src/access/access.html`, the existing `ALL_URLS_REASON`). Collect keeps two results from one site that only Google's link tells apart; exports gain "Position counting everything", "URL known" and "Place name". Six metro presets renamed to Google's geotargets names; "Compare in two tabs" opens both; "Web results only" finds Google's `udm=14` Web tab; a visible notice when no results are read. Search Console: icons follow tab switches (`webNavigation.onHistoryStateUpdated`); searches open with `pws=0` and the property's country. **India:** `www.google.co.in` replaces `www.google.in` in the content-script matches; `getPermissionWarningsByManifest` (Chrome for Testing 151) gives the same four warnings before and after. No new permission. **Data use:** less is sent: the overlay's bare-domain lookup is gone; an Analyze capture is saved and synced as the popup's always was. Dashboard text to change on submit: the Google results content-script justification and the Web history purpose (above); not changed with this submission, due with submission B. | **Published** 2026-11-01 (check run `41329861291`: PUBLISHED (1.10.2); the update server serves 1.10.2). Submitted 2026-11-01, staged publish: run `41323144644` (GitHub release `v1.10.2`, commit `be5fe7d`), the first submission on the 2026-11-01 road (submission A, alone) |
@@ -380,7 +462,9 @@ not a fault in the package. Both theme descriptions now say so.
 
 - The install-time warning grows in 1.6.0: it now names ten Google search
   hosts plus Search Console. The Google-search justification above says so
-  plainly rather than minimising it.
+  plainly rather than minimising it. From 1.11.0 the content script runs on
+  thirty Google search hosts; Chrome names them all as www.google.com, so the
+  warning reads the same (measured).
 - `webRequest` is dormant until the optional `<all_urls>` grant; reviewers
   testing Indexability must grant it and then reload the page.
 - Reviewer test steps for every permission-bearing feature, none of which
