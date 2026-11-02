@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.10.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.11.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -124,22 +124,22 @@ grant; the coverage report (#74).
 - [x] Tech stack probed in the page's own world (`world: 'MAIN'`, no new permission)
 
 ### 1.11.0: figures under every result, and the results page redrawn
-- [ ] One line under each result, figures chosen in settings: the page's referring domains, backlinks, rank, traffic and ranking keywords; the site's rank, referring domains, traffic and ranking keywords; domain age with registrar and dates on hover; your own on-page checklist where you captured the page
-- [ ] Link and traffic figures labelled as DataForSEO's (0–100 rank scale); no authority score of our own; the checklist never worded as a ranking factor
-- [ ] Signed out of Google, a row known only by its site gets the site's figures and "sign in to Google to see page figures"; no request to Google
-- [ ] Signed out of SEO Bandwagon: position and Analyze, and "Connect free to see figures"
-- [ ] A 403 (a key without the `serp` scope: Reconnect) and a 429 (the hourly limit) each get their own words under the results, never "Could not reach SEO Bandwagon" (moved from 1.10.2, whose bar makes no request)
-- [ ] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast
-- [ ] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
-- [ ] "Google results" settings: overlay on/off, placement, which figures show, load automatically (default) or on a click
-- [ ] The popup on a results page: the search's features, exports, settings, account state, plan and the day's allowance; at the limit the bars say so and link to upgrading
-- [ ] Exports gain the figures, the search's features, AI Overview citations, result type
-- [ ] Your own sites highlighted: every Search Console property the account granted (a local list until 1.14.0 links the account)
-- [ ] About 20 more Google domains; dates, ratings and ad labels per language; Search Console in other languages (1.8.4's warning names ten Google domains as one host, so this likely adds no warning; measured first)
-- [ ] The consent module (moved from 1.10.7): each data flow mapped to a Firefox category; every send checks category granted and flow accepted; accept buttons in Options
-- [ ] Data use: full result URLs sent (today: domains); disclosure, store answers and `/privacy` change
-- [ ] Website `POST /api/v1/serp/metrics` under a `serp` scope (older keys show Reconnect): DataForSEO bulk links (one call per search if `bulk_pages_summary` covers pages and domains, measured first) and `bulk_traffic_estimation`; domain age from RDAP; a 30-day cache; a `serp_metrics` daily allowance; a spend ledger with a monthly ceiling
-- [ ] Allowances (owner, 2026-10-23; starting values 2026-11-01): free 20 searches with figures a day, Pro 250, $100 a month site-wide, all config values checked against the measured cost (about $0.035–$0.06 an uncached search)
+- [x] One line under each result, figures chosen in settings: the page's referring domains, backlinks, rank, traffic and ranking keywords; the site's rank, referring domains, traffic and ranking keywords; domain age with registrar and dates on hover; your own on-page checklist where you captured the page (the bar's second row; keywords and site traffic off by default so it fits)
+- [x] Link and traffic figures labelled as DataForSEO's (0–100 rank scale); no authority score of our own; the checklist never worded as a ranking factor
+- [x] Signed out of Google, a row known only by its site gets the site's figures and "sign in to Google to see page figures"; no request to Google
+- [x] Signed out of SEO Bandwagon: position and Analyze, and "Connect free to see figures"
+- [x] A 403 (a key without the `serp` scope: Reconnect) and a 429 each get their own words under the results, never "Could not reach SEO Bandwagon"; offline and a busy site too (a 429 holds every request until its Retry-After)
+- [x] Extension tokens on Google with Match Google / Night / Day; WCAG AA contrast (every text colour of every look checked in `tests/unit/serp-overlay-look.test.js`; Analyze was 3.3:1)
+- [x] The toolbar becomes one grouped, collapsible panel, **at the top or the bottom of the results by the user's setting** (owner 2026-10-23; closes #53)
+- [x] "Google results" settings: overlay on/off, placement, which figures show, load automatically (default) or on a click; in Options and in the popup
+- [x] The popup on a results page: the search's features, exports, settings, account state, plan and the day's allowance; at the limit the bars say so and link to upgrading
+- [x] Exports gain the figures, the search's features, AI Overview citations, result type
+- [x] Your own sites highlighted: a local list in Options (every Search Console property the account granted waits for 1.14.0 to link the account)
+- [x] About 20 more Google domains (exactly 20; the warning measured unchanged with `getPermissionWarningsByManifest`, Chrome for Testing 156); dates, ratings and ad labels per language; Search Console in other languages
+- [x] The consent module (moved from 1.10.7): each data flow mapped to a Firefox category; every send checks category granted and flow accepted; accept buttons in Options
+- [x] Data use: full result URLs sent (today: domains); disclosure in Options, store answers (`CHROMEWEBSTORE.md`, "To paste with submission B") and `/privacy` change
+- [x] Website `POST /api/v1/serp/metrics` under a `serp` scope (older keys show Reconnect): one DataForSEO `bulk_pages_summary` call per search covers pages and domains (measured) and `bulk_traffic_estimation`; domain age from RDAP; a 30-day cache; a `serp_metrics` daily allowance; a spend ledger with a monthly ceiling (website change `38ac1980`)
+- [x] Allowances (owner, 2026-10-23; starting values 2026-11-01): free 20 searches with figures a day, Pro 250, $100 a month site-wide, all config values; measured about $0.039 an uncached search
 
 ### 1.12.0: Analyze on Google, and the results table
 - [ ] Analyze opens a row under the result, on Google (owner, 2026-11-01): title and description with pixel lengths, H1, word count, schema types, canonical, indexable, status and redirects, hreflang, technologies, AI crawlers blocked in robots.txt, llms.txt, the on-page checklist
@@ -233,6 +233,106 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.11.0 (2026-11-01)
+
+Figures under every Google result, and the results page redrawn: the owner's
+"I would really like to have metrics on the SERP page. Keywords Everywhere and
+SEOQuake both have much better SERP features and that is unacceptable"
+(2026-11-01), and the 2026-10-23 complaint about the colours. The last of
+store submission B (1.10.3, 1.10.4 and 1.11.0 go up as one upload of 1.11.0).
+Spec: the vault's `03_Wiki/Extension_Roadmap_To_2_0_Design.md`, "1.11.0".
+
+- **Figures** (`src/lib/serp-figures.js`, `src/lib/serp-figures-service.js`).
+  Each bar's second row shows the figures chosen in settings: the page's
+  referring domains, backlinks, rank, estimated traffic and ranking keywords;
+  the site's rank, referring domains, traffic and ranking keywords; the
+  domain's age with registrar, created and expiry on hover; the user's own
+  on-page checklist where they captured that page. DataForSEO's figures are
+  labelled so, rank on its 0 to 100 scale, with the date bought on hover;
+  domain age is RDAP's. The overlay asks the worker; the worker sends
+  nothing without a key and the figures accepted, answers what this session
+  already has, and sends the rest 10 results a call to
+  `POST /api/v1/serp/metrics` (website change `38ac1980`). A result asked
+  for once is not asked again on its own: Google redrawing the page can't
+  spend the account's 30 calls a minute, and a 429 holds every call until
+  its Retry-After. Figures are kept in `chrome.storage.session` only, and
+  cleared with the account's other caches on Connect and Disconnect.
+- **Every answer has its words:** signed out of SEO Bandwagon, "Connect free
+  to see figures"; not accepted, "Turn on figures" (opens Options); a key
+  without the `serp` scope (403), Reconnect; 429, the site busy and offline
+  each their own; signed out of Google, a result known only by its site gets
+  the site's figures and "sign in to Google to see page figures", sent with
+  `url: null`, never resolved through Google. The panel shows the plan and
+  what is left of the day's allowance; at the limit the bars and panel say
+  so and offer the upgrade (not on Pro), and paused at the monthly ceiling
+  they say that, with cached figures still shown and everything else working.
+- **The panel.** The toolbar is one collapsible SEO Bandwagon panel with
+  groups (Figures, Export, People also ask, Collect pages, Location), below
+  the results or above them by setting (#53); above, it pushes them down. It
+  is in the page's flow, never over Google's content; group titles aren't
+  `<h3>`, which the parser would read as results. A page without `#search`
+  gets the panel beside `#rso`.
+- **The look** (`src/overlay/serp-overlay.css`). The extension's tokens,
+  set on our own elements only, in Match Google (Google's own light or dark
+  page, read from its background, in Google's font), Night and Day. Every
+  text colour meets WCAG AA, checked from the stylesheet in a test; Analyze
+  is the text colour in a pink outline (it was white on pink, 3.3:1). Pink
+  is the rule down each bar's edge, never a ground behind text. Space
+  Grotesk is no longer named: google.com can't load our font files.
+- **A rescan loop found while building:** our own bars and buttons changing
+  scheduled the next rescan, so a page whose figures could not load asked
+  again and redrew every half second. The observer now ignores our own
+  nodes (the copy textarea and download link included), and a test fails if
+  either fix is removed.
+- **Settings** (`src/lib/serp-settings.js`, `src/lib/serp-settings-ui.js`):
+  "Google results" in Options and in the popup: the overlay on or off, the
+  panel's place, the look, figures on or off, loaded with the page (default)
+  or on a click, and which of the eleven figures show. Changes reach an open
+  results page at once (`storage.onChanged`).
+- **The popup on a results page** (`src/popup/serp-panel.js`): what the
+  search shows (AI Overview, local pack, People also ask, ads with their
+  count, shopping, videos, and featured snippet, top stories, images,
+  knowledge panel and related searches when there), the AI Overview's
+  sources and your sites in the results, the exports (results, CSV, People
+  also ask, AI Overview sources), the account, the figures' consent, plan
+  and allowance with the one button that helps, and the settings.
+- **Exports** gain, after "Place name": Result type (web, video, forum,
+  social, pdf), Your site, Search features, AI Overview citations, the
+  page's and the site's figures (named "(DataForSEO)"), figures fetched,
+  domain age, registered, registrar and expires (named "(RDAP)"), your
+  on-page checklist and when it was captured. Collect carries them too.
+- **Your own sites:** a list in Options (up to 50, one a line, kept in this
+  browser); their bars read "Your site". 1.14.0 fills it from the account.
+- **Other Googles:** 20 more domains (Brazil, Mexico, Japan, Poland,
+  Sweden, Norway, Denmark, Finland, Belgium, Austria, Switzerland, Ireland,
+  New Zealand, South Africa, Portugal, Turkey, Singapore, the Philippines,
+  Argentina, Indonesia). Measured first with `getPermissionWarningsByManifest`
+  (Chrome for Testing 156): the same four warnings with 10 and with 30 hosts,
+  since Chrome names every `www.google.*` host as www.google.com; a control
+  with a non-Google host changed the first to "a number of websites". Dates
+  ("28. März 2025", "vor 6 Tagen", "2025年3月28日"…), star ratings
+  ("Bewertung: 4,5 von 5"…) and ad labels ("Anzeige ·", "Annonces",
+  "広告"…) are read in each one's language; Search Console's tab names and
+  row actions too. The popup's and new tab's host lists are held to the
+  manifest's by a test.
+- **The consent module** (`src/lib/consent.js`, moved from 1.10.7): each
+  flow (saved analyses; the result addresses) names the Firefox data
+  categories it needs; every send checks the category granted (Firefox's
+  answer, or on Chrome and Edge the switch that flow already has) and the
+  flow accepted (connecting a key for analyses; "Send result addresses and
+  show figures" in Options for the figures, recorded with the version of the
+  words accepted). `SBW.syncCapture` asks it before every capture.
+- **Data use: new.** The address and site of each result on a Google results
+  page, sent only with an account and after the specific action above;
+  never the search terms. Disclosed in Options before the first send, in
+  `README.md`, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy (its
+  own website PR). The dashboard texts to change are in `CHROMEWEBSTORE.md`
+  under "To paste with submission B".
+- **Not in 1.11.0:** the store screenshot of the results page (screenshot 4
+  shows 1.9.4's bars) is to re-shoot before the upload; highlighting every
+  Search Console property the account granted waits for 1.14.0; the live
+  check against production's route waits for its deploy and the owner's yes.
 
 ## Changelog — v1.10.4 (2026-11-01)
 

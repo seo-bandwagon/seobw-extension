@@ -1,0 +1,12 @@
+{
+  "source": "DataForSEO",
+  "rankScale": "one_hundred",
+  "market": { "locationCode": 2840, "languageCode": "en" },
+  "plan": "pro",
+  "allowance": { "limit": 250, "used": 12, "remaining": 238 },
+  "lookups": "paused",
+  "results": [
+    { "url": "https://alpha.example/page-0", "host": "alpha.example", "page": null, "domain": null, "whois": null, "checklist": null },
+    { "url": null, "host": "beta.example", "page": null, "domain": null, "whois": null, "checklist": null }
+  ]
+}

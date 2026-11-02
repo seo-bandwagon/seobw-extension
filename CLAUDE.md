@@ -17,9 +17,11 @@ for working in the repo.
 - `tests/unit`, `tests/integration` — vitest + jsdom. `tests/e2e` — Playwright:
   the canary against production (weekly + every push to `main`, files an issue
   on failure), `serp-collect.spec.mjs`, Collect pages offline against the
-  saved Google pages in `tests/fixtures`, and `account.spec.mjs`, the account
-  surfaces in a fresh profile with seobandwagon.com's answers stubbed (both
-  every PR). No test queries Google.
+  saved Google pages in `tests/fixtures`, `account.spec.mjs`, the account
+  surfaces in a fresh profile with seobandwagon.com's answers stubbed, and
+  `serp-figures.spec.mjs`, the figures under Google results against the
+  saved route answers in `tests/fixtures/serp-metrics` (all every PR). No
+  test queries Google.
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only:
   just the two files `ROADMAP.md` links to. Don't add planning or spec docs
   to the repo; they go where findings go (below).

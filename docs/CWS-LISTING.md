@@ -1,19 +1,17 @@
-# Chrome Web Store listing text — next submission: v1.7.7
+# Chrome Web Store listing text — next submission: v1.11.0 (submission B)
 
-The listing text for the next store submission, kept current with `main`
-(it was `CWS-LISTING-1.6.1.md`). The store serves 1.7.1 (listing and Google's
-update server, read 2026-10-13); 1.7.2 to 1.7.6 were merged but never
-submitted, so 1.7.7 carries all of them, and section 6 covers everything since
-1.7.1. 1.7.4's condition is met: `https://seobandwagon.com/seo-chrome-extension/welcome`
-and `/uninstalled` answer 200 (2026-10-13). The manifest's permissions, host
-permissions, optional host permissions and content-script matches are
-identical to 1.7.1's (compared 2026-10-13); only the short description changed
-(1.7.3). The `activeTab` and `scripting` justifications below also describe
-the full-page proof screenshot (1.7.0). No data-use answer changes: 1.7.7
-sends less, not more. Section 5's "a signed-out user … sends nothing at all"
-holds from 1.7.7 on; until then the results overlay still sent result domains
-signed out (seobw-extension #50). Paste each section into the matching Chrome
-Web Store Developer Dashboard field when submitting.
+The listing text for the next store submission, kept current with `main`.
+The store serves 1.10.2 (published 2026-11-01, store submission A). 1.10.3
+and 1.10.4 were built and not submitted: they go up with 1.11.0 as one
+upload of 1.11.0 (submission B). What changes in the dashboard with it is
+listed, paste-ready, in `CHROMEWEBSTORE.md` under "To paste with submission
+B"; the sections below are where each text lives. 1.11.0 adds twenty Google
+domains to the results-page content script (the install warning measured
+unchanged) and its first new data flow since 1.5.0: the addresses of the
+results on a Google results page, sent only with an account connected and
+after the user accepts it in Options (sections 3 and 5). Paste each section
+into the matching Chrome Web Store Developer Dashboard field when
+submitting.
 
 The detailed description is the text inside the fence in section 2 and
 nothing after it: the live description read on 2026-10-06 ran on past
@@ -96,10 +94,10 @@ STRUCTURED DATA
 Reads the JSON-LD, Microdata and RDFa on the page, including nested items, and compares each item with the properties its type requires and recommends. A local business without a phone number, or a product without an offer, is flagged with the exact field to add. Complete items show the rich result they qualify for, limited to rich results that currently appear, and types whose rich result has been retired are still validated as markup with a note saying so. Each item's data can be copied for a closer look.
 
 RESULTS PAGE OVERLAY
-On Google's results pages, a small bar under each organic listing names its domain and, with an account connected, shows what we know about that site. Signed out, nothing is sent. A toolbar below the results copies the listings to your clipboard as a table or exports them to a spreadsheet. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Results pages can also be collected one at a time: add each page with a click, move on with the next-page link, and the pages you added become one list with repeats removed and an exact overall position for every listing, ready to copy or export. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
+On Google's results pages, a bar under each organic listing shows its position and, with a free account, figures for that listing: the referring domains, backlinks, link rank and estimated traffic of the listing and of its site, how old the domain is, with its registrar and dates when you point at it, and your own checklist score where you analyzed it. Link and traffic figures come from DataForSEO and the domain dates from the registries' public records, and each figure says where it came from. You choose which figures show, whether they load with the page or when you ask, and the look: matching the results in light or dark, Night or Day. A free account gets a daily allowance of figures, and the panel shows what is left of it. Sites you list in Settings are marked as yours. Signed out, the bars show positions and nothing is sent. One panel below the results, or above them if you prefer, copies the listings to your clipboard as a table or exports them to a spreadsheet, with each listing's type, its figures and the features shown with them, such as an AI overview or a map pack. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Dates, ratings and ad labels are read in the language the results are in. Results pages can also be collected one at a time: add each page with a click, move on with the next-page link, and the pages you added become one list with repeats removed and an exact overall position for every listing, ready to copy or export. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
 
 SEARCH CONSOLE HELPERS
-Inside Search Console's performance report, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
+Inside Search Console's performance report, in any of its languages, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
 
 LOCAL CITATIONS
 With a free account, the Citations tab helps you keep business listings consistent. It recognizes 40 common directories, reads the name, address and phone number on the listing you have open, and scores how closely they match your own business record. It can save a screenshot of the whole listing as proof, stitched from the top of the page to the bottom and kept on your computer, and file the citation to your account in one click.
@@ -120,7 +118,7 @@ APPEARANCE
 Choose Night, Day or Auto, which follows your system setting. Two matching Chrome themes are available separately.
 
 PRIVACY
-No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the results page overlay looks up the domains shown, never your query, and the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
+No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
 
 GETTING STARTED
 1. Add the extension and pin it to the toolbar.
@@ -232,21 +230,21 @@ a country-code domain, that country (`gl`), and the icons follow a report tab
 switch through the already-declared `webNavigation`.
 
 **Content-script match on Google's own results pages** (`https://www.google.com/search*`
-and the same path on nine other Google domains; India's is
-`www.google.co.in` from 1.10.2, which leaves the install warning unchanged)
-— this is a declared content-script match, not a host permission, so it is
-granted at install like any other content script rather than requested at
-first use. We recognize this widens the install-time permission warning to
-cover 10 Google search hosts, on top of the search.google.com and
-seobandwagon.com access the extension already has, and justify it plainly:
-the script only reads the organic results already rendered on the page and
-shows each one's position; from 1.10.2 it sends nothing to our API (until
-then, the bare domain names of the results). It is additive-only — it
-appends a small bar under each result and a toolbar, and never hides,
-moves, covers, or restyles any existing content, including ads. Nothing is
-fetched from Google by the extension itself. Its Analyze button opens the
-result the user clicked in a background tab and checks that page in the
-browser, as the popup does.
+and the same path on 29 other Google domains; India's is `www.google.co.in` from
+1.10.2, and 1.11.0 adds twenty: `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`,
+`.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`,
+`.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`). The paste-ready text,
+1.11.0 (998 of the field's 1,000 characters):
+
+> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install like any content script, not a host permission. Chrome names every www.google host as www.google.com, so the install warning is unchanged. The script reads the organic results already on the page and adds a bar under each result and one panel below or above them; it never hides, moves, covers or restyles anything, including ads. With an account connected, and only after the user turns figures on in the extension's settings, it sends the address and site of each result shown (up to 10 at a time, never the search terms) to seobandwagon.com, which answers with each result's link, traffic and domain-age figures and the user's own on-page checklist score. Otherwise it sends nothing. It never fetches Google pages: a result Google hides behind a redirect is sent by its site alone. Analyze checks a clicked result in a background tab in the user's browser.
+
+Measured before the domains were added
+(`chrome.management.getPermissionWarningsByManifest`, Chrome for Testing 156,
+2026-11-01): the same four warnings with the ten domains and with all thirty,
+"Read and change your data on search.google.com, seobandwagon.com, and
+www.google.com" first; a control with a non-Google host added changes that
+line to "a number of websites". Until 1.10.2 the script sent the bare domain
+names of the results; 1.10.2 sent nothing.
 
 **`management`** (1.9.5) — reads the list of installed themes with
 `chrome.management.getAll()` to find out whether SEO Bandwagon's own Neon Night
@@ -284,8 +282,15 @@ extension this way.
 
 ## 4. Single-purpose statement
 
-The text live in the dashboard (980 of 1,000 characters; saved 2026-10-27,
-live since 2026-10-28):
+**1.11.0, to save with submission B** (992 of 1,000 characters): the
+Google results sentence names the figures; to stay within the limit, "its Neon
+Night or Neon Day theme" became "its Neon themes" and "spreadsheet or JSON files"
+"files".
+
+SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, so the user can see what the page gets right and what it is missing. In one click it scores the page and lists what it found in the title and description, headings, links, images, structured data, canonical and hreflang tags, indexability and redirects, and compares the raw HTML with the rendered page. On Google results pages it numbers each result, shows its link, traffic and domain-age figures, and analyzes any of them in one click. With an account connected, it saves those analyses to the user's own SEO Bandwagon account, checks the user's local business citations against the user's own business record, and lists the user's link-building prospects and placements. On its new tab page, shown with its Neon themes or when chosen in settings, it summarizes the user's recent analyses, the first issue found and the rank changes of the user's own tracked keywords. Its findings export as files the user saves.
+
+The text live in the dashboard until then (980 of 1,000 characters; saved
+2026-10-27, live since 2026-10-28):
 
 SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, so
 the user can see what the page gets right and what it is missing. In one click
@@ -335,11 +340,22 @@ with the reasoning behind each:
 - **Web history — Yes.** Each synced capture carries the URL and timestamp of
   a page the user chose to analyze. (Until 1.10.2 the results overlay also
   sent the bare domain names of the results shown on a Google results page;
-  from 1.10.2 it sends nothing.)
+  1.10.2 sent nothing; 1.11.0's result addresses are links on a page, so
+  they are answered under Website content below, not here.)
 - **User activity — No.**
 - **Website content — Yes.** Extracted metadata of the pages a user chooses
   to analyze (title, meta tags, headings, links, images, structured-data type
-  and property names, technical facts).
+  and property names, technical facts). From 1.11.0 also the links of the
+  results on a Google results page the user opens (each result's address and
+  site, up to 10 a request), for the figures under each result: sent only
+  with an account connected and after the user accepts it with "Send result
+  addresses and show figures" in the extension's settings, which say what is
+  sent before anything is. Never the search terms. seobandwagon.com looks the
+  figures up with DataForSEO by those addresses and caches each address with
+  its figures for 30 days, without who asked; the account keeps only its
+  count of searches with new figures that day, and the call's path in its
+  activity record. The user's own checklist score comes from the user's own
+  captures.
 
 Proof screenshots are saved to the user's own device as a download (JPEG for
 a full page from 1.7.8, PNG for the visible area); the extension never uploads
@@ -347,9 +363,9 @@ them. Until it's downloaded or dismissed, a finished full-page proof is kept
 in the extension's own IndexedDB for that tab, and removed when the tab
 closes or the browser restarts.
 
-A user with the data-collection setting off sends nothing but the bare-domain
-overlay lookup described above; a signed-out user (no API key configured)
-sends nothing at all.
+A user with the data-collection setting off sends no analyses; the result
+addresses go only with the figures accepted, a separate switch. A signed-out
+user (no API key configured) sends nothing at all.
 
 **Certifications** — This data is not sold to third parties. It is not used
 for purposes unrelated to the extension's stated SEO-analysis and
@@ -365,7 +381,21 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.10.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.11.0 (release notes, ≤ 10 lines)
+
+Submission B carries 1.10.3 and 1.10.4 too:
+
+```
+- Figures under every Google result: the page's and the site's referring
+  domains, backlinks, rank and traffic (DataForSEO), the domain's age, and
+  your own checklist where you analyzed the page. Free with an account.
+- One panel at the top or bottom of the results, Match Google, Night or Day.
+- Your own sites marked; 20 more Google countries; exports with the figures.
+- The score adds up to 100, in every language; every issue with its fix.
+- Account features work on a second device; Page history is this page's.
+```
+
+1.10.0 (if it wasn't published on its own, use these lines too):
 
 ```
 - Signed in, your new tab leads with your rank drops: each keyword that fell,
@@ -514,10 +544,17 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   choose a preset other than Default from the dropdown. The current tab
   reloads under that User-Agent; switch back to Default to remove it.
 - **Google results overlay**: search anything on google.com. Signed out (no
-  API key configured), each result's stats bar shows "Connect your account"
-  and no request is made (from 1.7.7); the link opens seobandwagon.com's
-  key page to sign in and connect. Copy results and Copy PAA (at the end
-  of the results) put the rows or questions on the clipboard.
-- An API key (free to create at seobandwagon.com) is only needed to see real
-  stats numbers in the overlay and to sync captures/citations/link-building
-  data — every feature above works fully signed out.
+  API key configured), each result's bar shows its position, Analyze and
+  "Connect free to see figures", and no request is made; the link opens
+  seobandwagon.com's key page to sign in and connect. Copy results and Copy
+  PAA (in the SEO Bandwagon panel below the results) put the rows or
+  questions on the clipboard.
+- **Figures (1.11.0)**: with a key connected, the bars say "Turn on figures"
+  and still nothing is sent. In the extension's settings, under Google
+  results, the card "Figures under each result" says what is sent;
+  "Send result addresses and show figures" turns them on. Reload the results
+  page: each bar shows its figures, and the panel the plan and what is left
+  of the day's allowance. "Stop sending result addresses" turns them off.
+- An API key (free to create at seobandwagon.com) is only needed for the
+  figures in the overlay and to sync captures/citations/link-building
+  data — every other feature above works fully signed out.

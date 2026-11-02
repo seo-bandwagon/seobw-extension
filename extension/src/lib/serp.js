@@ -83,14 +83,42 @@
   const AD_CONTAINER_SELECTOR = '[data-text-ad], #tads, #tadsb, #bottomads, ' +
     '.commercial-unit-desktop-top, .commercial-unit-desktop-rhs, ' +
     '.cu-container, [data-pla]';
-  const AD_LABEL_CANDIDATES = '[aria-label*="ads" i], [aria-label*="sponsored" i]';
-  const AD_LABEL_RE = /\b(ads|sponsored)\b/i;
+  // 1.11.0: the labels Google writes in the other languages of the Googles
+  // the overlay runs on (German "Anzeigen", French "Annonces", Japanese
+  // "広告"…). The containers above are language-independent and catch most
+  // ads; the labels are the second net. A word, never part of one: \b knows
+  // only ASCII letters, so the edges are "not a letter" in Unicode.
+  const AD_WORDS = [
+    'ads', 'ad', 'sponsored',
+    'anzeigen', 'anzeige', 'gesponsert',
+    'annonces', 'annonce', 'sponsorisé', 'sponsorisés',
+    'anuncios', 'anuncio', 'patrocinado', 'patrocinados', 'patrocinada',
+    'annunci', 'annuncio', 'sponsorizzato', 'sponsorizzati',
+    'advertenties', 'advertentie', 'gesponsord',
+    'anúncios', 'anúncio',
+    'reklamy', 'reklama', 'sponsorowane',
+    'annonser', 'annons', 'sponsrad', 'sponsoreret', 'annonse', 'sponset',
+    'mainos', 'mainokset', 'sponsoroitu',
+    'reklam', 'reklamlar', 'sponsorlu',
+    'iklan', 'bersponsor', 'naka-sponsor',
+    '広告', 'スポンサー', '광고'
+  ];
+  const AD_LABEL_CANDIDATES = '[aria-label]';
+  const AD_LABEL_RE = new RegExp('(^|[^\\p{L}])(' + AD_WORDS.join('|') + ')($|[^\\p{L}])', 'iu');
+  // "Ad" counts only as the whole label: as a word in a longer one ("Why this
+  // ad?", "Ad choices") it labels a control, not a container of ads.
+  function isAdLabel(label) {
+    const text = String(label || '').trim();
+    if (!text) return false;
+    if (/^ad$/i.test(text)) return true;
+    return AD_LABEL_RE.test(text.replace(/(^|[^\p{L}])ad($|[^\p{L}])/giu, '$1$2'));
+  }
 
   function isAd(el) {
     if (!el || !el.closest) return false;
     if (el.closest(AD_CONTAINER_SELECTOR)) return true;
     for (let a = el.closest(AD_LABEL_CANDIDATES); a; a = a.parentElement && a.parentElement.closest(AD_LABEL_CANDIDATES)) {
-      if (AD_LABEL_RE.test(a.getAttribute('aria-label') || '')) return true;
+      if (isAdLabel(a.getAttribute('aria-label'))) return true;
     }
     return false;
   }
@@ -101,7 +129,14 @@
   // bar even when it isn't inside one of the AD_CONTAINER_SELECTOR
   // containers above (some sponsored-looking organic-shaped blocks carry
   // only the text label, no distinguishing container/class).
-  const SPONSORED_LABEL_RE = /^sponsored\b|^ad\s*[·•]/i;
+  // 1.11.0: the same two shapes in each Google's language.
+  const SPONSORED_WORDS = ['sponsored', 'gesponsert', 'sponsorisé', 'patrocinado', 'patrocinada', 'sponsorizzato',
+    'gesponsord', 'sponsorowane', 'sponsrad', 'sponsoreret', 'sponset', 'sponsoroitu', 'sponsorlu', 'bersponsor',
+    'naka-sponsor', 'スポンサー'];
+  const AD_DOT_WORDS = ['ad', 'anzeige', 'annonce', 'anuncio', 'annuncio', 'advertentie', 'anúncio', 'reklama',
+    'annons', 'annonse', 'mainos', 'reklam', 'iklan', '広告', '광고'];
+  const SPONSORED_LABEL_RE = new RegExp('^(' + SPONSORED_WORDS.join('|') + ')($|[^\\p{L}])|^(' +
+    AD_DOT_WORDS.join('|') + ')\\s*[·•]', 'iu');
 
   function hasSponsoredLabel(block) {
     if (!block) return false;
@@ -241,11 +276,60 @@
     ')\\s*\\u2014\\s*'
   );
 
+  // 1.11.0: the same stamp as the other Googles write it, read before the
+  // dash (em or en). Each form is a date shape, not "a few words with a
+  // digit", so "10 best tools — …" stays a description:
+  //   a day, a month by name, a year: "28. März 2025", "28 mars 2025",
+  //     "28 de mar. de 2025", "28 mrt 2025" (the month checked against
+  //     MONTH_STEMS);
+  //   all digits: "28.03.2025", "28/03/2025", "2025/03/28", "2025年3月28日";
+  //   how long ago: "vor 6 Tagen", "il y a 6 jours", "hace 6 días", "há 6
+  //     dias", "för 6 dagar sedan", "6 giorni fa", "6 dagen geleden", "6 dni
+  //     temu", "6 päivää sitten", "6 gün önce", "6 日前".
+  const MONTH_STEMS = new Set([
+    'jan', 'feb', 'fév', 'fev', 'mär', 'mar', 'apr', 'avr', 'abr', 'mai', 'may', 'mag', 'mei', 'maj', 'jun', 'jui',
+    'giu', 'jul', 'lug', 'aug', 'ago', 'aoû', 'aou', 'sep', 'set', 'okt', 'oct', 'ott', 'out', 'nov', 'dez', 'dec',
+    'dic', 'déc', 'des', 'ene', 'gen', 'tam', 'hel', 'maa', 'huh', 'tou', 'kes', 'hei', 'elo', 'syy', 'lok', 'mar',
+    'jou', 'sty', 'lut', 'kwi', 'cze', 'lip', 'sie', 'wrz', 'paź', 'paz', 'lis', 'gru', 'oca', 'şub', 'nis', 'haz',
+    'tem', 'ağu', 'eyl', 'eki', 'kas', 'ara', 'mrt'
+  ]);
+  const DASH = '\\s+[\\u2014\\u2013]\\s+';
+  const NAMED_DATE_RE = new RegExp('^(\\d{1,2}\\.?\\s+(?:de\\s+)?(\\p{L}{3,10})\\.?,?\\s+(?:de\\s+)?\\d{4})' + DASH, 'u');
+  const NUMERIC_DATE_RE = new RegExp('^(\\d{1,2}[./-]\\d{1,2}[./-]\\d{2,4}|\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}\\.?|\\d{4}年\\d{1,2}月\\d{1,2}日)' + DASH.replace('\\s+[', '\\s*['), 'u');
+  const RELATIVE_DATE_RE = new RegExp('^(' +
+    '(?:vor|il y a|hace|há|för|for)\\s+\\d+\\s+\\p{L}+(?:\\s+(?:sedan|siden))?' +
+    '|\\d+\\s+\\p{L}+\\s+(?:fa|geleden|temu|sitten|önce|siden|sedan|lalu|ago)' +
+    '|\\d+\\s*(?:秒|分|時間|日|週間|か月|ヶ月|年)前' +
+    ')' + DASH.replace('\\s+[', '\\s*['), 'iu');
+
   /** `{ date, rest }` — `date` is '' when the description carries no stamp. */
   function splitDatePrefix(text) {
-    const m = DATE_PREFIX_RE.exec(text || '');
-    if (!m) return { date: '', rest: text || '' };
-    return { date: m[1], rest: (text || '').slice(m[0].length) };
+    const s = text || '';
+    const m = DATE_PREFIX_RE.exec(s) || NUMERIC_DATE_RE.exec(s) || RELATIVE_DATE_RE.exec(s);
+    if (m) return { date: m[1], rest: s.slice(m[0].length) };
+    const named = NAMED_DATE_RE.exec(s);
+    if (named && MONTH_STEMS.has(named[2].slice(0, 3).toLowerCase())) {
+      return { date: named[1], rest: s.slice(named[0].length) };
+    }
+    return { date: '', rest: s };
+  }
+
+  // A star rating's label, in each Google's language: "Rated 4.5 out of 5,",
+  // "Bewertung: 4,5 von 5", "Note : 4,5 sur 5", "Valoración: 4,5 de 5"…
+  // '4.5/5', or '' for any other label. The label must lead with a rating
+  // word, so "Photo 1 of 5" is not a rating.
+  const RATED_WORDS = ['rated', 'rating', 'bewertung', 'bewertet', 'note', 'noté', 'notée', 'valoración', 'valorado',
+    'calificación', 'valutazione', 'valutato', 'beoordeling', 'beoordeeld', 'classificação', 'avaliação', 'ocena',
+    'oceniono', 'betyg', 'bedømmelse', 'vurdering', 'arvio', 'arvosana', 'puan', 'derecelendirme', 'penilaian', '評価'];
+  const RATING_RE = new RegExp('^\\s*(?:' + RATED_WORDS.join('|') + ')\\s*:?\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:out of|of|von|sur|de|su|van|z|av|af|på|/|kautta|üzerinden|dari|中)\\s*(\\d+(?:[.,]\\d+)?)', 'iu');
+
+  function parseRating(label) {
+    const m = RATING_RE.exec(String(label || ''));
+    if (!m) return '';
+    const value = Number(m[1].replace(',', '.'));
+    const scale = Number(m[2].replace(',', '.'));
+    if (!(scale === 5 || scale === 10) || !(value >= 0 && value <= scale)) return '';
+    return m[1].replace(',', '.') + '/' + m[2].replace(',', '.');
   }
 
   /**
@@ -267,12 +351,12 @@
       displayUrl = displayUrl.slice(0, -breadcrumb.length).trim();
     }
     // Star ratings render as an aria-label, which is stable text rather than
-    // an obfuscated class: "Rated 5.0 out of 5,".
+    // an obfuscated class: "Rated 5.0 out of 5,". 1.11.0: in each Google's
+    // language (parseRating).
     let rating = '';
-    const rated = container.querySelector('[aria-label^="Rated "]');
-    if (rated) {
-      const m = /Rated\s+([\d.]+)\s+out of\s+([\d.]+)/i.exec(rated.getAttribute('aria-label') || '');
-      if (m) rating = m[1] + '/' + m[2];
+    for (const el of container.querySelectorAll('[aria-label]')) {
+      rating = parseRating(el.getAttribute('aria-label'));
+      if (rating) break;
     }
 
     return {
@@ -616,6 +700,7 @@
       if (detail.displayUrl) row.displayUrl = detail.displayUrl;
       if (detail.breadcrumb) row.breadcrumb = detail.breadcrumb;
       if (detail.rating) row.rating = detail.rating;
+      row.type = resultType(row, resultEnd(block, unit));
       // Non-enumerable: lets the content script find where to insert the
       // bar (block.insertAdjacentElement/appendChild) without this leaking
       // into resultsToCsv(), clipboard text, or a JSON.stringify/toEqual
@@ -674,6 +759,116 @@
       if (text.length >= 12 && text.endsWith('?')) add(text);
     });
 
+    return out;
+  }
+
+  // ============================================
+  // Result type, search features, AI Overview sources (1.11.0)
+  // ============================================
+
+  // What kind of result a row is, for the exports: 'video', 'forum',
+  // 'social' (a profile or post), 'pdf' or 'web'. Read from the site and the
+  // result's own markup (a video duration, Google's PDF label), never from a
+  // request.
+  const VIDEO_SITES = new Set(['youtube.com', 'm.youtube.com', 'vimeo.com', 'dailymotion.com', 'tiktok.com']);
+  const FORUM_SITES = new Set(['reddit.com', 'old.reddit.com', 'quora.com', 'stackoverflow.com', 'stackexchange.com',
+    'superuser.com', 'serverfault.com', 'answers.microsoft.com', 'community.spiceworks.com', 'tripadvisor.com']);
+  const SOCIAL_SITES = new Set(['linkedin.com', 'facebook.com', 'instagram.com', 'x.com', 'twitter.com',
+    'pinterest.com', 'threads.net', 'threads.com', 'bsky.app', 'mastodon.social']);
+  const DURATION_RE = /^\d{1,2}:\d{2}(:\d{2})?$/;
+
+  function siteOf(domain) {
+    const d = String(domain || '').toLowerCase();
+    const parts = d.split('.');
+    return parts.length > 2 && !/^(co|com|org|net|ac|gov)$/.test(parts[parts.length - 2]) ? parts.slice(-2).join('.') : d;
+  }
+
+  function resultType(row, el) {
+    const domain = String((row && row.domain) || '').toLowerCase();
+    const site = siteOf(domain);
+    const url = String((row && row.url) || '');
+    if (/\.pdf($|[?#])/i.test(url)) return 'pdf';
+    if (el && el.querySelector) {
+      const tags = Array.from(el.querySelectorAll('span, div')).slice(0, 400);
+      if (tags.some((n) => n.childElementCount === 0 && /^\[?PDF\]?$/.test((n.textContent || '').trim()))) return 'pdf';
+    }
+    if (VIDEO_SITES.has(domain) || VIDEO_SITES.has(site)) return 'video';
+    if (el && el.querySelector) {
+      if (el.querySelector('[data-vid], video-voyager')) return 'video';
+      const leaves = Array.from(el.querySelectorAll('span, div')).slice(0, 400);
+      if (leaves.some((n) => n.childElementCount === 0 && DURATION_RE.test((n.textContent || '').trim()))) return 'video';
+    }
+    if (FORUM_SITES.has(domain) || FORUM_SITES.has(site) || /(^|\.)stackexchange\.com$/.test(domain)) return 'forum';
+    if (SOCIAL_SITES.has(domain) || SOCIAL_SITES.has(site)) return 'social';
+    return 'web';
+  }
+
+  // The blocks Google put on this page besides web results, each found by
+  // markup that is not one of Google's rotating class names where one
+  // exists. `ads` counts the ad units shown, top and bottom. Read from the
+  // page only; the popup shows them and the exports carry them.
+  const FEATURES = [
+    ['ai_overview', 'AI Overview', '[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]'],
+    ['featured_snippet', 'Featured snippet', 'block-component, .c2xzTb, [data-attrid="wa:/description"], [data-tts="answers"]'],
+    ['local_pack', 'Local pack', '#lu_map, [data-local-attribute], a[href*="tbm=lcl"], [data-attrid*="kc:/local" i]'],
+    ['people_also_ask', 'People also ask', PAA_CONTAINER_SELECTOR],
+    ['ads', 'Ads', '[data-text-ad]'],
+    ['shopping', 'Shopping', '[data-pla], .commercial-unit-desktop-top, .commercial-unit-desktop-rhs, .cu-container, product-viewer-group'],
+    ['videos', 'Videos', 'video-voyager, [data-vid], [aria-label*="Videos" i], [aria-label="Short videos" i]'],
+    ['top_stories', 'Top stories', '[aria-label*="Top stories" i], [data-news-doc-id], [data-news-cluster-id]'],
+    ['images', 'Images', '#iur, [data-attrid="images universal"]'],
+    ['knowledge_panel', 'Knowledge panel', '.kp-wholepage, #rhs [data-attrid="title"]']
+  ];
+  // Where results-page blocks live: the results list and what Google puts
+  // around it, never the header's tab row (its "Shopping" and "Videos" tabs
+  // are on every page).
+  const FEATURE_ROOTS = '#search, #rso, #tads, #tadsb, #bottomads, #rhs, #botstuff, #center_col';
+
+  function featureRoots(doc) {
+    if (!doc || !doc.querySelectorAll) return [];
+    const roots = topMost(doc.querySelectorAll(FEATURE_ROOTS));
+    return roots.length ? roots : [doc.body || doc];
+  }
+
+  function detectFeatures(doc) {
+    const roots = featureRoots(doc);
+    const out = [];
+    for (const [key, label, selector] of FEATURES) {
+      let found = [];
+      roots.forEach((r) => { found = found.concat(Array.from(r.querySelectorAll(selector))); });
+      found = topMost(found).filter((el) => !el.closest('[class^="sbw-"], [class*=" sbw-"]') && isShown(el));
+      if (key === 'people_also_ask' && !found.length && parsePaa(doc).length) found = [doc];
+      if (key === 'ads') found = found.filter((el) => showsSomething(el));
+      if (!found.length) continue;
+      out.push(key === 'ads' ? { key, label, count: found.length } : { key, label });
+    }
+    if (parseRelatedSearches(doc).length) out.push({ key: 'related_searches', label: 'Related searches' });
+    return out;
+  }
+
+  // The pages an AI Overview cites, in its order, each once:
+  // `{ url, domain, title }`. Google's own links inside it (search,
+  // "Show more") are left out.
+  function featureLabels(features) {
+    return (features || []).map((f) => (f.count ? `${f.label} (${f.count})` : f.label)).join(' | ');
+  }
+
+  function aiOverviewCitations(doc) {
+    if (!doc || !doc.querySelectorAll) return [];
+    const out = [];
+    const seen = new Set();
+    doc.querySelectorAll('[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]').forEach((box) => {
+      box.querySelectorAll('a[href^="http"]').forEach((a) => {
+        const domain = bareDomain(a.href);
+        if (!domain) return;
+        let url = a.href;
+        try { const u = new URL(a.href); u.hash = ''; url = u.href; } catch (e) { /* keep as is */ }
+        if (seen.has(url)) return;
+        seen.add(url);
+        const title = (a.getAttribute('aria-label') || a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        out.push({ url, domain, title });
+      });
+    });
     return out;
   }
 
@@ -750,6 +945,10 @@
     // rather than dropped: the whole point is that nothing is thrown away.
     ctx.relatedSearches = doc ? parseRelatedSearches(doc).join(' | ') : '';
     ctx.paa = doc ? parsePaa(doc).join(' | ') : '';
+    // 1.11.0: what else the search shows, and the pages its AI Overview
+    // cites, page-level like the two above.
+    ctx.features = doc ? featureLabels(detectFeatures(doc)) : '';
+    ctx.aiCitations = doc ? aiOverviewCitations(doc).map((c) => c.url).join(' | ') : '';
     return ctx;
   }
 
@@ -797,8 +996,47 @@
     // "yes", "site only" (Google's redirect hides the page, only the site is
     // known) or "no" (an unknown site, which keeps its place).
     ['URL known', 'urlKnown'],
-    ['Place name', 'place']
+    ['Place name', 'place'],
+    // 1.11.0, appended for the same reason: what kind of result each is, the
+    // search's own features and AI Overview sources (page-level, on every
+    // row), whether it is one of the user's own sites (Options), and the
+    // figures under each result, each named for its source. A figure is
+    // blank where it wasn't loaded, and blank is not zero.
+    ['Result type', 'type'],
+    ['Your site', (row) => (row && row.ownSite ? 'yes' : '')],
+    ['Search features', 'features'],
+    ['AI Overview citations', 'aiCitations'],
+    ['Page referring domains (DataForSEO)', figure('page', 'referringDomains')],
+    ['Page backlinks (DataForSEO)', figure('page', 'backlinks')],
+    ['Page rank 0-100 (DataForSEO)', figure('page', 'rank')],
+    ['Page traffic est. a month (DataForSEO)', figure('page', 'etv')],
+    ['Page ranking keywords (DataForSEO)', figure('page', 'keywords')],
+    ['Site rank 0-100 (DataForSEO)', figure('domain', 'rank')],
+    ['Site referring domains (DataForSEO)', figure('domain', 'referringDomains')],
+    ['Site backlinks (DataForSEO)', figure('domain', 'backlinks')],
+    ['Site traffic est. a month (DataForSEO)', figure('domain', 'etv')],
+    ['Site ranking keywords (DataForSEO)', figure('domain', 'keywords')],
+    ['Figures fetched (DataForSEO)', (row) => {
+      const f = row && row.figures;
+      return (f && ((f.page && f.page.fetchedAt) || (f.domain && f.domain.fetchedAt))) || '';
+    }],
+    ['Domain age (RDAP)', figure('whois', 'age')],
+    ['Registered (RDAP)', figure('whois', 'createdDate')],
+    ['Registrar (RDAP)', figure('whois', 'registrar')],
+    ['Expires (RDAP)', figure('whois', 'expiresDate')],
+    ['Your on-page checklist', figure('checklist', 'score')],
+    ['Checklist captured', figure('checklist', 'capturedAt')]
   ];
+
+  // A cell from the figures a row was given (row.figures: the route's answer
+  // for that result, src/lib/serp-figures.js), or '' when it has none.
+  function figure(block, field) {
+    return (row) => {
+      const b = row && row.figures && row.figures[block];
+      const v = b ? b[field] : null;
+      return v === null || v === undefined ? '' : v;
+    };
+  }
 
   // Google's page size, for an earlier page nobody added.
   const PAGE_SIZE = 10;
@@ -828,6 +1066,7 @@
   }
 
   function cellValue(row, ctx, key) {
+    if (typeof key === 'function') return key(row, ctx);
     if (key === 'absolutePosition') return absolutePosition(row, ctx);
     if (key === 'absoluteExact') return exactPosition(row, ctx);
     if (key === 'urlKnown') return urlKnown(row);
@@ -1068,6 +1307,13 @@
     guardCell,
     absolutePosition,
     placeFromUule,
-    FORMULA_PREFIX_RE
+    FORMULA_PREFIX_RE,
+    parseRating,
+    isAdLabel,
+    resultType,
+    detectFeatures,
+    featureLabels,
+    aiOverviewCitations,
+    RESULT_CSV_COLUMNS
   };
 });

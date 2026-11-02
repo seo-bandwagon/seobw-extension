@@ -1,0 +1,12 @@
+{
+  "source": "DataForSEO",
+  "rankScale": "one_hundred",
+  "market": { "locationCode": 2840, "languageCode": "en" },
+  "plan": "free",
+  "allowance": { "limit": 20, "used": 20, "remaining": 0 },
+  "lookups": "limit_reached",
+  "results": [
+    { "url": "https://alpha.example/page-0", "host": "alpha.example", "page": null, "domain": null, "whois": null, "checklist": null },
+    { "url": null, "host": "beta.example", "page": null, "domain": { "referringDomains": 830, "backlinks": 22100, "rank": 44, "etv": 15100, "keywords": 3200, "fetchedAt": "2026-10-20T12:00:00Z" }, "whois": null, "checklist": null }
+  ]
+}

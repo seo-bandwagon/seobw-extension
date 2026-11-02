@@ -194,8 +194,11 @@
   // (`dh:` keys, src/lib/domain-history.js). Cleared on every Connect, every
   // key change and Disconnect, so a new key never reads an old one's answers.
   const ACCOUNT_LOCAL_KEYS = ['sbwKeyStatus', 'sbwUser', 'cfSelectedBusiness'];
-  const ACCOUNT_SESSION_KEYS = ['sbwProgress'];
-  const ACCOUNT_SESSION_PREFIX = 'dh:';
+  // 1.11.0: and the figures under Google results kept this session
+  // (src/lib/serp-figures-service.js), whose on-page checklist is the
+  // account's own and whose allowance is the account's plan.
+  const ACCOUNT_SESSION_KEYS = ['sbwProgress', 'serpFiguresStatus', 'serpFiguresHold'];
+  const ACCOUNT_SESSION_PREFIXES = ['dh:', 'serpFig:'];
 
   async function clearAccountCaches() {
     await chrome.storage.local.remove(ACCOUNT_LOCAL_KEYS);
@@ -203,7 +206,7 @@
     if (!session) return;
     try {
       const all = await session.get(null);
-      const keys = Object.keys(all || {}).filter(k => k.startsWith(ACCOUNT_SESSION_PREFIX));
+      const keys = Object.keys(all || {}).filter(k => ACCOUNT_SESSION_PREFIXES.some(p => k.startsWith(p)));
       await session.remove(ACCOUNT_SESSION_KEYS.concat(keys));
     } catch (e) {
       // No session storage in this context: nothing cached there to clear.
@@ -248,6 +251,26 @@
     return sbwFetch('/domain/quick-batch', { method: 'POST', body: { domains } });
   }
 
+  // 1.11.0: the figures under up to 10 Google results (POST
+  // /api/v1/serp/metrics, scope `serp`; a key minted before it answers 403
+  // 'forbidden'). `results` is [{ url, domain }], url null for a result
+  // known only by its site. The caller (src/lib/serp-figures-service.js)
+  // has already asked the consent module.
+  async function serpMetrics(results) {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/v1/serp/metrics', { method: 'POST', body: { results } });
+  }
+
+  // 1.11.0: every send asks the consent module first (src/lib/consent.js),
+  // where it is loaded; a page that loads this file without it keeps the
+  // switch it always had.
+  async function sendAllowed(flow, hasKey) {
+    if (typeof SBWConsent !== 'undefined' && SBWConsent.check) {
+      return SBWConsent.check(flow, { hasKey });
+    }
+    return (await isDataCollectionEnabled()) ? { ok: true } : { ok: false, reason: 'category_off' };
+  }
+
   // ============================================
   // Capture sync (Task 2)
   // ============================================
@@ -262,8 +285,8 @@
   // that produced it) so callers like drainPendingCaptures can tell a
   // rate limit apart from a duplicate without re-deriving it.
   async function syncCapture(key) {
-    const enabled = await isDataCollectionEnabled();
-    if (!enabled) return { status: 'skipped', error: 'collection_off', code: 'collection_off' };
+    const allowed = await sendAllowed('captureSync', true);
+    if (!allowed.ok) return { status: 'skipped', error: 'collection_off', code: 'collection_off' };
 
     const settings = await getApiSettings();
     if (!settings.apiKey) return { status: 'skipped', error: 'no_key', code: 'no_key' };
@@ -605,6 +628,8 @@
     capturesForUrl,
     progress,
     quickBatch,
+    serpMetrics,
+    sendAllowed,
     syncCapture,
     drainPendingCaptures,
     requeueAuthSkipped,

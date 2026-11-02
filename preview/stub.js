@@ -664,8 +664,23 @@ window.chrome = {
   }
 };
 
+// 1.11.0: the worker's answer to the results overlay's 'serpFigures', in
+// the route's shape (made-up figures; tests/fixtures/serp-metrics has the
+// same), so serp.html shows figured bars and the panel's allowance line.
+function serpFiguresReply(msg) {
+  const page = { referringDomains: 412, backlinks: 9134, rank: 38, etv: 2310, keywords: 840, fetchedAt: '2026-11-01T12:00:00Z' };
+  const domain = { referringDomains: 15200, backlinks: 1203000, rank: 61, etv: 482000, keywords: 91000, fetchedAt: '2026-11-01T12:00:00Z' };
+  const whois = { domain: 'example.com', createdDate: '1998-09-15', registrar: 'Example Registrar, Inc.', expiresDate: '2028-09-14', age: '28y 1m' };
+  const results = {};
+  (msg.items || []).forEach((item, i) => {
+    results[item.key] = { page: item.url ? page : null, domain, whois, checklist: i === 0 ? { score: 92, capturedAt: '2026-10-28T09:30:00Z' } : null };
+  });
+  return { state: 'ok', results, plan: 'free', allowance: { limit: 20, used: 3, remaining: 17 }, lookups: 'done', notice: null };
+}
+
 function handleMessage(msg) {
   switch (msg.action) {
+    case 'serpFigures': return serpFiguresReply(msg);
     case 'captureScreenshot': return { ok: true, dataUrl: SHOT };
     // src/content/page-scroller.js, driven by the full-page proof: a
     // 1,800px page in a 1280×720 window → three frames.

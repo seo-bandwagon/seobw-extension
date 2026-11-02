@@ -39,6 +39,30 @@
       </ul>
     </div>
 
+    <div class="section" id="google-results">
+      <div class="section-title">Google results</div>
+      <p class="help-text sr-intro">What SEO Bandwagon adds to Google&rsquo;s results pages: a bar under each result, with its position, figures and Analyze, and one panel with exports, Collect pages and the location simulator. Changes show on an open results page at once.</p>
+
+      <div class="consent-card" id="serpConsent" aria-labelledby="serpConsentTitle">
+        <div class="consent-title" id="serpConsentTitle">Figures under each result</div>
+        <p class="consent-text">To show figures, the extension sends SEO Bandwagon the address of each result on a Google results page you open, up to 10 at a time, with its site. Never your search terms, and never a request to Google. SEO Bandwagon answers with each result&rsquo;s link and traffic figures from DataForSEO, its domain age from RDAP, and your own on-page checklist where you captured that page. It needs a connected account (free).</p>
+        <p class="consent-text">Free accounts get figures for 20 searches a day, Pro for 250. Figures already looked up cost nothing, and the extension keeps them only until you close the browser. See the <a href="https://seobandwagon.com/privacy?utm_source=chrome_extension&amp;utm_medium=extension&amp;utm_campaign=options" target="_blank" rel="noopener">privacy policy</a>.</p>
+        <p class="consent-status" id="serpConsentStatus" role="status">Not turned on: nothing is sent.</p>
+        <div class="btn-row">
+          <button type="button" id="serpConsentAccept">Send result addresses and show figures</button>
+          <button type="button" id="serpConsentWithdraw" class="secondary" hidden>Stop sending result addresses</button>
+        </div>
+      </div>
+
+      <div id="serpSettings"></div>
+
+      <label for="ownSites">Your sites</label>
+      <textarea id="ownSites" rows="3" placeholder="example.com&#10;shop.example.com"></textarea>
+      <p class="help-text">One site a line. Their results are marked &ldquo;Your site&rdquo; on Google. Kept in this browser only.</p>
+      <button type="button" id="saveOwnSites" class="secondary">Save sites</button>
+      <div class="status" id="ownSitesStatus"></div>
+    </div>
+
     <div class="section">
       <div class="section-title">Appearance</div>
       <p class="hint">Night or Day for the extension's popup, side panel and this page. Auto follows your system setting. The choice applies everywhere at once.</p>
@@ -94,11 +118,14 @@
 
   <script src="../lib/newtab-gate.js"></script>
   <script src="../lib/sync-state.js"></script>
+  <script src="../lib/consent.js"></script>
   <script src="../lib/api.js"></script>
   <script src="../lib/citations-ui.js"></script>
   <script src="../lib/options-logic.js"></script>
   <script src="../lib/site-links.js"></script>
   <script src="../lib/review-prompt.js"></script>
+  <script src="../lib/serp-settings.js"></script>
+  <script src="../lib/serp-settings-ui.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

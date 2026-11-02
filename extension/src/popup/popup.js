@@ -63,7 +63,13 @@ function section(id, title, badgeHtml, body, open) {
 const GOOGLE_SERP_HOSTS = new Set([
   'www.google.com', 'www.google.co.uk', 'www.google.ca', 'www.google.com.au',
   'www.google.de', 'www.google.fr', 'www.google.es', 'www.google.it',
-  'www.google.nl', 'www.google.co.in'
+  'www.google.nl', 'www.google.co.in',
+  // 1.11.0: twenty more, which add no install warning (measured).
+  'www.google.com.br', 'www.google.com.mx', 'www.google.co.jp', 'www.google.pl',
+  'www.google.se', 'www.google.no', 'www.google.dk', 'www.google.fi',
+  'www.google.be', 'www.google.at', 'www.google.ch', 'www.google.ie',
+  'www.google.co.nz', 'www.google.co.za', 'www.google.pt', 'www.google.com.tr',
+  'www.google.com.sg', 'www.google.com.ph', 'www.google.com.ar', 'www.google.co.id'
 ]);
 
 function isGoogleSerpUrl(url) {
@@ -146,23 +152,9 @@ function describeCollection(tab) {
   });
 }
 
-function describeSerp(tabId) {
-  chrome.tabs.sendMessage(tabId, { action: 'serpStatus' }, (status) => {
-    void chrome.runtime.lastError; // no overlay on this page: keep the neutral line
-    const el = document.getElementById('serpNoticeText');
-    if (!el || !status || typeof status.rows !== 'number') return;
-    if (status.rows > 0) {
-      const n = status.rows;
-      el.textContent = `Found ${n} result${n === 1 ? '' : 's'} on this page, each with an SEO Bandwagon bar under it. ` +
-        'Copy results, Export CSV, Copy PAA and Collect pages are below the last result.';
-    } else if (status.headings > 0) {
-      el.textContent = "Couldn't read the results on this page. Google may have changed its layout; " +
-        'please let us know at seobandwagon.com.';
-    } else {
-      el.textContent = 'No web results to read on this page (an Images, Videos or News tab, or no results).';
-    }
-  });
-}
+// 1.11.0: the rest of the results page's popup is src/popup/serp-panel.js
+// (the search's features, the exports, the account and allowance, the
+// settings); describeSerp's words moved there.
 
 /* ---------- analysis bootstrap ---------- */
 
@@ -171,13 +163,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
   currentTab = tab;
 
   if (tab && tab.url && isGoogleSerpUrl(tab.url)) {
-    document.getElementById('content').innerHTML = `
-      <div class="empty sbw-serp-notice">
-        <div class="empty-title">SEARCH RESULTS PAGE</div>
-        <div class="empty-sub" id="serpNoticeText">This is a search results page.</div>
-      </div>`;
-    describeSerp(tab.id);
-    describeCollection(tab);
+    // 1.11.0: the popup is this results page's panel (src/popup/serp-panel.js).
+    globalThis.SBWSerpPanel.render(document.getElementById('content'), tab).then(() => describeCollection(tab));
     // Task 7, item E: the review strip's visibility is a pure function of
     // storage (analyses/prompted), never of what this popup open did or
     // didn't analyze — a SERP-page open still shows it if a prior analysis
