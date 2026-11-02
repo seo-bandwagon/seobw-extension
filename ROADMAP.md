@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.12.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -60,9 +60,12 @@ finished in four releases, 1.10.2 to 1.13.0, before every other surface
 (owner: "Make sure that the SERP feature gets addressed ... Keywords
 Everywhere and SEOQuake both have much better SERP features and that is
 unacceptable"); 1.10.3 and 1.10.4 sit between them because the figures need
-them. Store submissions group them: **A** 1.10.2 alone, **B** 1.10.3–1.11.0,
-**C** 1.12.0–1.13.0, **D** 1.13.1–1.15.0 (with the Firefox gate), **E**
-1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
+them. Store submissions group them: **A** 1.10.2 alone; **B and C as one
+upload of 1.13.0** (1.10.3–1.13.0; owner, 2026-11-02: "I think we might skip
+publishing that because these versions are too close together. We could
+probably finish up a few more versions quickly"; until then B was
+1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** 1.13.1–1.15.0 (with the Firefox
+gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds and lints the Chrome, Edge and Firefox packages
 from 1.13.2 on. Every release also updates `CHROMEWEBSTORE.md`,
@@ -151,11 +154,11 @@ grant; the coverage report (#74).
 - [x] Signed out of Google, a row Google hides asks to sign in to Google or open it; no request to Google
 
 ### 1.13.0: keyword data on Google, into the account (#68)
-- [ ] On a click or automatically: volume, difficulty, CPC, competition and trend under the search box; volumes for related searches and People Also Ask
-- [ ] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet)
-- [ ] If the rank tracker already tracks the search, your result shows its position history
-- [ ] Website: keyword metrics and keyword write routes under the `keywords` scope, added to `EXTENSION_SCOPES` (older keys get a 403 and show Reconnect)
-- [ ] Data use: sends the search text; its own first-use disclosure
+- [x] On a click (the default) or automatically: volume, difficulty, CPC, competition and trend under the search box (above the results, under any top ads, which it never moves); volumes for related searches and People Also Ask, in the same request (50 keywords at most)
+- [x] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet); one tracker, several (which one), none (a link to making one)
+- [x] If the rank tracker already tracks the search, your result shows its position history
+- [ ] Website: keyword metrics and keyword write routes under the `keywords` scope, added to `EXTENSION_SCOPES` (older keys get a 403 and show Reconnect) (built in parallel by the website session to the contract of 2026-11-02; the extension is tested against stubs of it)
+- [x] Data use: sends the search text; its own first-use disclosure (the consent module's `keywordData`, Firefox's `searchTerms`); the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"
 
 ### 1.13.1: the checks panels are right (patch, was 1.10.5)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
@@ -233,6 +236,85 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.0 (2026-11-02)
+
+Keyword data on Google, into the account (#68): the last of the four
+releases that finish the Google results page (owner, 2026-11-01: "Keywords
+Everywhere and SEOQuake both have much better SERP features and that is
+unacceptable"). Neither of them gives People Also Ask a volume, and Keywords
+Everywhere charges credits for the volume itself. Uploaded with 1.10.3 to
+1.12.0 as one store submission (owner, 2026-11-02).
+
+- **The strip** (`src/overlay/serp-keywords.js`, `src/lib/serp-keywords.js`):
+  above the results, under the search box and under any top ads (which it
+  never moves), and above the panel when the panel is at the top. For the
+  search: DataForSEO's monthly searches, difficulty (0 to 100), cost per
+  click, competition and the 12-month trend as a line, each labelled as
+  DataForSEO's with the market in the tooltip. On a click on "Show keyword
+  data" (the default: each search with new data counts against the day's
+  allowance) or with the page, by setting.
+- **Related searches and People Also Ask** each get their volume in the same
+  request, the search first, 50 keywords at most, normalized as the route
+  reads them (lowercase, the "?" dropped; longer than Google Ads takes, 80
+  characters or 10 words, is left out and counted): a small label beside each
+  on Google's page, and a list in the strip with CPC, difficulty and "+ Add".
+  Questions People Also Ask opens later are asked for on a click ("Get
+  volumes for N more"), never by themselves. A search with an operator
+  (`site:`, `inurl:`…) gets no strip.
+- **"Add to my keywords"** (`POST /api/v1/keywords`) for the search or any
+  related search or question: added; already tracked; with several trackers,
+  "which one?" with a button each (the choice is sent with its id); with
+  none, a link to making one on the dashboard (`/dashboard/rank-tracker`).
+- **Rank history:** if the account's tracker already tracks the search
+  (`tracked` in the answer), the tracked site's result shows its latest
+  position, the change since the first and a line on its bar, and the strip
+  says it too; labelled as the user's own tracker's, not DataForSEO's.
+- **The market:** `gl` from the address, else the Google's own country
+  (google.co.uk is `gb`); `hl` from the address, else the page's language.
+- **Consent** (`keywordData` in `src/lib/consent.js`, Firefox's
+  `searchTerms`): the search's words leave the browser for the first time, so
+  nothing is sent without a key ("Connect free", up front: the worker reads
+  whether a key and the yes exist, sending nothing) or before the yes of its
+  own first-use disclosure on the results page, which only a real click can
+  give (`isTrusted`; a page script's click is ignored), or of its card in
+  Options (with Stop). On a browser that must ask for itself (Firefox's
+  prompt needs an extension page), the yes on Google sends the person to
+  Options. The figures' yes is not keyword data's, nor the other way round.
+- **Limits:** the plan and the day's allowance under the strip; at the limit
+  or paused at the monthly ceiling it says so and offers the upgrade where it
+  helps, with the cached keyword data still shown; a key from before the
+  `keywords` scope (403) says Reconnect; offline, busy and a 429 each have
+  their own words and are asked again after Retry-After or 30, 60, 90 s.
+  Nothing else on the page stops working.
+- **The worker** (`src/lib/serp-keywords-service.js`): one
+  `POST /api/v1/keywords/metrics` a search, the session's keyword data kept
+  by keyword and market in `chrome.storage.session` (so the same search
+  again sends nothing, and a new question is asked alone, the search still
+  first); a 429 holds every request until Retry-After; a new account forgets
+  the old one's keyword data and rank history.
+- **Exports:** the results CSV and Copy results gain the search's volume,
+  CPC, competition, difficulty and trend, the related searches and People
+  Also Ask with their volumes (page-level, on every row) and "Your rank
+  tracker position" on the tracked site's row; "Export keywords CSV" (strip
+  and popup) gives one row a keyword with its source and figures.
+- **Settings and popup:** "Google results" gains keyword data on or off and
+  on a click or with the page; the popup on a results page gains a Keyword
+  data block (its state, the search's figures, the allowance, "Show keyword
+  data on the page") and "Download keywords CSV".
+- **Install warning:** unchanged (`getPermissionWarningsByManifest`,
+  Chromium 156.0.8078.4: the same four warnings before and after; a control
+  host added to the content script changes them). Two files join the
+  existing Google content-script entry; no permission, host or match.
+- **Data use: new** — the search's words with its related searches and
+  People Also Ask questions, and a search added to the rank tracker; Web
+  history and Website content's texts, the Google results justification,
+  the single purpose and the description change (`CHROMEWEBSTORE.md`, "To
+  paste with the combined submission (1.13.0)"). seobandwagon.com/privacy
+  must say so before the upload (the website's).
+- **Not in 1.13.0:** "Add to my content keywords" (no such list on the site
+  yet); the website routes themselves (built in parallel against the
+  contract; no live call to production was made from the extension).
 
 ## Changelog — v1.12.0 (2026-11-02)
 

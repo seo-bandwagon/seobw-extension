@@ -4,8 +4,9 @@
 // results" section of Options (src/options/options.js) and the popup on a
 // Google results page (src/popup/serp-panel.js). Each change is saved at
 // once (SBWSerpSettings.save), and the open results page follows it
-// (serp-overlay.js listens to storage). The figures' consent card and the
-// own-sites list are Options' own, not here: accept buttons live in Options.
+// (serp-overlay.js and serp-keywords.js listen to storage). The consent
+// cards (figures, and 1.13.0's keyword data) and the own-sites list are
+// Options' own, not here: accept buttons live in Options.
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWSerpSettingsUI` when loaded as a classic <script>, and
@@ -78,6 +79,13 @@
       ['click', 'When I click Load figures']
     ], prefix));
 
+    // 1.13.0: keyword data under the search box.
+    root.appendChild(check(doc, prefix + 'KeywordsOn', 'Keyword data for the search: volume, difficulty, CPC, competition, trend, and volumes for related searches and People also ask', 'keywordsOn'));
+    root.appendChild(radios(doc, 'keywordsLoad', 'Keyword data loads', [
+      ['click', 'When I click Show keyword data'],
+      ['auto', 'With the page (each search with new keyword data counts against the day’s allowance)']
+    ], prefix));
+
     const list = h(doc, 'div', { class: 'sr-figures' });
     let lastGroup = null;
     S.FIGURES.forEach((f) => {
@@ -132,7 +140,7 @@
       });
       root.querySelectorAll('[data-setting]').forEach((input) => {
         const name = input.getAttribute('data-setting');
-        if (name !== 'overlay') input.disabled = !s.overlay || (name === 'load' && !s.figuresOn);
+        if (name !== 'overlay') input.disabled = !s.overlay || (name === 'load' && !s.figuresOn) || (name === 'keywordsLoad' && !s.keywordsOn);
       });
     }
 

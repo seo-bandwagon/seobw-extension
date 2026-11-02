@@ -1,17 +1,20 @@
-# Chrome Web Store listing text — next submission: v1.11.0 (submission B)
+# Chrome Web Store listing text — next submission: v1.13.0 (the combined submission)
 
 The listing text for the next store submission, kept current with `main`.
 The store serves 1.10.2 (published 2026-11-01, store submission A). 1.10.3
-and 1.10.4 were built and not submitted: they go up with 1.11.0 as one
-upload of 1.11.0 (submission B). What changes in the dashboard with it is
-listed, paste-ready, in `CHROMEWEBSTORE.md` under "To paste with submission
-B"; the sections below are where each text lives. 1.11.0 adds twenty Google
-domains to the results-page content script (the install warning measured
-unchanged) and its first new data flow since 1.5.0: the addresses of the
-results on a Google results page, sent only with an account connected and
-after the user accepts it in Options (sections 3 and 5). Paste each section
-into the matching Chrome Web Store Developer Dashboard field when
-submitting.
+to 1.13.0 were built and not submitted: the owner ruled on 2026-11-02 that
+submissions B and C become one upload, of 1.13.0. What changes in the
+dashboard with it is listed, paste-ready, in `CHROMEWEBSTORE.md` under "To
+paste with the combined submission (1.13.0)"; the sections below are where
+each text lives. 1.11.0 adds twenty Google domains to the results-page
+content script (the install warning measured unchanged) and its first new
+data flow since 1.5.0: the addresses of the results on a Google results page,
+sent only with an account connected and after the user accepts it in Options.
+1.13.0 adds the second: the words of a Google search, with its related
+searches and People also ask questions, for keyword data, sent only with an
+account connected and after the user says yes to its own disclosure (sections
+3 and 5). Paste each section into the matching Chrome Web Store Developer
+Dashboard field when submitting.
 
 The detailed description is the text inside the fence in section 2 and
 nothing after it: the live description read on 2026-10-06 ran on past
@@ -98,6 +101,9 @@ On Google's results pages, a bar under each organic listing shows its position a
 
 Analyze checks a listing right under it: its title and description measured in pixels, headings, word count, structured data, canonical, whether it can be indexed and why not, its status and redirects, the technology behind it, whether its site's robots.txt shuts out AI crawlers and whether it has an llms.txt, all read from its HTML in your browser without your cookies, with no new tab. One click checks the top ten. A table in the panel lines the listings up, with position, type, the query's words in each title, address and description, title length, date, figures, domain age, words, schema and checklist, each cell marked above or below the median, or below your own page once you pin it as the first row. The sources an AI overview cites get a table of their own.
 
+KEYWORD DATA
+Above the listings, a strip shows figures for the query you typed: how many times a month it is looked up, how hard it is to reach the top ten, what advertisers pay a click, how many of them bid, and a line for the last twelve months. The related queries at the foot of the results and each People Also Ask question get their monthly volume beside them, in the same request, and in a list you can export. It loads when you click, or each time if you choose that in Settings, and the figures come from DataForSEO and say so. Add to my keywords puts the query, or any related query or question, in your rank tracker on seobandwagon.com, and asks which tracker when you have more than one. When your tracker already follows the query, your listing shows its position over time. This needs a free account and its own yes: the first time, a note says what is sent before anything is, and a daily allowance applies, with what is left shown under the strip.
+
 SEARCH CONSOLE HELPERS
 Inside Search Console's performance report, in any of its languages, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
 
@@ -122,7 +128,7 @@ Choose Night, Day or Auto, which follows your system setting. Two matching Chrom
 PRIVACY
 No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
 
-Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us.
+Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address.
 
 GETTING STARTED
 1. Add the extension and pin it to the toolbar.
@@ -244,9 +250,16 @@ and the same path on 29 other Google domains; India's is `www.google.co.in` from
 1.10.2, and 1.11.0 adds twenty: `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`,
 `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`,
 `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`). The paste-ready text,
-1.11.0 (998 of the field's 1,000 characters):
+1.13.0 (952 of the field's 1,000 characters; 1.11.0's said "never the
+search terms", which keyword data's own yes now changes, and "a background
+tab", which 1.12.0's Analyze no longer opens):
 
-> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install like any content script, not a host permission. Chrome names every www.google host as www.google.com, so the install warning is unchanged. The script reads the organic results already on the page and adds a bar under each result and one panel below or above them; it never hides, moves, covers or restyles anything, including ads. With an account connected, and only after the user turns figures on in the extension's settings, it sends the address and site of each result shown (up to 10 at a time, never the search terms) to seobandwagon.com, which answers with each result's link, traffic and domain-age figures and the user's own on-page checklist score. Otherwise it sends nothing. It never fetches Google pages: a result Google hides behind a redirect is sent by its site alone. Analyze checks a clicked result in a background tab in the user's browser.
+> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install like any content script, not a host permission; the install warning is unchanged. The script reads the results already on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves, covers or restyles anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50), on a click unless set otherwise. seobandwagon.com answers with link, traffic, domain-age and keyword figures and the user's own checklist score and rank history. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page from the user's browser without cookies.
+
+1.13.0 adds two files to the same content-script entry
+(`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`) and no match,
+host or permission: `getPermissionWarningsByManifest` gives the same warnings
+before and after (measured; see `CHROMEWEBSTORE.md` Version History).
 
 Measured before the domains were added
 (`chrome.management.getPermissionWarningsByManifest`, Chrome for Testing 156,
@@ -302,10 +315,24 @@ extension this way.
 
 ## 4. Single-purpose statement
 
-**1.11.0, to save with submission B** (992 of 1,000 characters): the
-Google results sentence names the figures; to stay within the limit, "its Neon
-Night or Neon Day theme" became "its Neon themes" and "spreadsheet or JSON files"
-"files".
+**1.13.0, to save with the combined submission** (998 of 1,000
+characters). Checked against 1.13.0's keyword data: the volumes, difficulty,
+cost per click, competition and trend of the query and of the related
+searches and questions on the same results page are the on-page SEO of that
+page, and "Add to my keywords" saves a chosen keyword to the user's own
+account as the analyses are saved, so the purpose does not widen; the
+Google results sentence names the keyword data and the account sentence the
+chosen keywords. To stay within the limit, "so the user can see what the page
+gets right and what it is missing" became "to show what the page gets right
+and what it misses", "the user's" became "their" three times and "Its
+findings" "Findings".
+
+SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, to show what the page gets right and what it misses. In one click it scores the page and lists what it found in the title and description, headings, links, images, structured data, canonical and hreflang tags, indexability and redirects, and compares the raw HTML with the rendered page. On Google results pages it numbers each result, shows its link, traffic and domain-age figures and the query's keyword data, and analyzes any of them in one click. With an account connected, it saves those analyses and chosen keywords to the user's own SEO Bandwagon account, checks the user's local business citations against their business record, and lists their link-building prospects and placements. On its new tab page, shown with its Neon themes or when chosen in settings, it summarizes the user's recent analyses, the first issue found and the rank changes of their tracked keywords. Findings export as files the user saves.
+
+**1.11.0's text** (992 of 1,000 characters; never saved: the combined
+submission saves 1.13.0's above instead). The Google results sentence named
+the figures; "its Neon Night or Neon Day theme" became "its Neon themes" and
+"spreadsheet or JSON files" "files".
 
 SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, so the user can see what the page gets right and what it is missing. In one click it scores the page and lists what it found in the title and description, headings, links, images, structured data, canonical and hreflang tags, indexability and redirects, and compares the raw HTML with the rendered page. On Google results pages it numbers each result, shows its link, traffic and domain-age figures, and analyzes any of them in one click. With an account connected, it saves those analyses to the user's own SEO Bandwagon account, checks the user's local business citations against the user's own business record, and lists the user's link-building prospects and placements. On its new tab page, shown with its Neon themes or when chosen in settings, it summarizes the user's recent analyses, the first issue found and the rank changes of the user's own tracked keywords. Its findings export as files the user saves.
 
@@ -361,7 +388,15 @@ with the reasoning behind each:
   a page the user chose to analyze. (Until 1.10.2 the results overlay also
   sent the bare domain names of the results shown on a Google results page;
   1.10.2 sent nothing; 1.11.0's result addresses are links on a page, so
-  they are answered under Website content below, not here.)
+  they are answered under Website content below, not here.) From 1.13.0,
+  after the user says yes to keyword data, also the query of a Google search
+  the user makes (the words in that results page's address) and that
+  Google's country and language, to look up its keyword figures; and a query
+  the user adds to their rank tracker. Chrome's list has no search-terms
+  category (Firefox's has, `searchTerms`, which the consent module maps it
+  to), so the query is declared here, as the visited results page's own
+  data, and its related searches and questions under Website content: more
+  than one box rather than none. Both boxes were already ticked.
 - **User activity — No.**
 - **Website content — Yes.** Extracted metadata of the pages a user chooses
   to analyze (title, meta tags, headings, links, images, structured-data type
@@ -379,7 +414,14 @@ with the reasoning behind each:
   user pins to compare with the results and of the pages an AI Overview
   cites; the words the user accepts say so (their version 2 asks again
   anyone who accepted 1.11.0's). Analyze's page fetches go to the result's
-  own site, never to us.
+  own site, never to us. From 1.13.0, after the user says yes to keyword
+  data (its own disclosure on the results page, or its card in the
+  extension's settings), the related searches and People also ask questions
+  shown on a Google results page, with its query, up to 50 at a time, for
+  their keyword figures: on the user's click, or with each results page if
+  the user chooses that. Never a result's address with them.
+  seobandwagon.com looks the figures up with DataForSEO; what it keeps, and
+  for how long, is the website's privacy policy (`/privacy`).
 
 Proof screenshots are saved to the user's own device as a download (JPEG for
 a full page from 1.7.8, PNG for the visible area); the extension never uploads
@@ -388,8 +430,9 @@ in the extension's own IndexedDB for that tab, and removed when the tab
 closes or the browser restarts.
 
 A user with the data-collection setting off sends no analyses; the result
-addresses go only with the figures accepted, a separate switch. A signed-out
-user (no API key configured) sends nothing at all.
+addresses go only with the figures accepted, a separate switch; the query and
+its related searches and questions only with keyword data's own yes, a third.
+A signed-out user (no API key configured) sends nothing at all.
 
 **Certifications** — This data is not sold to third parties. It is not used
 for purposes unrelated to the extension's stated SEO-analysis and
@@ -405,7 +448,17 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.12.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.13.0 (release notes, ≤ 10 lines)
+
+```
+- Keyword data on Google: your search's monthly volume, difficulty, CPC,
+  competition and 12-month trend (DataForSEO), on a click or with the page.
+- Every related search and People Also Ask question gets its volume.
+- Add to my keywords: the search, or any related one, into your rank tracker.
+- A tracked search shows your result's position history on its bar.
+```
+
+1.12.0 (the combined submission carries it, and 1.10.3 to 1.11.0, too):
 
 ```
 - Analyze on Google: each result's page checks open right under it, read
@@ -598,6 +651,15 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   "Analyze top 10" in the panel checks every result; the panel's Table lists
   them. Signed out of Google, a result Google hides asks to sign in to Google
   or open it, and nothing is fetched for it.
+- **Keyword data (1.13.0)**: signed out, the strip above the results says
+  "Connect free" and nothing is sent. With a key connected, click "Show
+  keyword data": the strip shows what it would send and asks first ("Yes,
+  send my searches for keyword data"; the same yes is a card under Google
+  results in the extension's settings). After the yes it shows the query's
+  monthly volume, difficulty, CPC, competition and trend, a volume beside
+  each related search and People also ask question, and "Add to my
+  keywords", which needs a rank tracker on the account (with none, it links
+  to making one). "Stop sending my searches" in settings turns it off.
 - An API key (free to create at seobandwagon.com) is only needed for the
-  figures in the overlay and to sync captures/citations/link-building
-  data — every other feature above works fully signed out.
+  figures and keyword data in the overlay and to sync captures/citations/
+  link-building data — every other feature above works fully signed out.

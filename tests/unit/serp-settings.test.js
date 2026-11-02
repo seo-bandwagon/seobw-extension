@@ -55,3 +55,22 @@ describe('saving', () => {
     expect(next.figures).toMatchObject({ pageKeywords: true, pageRank: false, pageReferringDomains: true });
   });
 });
+
+describe('keyword data (1.13.0)', () => {
+  it('is on, and loads on a click by default: each search with new data counts against the allowance', () => {
+    expect(S.defaults()).toMatchObject({ keywordsOn: true, keywordsLoad: 'click' });
+  });
+
+  it('keeps known values and drops the rest', () => {
+    expect(S.normalize({ keywordsOn: false, keywordsLoad: 'auto' })).toMatchObject({ keywordsOn: false, keywordsLoad: 'auto' });
+    expect(S.normalize({ keywordsOn: 'no', keywordsLoad: 'always' })).toMatchObject({ keywordsOn: true, keywordsLoad: 'click' });
+  });
+
+  it('saves a change without touching the figures\' settings', async () => {
+    const data = {};
+    const area = { get: vi.fn(async (k) => ({ [k]: data[k] })), set: vi.fn(async (o) => Object.assign(data, o)) };
+    await S.save({ load: 'click' }, area);
+    const next = await S.save({ keywordsLoad: 'auto' }, area);
+    expect(next).toMatchObject({ load: 'click', keywordsLoad: 'auto', keywordsOn: true });
+  });
+});

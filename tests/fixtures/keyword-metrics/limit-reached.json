@@ -1,0 +1,74 @@
+{
+  "source": "DataForSEO",
+  "market": {
+    "locationCode": 2840,
+    "languageCode": "en"
+  },
+  "results": [
+    {
+      "keyword": "best crm for nonprofits",
+      "volume": 2900,
+      "cpc": 18.42,
+      "competition": "HIGH",
+      "difficulty": 47,
+      "trend": [
+        {
+          "month": "2025-11",
+          "volume": 2400
+        },
+        {
+          "month": "2025-12",
+          "volume": 2465
+        },
+        {
+          "month": "2026-01",
+          "volume": 2531
+        },
+        {
+          "month": "2026-02",
+          "volume": 2596
+        },
+        {
+          "month": "2026-03",
+          "volume": 2662
+        },
+        {
+          "month": "2026-04",
+          "volume": 2727
+        },
+        {
+          "month": "2026-05",
+          "volume": 2793
+        },
+        {
+          "month": "2026-06",
+          "volume": 2858
+        },
+        {
+          "month": "2026-07",
+          "volume": 2924
+        },
+        {
+          "month": "2026-08",
+          "volume": 2989
+        },
+        {
+          "month": "2026-09",
+          "volume": 3055
+        },
+        {
+          "month": "2026-10",
+          "volume": 3120
+        }
+      ]
+    }
+  ],
+  "tracked": null,
+  "plan": "free",
+  "allowance": {
+    "limit": 20,
+    "used": 20,
+    "remaining": 0
+  },
+  "lookups": "limit_reached"
+}

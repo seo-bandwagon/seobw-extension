@@ -20,7 +20,9 @@ for working in the repo.
   saved Google pages in `tests/fixtures`, `account.spec.mjs`, the account
   surfaces in a fresh profile with seobandwagon.com's answers stubbed, and
   `serp-figures.spec.mjs`, the figures under Google results against the
-  saved route answers in `tests/fixtures/serp-metrics`, and
+  saved route answers in `tests/fixtures/serp-metrics`,
+  `serp-keywords.spec.mjs`, keyword data on Google against the saved
+  answers in `tests/fixtures/keyword-metrics`, and
   `serp-analyze.spec.mjs`, Analyze on Google read offscreen from pages on a
   local server (all every PR). No test queries Google.
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only:

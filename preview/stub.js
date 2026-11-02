@@ -678,9 +678,30 @@ function serpFiguresReply(msg) {
   return { state: 'ok', results, plan: 'free', allowance: { limit: 20, used: 3, remaining: 17 }, lookups: 'done', notice: null };
 }
 
+// 1.13.0: the worker's answer to the keyword strip's 'serpKeywords', in the
+// service's shape (made-up figures; tests/fixtures/keyword-metrics has the
+// route's), so serp.html shows the strip with keyword data and the labels.
+function serpKeywordsReply(msg) {
+  const K = globalThis.SBWSerpKeywords;
+  const asked = K.request(msg.query, msg.related, msg.paa);
+  const results = {};
+  asked.keywords.forEach((k, i) => {
+    const volume = i === 0 ? 2900 : Math.max(10, Math.round(2400 / (i + 1)));
+    results[k] = {
+      volume, cpc: i === 0 ? 18.42 : 4.1, competition: i === 0 ? 'HIGH' : 'MEDIUM', difficulty: i === 0 ? 47 : 30,
+      trend: ['2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']
+        .map((month, m) => ({ month, volume: Math.round(volume * (0.8 + m * 0.03)) }))
+    };
+  });
+  const tracked = { keyword: asked.search && asked.search.keyword, trackerId: 'trk_preview', domain: 'example.com', history: [9, 8, 6, 5, 4].map((position, w) => ({ date: `2026-10-${String(5 + 7 * w).padStart(2, '0')}`, position })) };
+  return { state: 'ok', results, tracked: K.trackedOf(tracked), market: { locationCode: 2840, languageCode: 'en' }, plan: 'free', allowance: { limit: 20, used: 4, remaining: 16 }, lookups: 'done', notice: null };
+}
+
 function handleMessage(msg) {
   switch (msg.action) {
     case 'serpFigures': return serpFiguresReply(msg);
+    case 'serpKeywordsReady': return { hasKey: true, accepted: true };
+    case 'serpKeywords': return serpKeywordsReply(msg);
     case 'captureScreenshot': return { ok: true, dataUrl: SHOT };
     // src/content/page-scroller.js, driven by the full-page proof: a
     // 1,800px page in a 1280×720 window → three frames.

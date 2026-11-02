@@ -1,0 +1,16 @@
+{
+  "source": "DataForSEO",
+  "market": {
+    "locationCode": 2840,
+    "languageCode": "en"
+  },
+  "results": [],
+  "tracked": null,
+  "plan": "free",
+  "allowance": {
+    "limit": 20,
+    "used": 7,
+    "remaining": 13
+  },
+  "lookups": "paused"
+}

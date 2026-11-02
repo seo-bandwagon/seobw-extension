@@ -394,22 +394,38 @@
   // refinements — "Next" was being exported as a related search.
   const PAGINATION_LABEL = /^(next|previous|prev|more results|page \d+|\d+)$/i;
 
-  function parseRelatedSearches(root) {
+  // 1.13.0: with the element each was read from, where the keyword strip
+  // puts its volume (src/overlay/serp-keywords.js). Our own badges inside
+  // are left out of the text.
+  function parseRelatedSearchElements(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return [];
     const out = [];
     const seen = new Set();
     root.querySelectorAll('.b2Rnsc, [data-abe] a, #botstuff a').forEach((el) => {
       if (isAd(el)) return;
       if (el.closest && el.closest('#pnnext, #pnprev, [role="navigation"], table#nav')) return;
-      const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      const t = ownText(el);
       // A refinement is a short phrase, not a sentence or a chrome label.
       if (!t || t.length < 3 || t.length > 90) return;
       if (PAGINATION_LABEL.test(t)) return;
       if (seen.has(t.toLowerCase())) return;
       seen.add(t.toLowerCase());
-      out.push(t);
+      out.push({ text: t, el });
     });
     return out;
+  }
+
+  function parseRelatedSearches(root) {
+    return parseRelatedSearchElements(root).map((r) => r.text);
+  }
+
+  // An element's text without the extension's own nodes in it.
+  function ownText(el) {
+    let text = el.textContent || '';
+    if (el.querySelectorAll) {
+      el.querySelectorAll('[class^="sbw-"], [class*=" sbw-"]').forEach((n) => { text = text.replace(n.textContent || '', ''); });
+    }
+    return text.replace(/\s+/g, ' ').trim();
   }
 
   // Fix round 1, item 1: require the accepted block to actually look like a
@@ -749,15 +765,17 @@
   // fix round 1, item 7 requires its visible text to actually look like a
   // question: at least 12 chars AND ending in "?". Dedupes by question text
   // and skips anything inside an ad container.
-  function parsePaa(root) {
+  // 1.13.0: with the element each question was read from (`[data-q]` or
+  // its button), where the keyword strip puts its volume.
+  function parsePaaElements(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return [];
     const out = [];
     const seen = new Set();
 
-    function add(q) {
+    function add(q, el, kind) {
       if (q && !seen.has(q)) {
         seen.add(q);
-        out.push(q);
+        out.push({ text: q, el, kind });
       }
     }
 
@@ -767,18 +785,22 @@
     // broader selector below.
     root.querySelectorAll('[data-q]').forEach((el) => {
       if (isAd(el)) return;
-      const q = (el.getAttribute('data-q') || el.textContent || '').replace(/\s+/g, ' ').trim();
+      const q = (el.getAttribute('data-q') || ownText(el)).replace(/\s+/g, ' ').trim();
       if (!q.endsWith('?')) return;
-      add(q);
+      add(q, el, 'data-q');
     });
 
     root.querySelectorAll('[jsname][role="button"]').forEach((el) => {
       if (isAd(el)) return;
-      const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-      if (text.length >= 12 && text.endsWith('?')) add(text);
+      const text = ownText(el);
+      if (text.length >= 12 && text.endsWith('?')) add(text, el, 'button');
     });
 
     return out;
+  }
+
+  function parsePaa(root) {
+    return parsePaaElements(root).map((q) => q.text);
   }
 
   // ============================================
@@ -1044,7 +1066,20 @@
     ['Registrar (RDAP)', figure('whois', 'registrar')],
     ['Expires (RDAP)', figure('whois', 'expiresDate')],
     ['Your on-page checklist', figure('checklist', 'score')],
-    ['Checklist captured', figure('checklist', 'capturedAt')]
+    ['Checklist captured', figure('checklist', 'capturedAt')],
+    // 1.13.0, appended for the same reason: the search's keyword data
+    // (page-level, on every row; src/lib/serp-keywords.js exportContext),
+    // the related searches and People also ask questions with their monthly
+    // searches, and where the person's rank tracker last saw this result's
+    // site for the search. Blank where not loaded.
+    ['Search volume a month (DataForSEO)', 'keywordVolume'],
+    ['CPC USD (DataForSEO)', 'keywordCpc'],
+    ['Competition (DataForSEO)', 'keywordCompetition'],
+    ['Keyword difficulty 0-100 (DataForSEO)', 'keywordDifficulty'],
+    ['Search trend 12 months (DataForSEO)', 'keywordTrend'],
+    ['Related searches with volume (DataForSEO)', 'relatedVolumes'],
+    ['People also ask with volume (DataForSEO)', 'paaVolumes'],
+    ['Your rank tracker position', (row) => (row && row.trackedPosition !== undefined && row.trackedPosition !== null ? row.trackedPosition : '')]
   ];
 
   // A cell from the figures a row was given (row.figures: the route's answer
@@ -1318,6 +1353,8 @@
     resultsToTsv,
     searchContext,
     parseRelatedSearches,
+    parseRelatedSearchElements,
+    parsePaaElements,
     splitDatePrefix,
     paaToText,
     uule,

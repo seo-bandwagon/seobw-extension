@@ -12,13 +12,18 @@
 //   - Chrome and Edge have no such prompt, so a category reads the switch
 //     people already have for that flow: "Send analyses to SEO Bandwagon"
 //     (`dataCollection`, on unless turned off) for saved analyses, and the
-//     figures setting on the Google results page for figures.
+//     figures setting on the Google results page for figures, and (1.13.0)
+//     its keyword data setting for keyword data.
 //
 // A flow is accepted either by the step that always started it (saved
 // analyses go only with a key the person connected) or by a specific action:
-// the figures' "Send result addresses" button in Options (stored here with
-// the version of the words accepted). Accept buttons live in Options, since
-// Firefox's permission prompt closes the popup.
+// the figures' "Send result addresses" button in Options, or keyword data's
+// yes (stored here with the version of the words accepted). Accept buttons
+// live in Options, since Firefox's permission prompt closes the popup.
+// 1.13.0: keyword data's first-use disclosure on Google takes its yes there
+// too, through the worker; where the browser must ask itself (Firefox's
+// prompt needs the click of an extension page), that yes is refused and the
+// disclosure sends the person to Options.
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWConsent` when loaded as a classic <script> or via
@@ -60,6 +65,18 @@
       // Raise this when the words in `sends` change what is sent: everyone is
       // asked again. 2 (1.12.0): a pinned page and the AI Overview's sources.
       version: 2
+    },
+    // Keyword data on Google (1.13.0): the search itself, which nothing sent
+    // before. Accepted with the yes of its first-use disclosure on Google or
+    // the button in Options.
+    keywordData: {
+      title: 'Keyword data for your searches',
+      sends: 'The words of a Google search you open, with its related searches and People also ask questions, up to 50 at a time, and that Google’s country and language, when you ask for keyword data or, if you choose it in settings, with each search; and a search you add to your rank tracker. Never a result’s address with them, and never a request to Google.',
+      why: 'So SEO Bandwagon can answer with each one’s monthly searches, difficulty, cost per click, competition and 12-month trend from DataForSEO, and your own rank tracker’s history for the search.',
+      firefox: ['searchTerms'],
+      chromeSwitch: { area: 'local', key: 'serpSettings', on: (v) => !(v && (v.overlay === false || v.keywordsOn === false)) },
+      acceptedBy: 'action',
+      version: 1
     }
   };
 

@@ -27,8 +27,11 @@
 //     page), Night or Day. Its tokens live on our own elements only
 //     (serp-overlay.css), so nothing leaks into Google's cascade.
 //   - Your own sites (a list in Options) are marked on their bars.
-// The search itself is never sent: the location simulator reads `q` only to
-// build its own Google URL.
+// The search itself is never sent from here: the location simulator reads
+// `q` only to build its own Google URL. 1.13.0's keyword data, which does
+// send it, is serp-keywords.js, with its own consent; this script draws its
+// rank history on the tracked site's bar and puts its figures in the exports
+// (globalThis.SBWSerpKeywordsView).
 //
 // Analyze (1.10.2, owner 2026-11-01: "Stay on Google") hands the result to
 // the worker, which opens it in a background tab, analyzes that tab and
@@ -144,9 +147,16 @@
 
   function applyLook() {
     const look = lookName();
-    document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools').forEach((el) => {
+    document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools, .sbw-serp-keywords, .sbw-kw-badge').forEach((el) => {
       el.setAttribute('data-sbw-look', look);
     });
+  }
+
+  // 1.13.0: the keyword strip (serp-keywords.js) takes the same look.
+  globalThis.SBWSerpOverlay = { lookName };
+
+  function keywordsView() {
+    return globalThis.SBWSerpKeywordsView || null;
   }
 
   // ---------- bars ----------
@@ -169,6 +179,7 @@
   function makeBar(row) {
     const bar = el('div', 'sbw-serp-bar');
     bar.setAttribute('data-sbw-look', lookName());
+    if (!row.siteUnknown && row.domain) bar.setAttribute('data-domain', row.domain);
     const own = !row.siteUnknown && Settings.isOwnSite(row.domain, settings.ownSites);
     if (own) bar.setAttribute('data-own', 'true');
 
@@ -225,6 +236,9 @@
     });
     bar.appendChild(analyzeLink);
 
+    // 1.13.0: the tracked site's rank history for this search.
+    const kv = keywordsView();
+    if (kv) kv.decorateBar(bar, row);
     return bar;
   }
 
@@ -621,9 +635,12 @@
   // The rows as exported: each with the figures it was given and whether
   // it is one of the person's sites (Options).
   function exportRows(rows) {
+    const kv = keywordsView();
     return rows.map((r) => Object.assign({}, r, {
       figures: figuresByKey.get(r._key) || undefined,
-      ownSite: !r.siteUnknown && Settings.isOwnSite(r.domain, settings.ownSites)
+      ownSite: !r.siteUnknown && Settings.isOwnSite(r.domain, settings.ownSites),
+      // 1.13.0: where the person's rank tracker last saw this site.
+      trackedPosition: kv && !r.siteUnknown ? kv.trackedPositionFor(r.domain) : null
     }));
   }
 
@@ -1027,6 +1044,9 @@
   function pageContext() {
     const ctx = S.searchContext(window.location, document);
     if (typeof collected.earlierOrganic === 'number') ctx.earlierOrganic = collected.earlierOrganic;
+    // 1.13.0: the search's keyword data, where loaded (blank where not).
+    const kv = keywordsView();
+    if (kv) Object.assign(ctx, kv.exportContext());
     return ctx;
   }
 
@@ -1672,6 +1692,7 @@
         else if (msg.kind === 'tsv') sendResponse({ text: resultsTsv() });
         else if (msg.kind === 'paa') sendResponse({ text: S.paaToText(S.parsePaa(document)) || null });
         else if (msg.kind === 'ai') sendResponse({ text: S.aiOverviewCitations(document).map((c) => c.url).join('\n') || null });
+        else if (msg.kind === 'keywords') sendResponse(keywordsView() ? keywordsView().keywordsCsv() : null);
         else sendResponse(null);
         return;
       }
@@ -1699,7 +1720,9 @@
           allowance: figState.allowance || null,
           lookups: figState.lookups || null,
           notice: figState.notice || null
-        }
+        },
+        // 1.13.0: keyword data's state, for the popup.
+        keywords: keywordsView() ? keywordsView().status() : null
       });
     });
   }

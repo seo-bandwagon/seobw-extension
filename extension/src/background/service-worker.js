@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
 
 // 1.12.0: Firefox's background page has a DOM parser and reads Analyze's
 // pages itself; Chrome's worker hands them to the offscreen document, which
@@ -545,6 +545,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // 1.13.0: keyword data for the search. The strip sends the search, its
+  // related searches and People also ask questions as shown, and the
+  // market; the service sends nothing without a key and the person's yes to
+  // keyword data (src/lib/serp-keywords-service.js). Only from a Google
+  // results page the overlay runs on.
+  if (request.action === 'serpKeywords' && sender.tab && isOverlaySearchUrl(sender.url || sender.tab.url)) {
+    serpKeywords.lookup({
+      query: request.query,
+      related: Array.isArray(request.related) ? request.related.slice(0, 100) : [],
+      paa: Array.isArray(request.paa) ? request.paa.slice(0, 100) : [],
+      gl: request.gl,
+      hl: request.hl
+    }, { fresh: request.fresh === true }).then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
+    return true;
+  }
+
+  // Whether keyword data could be asked for (a key, and the yes): read here,
+  // nothing sent, so a signed-out strip says "Connect free" up front.
+  if (request.action === 'serpKeywordsReady' && sender.tab) {
+    serpKeywords.ready().then(sendResponse, () => sendResponse({ hasKey: false, accepted: false }));
+    return true;
+  }
+
+  if (request.action === 'serpKeywordAdd' && sender.tab && isOverlaySearchUrl(sender.url || sender.tab.url)) {
+    serpKeywords.add({ keyword: request.keyword, gl: request.gl, hl: request.hl, trackerId: request.trackerId })
+      .then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
+    return true;
+  }
+
+  // The yes of keyword data's first-use disclosure on a results page (a
+  // trusted click there; the strip checks `isTrusted`). On Firefox the
+  // browser's own prompt can't open from here, so it answers false and the
+  // strip sends the person to Options' button.
+  if (request.action === 'serpKeywordsAccept' && sender.tab && isOverlaySearchUrl(sender.url || sender.tab.url)) {
+    SBWConsent.accept('keywordData').then((ok) => sendResponse({ ok }), () => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (request.action === 'serpKeywordsStatus') {
+    serpKeywords.status().then(sendResponse, () => sendResponse(null));
+    return true;
+  }
+
   // A bar's or the panel's link to one of our pages. A page on google.com
   // can't link to the extension's own pages (nothing is web-accessible), so
   // the worker opens them, and seobandwagon.com's, beside the results.
@@ -555,15 +598,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // The pages a results-page link opens: Connect (a key, or one with the
-// `serp` scope), upgrading, and the Google results section of Options.
+// `serp` or `keywords` scope), upgrading, the Google results section of
+// Options (1.13.0: or its keyword data card), and the rank tracker.
+const SERP_SITE_PAGES = { connect: '/dashboard/api-keys', upgrade: '/pricing', 'rank-tracker': '/dashboard/rank-tracker' };
+
 async function openSerpPage(page, tab) {
   let url;
   if (page === 'settings') {
     url = chrome.runtime.getURL('src/options/options.html#google-results');
-  } else if (page === 'connect' || page === 'upgrade') {
+  } else if (page === 'keyword-settings') {
+    url = chrome.runtime.getURL('src/options/options.html#keyword-data');
+  } else if (Object.prototype.hasOwnProperty.call(SERP_SITE_PAGES, page)) {
     const settings = await SBW.getApiSettings();
     const origin = new URL(settings.apiUrl).origin;
-    url = SBWSiteLinks.siteUrl(origin, page === 'connect' ? '/dashboard/api-keys' : '/pricing', 'serp_overlay');
+    url = SBWSiteLinks.siteUrl(origin, SERP_SITE_PAGES[page], 'serp_overlay');
   } else {
     return { ok: false };
   }
@@ -576,6 +624,16 @@ const serpFigures = SBWSerpFiguresService.createSerpFiguresService({
   hasKey: () => SBW.hasApiKey(),
   consent: (flow, opts) => SBWConsent.check(flow, opts),
   post: (results) => SBW.serpMetrics(results),
+  storage: chrome.storage.session
+});
+
+const serpKeywords = SBWSerpKeywordsService.createSerpKeywordsService({
+  keywords: SBWSerpKeywords,
+  figures: SBWSerpFigures,
+  hasKey: () => SBW.hasApiKey(),
+  consent: (flow, opts) => SBWConsent.check(flow, opts),
+  post: (body) => SBW.keywordMetrics(body),
+  add: (body) => SBW.addKeyword(body),
   storage: chrome.storage.session
 });
 

@@ -22,6 +22,11 @@
 //               unless set false (src/lib/serp-table.js COLUMNS)
 //   compareTo   (1.12.0) the table marks each cell against the search's
 //               'median', or against the person's 'pinned' page
+//   keywordsOn  (1.13.0) keyword data under the search box (needs its own
+//               yes: it sends the search)
+//   keywordsLoad (1.13.0) 'click': only after "Show keyword data" (the
+//               default: each search with new data counts against the day's
+//               allowance); 'auto': with the page
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWSerpSettings` when loaded as a classic <script>, content
@@ -76,7 +81,9 @@
       figures,
       ownSites: [],
       tableColumns: {},
-      compareTo: 'median'
+      compareTo: 'median',
+      keywordsOn: true,
+      keywordsLoad: 'click'
     };
   }
 
@@ -102,7 +109,9 @@
       figures,
       ownSites: Array.isArray(r.ownSites) ? normalizeSites(r.ownSites) : [],
       tableColumns: columnChoice(r.tableColumns),
-      compareTo: pick(r.compareTo, COMPARES, d.compareTo)
+      compareTo: pick(r.compareTo, COMPARES, d.compareTo),
+      keywordsOn: typeof r.keywordsOn === 'boolean' ? r.keywordsOn : d.keywordsOn,
+      keywordsLoad: pick(r.keywordsLoad, LOADS, d.keywordsLoad)
     };
   }
 
