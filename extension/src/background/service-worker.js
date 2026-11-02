@@ -836,6 +836,8 @@ function closeOffscreenLater() {
 }
 
 async function pageRowFromHtml(html, fetchInfo, site) {
+  // A read starting keeps the document: the close timer waits for the last.
+  if (offscreenTimer) { clearTimeout(offscreenTimer); offscreenTimer = null; }
   if (typeof DOMParser === 'function') {
     return SBWPageRow.fromDocument(SBWPageRow.parse(html, fetchInfo.finalUrl), fetchInfo, site);
   }
@@ -846,6 +848,9 @@ async function pageRowFromHtml(html, fetchInfo, site) {
   return reply.row;
 }
 
+// While pages are read, `guard` keeps a session rule in place that stops
+// the extension's own requests to a local or private address, redirect hops
+// included (SBWSerpPageCheck.localBlockRules).
 const pageCheck = SBWSerpPageCheck.createSerpPageCheck({
   fetchText: SBWSerpPageCheck.fetchText,
   analyze: pageRowFromHtml,
@@ -853,6 +858,10 @@ const pageCheck = SBWSerpPageCheck.createSerpPageCheck({
   hasAccess: () => SBWPerms.hasAllUrls().catch(() => false),
   openAccessPage: openSerpAccessPage,
   storage: chrome.storage.session,
+  guard: (on) => chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: SBWSerpPageCheck.localBlockRules().map((r) => r.id),
+    addRules: on ? SBWSerpPageCheck.localBlockRules() : []
+  }),
   notify: (req, msg) => {
     chrome.tabs.sendMessage(req.serpTabId, Object.assign({ action: 'serpPageChecked', key: req.key }, msg), { frameId: req.frameId })
       .catch(() => {}); // the results page was closed or left

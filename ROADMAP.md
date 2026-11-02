@@ -272,6 +272,22 @@ table asked for on 2026-10-17 and 2026-10-23. Store submission C, with
   are matched by a linear wildcard matcher (rules cut at 2 KB, paths at
   4 KB), never compiled into a regular expression a hostile file could make
   backtrack.
+- **Found in review before release, and fixed:** a redirect is followed
+  by the browser before the extension can see where it goes, so while
+  Analyze reads pages, `declarativeNetRequest` session rules (seven small
+  ones: Chrome refused a single pattern past its 2 KB compiled limit)
+  block the extension's own requests to local and private addresses on
+  every hop, and are removed after; if Chrome won't take them, nothing is
+  read. Two tabs analyzing one page each hear back. A pinned page's and an
+  AI Overview source's address goes without any part of the search, like a
+  result's. Google's home, Maps, Books and Scholar searches are never
+  fetched. A page's own relative `<base href="/">` and a Google link's
+  `srsltid=` no longer read as "canonical points elsewhere".
+  `X-Robots-Tag: max-image-preview:large, noindex` is a noindex. An age
+  under a year ("11m") is read, sorting is the same whatever the order, the
+  CSV writes "2 of 3" (never a date), the pinned row's description is its
+  own, robots.txt is kept to 128 KB and 100 sites a session, and a page is
+  read in its own character set.
 - **Analyze top 10** in the panel; its line counts what is checked, waiting
   or hidden.
 - **The results table** (`src/lib/serp-table.js`) in the panel, at the top

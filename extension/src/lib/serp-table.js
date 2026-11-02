@@ -37,16 +37,18 @@
 
   /** How many of `terms` `text` holds, as words or inside an address. */
   function termsIn(text, terms, loose) {
-    if (!terms.length) return null;
+    if (!terms.length || !text) return null;
     const t = String(text || '').toLowerCase();
     const words = new Set(t.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
     const hit = terms.filter((term) => (loose ? t.includes(term) : words.has(term))).length;
     return { hit, total: terms.length };
   }
 
+  // RDAP's ages: "28y 1m", "5y", and under a year "11m".
   function ageYears(age) {
-    const m = /^(\d+)y(?:\s+(\d+)m)?/.exec(String(age || ''));
-    return m ? Number(m[1]) + (m[2] ? Number(m[2]) / 12 : 0) : null;
+    const m = /^\s*(?:(\d+)y)?\s*(?:(\d+)m)?\s*$/.exec(String(age || ''));
+    if (!m || (m[1] === undefined && m[2] === undefined)) return null;
+    return Number(m[1] || 0) + Number(m[2] || 0) / 12;
   }
 
   function fig(block, field) {
@@ -65,13 +67,13 @@
   const COLUMNS = [
     { key: 'pos', label: '#', title: 'Organic position on this page', value: (r) => r.row.position, better: null },
     { key: 'overall', label: 'On page', title: 'Position counting everything on the page (ads, AI Overview, People also ask, maps…)', value: (r) => r.row.pagePosition || null, better: null },
-    { key: 'result', label: 'Result', title: 'Title and address', value: () => null, text: (r) => r.row.title || r.row.domain || 'unknown site', better: null, wide: true },
-    { key: 'type', label: 'Type', title: 'Web, video, forum, social or PDF', value: () => null, text: (r) => r.row.type || '', better: null },
+    { key: 'result', label: 'Result', title: 'Title and address', value: () => null, text: (r) => r.row.title || r.row.domain || 'unknown site', better: null, wide: true, byText: true },
+    { key: 'type', label: 'Type', title: 'Web, video, forum, social or PDF', value: () => null, text: (r) => r.row.type || '', better: null, byText: true },
     { key: 'inTitle', label: 'In title', title: "The search's words in the result's title", value: (r) => ratio(r.words.title), text: (r) => frac(r.words.title), better: 'high' },
     { key: 'inUrl', label: 'In URL', title: "The search's words in the result's address", value: (r) => ratio(r.words.url), text: (r) => frac(r.words.url), better: 'high' },
     { key: 'inDesc', label: 'In description', title: "The search's words in the description Google shows", value: (r) => ratio(r.words.desc), text: (r) => frac(r.words.desc), better: 'high' },
     { key: 'titleLen', label: 'Title', title: "The page's title in characters, and its width in Google's 600 px when analyzed", value: (r) => (r.check && r.check.title ? r.check.title.chars : Array.from(r.row.title || '').length || null), text: (r) => titleText(r), better: null },
-    { key: 'date', label: 'Date', title: 'The date Google shows', value: () => null, text: (r) => r.row.date || '', better: null },
+    { key: 'date', label: 'Date', title: 'The date Google shows', value: () => null, text: (r) => r.row.date || '', better: null, byText: true },
     { key: 'pageRD', label: 'Page ref. domains', source: 'DataForSEO', value: fig('page', 'referringDomains'), better: 'high' },
     { key: 'pageBL', label: 'Page backlinks', source: 'DataForSEO', value: fig('page', 'backlinks'), better: 'high' },
     { key: 'pageRank', label: 'Page rank', source: 'DataForSEO', title: 'Page rank, on DataForSEO’s 0 to 100 scale', value: fig('page', 'rank'), better: 'high' },
@@ -161,22 +163,27 @@
     return compact(v);
   }
 
-  /** Sorted copy; unknown values last whichever way. */
+  /**
+   * Sorted copy; unknown values last whichever way. A text column (result,
+   * type, date) sorts by its text, every other by its number only, so the
+   * same records sort the same way whatever order they came in.
+   */
   function sortRecords(recs, key, dir) {
     const col = COLUMNS.find((c) => c.key === key);
     if (!col) return recs.slice();
     const sign = dir === 'desc' ? -1 : 1;
-    const textOf = (r) => String(col.text ? col.text(r) : '').toLowerCase();
-    return recs.slice().sort((a, b) => {
-      let va = col.value(a);
-      let vb = col.value(b);
-      if (va === null && col.text) { va = textOf(a) || null; vb = textOf(b) || null; }
-      if (va === null && vb === null) return 0;
+    const keyOf = col.byText
+      ? (r) => String(col.text(r) || '').toLowerCase() || null
+      : (r) => col.value(r);
+    return recs.map((r, i) => ({ r, i })).sort((a, b) => {
+      const va = keyOf(a.r);
+      const vb = keyOf(b.r);
+      if (va === null && vb === null) return a.i - b.i;
       if (va === null) return 1;
       if (vb === null) return -1;
-      if (typeof va === 'string' || typeof vb === 'string') return sign * String(va).localeCompare(String(vb));
-      return sign * (va - vb);
-    });
+      const d = col.byText ? String(va).localeCompare(String(vb)) : va - vb;
+      return d ? sign * d : a.i - b.i;
+    }).map((x) => x.r);
   }
 
   const FORMULA_RE = /^[=+\-@\t\r]/;
@@ -203,6 +210,8 @@
       const cells = [ctx && ctx.query];
       cols.forEach((c) => {
         if (c.key === 'result') { cells.push(r.row.title || '', r.row.url || ''); return; }
+        // "2 of 3", never "2/3", which a spreadsheet opens as a date.
+        if (/^in[A-Z]/.test(c.key)) { const w = r.words[{ inTitle: 'title', inUrl: 'url', inDesc: 'desc' }[c.key]]; cells.push(w ? `${w.hit} of ${w.total}` : ''); return; }
         const v = c.value(r);
         cells.push(c.text ? c.text(r) : (v === null ? '' : (Number.isInteger(v) ? v : Math.round(v * 100) / 100)));
       });

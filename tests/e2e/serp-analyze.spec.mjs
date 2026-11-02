@@ -39,13 +39,19 @@ function resultsPage(base) {
       <div class="g"><div><a href="/goto?url=CAEShidden"><h3>A hidden result</h3></a><cite>https://hidden.example › page</cite>
         <div data-sncf="1">A description long enough for the parser, with more than forty characters in it.</div></div></div>
       ${result('/pages/microdata.html', 'Recipes with Microdata', base + ' › recipes')}
+      ${result('/to-local', 'A page that redirects to a local address', base + ' › moved')}
     </div></div></body></html>`;
 }
 
 function serve(seen) {
   const server = createServer((req, res) => {
     const path = new URL(req.url, 'http://x').pathname;
-    seen.push({ path, cookie: req.headers.cookie || null });
+    seen.push({ path, host: req.headers.host, cookie: req.headers.cookie || null });
+    if (path === '/to-local') {
+      res.writeHead(302, { location: `http://127.0.0.1:${server.address().port}/pages/good-en.html?reached=local` });
+      res.end();
+      return;
+    }
     if (path === '/robots.txt') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n'); return; }
     if (path === '/llms.txt') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('# Garden guides\n'); return; }
     if (path.startsWith('/pages/')) {
@@ -79,7 +85,9 @@ test('Analyze on Google: checks from the HTML, offscreen, no tab, no cookies; An
       `--disable-extensions-except=${copy}`,
       `--load-extension=${copy}`,
       '--no-sandbox',
-      '--host-resolver-rules=MAP garden.example 127.0.0.1, MAP * ~NOTFOUND'
+      // 127.0.0.1 itself stays reachable, so the redirect test below would
+      // see a request there if the extension made one.
+      '--host-resolver-rules=MAP garden.example 127.0.0.1, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'
     ]
   });
   // A cookie the page fetch must not carry.
@@ -101,7 +109,7 @@ test('Analyze on Google: checks from the HTML, offscreen, no tab, no cookies; An
     const page = await context.newPage();
     await page.goto('https://www.google.com/search?q=start+a+garden', { waitUntil: 'load' });
     const bars = page.locator('.sbw-serp-bar');
-    await expect(bars).toHaveCount(4);
+    await expect(bars).toHaveCount(5);
     // Every tab created from here on, but the welcome tab a first install
     // opens, which can come late.
     await worker.evaluate(() => {
@@ -146,8 +154,9 @@ test('Analyze on Google: checks from the HTML, offscreen, no tab, no cookies; An
     await test.step('Analyze top 10 checks the rest, and the table gets their words, schema and checklist', async () => {
       await page.locator('.sbw-serp-tools button', { hasText: 'Analyze top 10' }).click();
       await expect(page.locator('.sbw-serp-check[data-state="done"]')).toHaveCount(3, { timeout: 30_000 });
+      await expect(page.locator('.sbw-serp-check[data-state="error"]')).toHaveCount(1, { timeout: 30_000 });
       await expect(page.locator('.sbw-serp-check', { hasText: 'Indexableno: noindex' })).toHaveCount(1);
-      await expect(page.locator('[data-role="analyze-line"]')).toContainText('3 of 4 checked from their HTML; 1 hidden by Google');
+      await expect(page.locator('[data-role="analyze-line"]')).toContainText('3 of 5 checked from their HTML; 1 hidden by Google');
       const table = page.locator('[data-role="table"] table');
       const headers = await table.locator('thead th').allTextContents();
       const words = headers.indexOf('Words');
@@ -155,6 +164,14 @@ test('Analyze on Google: checks from the HTML, offscreen, no tab, no cookies; An
       expect(Number(firstWords.replace(/[^\d.]/g, ''))).toBeGreaterThan(0);
       expect(seen.filter((s) => s.path === '/robots.txt')).toHaveLength(1);
       expect(await tabsOpened()).toBe(0);
+    });
+
+    await test.step('a result that redirects to a local address is never requested there, and the rule goes after', async () => {
+      expect(seen.some((s) => s.path === '/to-local')).toBe(true);
+      expect(seen.filter((s) => /^127\.0\.0\.1/.test(s.host || ''))).toEqual([]);
+      await page.waitForTimeout(2500);
+      const rules = await worker.evaluate(() => chrome.declarativeNetRequest.getSessionRules());
+      expect(rules.filter((r) => r.id === 4801)).toEqual([]);
     });
 
     if (process.env.SBW_SCREENSHOTS) {

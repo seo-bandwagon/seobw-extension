@@ -153,7 +153,7 @@ per-permission fields.
 | `alarms` | permissions | 15-minute retry of captures that failed to sync. Idle with no account connected. |
 | `webRequest` | permissions | Observe-only main-frame status/redirect/header buffer per tab for the Indexability panel; never blocks or modifies. Fires only once optional `<all_urls>` is granted. |
 | `webNavigation` | permissions | Detects client-side redirects and page reloads for Indexability. Observe-only. |
-| `declarativeNetRequestWithHostAccess` | permissions | Rendering "View as": one session rule rewriting User-Agent for the current tab only, removed on Default or tab close. No static rulesets. |
+| `declarativeNetRequestWithHostAccess` | permissions | Rendering "View as": one session rule rewriting User-Agent for the current tab only, removed on Default or tab close. From 1.12.0 also, while Analyze reads result pages, session rules that block the extension's own requests to local and private addresses (redirect hops included), removed after. No static rulesets. |
 | `https://seobandwagon.com/*` | host_permissions | The only host the extension talks to: the user's own analyses, citations and link-building data. |
 | `http://localhost/*`, `http://127.0.0.1/*` | optional_host_permissions | Requested only if the Advanced API URL points at a local dev server. |
 | `<all_urls>` | optional_host_permissions | Requested on first use of Link Check, Indexability, Hreflang or Rendering, with the consent text in `extension/src/lib/perms.js`; from 1.10.2 also on the first Analyze click on a Google results page, from the extension's own small window with the same text. From 1.12.0 Analyze fetches the result's page (and its site's robots.txt and llms.txt) from the user's browser instead of opening a tab. Cookieless fetches; nothing read on those sites is sent to us. |
@@ -355,7 +355,14 @@ optional all-sites sentence about Analyze with this.**
 Analyze on a Google results page fetches the clicked result's page, and its site's robots.txt and llms.txt, from the user's browser without cookies, under the optional access to all sites, asked once from the extension's own window; no tab opens. Nothing read on those sites is sent to SEO Bandwagon.
 ```
 
-**3. Privacy practices → data usage, Website content.** Add to 1.11.0's
+**3. Privacy practices → permission justification,
+`declarativeNetRequestWithHostAccess`: replace with this.**
+
+```
+Two uses, both session rules created at runtime; the extension ships no static rulesets. Rendering's "View as": choosing a preset other than Default installs one rule that rewrites the User-Agent header on requests from the current tab only, removed when the user picks Default or closes the tab. Analyze on a Google results page: while the extension reads the result pages the user asked for, rules block the extension's own requests to local and private network addresses (loopback, private ranges, .local names), so a page that redirects there is never followed; they are removed when the reading ends.
+```
+
+**4. Privacy practices → data usage, Website content.** Add to 1.11.0's
 text (submission B):
 
 ```

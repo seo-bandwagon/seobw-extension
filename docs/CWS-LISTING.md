@@ -185,13 +185,17 @@ It fires on nothing at all unless you've separately granted the optional
 Indexability panel, and notices when a page finishes reloading so the
 "Reload to capture" button can re-check it. Also observe-only.
 
-**`declarativeNetRequestWithHostAccess`** — used only for the Rendering
-section's "View as" option. Choosing a preset other than Default installs
+**`declarativeNetRequestWithHostAccess`** — used for the Rendering
+section's "View as" option, and from 1.12.0 to keep Analyze on Google off
+local addresses. Choosing a preset other than Default installs
 one session-scoped rule that rewrites the outgoing User-Agent header for
 requests from exactly the tab you're on; the rule is removed automatically
-the moment you switch back to Default or close that tab. No rule is ever
-installed until you pick a preset, and the extension ships with no static
-rulesets at all — every rule is created and torn down at runtime, per tab.
+the moment you switch back to Default or close that tab. While Analyze reads
+the result pages the user asked for, session rules block the extension's own
+requests (no tab) to loopback, private, link-local and `.local`-style
+addresses, so a result that redirects there is never followed, and are
+removed when the reading ends. The extension ships with no static rulesets
+at all — every rule is created and torn down at runtime.
 
 **`host_permissions`: `https://seobandwagon.com/*`** — the only host the
 extension talks to on your behalf: your own analyses, citation checks, and

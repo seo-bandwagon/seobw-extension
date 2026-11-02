@@ -30,16 +30,40 @@
 
   const g = globalThis;
 
+  // Directives that carry a value after a colon; any other "name:" starts
+  // the directives of a crawler ("googlebot: noindex").
+  const VALUE_DIRECTIVES = ['max-snippet', 'max-image-preview', 'max-video-preview', 'unavailable_after'];
+
   function noindexHeader(headers) {
     const value = String((headers && headers['x-robots-tag']) || '').toLowerCase();
-    // "googlebot: noindex" or a bare "noindex, nofollow"; another crawler's
-    // directive ("otherbot: noindex") is not Google's.
-    return value.split(/,(?=\s*[a-z-]+\s*:)/).some((part) => {
-      const m = /^\s*([a-z-]+)\s*:\s*(.*)$/.exec(part);
-      const agent = m ? m[1] : null;
-      const directives = (m ? m[2] : part).split(/[\s,]+/);
-      return (!agent || agent === 'googlebot') && (directives.includes('noindex') || directives.includes('none'));
+    let agent = null;
+    let noindex = false;
+    value.split(',').forEach((raw) => {
+      let token = raw.trim();
+      const m = /^([a-z0-9_-]+)\s*:\s*(.*)$/.exec(token);
+      if (m && !VALUE_DIRECTIVES.includes(m[1])) {
+        agent = m[1];
+        token = m[2].trim();
+      }
+      if ((token === 'noindex' || token === 'none') && (!agent || agent === 'googlebot')) noindex = true;
     });
+    return noindex;
+  }
+
+  // The page's address without tracking parameters (srsltid=, utm_…), as
+  // Google links many results: its canonical names the page without them,
+  // which is the page itself, not "elsewhere".
+  function withoutTracking(url) {
+    try {
+      const u = new URL(url);
+      [...u.searchParams.keys()].forEach((k) => {
+        if (/^(utm_[a-z_]+|gclid|gclsrc|dclid|gbraid|wbraid|fbclid|msclkid|yclid|srsltid|_ga|_gl|mc_cid|mc_eid)$/i.test(k)) u.searchParams.delete(k);
+      });
+      u.hash = '';
+      return u.href;
+    } catch (e) {
+      return url;
+    }
   }
 
   /**
@@ -97,7 +121,7 @@
     const X = g.SEOBWExtraction;
     const P = g.SBWSerpPreview;
     const url = (fetchInfo && (fetchInfo.finalUrl || fetchInfo.url)) || doc.URL || '';
-    const analysis = A.analyzeDocument(doc, null, X, url).data;
+    const analysis = A.analyzeDocument(doc, null, X, withoutTracking(url)).data;
     const meta = analysis.meta;
     const title = meta.title.text || '';
     const description = meta.description.text || '';
@@ -133,10 +157,19 @@
     };
   }
 
-  /** Parses `html` as the page at `url`, with a <base> so links resolve to it. */
+  /**
+   * Parses `html` as the page at `url`, with a <base> so links resolve to
+   * it. A page's own relative <base href="/"> (Angular's) is resolved
+   * against the page, not against the document doing the parsing.
+   */
   function parse(html, url) {
     const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
-    if (!doc.querySelector('base[href]')) {
+    const own = doc.querySelector('base[href]');
+    if (own) {
+      let href = url;
+      try { href = new URL(own.getAttribute('href'), url).href; } catch (e) { /* keep the page's address */ }
+      own.setAttribute('href', href);
+    } else {
       const base = doc.createElement('base');
       base.setAttribute('href', url);
       (doc.head || doc.documentElement).prepend(base);
@@ -144,5 +177,5 @@
     return doc;
   }
 
-  return { fromDocument, parse, indexable, noindexHeader, schemaTypes };
+  return { fromDocument, parse, indexable, noindexHeader, schemaTypes, withoutTracking };
 });

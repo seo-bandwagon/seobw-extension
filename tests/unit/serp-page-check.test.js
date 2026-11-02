@@ -156,3 +156,77 @@ describe('Analyze never reads a local or private address', () => {
     expect(svc.isLocalHost('[2001:4860:4860::8888]')).toBe(false);
   });
 });
+
+describe('1.12.0 review fixes', () => {
+  it('two tabs analyzing the same page each hear back', async () => {
+    await svc.check([{ key: 'same', url: 'https://one.example/p', serpTabId: 1, frameId: 0 }, { key: 'same', url: 'https://one.example/p', serpTabId: 2, frameId: 0 }]);
+    await drain();
+    const done = notes.filter((n) => n[1] === 'done');
+    expect(done).toHaveLength(2);
+  });
+
+  it.each([
+    'https://www.google.com/?q=x', 'https://www.google.com/webhp?q=x', 'https://www.google.com/maps/search/x',
+    'https://books.google.com/books?id=1&dq=emergency+plumber', 'https://www.google.com./search?q=x', 'https://scholar.google.com/scholar?q=x',
+    'https://accounts.google.com/signin'
+  ])('never fetches the Google page %s', async (url) => {
+    await svc.check([{ key: 'g', url }]);
+    await drain();
+    expect(fetched).toEqual([]);
+  });
+
+  it('a Google property\'s own article is a result like any other', () => {
+    expect(svc.fetchable('https://support.google.com/webmasters/answer/1')).not.toBeNull();
+  });
+
+  it('turns the local-address rule on for the reads and off after', async () => {
+    vi.useFakeTimers();
+    const guard = vi.fn(async () => {});
+    const local = createSerpPageCheck({
+      fetchText: async (url) => ({ status: 200, finalUrl: url, headers: { 'content-type': 'text/html' }, text: '' }),
+      analyze: async () => ({}), robots, hasAccess: async () => true, openAccessPage: async () => {},
+      storage: sessionStorage(), notify: () => {}, guard
+    });
+    await local.check([{ key: 'a', url: 'https://a.example/' }]);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(guard).toHaveBeenCalledWith(true);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(guard).toHaveBeenLastCalledWith(false);
+    vi.useRealTimers();
+  });
+
+  it('the rules block local addresses on any hop, never a public site', () => {
+    const { localBlockRules } = require('../../extension/src/lib/serp-page-check.js');
+    const rules = localBlockRules();
+    rules.forEach((r) => expect(r.condition.tabIds).toEqual([-1]));
+    const blocked = (u) => {
+      const host = new URL(u).hostname;
+      return rules.some((r) => (r.condition.regexFilter && new RegExp(r.condition.regexFilter).test(u)) ||
+        (r.condition.requestDomains && r.condition.requestDomains.some((d) => host === d || host.endsWith('.' + d))));
+    };
+    ['http://127.0.0.1:3000/x', 'http://192.168.1.1/', 'http://router/', 'http://nas.local/', 'http://[::1]/', 'http://10.2.3.4/', 'http://a.nip.io/', 'http://172.20.0.1/', 'http://100.64.1.1/', 'http://[fd00::1]/']
+      .forEach((u) => expect(blocked(u), u).toBe(true));
+    ['https://example.com/', 'https://172.32.0.1/', 'https://www.google.com/', 'https://localhost.example.com/', 'https://100.128.0.1/']
+      .forEach((u) => expect(blocked(u), u).toBe(false));
+  });
+
+  it('reads a page in its own character set', () => {
+    const { decode } = require('../../extension/src/lib/serp-page-check.js');
+    const bytes = new Uint8Array([0x3c, 0x6d, 0x65, 0x74, 0x61, 0x20, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74, 0x3d, 0x22, 0x77, 0x69, 0x6e, 0x64, 0x6f, 0x77, 0x73, 0x2d, 0x31, 0x32, 0x35, 0x31, 0x22, 0x3e, 0xcf, 0xf0, 0xe8]);
+    expect(decode(bytes, 'text/html')).toContain('При');
+    expect(decode(new TextEncoder().encode('naïve'), 'text/html; charset=utf-8')).toBe('naïve');
+  });
+
+  it('reads nothing when the local-address rules can\'t be put in place', async () => {
+    const local = createSerpPageCheck({
+      fetchText: async (url) => { fetched.push(url); return { status: 200, finalUrl: url, headers: { 'content-type': 'text/html' }, text: '' }; },
+      analyze: async () => ({}), robots, hasAccess: async () => true, openAccessPage: async () => {},
+      storage: sessionStorage(), notify: (req, msg) => notes.push([req.key, msg.state, msg]),
+      guard: async () => { throw new Error('memoryLimitExceeded'); }
+    });
+    await local.check([{ key: 'a', url: 'https://a.example/' }]);
+    await drain();
+    expect(fetched).toEqual([]);
+    expect(notes).toEqual([['a', 'error', { state: 'error', code: 'unprotected' }]]);
+  });
+});

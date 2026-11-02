@@ -40,10 +40,20 @@
   const PAGE_TIMEOUT_MS = 20000;
   const SITE_TIMEOUT_MS = 8000;
   const ROW_KEEP = 300;
+  const SITE_KEEP = 100;
   const HTML_TYPE_RE = /^(text\/html|application\/xhtml\+xml)\b/i;
-  // Google's own search, redirect and settings paths: never fetched.
+  // Google's own pages are never fetched as a "result": its search,
+  // redirect, settings and vertical paths on google.<tld> (and its home
+  // page), its account and internal hosts, and any Google address carrying a
+  // search (q=, dq=…), as Books and Scholar results do. The same paths as
+  // src/lib/serp.js's GOOGLE_INTERNAL_PATH_RE.
+  const GOOGLE_ANY_RE = /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2,3})?$/i;
   const GOOGLE_SEARCH_RE = /^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2,3})?$/i;
-  const GOOGLE_PATH_RE = /^\/(search|url|goto|imgres|aclk|setprefs|sorry)(\/|$)/i;
+  const GOOGLE_PATH_RE = /^\/(search|url|goto|imgres|aclk|setprefs|preferences|webhp|advanced_search|maps|travel|shopping|finance|sorry|intl)?(\/|$)/i;
+  const GOOGLE_INTERNAL_HOST_RE = /^(accounts|consent|myaccount|policies|webcache|maps|news|books|scholar|images|translate|shopping)\./i;
+  const SEARCH_PARAMS = ['q', 'dq', 'as_q', 'oq', 'query', 'search_query'];
+  // Session rules 900000+ are "View as" (src/lib/ua-switch.js).
+  const LOCAL_RULE_ID = 4801;
 
   // Hosts that are this computer or the network it sits on: loopback,
   // private, link-local, shared (CGNAT) and unique-local addresses written
@@ -75,15 +85,59 @@
     return /(^|\.)(localhost|local|internal|intranet|lan|home|corp|home\.arpa)$/.test(host);
   }
 
+  function isGooglePage(u) {
+    const host = u.hostname.toLowerCase().replace(/\.$/, '');
+    if (!GOOGLE_ANY_RE.test(host)) return false;
+    if (GOOGLE_SEARCH_RE.test(host) && GOOGLE_PATH_RE.test(u.pathname)) return true;
+    if (GOOGLE_INTERNAL_HOST_RE.test(host) && (u.search || /^accounts|^consent|^myaccount/.test(host))) return true;
+    return SEARCH_PARAMS.some((k) => u.searchParams.has(k));
+  }
+
   function fetchable(url) {
     let u;
     try { u = new URL(url); } catch (e) { return null; }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     if (u.username || u.password) return null;
     if (isLocalHost(u.hostname)) return null;
-    if (GOOGLE_SEARCH_RE.test(u.hostname) && GOOGLE_PATH_RE.test(u.pathname)) return null;
+    if (isGooglePage(u)) return null;
     u.hash = '';
     return u;
+  }
+
+  /**
+   * declarativeNetRequest session rules that stop the extension's own
+   * requests (no tab) to a local or private address, on every hop of a
+   * redirect, which a fetch can't see: Chrome hands a redirect back to the
+   * extension only as an opaque answer. The worker puts them in place while
+   * Analyze's pages are read and takes them away after, so a developer's
+   * localhost API address keeps working the rest of the time. Several small
+   * rules, since Chrome refuses one pattern that compiles past 2 KB
+   * (`memoryLimitExceeded`); names go by `requestDomains`, which matches
+   * subdomains too. A public name that resolves to a private address can't
+   * be told from here.
+   */
+  const PORT_AND_REST = '(:[0-9]+)?([/?#]|$)';
+  const LOCAL_PATTERNS = [
+    '^https?://(127|10|0)\\.[0-9]+\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
+    '^https?://(192\\.168|169\\.254)\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
+    '^https?://172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
+    '^https?://100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
+    '^https?://\\[(::1?|::ffff:[^\\]]*|f[cd][0-9a-f]*:[^\\]]*|fe[89ab][0-9a-f]*:[^\\]]*)\\]',
+    '^https?://[^/:?#.]+\\.?' + PORT_AND_REST
+  ];
+  const LOCAL_DOMAINS = ['localhost', 'local', 'internal', 'intranet', 'lan', 'home', 'corp', 'home.arpa',
+    'nip.io', 'sslip.io', 'xip.io', 'localtest.me', 'lvh.me'];
+
+  function localBlockRules() {
+    const base = { priority: 1, action: { type: 'block' } };
+    const where = { tabIds: [-1], resourceTypes: ['xmlhttprequest', 'other'] };
+    const rules = LOCAL_PATTERNS.map((regexFilter, i) => Object.assign({ id: LOCAL_RULE_ID + i }, base, {
+      condition: Object.assign({ regexFilter }, where)
+    }));
+    rules.push(Object.assign({ id: LOCAL_RULE_ID + LOCAL_PATTERNS.length }, base, {
+      condition: Object.assign({ requestDomains: LOCAL_DOMAINS.slice() }, where)
+    }));
+    return rules;
   }
 
   function failure(code, extra) {
@@ -102,9 +156,14 @@
   function createSerpPageCheck(deps) {
     const now = deps.now || (() => Date.now());
     const queue = [];
-    const working = new Set();
+    const working = new Set(); // tab:frame:key, so two tabs never wait on each other
     const siteLookups = new Map(); // origin -> Promise, so a site is read once
     let running = 0;
+    let guarded = false;
+    let unguardTimer = null;
+    const guard = deps.guard || (async () => {});
+
+    const slot = (req) => `${req.serpTabId}:${req.frameId || 0}:${req.key}`;
 
     async function read(key, fallback) {
       try {
@@ -136,16 +195,33 @@
       try {
         const r = await deps.fetchText(origin + '/robots.txt', { limit: TEXT_LIMIT_BYTES, timeoutMs: SITE_TIMEOUT_MS });
         const type = String((r.headers && r.headers['content-type']) || '');
-        facts.robots = { found: r.status === 200 && !/html/i.test(type), status: r.status, text: r.status === 200 && !/html/i.test(type) ? r.text : '' };
+        // A robots.txt that redirected somewhere it may not be read from is
+        // no robots.txt; its text is kept to 128 KB.
+        const ok = r.status === 200 && !/html/i.test(type) && !!fetchable(r.finalUrl || origin + '/robots.txt');
+        facts.robots = { found: ok, status: r.status, text: ok ? String(r.text || '').slice(0, 128 * 1024) : '' };
       } catch (e) { facts.robots = { found: false, status: 0, text: '' }; }
       try {
         const l = await deps.fetchText(origin + '/llms.txt', { limit: 64 * 1024, timeoutMs: SITE_TIMEOUT_MS });
         const type = String((l.headers && l.headers['content-type']) || '');
         // A soft 404 answers 200 with an HTML page: that is no llms.txt.
-        facts.llms = { found: l.status === 200 && !/html/i.test(type) && /\S/.test(l.text || ''), status: l.status };
+        facts.llms = { found: l.status === 200 && !/html/i.test(type) && /\S/.test(l.text || '') && !!fetchable(l.finalUrl || origin + '/llms.txt'), status: l.status };
       } catch (e) { facts.llms = { found: false, status: 0 }; }
+      facts.at = now();
+      await evict(SITE_PREFIX, SITE_KEEP - 1);
       await write({ [key]: facts });
       return facts;
+    }
+
+    // Keeps at most `keep` entries of `prefix` this session, the oldest
+    // going first, so the session's 10 MB never fills.
+    async function evict(prefix, keep) {
+      let all = {};
+      try { all = (await deps.storage.get(null)) || {}; } catch (e) { return; }
+      const kept = Object.entries(all).filter(([k]) => k.startsWith(prefix))
+        .sort((a, b) => ((a[1] && a[1].at) || 0) - ((b[1] && b[1].at) || 0));
+      if (kept.length > keep) {
+        try { await deps.storage.remove(kept.slice(0, kept.length - keep).map(([k]) => k)); } catch (e) { /* noop */ }
+      }
     }
 
     function siteSummary(facts, path) {
@@ -183,16 +259,37 @@
     }
 
     async function remember(url, row) {
-      let all = {};
-      try { all = (await deps.storage.get(null)) || {}; } catch (e) { all = {}; }
-      const kept = Object.keys(all || {}).filter((k) => k.startsWith(ROW_PREFIX));
-      if (kept.length >= ROW_KEEP) {
-        try { await deps.storage.remove(kept.slice(0, kept.length - ROW_KEEP + 1)); } catch (e) { /* noop */ }
+      await evict(ROW_PREFIX, ROW_KEEP - 1);
+      await write({ [ROW_PREFIX + url]: Object.assign({ at: now() }, row) });
+    }
+
+    // The local-address rules are in place from the first page read to a
+    // moment after the last. If Chrome won't take them, nothing is read:
+    // a redirect could then reach a local address unseen.
+    async function startGuard() {
+      if (unguardTimer) { clearTimeout(unguardTimer); unguardTimer = null; }
+      if (guarded) return true;
+      try {
+        await guard(true);
+        guarded = true;
+      } catch (e) {
+        guarded = false;
       }
-      await write({ [ROW_PREFIX + url]: row });
+      return guarded;
+    }
+
+    function stopGuardSoon() {
+      if (unguardTimer) clearTimeout(unguardTimer);
+      unguardTimer = setTimeout(() => {
+        unguardTimer = null;
+        if (running || queue.length) return;
+        guarded = false;
+        Promise.resolve(guard(false)).catch(() => {});
+      }, 2000);
     }
 
     function pump() {
+      if (!running && !queue.length) { stopGuardSoon(); return; }
       while (running < CONCURRENCY && queue.length) {
         const req = queue.shift();
         running += 1;
@@ -204,15 +301,19 @@
           (e) => deps.notify(req, { state: 'error', code: (e && e.code) || 'failed', contentType: e && e.contentType, status: e && e.status })
         ).finally(() => {
           running -= 1;
-          working.delete(req.key);
+          working.delete(slot(req));
           pump();
         });
       }
     }
 
-    function enqueue(req) {
-      if (working.has(req.key)) return;
-      working.add(req.key);
+    async function enqueue(req) {
+      if (working.has(slot(req))) return;
+      if (!(await startGuard())) {
+        deps.notify(req, { state: 'error', code: 'unprotected' });
+        return;
+      }
+      working.add(slot(req));
       deps.notify(req, { state: 'working' });
       queue.push(req);
       pump();
@@ -228,7 +329,7 @@
       const list = (reqs || []).filter((r) => r && typeof r.key === 'string' && r.key && typeof r.url === 'string');
       if (!list.length) return { state: 'queued', count: 0 };
       if (!(await deps.hasAccess())) {
-        const pending = (await read(PENDING_KEY, [])).filter((p) => !list.some((r) => r.key === p.key));
+        const pending = (await read(PENDING_KEY, [])).filter((p) => !list.some((r) => slot(r) === slot(p)));
         await write({ [PENDING_KEY]: pending.concat(list) });
         await deps.openAccessPage();
         return { state: 'needs_access' };
@@ -240,7 +341,7 @@
         }
         const kept = !(opts && opts.fresh) ? await read(ROW_PREFIX + req.url, null) : null;
         if (kept) deps.notify(req, { state: 'done', row: kept, kept: true });
-        else enqueue(req);
+        else await enqueue(req);
       }
       return { state: 'queued', count: list.length };
     }
@@ -281,28 +382,50 @@
         if (v) headers[h] = v;
       });
       const limit = o.limit || PAGE_LIMIT_BYTES;
-      let text = '';
+      const chunks = [];
+      let bytes = 0;
       let truncated = false;
       if (res.body && res.body.getReader) {
         const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let bytes = 0;
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          chunks.push(value);
           bytes += value.byteLength;
-          text += decoder.decode(value, { stream: true });
           if (bytes >= limit) { truncated = true; try { await reader.cancel(); } catch (e) { /* noop */ } break; }
         }
-        text += decoder.decode();
       } else {
-        text = await res.text();
+        const buf = new Uint8Array(await res.arrayBuffer());
+        chunks.push(buf);
+        bytes = buf.byteLength;
       }
+      const all = new Uint8Array(bytes);
+      let at = 0;
+      chunks.forEach((c) => { all.set(c, at); at += c.byteLength; });
+      const text = decode(all, headers['content-type']);
       return { status: res.status, finalUrl: res.url || url, redirected: res.redirected, headers, text, truncated };
     } finally {
       clearTimeout(timer);
     }
   }
 
-  return { createSerpPageCheck, fetchText, isLocalHost, ROW_PREFIX, SITE_PREFIX, PENDING_KEY, CONCURRENCY };
+  // The page's own character set: the Content-Type header's, else a
+  // <meta charset> or http-equiv in its first 2 KB, else UTF-8. A Shift_JIS
+  // or windows-1251 page read as UTF-8 had garbled titles and wrong counts.
+  function charsetOf(bytes, contentType) {
+    const header = /charset\s*=\s*["']?([\w-]+)/i.exec(String(contentType || ''));
+    if (header) return header[1];
+    let head = '';
+    for (let i = 0; i < Math.min(bytes.length, 2048); i++) head += String.fromCharCode(bytes[i]);
+    const meta = /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i.exec(head);
+    return meta ? meta[1] : 'utf-8';
+  }
+
+  function decode(bytes, contentType) {
+    let decoder;
+    try { decoder = new TextDecoder(charsetOf(bytes, contentType)); } catch (e) { decoder = new TextDecoder('utf-8'); }
+    return decoder.decode(bytes);
+  }
+
+  return { createSerpPageCheck, fetchText, isLocalHost, localBlockRules, LOCAL_DOMAINS, charsetOf, decode, ROW_PREFIX, SITE_PREFIX, PENDING_KEY, CONCURRENCY };
 });

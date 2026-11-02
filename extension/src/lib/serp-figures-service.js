@@ -121,7 +121,9 @@
 
       const fresh = {};
       for (const batch of F.batches(misses, F.MAX_PER_CALL)) {
-        const res = await deps.post(batch.map((i) => ({ url: i.url, domain: i.domain })));
+        // The last guard: whatever asked, an address on one of Google's own
+        // hosts goes without its query (src/lib/serp-figures.js).
+        const res = await deps.post(batch.map((i) => ({ url: i.url ? F.cleanAddress(i.url, i.domain, '') : null, domain: i.domain })));
         if (!res || !res.ok) {
           const code = (res && res.code) || 'network';
           if (code === 'rate_limited') {

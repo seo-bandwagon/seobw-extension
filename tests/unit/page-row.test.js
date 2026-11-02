@@ -75,3 +75,35 @@ describe('the page row', () => {
     expect(r.llms.found).toBe(true);
   });
 });
+
+describe('1.12.0 review fixes', () => {
+  function rowFromHtml(htmlText, url, fetchInfo) {
+    const dom = new JSDOM('', { url: 'chrome-extension://abc/src/offscreen/offscreen.html' });
+    globalThis.DOMParser = dom.window.DOMParser;
+    return P.fromDocument(P.parse(htmlText, url), Object.assign({ url, finalUrl: url, status: 200, headers: {} }, fetchInfo));
+  }
+
+  it('a page\'s own relative <base href="/"> resolves against the page, not the parser', () => {
+    const r = rowFromHtml('<html><head><base href="/"><title>T</title><link rel="canonical" href="guides/a"></head><body><h1>A</h1></body></html>', 'https://site.example/guides/a');
+    expect(r.canonical.href).toBe('https://site.example/guides/a');
+    expect(r.canonical.target).toBe('self');
+    expect(r.indexable.ok).toBe(true);
+  });
+
+  it('a Google link\'s srsltid= or utm_ tags don\'t make the canonical "elsewhere"', () => {
+    const r = rowFromHtml('<html><head><title>T</title><link rel="canonical" href="https://site.example/p"></head><body></body></html>', 'https://site.example/p?srsltid=AfmBOo123&utm_source=x');
+    expect(r.canonical.target).toBe('self');
+    expect(r.indexable.ok).toBe(true);
+  });
+
+  it.each([
+    ['max-image-preview:large, noindex', true],
+    ['max-snippet:-1, noindex', true],
+    ['googlebot: max-snippet:20, noindex', true],
+    ['otherbot: noindex', false],
+    ['otherbot: noindex, googlebot: all', false],
+    ['unavailable_after: 2026-12-01, nofollow', false]
+  ])('X-Robots-Tag %j is a noindex for Google: %s', (header, expected) => {
+    expect(P.noindexHeader({ 'x-robots-tag': header })).toBe(expected);
+  });
+});

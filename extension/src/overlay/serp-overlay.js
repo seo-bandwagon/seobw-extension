@@ -396,6 +396,7 @@
     unreadable: "Couldn't read this page's HTML.",
     invalid_url: 'This address isn\u2019t one Analyze reads: a local or private address, or a Google page.',
     blocked_redirect: 'This page redirected to a local or private address, so it wasn\u2019t read.',
+    unprotected: 'Chrome didn\u2019t accept the rule that keeps Analyze off local addresses, so the page wasn\u2019t read. Reload this page to try again.',
     unavailable: 'SEO Bandwagon was updated or reloaded. Reload this page to analyze.',
     failed: "Couldn't check this page."
   };
@@ -1129,7 +1130,10 @@
 
   function pinnedRecord() {
     if (!pinned) return null;
-    const row = { position: null, url: pinned.url, domain: hostOf(pinned.url), title: (checkOf(pinned.key) && checkOf(pinned.key).title.text) || pinned.url };
+    const check = checkOf(pinned.key);
+    // Its own title and description stand in for what Google would show,
+    // so the words columns compare like with like (blank until checked).
+    const row = { position: null, url: pinned.url, domain: hostOf(pinned.url), title: (check && check.title.text) || pinned.url, snippet: check && check.description ? check.description.text : '' };
     Object.defineProperty(row, '_key', { value: pinned.key, enumerable: false });
     return T.records([row], currentQuery(), figuresOf, checkOf)[0];
   }
@@ -1260,7 +1264,11 @@
   // Figures for addresses that aren't results (a pinned page, the AI
   // Overview's sources), on the person's click. Same route, same consent.
   function loadExtraFigures(items, done) {
-    const list = items.filter((i) => i.domain);
+    // The same cleaning as the results': no fragment, no part of the search.
+    const list = items.filter((i) => i.domain).map((i) => {
+      const url = F.cleanAddress(i.url, i.domain, currentQuery());
+      return url ? { key: i.key, url, domain: i.domain } : { key: i.key, url: null, domain: i.domain };
+    });
     if (!list.length) return;
     send({ action: 'serpFigures', items: list }, (reply) => {
       if (reply && (reply.state === 'ok' || reply.state === 'error')) {

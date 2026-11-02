@@ -77,3 +77,29 @@ describe('the results table', () => {
     expect(col('checklist').title).toMatch(/Not a ranking factor/);
   });
 });
+
+describe('1.12.0 review fixes', () => {
+  it('reads an age under a year', () => {
+    expect(T.ageYears('11m')).toBeCloseTo(11 / 12);
+    expect(T.ageYears('3y')).toBe(3);
+    expect(T.ageYears('')).toBeNull();
+  });
+
+  it('sorts the same whatever order the records come in', () => {
+    const mk = (age) => ({ row: { position: 1 }, figures: { whois: { age } }, check: null, words: {} });
+    const a = [mk('11m'), mk('5y'), mk(null), mk('20y 6m')];
+    const ages = (rs) => rs.map((r) => r.figures.whois.age);
+    expect(ages(T.sortRecords(a, 'age', 'asc'))).toEqual(['11m', '5y', '20y 6m', null]);
+    expect(ages(T.sortRecords(a.slice().reverse(), 'age', 'asc'))).toEqual(['11m', '5y', '20y 6m', null]);
+    expect(ages(T.sortRecords(a, 'age', 'desc'))).toEqual(['20y 6m', '5y', '11m', null]);
+  });
+
+  it('writes the words columns as "2 of 3", which no spreadsheet reads as a date', () => {
+    const recs = T.records([Object.defineProperty({ position: 1, url: 'https://a.example/x', domain: 'a.example', title: 'Emergency plumber', snippet: '' }, '_key', { value: 'k' })], 'emergency plumber austin', () => null, () => null);
+    const csv = T.toCsv(recs, {}, { query: 'q' });
+    const [head, line] = csv.replace(/^﻿/, '').split('\r\n');
+    const at = head.split(',').indexOf('In title');
+    expect(line.split(',')[at]).toBe('2 of 3');
+    expect(line.split(',')[head.split(',').indexOf('In description')]).toBe('');
+  });
+});
