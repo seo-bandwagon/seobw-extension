@@ -1069,7 +1069,50 @@
     // cites, page-level like the two above.
     ctx.features = doc ? featureLabels(detectFeatures(doc)) : '';
     ctx.aiCitations = doc ? aiOverviewCitations(doc).map((c) => c.url).join(' | ') : '';
+    // 1.13.2, for the AI Overview inclusion study, also page-level: whether
+    // the page has an overview, what it says, how many of its sources link
+    // through a Google redirect, and which version of the extension took the
+    // capture. '' and 0 where there is no page to read.
+    const aiText = doc ? aiOverviewText(doc) : '';
+    // A page has a text exactly when its state is 'loaded' (aiOverviewState
+    // reads the text to say so), so only a page without one is read again, to
+    // tell 'none' from 'empty': an overview isn't cleaned twice per call.
+    ctx.aiState = !doc ? '' : aiText ? 'loaded' : aiOverviewState(doc);
+    ctx.aiText = aiText;
+    ctx.aiRedirectCitations = doc ? aiOverviewRedirectCount(doc) : 0;
+    ctx.extensionVersion = extensionVersion();
     return ctx;
+  }
+
+  // The extension's own version, so a file says what wrote it. '' outside an
+  // extension, and when a content script has outlived its extension (a
+  // reload makes chrome.runtime.getManifest throw "Extension context
+  // invalidated").
+  function extensionVersion() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getManifest === 'function') {
+        return String(chrome.runtime.getManifest().version || '');
+      }
+    } catch (e) { /* the extension was reloaded under this page */ }
+    return '';
+  }
+
+  // The page-level fields a Collect page keeps with its rows (src/lib/
+  // serp-collect.js), so each row of the combined file reads its own page's
+  // value: cellValue prefers the row, and a field the page did not keep
+  // would fall through to the page the export is run from. A new page-level
+  // column goes in this list, not into the overlay.
+  const COLLECT_CONTEXT_KEYS = [
+    'capturedAt', 'resultStats', 'relatedSearches', 'paa', 'features',
+    'aiCitations', 'aiState', 'aiText', 'aiRedirectCitations', 'extensionVersion'
+  ];
+
+  function collectContext(ctx) {
+    const out = {};
+    COLLECT_CONTEXT_KEYS.forEach((k) => {
+      out[k] = ctx && ctx[k] !== undefined && ctx[k] !== null ? ctx[k] : '';
+    });
+    return out;
   }
 
   // Every column is written on every row so a file is self-describing and
@@ -1158,7 +1201,17 @@
     ['Search trend 12 months (DataForSEO)', 'keywordTrend'],
     ['Related searches with volume (DataForSEO)', 'relatedVolumes'],
     ['People also ask with volume (DataForSEO)', 'paaVolumes'],
-    ['Your rank tracker position', (row) => (row && row.trackedPosition !== undefined && row.trackedPosition !== null ? row.trackedPosition : '')]
+    ['Your rank tracker position', (row) => (row && row.trackedPosition !== undefined && row.trackedPosition !== null ? row.trackedPosition : '')],
+    // 1.13.2, appended for the same reason: for the AI Overview inclusion
+    // study (page-level, on every row). The state is "none" (no overview on
+    // the page), "loaded" or "empty" (a box that held no text); the text is
+    // the overview's answer; the count is its sources linked through a
+    // Google redirect, which AI Overview citations can't name; and the
+    // version is the extension's that took the capture.
+    ['AI Overview state', 'aiState'],
+    ['AI Overview text', 'aiText'],
+    ['AI Overview citations via Google redirect', 'aiRedirectCitations'],
+    ['Extension version', 'extensionVersion']
   ];
 
   // A cell from the figures a row was given (row.figures: the route's answer
@@ -1431,6 +1484,7 @@
     resultsToCsv,
     resultsToTsv,
     searchContext,
+    collectContext,
     parseRelatedSearches,
     parseRelatedSearchElements,
     parsePaaElements,

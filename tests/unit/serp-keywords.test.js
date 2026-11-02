@@ -243,7 +243,10 @@ describe('exports', () => {
   it('the results CSV carries those columns on every row, after every older column', () => {
     const S = globalThis.SBWSerp;
     const names = S.RESULT_CSV_COLUMNS.map((c) => c[0]);
-    expect(names.slice(-8)).toEqual(['Search volume a month (DataForSEO)', 'CPC USD (DataForSEO)', 'Competition (DataForSEO)', 'Keyword difficulty 0-100 (DataForSEO)', 'Search trend 12 months (DataForSEO)', 'Related searches with volume (DataForSEO)', 'People also ask with volume (DataForSEO)', 'Your rank tracker position']);
+    // Later columns (1.13.2's) are appended after these, so find the block rather than count back from the end.
+    const first = names.indexOf('Search volume a month (DataForSEO)');
+    expect(first).toBeGreaterThan(names.indexOf('Checklist captured'));
+    expect(names.slice(first, first + 8)).toEqual(['Search volume a month (DataForSEO)', 'CPC USD (DataForSEO)', 'Competition (DataForSEO)', 'Keyword difficulty 0-100 (DataForSEO)', 'Search trend 12 months (DataForSEO)', 'Related searches with volume (DataForSEO)', 'People also ask with volume (DataForSEO)', 'Your rank tracker position']);
     const csv = S.resultsToCsv([{ position: 1, url: 'https://example.org/', domain: 'example.org', trackedPosition: 4 }, { position: 2, url: 'https://b.example/', domain: 'b.example', trackedPosition: null }], Object.assign({ query: 'crm' }, K.exportContext(asked.items, figuresOf)));
     const rows = csv.replace(/^﻿/, '').trim().split('\r\n').map((l) => l.split(','));
     const at = (name) => names.indexOf(name);

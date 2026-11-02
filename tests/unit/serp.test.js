@@ -529,6 +529,83 @@ describe('searchContext + export completeness', () => {
     expect(csv).not.toContain(',=SUM(A1)');
     expect(csv).not.toContain(',+evil');
   });
+
+  // 1.13.2: the AI Overview inclusion study reads these four columns by
+  // name (another repo), so the headers and context keys are a contract.
+  describe('the AI Overview study columns', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const saved = (f) => new JSDOM('<!doctype html><body>' + fs.readFileSync(path.join(__dirname, '../fixtures', f), 'utf8') + '</body>').window.document;
+    const withChrome = (chromeStub, fn) => {
+      globalThis.chrome = chromeStub;
+      try { return fn(); } finally { delete globalThis.chrome; }
+    };
+    const oneRow = [{ position: 1, url: 'https://a.com/', domain: 'a.com' }];
+
+    it('puts the AI Overview fields and the version in the context', () => {
+      const doc = saved('serp-google-social-profiles.html');
+      withChrome({ runtime: { getManifest: () => ({ version: '9.9.9' }) } }, () => {
+        const ctx = SBWSerp.searchContext({ search: '?q=seo+bandwagon' }, doc);
+        expect(ctx.aiState).toBe('loaded');
+        expect(ctx.aiText).toContain('Seattle-based');
+        expect(ctx.aiRedirectCitations).toBe(0);
+        expect(ctx.extensionVersion).toBe('9.9.9');
+      });
+      expect(SBWSerp.searchContext({ search: '' }).extensionVersion).toBe('');
+    });
+
+    it('says none on a page with no AI Overview, and leaves the overview fields empty with no page to read', () => {
+      expect(SBWSerp.searchContext({ search: '?q=x' }, saved('serp-google-goto-links.html')))
+        .toMatchObject({ aiState: 'none', aiText: '', aiRedirectCitations: 0 });
+      expect(SBWSerp.searchContext({ search: '?q=x' })).toMatchObject({ aiState: '', aiText: '', aiRedirectCitations: 0 });
+    });
+
+    it('leaves the version empty when the extension context is gone or the manifest cannot be read', () => {
+      const version = () => SBWSerp.searchContext({ search: '' }).extensionVersion;
+      expect(withChrome({}, version)).toBe('');
+      expect(withChrome({ runtime: {} }, version)).toBe('');
+      expect(withChrome({ runtime: { getManifest: () => { throw new Error('Extension context invalidated.'); } } }, version)).toBe('');
+      expect(withChrome({ runtime: { getManifest: () => ({}) } }, version)).toBe('');
+    });
+
+    it('appends the four AIO study columns last, in order', () => {
+      const csv = SBWSerp.resultsToCsv(oneRow, { query: 'q', page: 1, capturedAt: 'Z' });
+      const header = csv.replace(/^﻿/, '').split('\r\n')[0].split(',');
+      expect(header.slice(-4)).toEqual(['AI Overview state', 'AI Overview text',
+        'AI Overview citations via Google redirect', 'Extension version']);
+    });
+
+    it('writes the four values on the row, in the CSV and in the pasted text', () => {
+      const ctx = { query: 'q', page: 1, capturedAt: 'Z', aiState: 'loaded', aiText: 'An answer.', aiRedirectCitations: 3, extensionVersion: '1.13.2' };
+      const csv = SBWSerp.resultsToCsv(oneRow, ctx);
+      expect(csv.replace(/^﻿/, '').trim().split('\r\n')[1].endsWith(',loaded,An answer.,3,1.13.2')).toBe(true);
+      const tsv = SBWSerp.resultsToTsv(oneRow, ctx);
+      expect(tsv.split('\n')[1].endsWith('\tloaded\tAn answer.\t3\t1.13.2')).toBe(true);
+    });
+
+    it('keeps AI Overview text with commas and quotes in one cell, and guards a leading =', () => {
+      const csv = SBWSerp.resultsToCsv(oneRow, { query: 'q', page: 1, capturedAt: 'Z', aiText: '=1+1, "two"' });
+      const lines = csv.replace(/^﻿/, '').trim().split('\r\n');
+      expect(lines).toHaveLength(2);
+      expect(csv).not.toContain(',=1+1');
+      expect(lines[1]).toContain(',"\'=1+1, ""two"""');
+    });
+
+    it('Collect pages keeps every page-level field, the AIO study ones included', () => {
+      const ctx = { capturedAt: 'Z', resultStats: 's', relatedSearches: 'r', paa: 'p', features: 'f',
+        aiCitations: 'c', aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9',
+        query: 'q', page: 2 };
+      expect(Object.keys(SBWSerp.collectContext(ctx)).sort()).toEqual(['aiCitations', 'aiRedirectCitations',
+        'aiState', 'aiText', 'capturedAt', 'extensionVersion', 'features', 'paa', 'relatedSearches', 'resultStats']);
+      expect(SBWSerp.collectContext(ctx)).toMatchObject({ aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9' });
+    });
+
+    it('collectContext gives an empty string for a field the context lacks, so a row never falls through to another page', () => {
+      expect(SBWSerp.collectContext({ query: 'q' })).toEqual({ capturedAt: '', resultStats: '', relatedSearches: '', paa: '',
+        features: '', aiCitations: '', aiState: '', aiText: '', aiRedirectCitations: '', extensionVersion: '' });
+      expect(SBWSerp.collectContext(null).aiState).toBe('');
+    });
+  });
 });
 
 /* ---------- real Google markup, not a hand-written fixture ---------- */

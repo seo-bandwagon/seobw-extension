@@ -3,6 +3,10 @@ import { describe, it, expect } from 'vitest';
 
 await import('../../extension/src/lib/serp-collect.js');
 const C = globalThis.SBWSerpCollect;
+// The export side: the overlay builds each page's context with
+// SBWSerp.collectContext and writes the file with SBWSerp.resultsToCsv.
+await import('../../extension/src/lib/serp.js');
+const S = globalThis.SBWSerp;
 
 const row = (n, host = `r${n}.example`) => ({ position: n, url: `https://${host}/`, domain: host, title: `Result ${host}` });
 const page = (start, hosts, context = {}) => ({ start, rows: hosts.map((h, i) => row(i + 1, h)), context });
@@ -155,5 +159,28 @@ describe('1.10.2: Google\'s Web filter is one filter, written udm=14 or udm=web'
   it('puts pages of either into one collection, apart from all results', () => {
     expect(C.collectionKey('?q=crm&udm=14')).toBe(C.collectionKey('?q=crm&udm=web'));
     expect(C.collectionKey('?q=crm&udm=14')).not.toBe(C.collectionKey('?q=crm'));
+  });
+});
+
+describe('1.13.2: the AI Overview study fields, page by page', () => {
+  it('each row carries its own page\'s AI Overview state', () => {
+    let c = add(C.emptyCollection('k'), page(0, ['a', 'b'], { aiState: 'loaded', aiText: 'one' }));
+    c = add(c, page(10, ['c'], { aiState: 'none', aiText: '' }));
+    const { rows } = C.combine(c);
+    expect(rows.map(r => [r.domain, r.aiState, r.aiText])).toEqual([['a', 'loaded', 'one'], ['b', 'loaded', 'one'], ['c', 'none', '']]);
+  });
+
+  it('the file reads each page\'s own state, not the state of the page the export runs on', () => {
+    let c = add(C.emptyCollection('k'), page(0, ['a'], S.collectContext({ aiState: 'loaded', aiText: 'one' })));
+    c = add(c, page(10, ['b'], S.collectContext({ aiState: 'none', aiText: '' })));
+    // The export runs on a page that has an overview of its own.
+    const base = { query: 'q', page: 1, capturedAt: 'Z', aiState: 'loaded', aiText: 'one' };
+    const csv = S.resultsToCsv(C.combine(c).rows, base);
+    const [header, ...body] = csv.replace(/^\uFEFF/, '').trim().split('\r\n').map(l => l.split(','));
+    const col = name => header.indexOf(name);
+    expect(col('AI Overview state')).toBeGreaterThan(-1);
+    expect(col('AI Overview text')).toBeGreaterThan(-1);
+    expect(body.map(r => r[col('AI Overview state')])).toEqual(['loaded', 'none']);
+    expect(body.map(r => r[col('AI Overview text')])).toEqual(['one', '']);
   });
 });
