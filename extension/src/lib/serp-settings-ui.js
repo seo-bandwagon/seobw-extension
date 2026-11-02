@@ -94,6 +94,26 @@
     } else {
       root.appendChild(h(doc, 'div', { class: 'sr-field' }, h(doc, 'div', { class: 'sr-legend sr-legend-main', text: 'Which figures show' }), list, note));
     }
+
+    // 1.12.0: the results table's columns, and what its cells are marked against.
+    const T = globalThis.SBWSerpTable;
+    if (T) {
+      const cols = h(doc, 'div', { class: 'sr-figures' });
+      T.COLUMNS.forEach((c) => {
+        const id = prefix + 'Col_' + c.key;
+        const input = h(doc, 'input', { type: 'checkbox', id, 'data-column': c.key });
+        cols.appendChild(h(doc, 'div', { class: 'checkbox-row sr-row' }, input, h(doc, 'label', { for: id, text: T.header(c) })));
+      });
+      const compare = radios(doc, 'compareTo', 'Table cells are marked against', [
+        ['median', 'The middle value of the search’s results'],
+        ['pinned', 'Your pinned page, when one is pinned']
+      ], prefix);
+      if (o.compact) {
+        root.appendChild(h(doc, 'details', { class: 'sr-details' }, h(doc, 'summary', { text: 'Results table' }), compare, cols));
+      } else {
+        root.appendChild(h(doc, 'div', { class: 'sr-field' }, h(doc, 'div', { class: 'sr-legend sr-legend-main', text: 'Results table' }), compare, cols));
+      }
+    }
     container.appendChild(root);
 
     function paint(s) {
@@ -105,6 +125,10 @@
       root.querySelectorAll('[data-figure]').forEach((input) => {
         input.checked = !!s.figures[input.getAttribute('data-figure')];
         input.disabled = !s.figuresOn || !s.overlay;
+      });
+      root.querySelectorAll('[data-column]').forEach((input) => {
+        input.checked = s.tableColumns[input.getAttribute('data-column')] !== false;
+        input.disabled = !s.overlay;
       });
       root.querySelectorAll('[data-setting]').forEach((input) => {
         const name = input.getAttribute('data-setting');
@@ -120,6 +144,8 @@
         patch = { [name]: t.type === 'checkbox' ? t.checked : t.value };
       } else if (t.hasAttribute('data-figure')) {
         patch = { figures: { [t.getAttribute('data-figure')]: t.checked } };
+      } else if (t.hasAttribute('data-column')) {
+        patch = { tableColumns: { [t.getAttribute('data-column')]: t.checked } };
       }
       if (!patch) return;
       paint(await S.save(patch));

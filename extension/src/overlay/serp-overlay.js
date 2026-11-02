@@ -45,7 +45,8 @@
   const S = globalThis.SBWSerp;
   const F = globalThis.SBWSerpFigures;
   const Settings = globalThis.SBWSerpSettings;
-  if (!F || !Settings) return;
+  const T = globalThis.SBWSerpTable; // 1.12.0: the results table
+  if (!F || !Settings || !T) return;
 
   const DEBOUNCE_MS = 500;
 
@@ -72,6 +73,16 @@
   const MAX_RETRIES = 3;
   let retries = 0;
   let retryTimer = null;
+
+  // 1.12.0: each result's page checks (src/lib/serp-page-check.js), by key:
+  // { state: 'working' | 'done' | 'error' | 'needs_access' | 'declined' |
+  // 'hidden', row?, code? }. A pinned page and the AI Overview's sources
+  // are keyed 'pin:' and 'ai:' + their address.
+  const checksByKey = new Map();
+  let pinned = null; // { url, key }
+  let sortKey = null;
+  let sortDir = 'asc';
+  let tableTimer = null;
 
   // 1.11.0: #rso before #rcnt, so a page without #search still gets the
   // panel beside its results rather than after <body>.
@@ -133,7 +144,7 @@
 
   function applyLook() {
     const look = lookName();
-    document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-tools').forEach((el) => {
+    document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools').forEach((el) => {
       el.setAttribute('data-sbw-look', look);
     });
   }
@@ -202,27 +213,15 @@
     analyzeLink.href = row._href || row.url;
     analyzeLink.target = '_blank';
     analyzeLink.rel = 'noopener noreferrer';
-    analyzeLink.title = 'Opens this result in a background tab and checks its on-page SEO; you stay here.';
-    // A plain click hands the result to the worker (serpAnalyze). Ctrl/Cmd/
-    // Shift/Alt and middle clicks stay the browser's. If the extension was
-    // reloaded under this page, sendMessage throws and the link opens as a
-    // plain link.
+    analyzeLink.title = 'Checks this result\u2019s page from its HTML, here under the result; no tab opens.';
+    // 1.12.0 (owner, 2026-11-01: "Stay on Google"): a plain click opens the
+    // page's checks under the result. Ctrl/Cmd/Shift/Alt and middle clicks
+    // stay the browser's. If the extension was reloaded under this page,
+    // sendMessage throws and the link opens as a plain link.
     analyzeLink.addEventListener('click', (e) => {
       if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-      const key = row._key || analyzeLink.href;
-      try {
-        chrome.runtime.sendMessage({ action: 'serpAnalyze', url: analyzeLink.href, key }, (reply) => {
-          if (chrome.runtime.lastError || !reply) {
-            showAnalysis(key, { state: 'error', code: 'unavailable' });
-            return;
-          }
-          showAnalysis(key, reply);
-        });
-      } catch (err) {
-        return;
-      }
+      if (!analyzeRows([row])) return;
       e.preventDefault();
-      showAnalysis(key, { state: 'working' });
     });
     bar.appendChild(analyzeLink);
 
@@ -327,6 +326,7 @@
       if (row && bar.isConnected) renderFigures(bar, row);
     });
     renderFiguresLine();
+    scheduleTable();
   }
 
   // Asks the worker for the figures of every result that has none yet.
@@ -376,84 +376,180 @@
     }, wait);
   }
 
-  // ---------- the analysis line under a result (1.10.2) ----------
+  // ---------- the page's checks under a result (1.12.0) ----------
   //
-  // One line per result, under its bar, once Analyze was clicked. Keyed by
-  // the result (row._key), so a rescan that rebuilds rows finds it again.
-  const analysisLines = new Map(); // key -> { el, tabId }
+  // Analyze opens a row under the result with the page's checks, read from
+  // its HTML in the user's browser (src/lib/serp-page-check.js); no tab
+  // opens. Keyed by the result (row._key), so a rescan that rebuilds rows
+  // finds it again. Until 1.12.0 (1.10.2's) Analyze opened the result in a
+  // background tab and put one checklist line here.
+  const checkRows = new Map(); // key -> element
   const barsByKey = new Map(); // key -> bar
 
   const CHECKLIST_TITLE = "SEO Bandwagon's on-page checklist for this page: title, description, headings, images, links, schema and the other checks in the report. " +
     'It is not a ranking factor and does not predict where a page ranks.';
 
-  const ERROR_TEXT = {
-    timeout: "The page didn't finish loading within a minute.",
-    closed: 'The tab was closed before the page was analyzed.',
-    unreadable: "Couldn't analyze this page.",
-    invalid_url: 'This result has no link to open.',
+  const CHECK_ERRORS = {
+    timeout: "The page didn't answer within 20 seconds.",
+    network: "The page couldn't be reached from your browser.",
+    not_html: "This result isn't a web page, so there is no HTML to check.",
+    unreadable: "Couldn't read this page's HTML.",
+    invalid_url: 'This result has no address to check.',
     unavailable: 'SEO Bandwagon was updated or reloaded. Reload this page to analyze.',
-    failed: "Couldn't analyze this page."
+    failed: "Couldn't check this page."
   };
 
-  function openButton(label, tabId, report) {
-    const btn = el('button', 'sbw-serp-open', label);
-    btn.type = 'button';
-    btn.addEventListener('click', () => {
-      try {
-        chrome.runtime.sendMessage({ action: 'serpAnalysisOpen', tabId, report }, () => void chrome.runtime.lastError);
-      } catch (e) { /* extension reloaded */ }
-    });
-    return btn;
+  // Results Google hides from a signed-out user can't be checked: their
+  // address is behind Google's redirect, which is never followed for them.
+  function isHidden(row) {
+    return !!(row && (row.siteUnknown || row.urlResolved === false || !/^https?:\/\//i.test(row.url || '')));
   }
 
-  function lineFor(key) {
-    let entry = analysisLines.get(key);
-    if (entry && entry.el.isConnected) return entry;
+  // Sends the rows to the worker for their page checks; false when the
+  // extension can't be reached (reloaded under this page).
+  function analyzeRows(rows) {
+    const items = [];
+    rows.forEach((row) => {
+      const key = row._key || row.url;
+      if (isHidden(row)) setCheck(key, { state: 'hidden' });
+      else items.push({ key, url: row.url });
+    });
+    if (!items.length) return true;
+    items.forEach((i) => setCheck(i.key, { state: 'working' }));
+    return send({ action: 'serpPageCheck', items }, (reply, failed) => {
+      if (failed || !reply) items.forEach((i) => setCheck(i.key, { state: 'error', code: 'unavailable' }));
+      else if (reply.state === 'needs_access') items.forEach((i) => setCheck(i.key, { state: 'needs_access' }));
+    });
+  }
+
+  function setCheck(key, msg) {
+    const before = checksByKey.get(key);
+    // A later "working" never hides a row already read.
+    if (msg.state === 'working' && before && before.state === 'done') return;
+    checksByKey.set(key, msg);
+    renderCheck(key);
+    scheduleTable();
+    renderAnalyzeLine();
+  }
+
+  function checkRowFor(key) {
+    let line = checkRows.get(key);
+    if (line && line.isConnected) return line;
     const bar = barsByKey.get(key);
     if (!bar || !bar.isConnected) return null;
-    const line = el('div', 'sbw-serp-analysis');
-    line.setAttribute('role', 'status');
+    line = el('div', 'sbw-serp-check');
     line.setAttribute('data-sbw-look', lookName());
+    line.setAttribute('role', 'region');
     bar.insertAdjacentElement('afterend', line);
-    entry = { el: line, tabId: null };
-    analysisLines.set(key, entry);
-    return entry;
+    checkRows.set(key, line);
+    return line;
   }
 
-  function showAnalysis(key, msg) {
-    const entry = lineFor(key);
-    if (!entry || !msg) return;
-    const line = entry.el;
+  function item(dl, label, value, flag, title) {
+    const wrap = el('div', 'sbw-check-item');
+    if (flag) wrap.setAttribute('data-flag', flag);
+    wrap.appendChild(el('dt', null, label));
+    const dd = el('dd', null, value);
+    if (title) dd.title = title;
+    wrap.appendChild(dd);
+    dl.appendChild(wrap);
+  }
+
+  function hostPath(url) {
+    try { const u = new URL(url); return u.hostname.replace(/^www\./, '') + (u.pathname === '/' ? '' : u.pathname); } catch (e) { return url; }
+  }
+
+  function smallButton(label, onClick, title) {
+    const b = el('button', 'sbw-serp-open', label);
+    b.type = 'button';
+    if (title) b.title = title;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function renderCheck(key) {
+    if (/^(pin|ai):/.test(key)) return;
+    const msg = checksByKey.get(key);
+    const row = rowsByKey.get(key);
+    const line = msg ? checkRowFor(key) : null;
+    if (!line) return;
     line.textContent = '';
-    line.removeAttribute('title');
-    line.removeAttribute('data-state');
-    if (typeof msg.tabId === 'number') entry.tabId = msg.tabId;
-    const text = (t) => {
-      const span = el('span', 'sbw-serp-analysis-text', t);
-      line.appendChild(span);
-      return span;
-    };
     line.setAttribute('data-state', msg.state || '');
+    line.setAttribute('aria-label', `Page checks for ${row && row.domain ? row.domain : 'this result'}`);
+    const head = el('div', 'sbw-check-head');
+    line.appendChild(head);
+    const text = (t) => { const span = el('span', 'sbw-serp-analysis-text', t); head.appendChild(span); return span; };
+    const close = smallButton('Close', () => { checksByKey.delete(key); line.remove(); checkRows.delete(key); scheduleTable(); }, 'Hide these checks');
 
     if (msg.state === 'working') {
-      text('Analyzing in a background tab…');
+      text('Checking the page from its HTML…');
+    } else if (msg.state === 'hidden') {
+      text('Google hides this result’s address while you’re signed out of Google, so it can’t be checked here. Sign in to Google, or open the result.');
+      if (row && row._href) {
+        const a = el('a', 'sbw-serp-open sbw-link', 'Open the result');
+        a.href = row._href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        head.appendChild(a);
+      }
+      head.appendChild(close);
     } else if (msg.state === 'needs_access') {
-      text('Allow access in the SEO Bandwagon window that opened, and this result is analyzed; you stay on Google.');
+      text('Allow access in the SEO Bandwagon window that opened, and this page is checked here; you stay on Google.');
     } else if (msg.state === 'declined') {
       text('Analyze needs access to other sites to read the page. Click Analyze to ask again.');
-    } else if (msg.state === 'done') {
-      const score = typeof msg.score === 'number' ? `${msg.score}/100${msg.grade ? ` (${msg.grade})` : ''}` : 'done';
-      const issues = typeof msg.issues === 'number'
-        ? ` · ${msg.issues} issue${msg.issues === 1 ? '' : 's'}`
-        : '';
-      const label = text(`On-page checklist: ${score}${issues}`);
-      label.title = CHECKLIST_TITLE;
-      if (typeof entry.tabId === 'number') line.appendChild(openButton('Open report', entry.tabId, true));
+      head.appendChild(close);
+    } else if (msg.state === 'done' && msg.row) {
+      renderCheckRow(line, head, msg.row, row, close);
     } else {
-      const words = ERROR_TEXT[msg.code] || ERROR_TEXT.failed;
-      text(msg.title ? `${words} ${msg.title}.` : words);
-      if (typeof entry.tabId === 'number' && msg.code !== 'closed') line.appendChild(openButton('Open tab', entry.tabId, false));
+      text(CHECK_ERRORS[msg.code] || CHECK_ERRORS.failed);
+      head.appendChild(close);
     }
+  }
+
+  function renderCheckRow(line, head, c, row, close) {
+    const title = el('span', 'sbw-check-title', 'Page checks');
+    head.appendChild(title);
+    const when = c.checkedAt ? new Date(c.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const note = el('span', 'sbw-check-src', `from the page’s HTML${when ? `, ${when}` : ''}${c.truncated ? ', first 3 MB' : ''}`);
+    note.title = 'Read from the HTML the page sends, without your cookies and without running its scripts. Full report opens the page for the analysis of it as a browser shows it.';
+    head.appendChild(note);
+    head.appendChild(smallButton('Full report', () => {
+      send({ action: 'analyzeResult', url: (row && (row._href || row.url)) || c.url });
+    }, 'Opens the page in a new tab with the full analysis of it as your browser draws it.'));
+    head.appendChild(close);
+
+    const dl = el('dl', 'sbw-check-grid');
+    const t = c.title || {};
+    item(dl, 'Title', t.text ? `${t.chars} chars${typeof t.px === 'number' ? ` · ${t.px} px` : ''}${t.cut ? ', cut' : ''}` : 'missing',
+      !t.text || t.cut || t.count > 1 ? 'warn' : 'ok', t.text ? `${t.text}${t.cut ? '\nGoogle cuts titles at about 600 px.' : ''}` : '');
+    const d = c.description || {};
+    item(dl, 'Description', d.text ? `${d.chars} chars${typeof d.px === 'number' ? ` · ${d.px} px` : ''}${d.cut ? ', cut' : ''}` : 'missing',
+      !d.text || d.cut ? 'warn' : 'ok', d.text || '');
+    item(dl, 'H1', c.h1 && c.h1.count ? `${c.h1.count}${c.h1.first ? ` · ${c.h1.first.slice(0, 60)}` : ''}` : 'missing',
+      c.h1 && c.h1.count === 1 ? 'ok' : 'warn', c.h1 ? c.h1.first : '');
+    item(dl, 'Words', typeof c.words === 'number' ? c.words.toLocaleString('en-US') : 'not read', null,
+      'Counted in the HTML; a page built by scripts can have more once drawn.');
+    item(dl, 'Schema', c.schema && c.schema.length ? c.schema.slice(0, 4).join(', ') + (c.schema.length > 4 ? ` +${c.schema.length - 4}` : '') : 'none',
+      c.schema && c.schema.length ? 'ok' : null, c.schema ? c.schema.join(', ') : '');
+    const can = c.canonical || {};
+    item(dl, 'Canonical', !can.href ? 'none' : can.target === 'self' ? 'points to itself' : 'points elsewhere',
+      can.target === 'elsewhere' || can.count > 1 ? 'warn' : can.href ? 'ok' : null, can.href || '');
+    const ix = c.indexable || { ok: true, reasons: [] };
+    item(dl, 'Indexable', ix.ok ? 'yes' : `no: ${ix.reasons.join('; ')}`, ix.ok ? 'ok' : 'bad');
+    item(dl, 'Status', `${c.status || '?'}${c.redirected ? ` · redirected to ${hostPath(c.finalUrl)}` : ''}`,
+      c.status >= 200 && c.status < 300 ? (c.redirected ? 'warn' : 'ok') : 'bad', c.finalUrl || '');
+    item(dl, 'Hreflang', c.hreflang && c.hreflang.count ? `${c.hreflang.count} tag${c.hreflang.count === 1 ? '' : 's'}${c.hreflang.issues.length ? ` · ${c.hreflang.issues.length} issue${c.hreflang.issues.length === 1 ? '' : 's'}` : ''}` : 'none',
+      c.hreflang && c.hreflang.issues.length ? 'warn' : null, c.hreflang ? c.hreflang.issues.join('\n') : '');
+    item(dl, 'Technology', c.tech && c.tech.length ? c.tech.slice(0, 4).join(', ') : 'none found', null, c.tech ? c.tech.join(', ') : '');
+    const rb = c.robots;
+    item(dl, 'AI crawlers', !rb ? 'not read' : !rb.found ? 'no robots.txt: none blocked' : rb.blocked.length ? `blocked: ${rb.blocked.slice(0, 3).join(', ')}${rb.blocked.length > 3 ? ` +${rb.blocked.length - 3}` : ''}` : 'none blocked',
+      rb && rb.blocked && rb.blocked.length ? 'warn' : null,
+      rb && rb.found ? `From the site's robots.txt, for this page. Blocked: ${rb.blocked.join(', ') || 'none'}. Allowed: ${rb.allowed.join(', ') || 'none'}.` : '');
+    item(dl, 'llms.txt', c.llms ? (c.llms.found ? 'yes' : 'no') : 'not read', null, 'Whether the site has an /llms.txt file for AI assistants.');
+    const ck = c.checklist || {};
+    const ckText = typeof ck.score === 'number' ? `${ck.score}/100${ck.grade ? ` (${ck.grade})` : ''} · ${ck.issues} issue${ck.issues === 1 ? '' : 's'}` : 'not scored';
+    item(dl, 'On-page checklist', ckText, null, CHECKLIST_TITLE + (ck.top && ck.top.length ? `\nFirst issues: ${ck.top.join('; ')}.` : ''));
+    line.appendChild(dl);
   }
 
   // ---------- scan + process ----------
@@ -1000,6 +1096,233 @@
     if (summary) summary.textContent = short;
   }
 
+  // ---------- Analyze top 10, the table, AI Overview sources (1.12.0) ----------
+
+  function currentRows() {
+    return S.parseResults(document);
+  }
+
+  function renderAnalyzeLine() {
+    if (!toolbarEl) return;
+    const line = toolbarEl.querySelector('[data-role="analyze-line"]');
+    if (!line) return;
+    const rows = currentRows().slice(0, 10);
+    const states = rows.map((r) => (checksByKey.get(r._key) || {}).state);
+    const done = states.filter((st) => st === 'done').length;
+    const working = states.filter((st) => st === 'working').length;
+    const hidden = states.filter((st) => st === 'hidden').length;
+    const waiting = states.filter((st) => st === 'needs_access').length;
+    if (waiting) line.textContent = 'Allow access in the SEO Bandwagon window that opened; the pages are checked once you do.';
+    else if (working) line.textContent = `Checking ${working} page${working === 1 ? '' : 's'}, three at a time… ${done} done.`;
+    else if (done || hidden) line.textContent = `${done} of ${rows.length} checked from their HTML${hidden ? `; ${hidden} hidden by Google while you're signed out of it` : ''}.`;
+    else line.textContent = 'Checks each result’s page from its HTML, in your browser, without your cookies. Nothing is sent to SEO Bandwagon.';
+  }
+
+  function scheduleTable() {
+    if (tableTimer) return;
+    tableTimer = setTimeout(() => { tableTimer = null; renderTable(); renderSources(); }, 60);
+  }
+
+  function figuresOf(key) { return figuresByKey.get(key) || null; }
+  function checkOf(key) { const c = checksByKey.get(key); return c && c.state === 'done' ? c.row : null; }
+
+  function pinnedRecord() {
+    if (!pinned) return null;
+    const row = { position: null, url: pinned.url, domain: hostOf(pinned.url), title: (checkOf(pinned.key) && checkOf(pinned.key).title.text) || pinned.url };
+    Object.defineProperty(row, '_key', { value: pinned.key, enumerable: false });
+    return T.records([row], currentQuery(), figuresOf, checkOf)[0];
+  }
+
+  function hostOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+  }
+
+  function markTitle(col, rec, base, mark, against) {
+    const v = T.cellText(col, rec);
+    const b = typeof base !== 'number' ? ''
+      : col.key === 'age' ? `${Math.round(base)}y`
+        : /^in[A-Z]/.test(col.key) ? `${Math.round(base * 100)}% of the words`
+          : F.compact(base);
+    return `${v} is ${mark === 'above' ? 'above' : 'below'} ${against}${b ? ` (${b})` : ''}.`;
+  }
+
+  // One table: `recs` its records, `cols` its columns, `pin` the pinned
+  // record or null. Cells are marked ▲ above / ▼ below the baseline, never
+  // by colour alone.
+  function buildTable(recs, cols, pin, caption) {
+    const useInc = settings.compareTo === 'pinned' && pin;
+    const base = T.baselines(recs, useInc ? pin : null);
+    const against = useInc ? 'your page' : 'the median of these results';
+    const table = el('table', 'sbw-table');
+    if (caption) { const cap = el('caption', 'sbw-table-caption', caption); table.appendChild(cap); }
+    const thead = el('thead');
+    const hr = el('tr');
+    cols.forEach((col) => {
+      const th = el('th');
+      th.scope = 'col';
+      if (col.key === 'result') th.className = 'sbw-th-text';
+      if (sortKey === col.key) th.setAttribute('aria-sort', sortDir === 'desc' ? 'descending' : 'ascending');
+      const b = el('button', 'sbw-th', col.label);
+      b.type = 'button';
+      b.title = (col.title || col.label) + (col.source ? ` (${col.source})` : '') + '. Click to sort.';
+      b.addEventListener('click', () => {
+        sortDir = sortKey === col.key && sortDir === 'asc' ? 'desc' : 'asc';
+        sortKey = col.key;
+        scheduleTable();
+      });
+      th.appendChild(b);
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    const tbody = el('tbody');
+    const ordered = sortKey ? T.sortRecords(recs, sortKey, sortDir) : recs;
+    const rowsOut = pin ? [Object.assign({ pinnedRow: true }, pin)].concat(ordered) : ordered;
+    rowsOut.forEach((rec) => {
+      const tr = el('tr');
+      if (rec.pinnedRow) tr.setAttribute('data-pinned', 'true');
+      if (!rec.pinnedRow && rec.row.domain && Settings.isOwnSite(rec.row.domain, settings.ownSites)) tr.setAttribute('data-own', 'true');
+      cols.forEach((col) => {
+        const td = el(col.key === 'result' ? 'th' : 'td');
+        if (col.key === 'result') {
+          td.scope = 'row';
+          const href = rec.row._href || rec.row.url;
+          const a = el('a', 'sbw-table-link', (rec.pinnedRow ? 'Your page: ' : '') + (rec.row.title || rec.row.domain || 'unknown site'));
+          if (href) { a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+          td.appendChild(a);
+          td.appendChild(el('span', 'sbw-table-host', rec.row.domain || ''));
+        } else {
+          td.textContent = T.cellText(col, rec);
+          const value = col.value(rec);
+          const m = rec.pinnedRow && useInc ? null : T.mark(value, base[col.key]);
+          // Marked only where higher is better: a title longer than the
+          // median, or a later position, is neither good nor bad.
+          if (m && m !== 'same' && col.better) {
+            td.setAttribute('data-mark', m);
+            if (col.better) td.setAttribute('data-better', col.better);
+            const glyph = el('span', 'sbw-mark', m === 'above' ? ' ▲' : ' ▼');
+            glyph.setAttribute('aria-hidden', 'true');
+            td.appendChild(glyph);
+            td.title = markTitle(col, rec, base[col.key], m, against);
+          }
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderTable() {
+    if (!toolbarEl) return;
+    const box = toolbarEl.querySelector('[data-role="table"]');
+    if (!box) return;
+    const rows = currentRows();
+    const recs = T.records(rows, currentQuery(), figuresOf, checkOf);
+    const cols = T.columnsChosen(settings.tableColumns);
+    box.textContent = '';
+    if (!rows.length) return;
+    const scroll = el('div', 'sbw-table-wrap');
+    scroll.setAttribute('tabindex', '0');
+    scroll.setAttribute('role', 'region');
+    scroll.setAttribute('aria-label', 'Results table');
+    scroll.appendChild(buildTable(recs, cols, pinnedRecord(), null));
+    box.appendChild(scroll);
+    const legend = el('p', 'sbw-table-note',
+      `▲ above and ▼ below ${settings.compareTo === 'pinned' && pinned ? 'your pinned page' : 'the median of these results'}. ` +
+      'Link and traffic figures are DataForSEO’s (rank 0 to 100), domain age RDAP’s; Words, Schema and Checklist come from Analyze.');
+    box.appendChild(legend);
+  }
+
+  function tableCsv() {
+    const recs = T.records(currentRows(), currentQuery(), figuresOf, checkOf);
+    const pin = pinnedRecord();
+    return T.toCsv(pin ? [pin].concat(recs) : recs, settings.tableColumns, { query: currentQuery() });
+  }
+
+  // The pinned page: its checks from its HTML, and with figures on and
+  // accepted, its figures, asked for on the Pin click only.
+  function pinPage(url, btn) {
+    let u;
+    try { u = new URL(url.trim()); } catch (e) { flashLabel(btn, 'Type a full address'); return; }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') { flashLabel(btn, 'Type a full address'); return; }
+    u.hash = '';
+    pinned = { url: u.href, key: 'pin:' + u.href };
+    send({ action: 'serpPageCheck', items: [{ key: pinned.key, url: pinned.url }] }, (reply) => {
+      if (reply && reply.state === 'needs_access') setCheck(pinned.key, { state: 'needs_access' });
+    });
+    if (settings.figuresOn) loadExtraFigures([{ key: pinned.key, url: pinned.url, domain: hostOf(pinned.url) }]);
+    scheduleTable();
+  }
+
+  // Figures for addresses that aren't results (a pinned page, the AI
+  // Overview's sources), on the person's click. Same route, same consent.
+  function loadExtraFigures(items, done) {
+    const list = items.filter((i) => i.domain);
+    if (!list.length) return;
+    send({ action: 'serpFigures', items: list }, (reply) => {
+      if (reply && (reply.state === 'ok' || reply.state === 'error')) {
+        Object.entries(reply.results || {}).forEach(([key, figures]) => figuresByKey.set(key, figures));
+        if (reply.state === 'ok') figState = Object.assign({}, figState, { plan: reply.plan, allowance: reply.allowance, lookups: reply.lookups, notice: reply.notice });
+      } else if (reply && reply.state) {
+        figState = { state: reply.state };
+      }
+      renderFiguresLine();
+      scheduleTable();
+      if (done) done(reply);
+    });
+  }
+
+  function sourceRows() {
+    return S.aiOverviewCitations(document).map((c, i) => {
+      const row = { position: i + 1, url: c.url, domain: c.domain, title: c.title || c.url };
+      Object.defineProperty(row, '_key', { value: 'ai:' + c.url, enumerable: false });
+      return row;
+    });
+  }
+
+  const SOURCE_COLUMNS = ['pos', 'result', 'pageRD', 'pageRank', 'pageTraffic', 'siteRank', 'siteRD', 'age', 'words', 'schema', 'checklist'];
+
+  function renderSources() {
+    if (!toolbarEl) return;
+    const group = toolbarEl.querySelector('[data-group="sources"]');
+    const box = toolbarEl.querySelector('[data-role="sources"]');
+    if (!group || !box) return;
+    const rows = sourceRows();
+    group.hidden = !rows.length;
+    box.textContent = '';
+    if (!rows.length) return;
+    const recs = T.records(rows, currentQuery(), figuresOf, checkOf);
+    const cols = SOURCE_COLUMNS.map((k) => T.COLUMNS.find((c) => c.key === k)).filter((c) => settings.tableColumns[c.key] !== false || c.key === 'result');
+    const scroll = el('div', 'sbw-table-wrap');
+    scroll.setAttribute('tabindex', '0');
+    scroll.setAttribute('role', 'region');
+    scroll.setAttribute('aria-label', 'AI Overview sources');
+    scroll.appendChild(buildTable(recs, cols, null, null));
+    box.appendChild(scroll);
+  }
+
+  function sourcesCsv() {
+    const rows = sourceRows();
+    const cols = {};
+    T.COLUMNS.forEach((c) => { cols[c.key] = SOURCE_COLUMNS.includes(c.key); });
+    return T.toCsv(T.records(rows, currentQuery(), figuresOf, checkOf), cols, { query: currentQuery() });
+  }
+
+  function downloadText(text, name) {
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.className = 'sbw-download';
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   function placePanel() {
     if (!toolbarEl) return;
     const container = resultsContainer();
@@ -1071,6 +1394,70 @@
     figActions.setAttribute('data-role', 'figures-actions');
     body.appendChild(group('figures', 'Figures', figLine, figActions));
 
+    // 1.12.0: Analyze top 10, the table and the AI Overview's sources.
+    const top10 = el('button', 'sbw-btn', 'Analyze top 10');
+    top10.type = 'button';
+    top10.title = 'Checks the page of every result here from its HTML, three at a time; no tab opens.';
+    top10.addEventListener('click', () => {
+      const rows = currentRows().slice(0, 10);
+      if (!rows.length) { flashLabel(top10, 'No results found'); return; }
+      if (!analyzeRows(rows)) flashLabel(top10, 'Reload this page');
+    });
+    const analyzeLine = el('p', 'sbw-figures-line');
+    analyzeLine.setAttribute('data-role', 'analyze-line');
+    analyzeLine.setAttribute('role', 'status');
+    body.appendChild(group('analyze', 'Analyze', top10, analyzeLine));
+
+    const pinInput = document.createElement('input');
+    pinInput.type = 'url';
+    pinInput.className = 'sbw-serp-location-custom sbw-pin-input';
+    pinInput.placeholder = 'Your page, e.g. https://example.com/plumbing';
+    pinInput.setAttribute('aria-label', 'Your page, to compare with the results');
+    const ownRow = currentRows().find((r) => !r.siteUnknown && Settings.isOwnSite(r.domain, settings.ownSites));
+    if (ownRow && ownRow.url) pinInput.value = ownRow.url;
+    const pinBtn = el('button', 'sbw-btn', 'Pin');
+    pinBtn.type = 'button';
+    pinBtn.title = 'Adds your page as the first row: checked from its HTML in your browser, and with figures on, its figures from SEO Bandwagon, as for the results.';
+    pinBtn.addEventListener('click', () => pinPage(pinInput.value, pinBtn));
+    const exportTable = el('button', 'sbw-btn', 'Export table CSV');
+    exportTable.type = 'button';
+    exportTable.addEventListener('click', () => {
+      if (!currentRows().length) { flashLabel(exportTable, 'No results found'); return; }
+      const ctx = pageContext();
+      downloadText(tableCsv(), csvFilename(ctx.query, ctx.page).replace(/^serp-/, 'serp-table-'));
+    });
+    const tableBox = el('div', 'sbw-table-box');
+    tableBox.setAttribute('data-role', 'table');
+    body.appendChild(group('table', 'Table', pinInput, pinBtn, exportTable, tableBox));
+
+    const loadSources = el('button', 'sbw-btn', 'Load figures for sources');
+    loadSources.type = 'button';
+    loadSources.title = 'Asks SEO Bandwagon for the figures of the pages the AI Overview cites; with new figures, it counts as one search of your day\u2019s allowance.';
+    loadSources.addEventListener('click', () => {
+      if (!settings.figuresOn) { flashLabel(loadSources, 'Figures are off'); return; }
+      loadExtraFigures(sourceRows().map((r) => ({ key: r._key, url: r.url, domain: r.domain })));
+    });
+    const analyzeSources = el('button', 'sbw-btn', 'Analyze sources');
+    analyzeSources.type = 'button';
+    analyzeSources.addEventListener('click', () => {
+      const items = sourceRows().map((r) => ({ key: r._key, url: r.url }));
+      items.forEach((i) => checksByKey.set(i.key, { state: 'working' }));
+      send({ action: 'serpPageCheck', items });
+      scheduleTable();
+    });
+    const exportSources = el('button', 'sbw-btn', 'Export sources CSV');
+    exportSources.type = 'button';
+    exportSources.addEventListener('click', () => {
+      if (!sourceRows().length) { flashLabel(exportSources, 'No sources'); return; }
+      const ctx = pageContext();
+      downloadText(sourcesCsv(), csvFilename(ctx.query, ctx.page).replace(/^serp-/, 'serp-ai-sources-'));
+    });
+    const sourcesBox = el('div', 'sbw-table-box');
+    sourcesBox.setAttribute('data-role', 'sources');
+    const sourcesGroup = group('sources', 'AI Overview sources', loadSources, analyzeSources, exportSources, sourcesBox);
+    sourcesGroup.hidden = true;
+    body.appendChild(sourcesGroup);
+
     const copyBtn = el('button', 'sbw-btn');
     copyBtn.type = 'button';
     copyBtn.appendChild(document.createTextNode('Copy results ('));
@@ -1129,6 +1516,8 @@
     placePanel();
     setCollapsed(settings.collapsed);
     renderFiguresLine();
+    renderAnalyzeLine();
+    scheduleTable();
   }
 
   function updateToolbarCounts(resultCount) {
@@ -1150,7 +1539,7 @@
     // moving it or changing its look never re-sends anything.
     if (before.overlay !== next.overlay || before.figuresOn !== next.figuresOn || before.load !== next.load) askedKeys.clear();
     if (!settings.overlay) {
-      document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-tools').forEach((n) => n.remove());
+      document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools').forEach((n) => n.remove());
       toolbarEl = null;
       return;
     }
@@ -1173,12 +1562,13 @@
     placePanel();
     setCollapsed(settings.collapsed);
     renderAllFigures();
+    scheduleTable();
     if (settings.figuresOn && settings.load === 'auto') loadFigures(false);
   }
 
   function processResultsFresh() {
     barsByKey.clear();
-    analysisLines.clear();
+    checkRows.clear();
     rowsByKey.clear();
     S.parseResults(document).forEach((row) => row._el && processedBlocks.delete(row._el));
     processResults();
@@ -1203,7 +1593,7 @@
   // flash on a button) are not Google's page changing, so they never cause
   // a rescan. Without this, a bar redrawn by a rescan scheduled the next
   // one, every half second, for as long as the page was open.
-  const OWN_SELECTOR = '.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-tools';
+  const OWN_SELECTOR = '.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools';
 
   function isOwnNode(node) {
     if (!node) return false;
@@ -1258,14 +1648,14 @@
   }
 
   // #56: the popup asks what this page actually yielded, instead of
-  // promising bars it can't see. 1.10.2: the worker reports each Analyze
-  // here ('serpAnalysis'). 1.11.0: the popup on a results page is this
+  // promising bars it can't see. 1.12.0: the worker reports each page's
+  // checks here ('serpPageChecked'). 1.11.0: the popup on a results page is this
   // page's panel: it asks for the search's features, the figures' state
   // and the exports ('serpExport'), and can load the figures.
   if (chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-      if (msg && msg.action === 'serpAnalysis' && typeof msg.key === 'string') {
-        showAnalysis(msg.key, msg);
+      if (msg && msg.action === 'serpPageChecked' && typeof msg.key === 'string') {
+        setCheck(msg.key, { state: msg.state, row: msg.row, code: msg.code });
         return;
       }
       if (msg && msg.action === 'serpExport') {
@@ -1288,6 +1678,7 @@
         rows: rows.length,
         headings: root ? root.querySelectorAll('h3').length : 0,
         questions: S.parsePaa(document).length,
+        checked: rows.filter((r) => (checksByKey.get(r._key) || {}).state === 'done').length,
         features: S.detectFeatures(document),
         aiCitations: S.aiOverviewCitations(document).length,
         ownSites: rows.filter((r) => !r.siteUnknown && Settings.isOwnSite(r.domain, settings.ownSites)).map((r) => r.position),

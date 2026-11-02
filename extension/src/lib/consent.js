@@ -52,14 +52,14 @@
     // where nothing on a results page was sent before.
     serpFigures: {
       title: 'Figures under Google results',
-      sends: 'The address of each result on a Google results page you open, up to 10 at a time, with its site. Never your search terms, and never a request to Google.',
+      sends: 'The address of each result on a Google results page you open, up to 10 at a time, with its site, and of a page you pin to compare with them or of the pages an AI Overview cites, when you ask for their figures. Never your search terms, and never a request to Google.',
       why: 'So SEO Bandwagon can answer with each result’s link, traffic and domain-age figures and your own on-page checklist for it.',
       firefox: ['websiteContent', 'searchTerms'],
       chromeSwitch: { area: 'local', key: 'serpSettings', on: (v) => !(v && (v.overlay === false || v.figuresOn === false)) },
       acceptedBy: 'action',
       // Raise this when the words in `sends` change what is sent: everyone is
-      // asked again.
-      version: 1
+      // asked again. 2 (1.12.0): a pinned page and the AI Overview's sources.
+      version: 2
     }
   };
 

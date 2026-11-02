@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 await import('../../extension/src/lib/serp.js');
 await import('../../extension/src/lib/serp-figures.js');
 await import('../../extension/src/lib/serp-settings.js');
+await import('../../extension/src/lib/serp-table.js');
 
 let sentMessages;
 let sendMessageImpl;
@@ -254,99 +255,65 @@ describe('fix round 1, item 16: dropped #sbw-analyze hash', () => {
   });
 });
 
-describe('1.10.2: Analyze stays on Google', () => {
+describe('1.12.0: Analyze opens the page\'s checks under the result, on Google', () => {
   const click = (el, init = {}) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init }));
-  const analyzeMessages = () => sentMessages.filter((m) => m && m.action === 'serpAnalyze');
-  const lineFor = (domain) => {
+  const checkMessages = () => sentMessages.filter((m) => m && m.action === 'serpPageCheck');
+  // The newest copy of the overlay draws its row right under its own bar.
+  const checkFor = (domain) => {
     const next = barFor(domain).nextElementSibling;
-    return next && next.classList.contains('sbw-serp-analysis') ? next : null;
+    return next && next.classList.contains('sbw-serp-check') ? next : null;
+  };
+  const ROW = {
+    url: 'https://second.example/page-1', finalUrl: 'https://second.example/page-1', status: 200, redirected: false,
+    title: { text: 'Second result, a title of a fair length', chars: 39, px: 372, cut: false, count: 1 },
+    description: { text: '', chars: 0, px: 0, cut: false, count: 0 },
+    h1: { count: 1, first: 'Second result' }, words: 1240, language: 'en', schema: ['Organization', 'FAQPage'],
+    canonical: { href: 'https://second.example/page-1', target: 'self', count: 1 },
+    indexable: { ok: false, reasons: ['noindex in the robots meta'] }, hreflang: { count: 0, issues: [] },
+    tech: ['WordPress'], robots: { found: true, status: 200, blocked: ['GPTBot', 'ClaudeBot'], allowed: [] },
+    llms: { found: false }, checklist: { score: 82, grade: 'B', issues: 3, top: ['Set to noindex'] }, source: 'html',
+    checkedAt: '2026-11-02T10:04:00Z'
   };
 
-  it('a plain click hands the result to the worker and says it is analyzing in a background tab', async () => {
+  it('a plain click asks the worker for that page\'s checks and says it is checking', async () => {
     freshDom(['first.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-    const link = document.querySelector('.sbw-serp-analyze');
-    const notCancelled = click(link);
+    const notCancelled = click(document.querySelector('.sbw-serp-analyze'));
     expect(notCancelled).toBe(false);
-    expect(analyzeMessages()).toEqual([{ action: 'serpAnalyze', url: 'https://first.example/page-0', key: 'https://first.example/page-0' }]);
-    expect(lineFor('first.example').textContent).toBe('Analyzing in a background tab…');
+    expect(checkMessages()).toEqual([{ action: 'serpPageCheck', items: [{ key: 'https://first.example/page-0', url: 'https://first.example/page-0' }] }]);
+    expect(checkFor('first.example').textContent).toBe('Checking the page from its HTML…');
+    expect(sentMessages.some((m) => m.action === 'serpAnalyze')).toBe(false);
   });
 
-  it('puts the on-page checklist under the result when the worker reports, with Open report', async () => {
+  it('shows the page\'s checks when the worker reports, from its HTML, with Full report', async () => {
     freshDom(['first.example', 'second.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     click(barFor('second.example').querySelector('.sbw-serp-analyze'));
     await vi.advanceTimersByTimeAsync(20);
-    deliver({ action: 'serpAnalysis', key: 'https://second.example/page-1', state: 'done', tabId: 42, score: 82, grade: 'B', issues: 3 });
-    const line = lineFor('second.example');
-    expect(line.querySelector('.sbw-serp-analysis-text').textContent).toBe('On-page checklist: 82/100 (B) · 3 issues');
-    expect(line.querySelector('.sbw-serp-analysis-text').title).toMatch(/not a ranking factor/);
-    expect(lineFor('first.example')).toBeNull();
-
-    line.querySelector('.sbw-serp-open').click();
-    expect(sentMessages.at(-1)).toEqual({ action: 'serpAnalysisOpen', tabId: 42, report: true });
+    deliver({ action: 'serpPageChecked', key: 'https://second.example/page-1', state: 'done', row: ROW });
+    const row = checkFor('second.example');
+    const text = row.textContent;
+    expect(text).toContain('from the page’s HTML');
+    expect(text).toContain('Title39 chars · 372 px');
+    expect(text).toContain('Descriptionmissing');
+    expect(text).toContain('Words1,240');
+    expect(text).toContain('SchemaOrganization, FAQPage');
+    expect(text).toContain('Canonicalpoints to itself');
+    expect(text).toContain('Indexableno: noindex in the robots meta');
+    expect(text).toContain('AI crawlersblocked: GPTBot, ClaudeBot');
+    expect(text).toContain('llms.txtno');
+    expect(text).toContain('On-page checklist82/100 (B) · 3 issues');
+    expect(row.querySelector('[data-flag="bad"] dt').textContent).toBe('Indexable');
+    const checklist = Array.from(row.querySelectorAll('.sbw-check-item')).find((i) => i.querySelector('dt').textContent === 'On-page checklist');
+    expect(checklist.querySelector('dd').title).toMatch(/not a ranking factor/);
+    Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Full report').click();
+    expect(sentMessages.at(-1)).toEqual({ action: 'analyzeResult', url: 'https://second.example/page-1' });
   });
 
-  it('gives several quick clicks a line each, and a second click on one result the same line', async () => {
-    freshDom(['first.example', 'second.example', 'third.example']);
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    ['first.example', 'second.example', 'third.example', 'first.example']
-      .forEach((d) => click(barFor(d).querySelector('.sbw-serp-analyze')));
-    expect(analyzeMessages().map((m) => m.key)).toEqual([
-      'https://first.example/page-0', 'https://second.example/page-1', 'https://third.example/page-2', 'https://first.example/page-0']);
-    expect(document.querySelectorAll('.sbw-serp-analysis')).toHaveLength(3);
-    deliver({ action: 'serpAnalysis', key: 'https://third.example/page-2', state: 'done', tabId: 7, score: 60, grade: 'D', issues: 1 });
-    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'done', tabId: 5, score: 91, grade: 'A', issues: 0 });
-    expect(lineFor('first.example').textContent).toMatch(/91\/100 \(A\) · 0 issues/);
-    expect(lineFor('second.example').textContent).toBe('Analyzing in a background tab…');
-    expect(lineFor('third.example').textContent).toMatch(/60\/100 \(D\) · 1 issue/);
-  });
-
-  it('asks for site access in the extension\'s own window when there is none, and says so', async () => {
-    sendMessageImpl = (msg, cb) => {
-      if (msg.action === 'serpAnalyze') { setTimeout(() => cb({ ok: true, state: 'needs_access' }), 10); return; }
-      defaultSendMessageImpl(msg, cb);
-    };
-    freshDom(['first.example']);
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    click(document.querySelector('.sbw-serp-analyze'));
-    await vi.advanceTimersByTimeAsync(20);
-    expect(lineFor('first.example').textContent).toMatch(/^Allow access in the SEO Bandwagon window that opened/);
-    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'declined' });
-    expect(lineFor('first.example').textContent).toMatch(/needs access to other sites/);
-    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'working' });
-    expect(lineFor('first.example').textContent).toBe('Analyzing in a background tab…');
-  });
-
-  it('says what went wrong, and offers the tab when there is one', async () => {
-    freshDom(['first.example']);
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    click(document.querySelector('.sbw-serp-analyze'));
-    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'error', code: 'unreadable', title: 'PDF FILE', tabId: 9 });
-    expect(lineFor('first.example').querySelector('.sbw-serp-analysis-text').textContent).toBe("Couldn't analyze this page. PDF FILE.");
-    lineFor('first.example').querySelector('.sbw-serp-open').click();
-    expect(sentMessages.at(-1)).toEqual({ action: 'serpAnalysisOpen', tabId: 9, report: false });
-    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'error', code: 'closed' });
-    expect(lineFor('first.example').textContent).toBe('The tab was closed before the page was analyzed.');
-    expect(lineFor('first.example').querySelector('.sbw-serp-open')).toBeNull();
-  });
-
-  it('never words the checklist as a ranking factor or a score of the site', async () => {
-    freshDom(['first.example']);
-    await loadOverlay();
-    await vi.advanceTimersByTimeAsync(50);
-    click(document.querySelector('.sbw-serp-analyze'));
-    deliver({ action: 'serpAnalysis', key: 'https://first.example/page-0', state: 'done', tabId: 1, score: 70, grade: 'C', issues: 2 });
-    const text = lineFor('first.example').textContent;
-    expect(text).not.toMatch(/rank|score/i);
-  });
-
-  it('sends the link as Google rendered it, so a /goto result opens through Google', async () => {
+  it('a hidden result asks to sign in to Google or open it, and sends nothing', async () => {
+    window.history.pushState({}, '', '/search?q=x');
     document.body.innerHTML = `<div id="search"><div id="rso"><div class="g"><div>
       <a href="/goto?url=CAESopaque"><h3>Goto result</h3></a>
       <cite>https://goto-site.example › docs</cite>
@@ -354,10 +321,35 @@ describe('1.10.2: Analyze stays on Google', () => {
     </div></div></div></div>`;
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-    click(barFor('goto-site.example').querySelector('.sbw-serp-analyze'));
-    expect(analyzeMessages()).toHaveLength(1);
-    expect(analyzeMessages()[0].url).toMatch(/\/goto\?url=CAESopaque$/);
-    expect(analyzeMessages()[0].key).toBe('/goto?url=CAESopaque');
+    expect(click(barFor('goto-site.example').querySelector('.sbw-serp-analyze'))).toBe(false);
+    expect(checkMessages()).toEqual([]);
+    const row = checkFor('goto-site.example');
+    expect(row.textContent).toMatch(/signed out of Google, so it can’t be checked here\. Sign in to Google, or open the result\./);
+    expect(row.querySelector('a').getAttribute('href')).toMatch(/\/goto\?url=CAESopaque$/);
+  });
+
+  it('asks for site access in the extension\'s own window when there is none, and says so', async () => {
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpPageCheck') { setTimeout(() => cb({ state: 'needs_access' }), 5); return; }
+      defaultSendMessageImpl(msg, cb);
+    };
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(document.querySelector('.sbw-serp-analyze'));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(checkFor('first.example').textContent).toMatch(/Allow access in the SEO Bandwagon window that opened/);
+    deliver({ action: 'serpPageChecked', key: 'https://first.example/page-0', state: 'declined' });
+    expect(checkFor('first.example').textContent).toMatch(/needs access to other sites/);
+  });
+
+  it('says what went wrong', async () => {
+    freshDom(['first.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    click(document.querySelector('.sbw-serp-analyze'));
+    deliver({ action: 'serpPageChecked', key: 'https://first.example/page-0', state: 'error', code: 'not_html' });
+    expect(checkFor('first.example').textContent).toMatch(/isn't a web page/);
   });
 
   it('leaves Ctrl, Cmd, Shift, Alt and middle clicks to the browser', async () => {
@@ -368,7 +360,7 @@ describe('1.10.2: Analyze stays on Google', () => {
     for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
       expect(click(link, init)).toBe(true);
     }
-    expect(analyzeMessages()).toEqual([]);
+    expect(checkMessages()).toEqual([]);
   });
 
   it('falls back to opening the link when the extension was reloaded under the page', async () => {
@@ -377,6 +369,18 @@ describe('1.10.2: Analyze stays on Google', () => {
     await vi.advanceTimersByTimeAsync(50);
     window.chrome.runtime.sendMessage = () => { throw new Error('Extension context invalidated.'); };
     expect(click(document.querySelector('.sbw-serp-analyze'))).toBe(true);
+  });
+
+  it('Analyze top 10 asks for every result\'s page at once, hidden ones aside', async () => {
+    window.history.pushState({}, '', '/search?q=x');
+    const gotoBlock = `<div class="g"><div><a href="/goto?url=CAESh"><h3>Hidden</h3></a><cite>https://hidden.example › p</cite>
+      <div>Snippet text long enough to satisfy the qualifying-content gate, easily forty characters.</div></div></div>`;
+    document.body.innerHTML = `<div id="search"><div id="rso">${resultBlock('a.example', 0)}${gotoBlock}${resultBlock('b.example', 2)}</div></div>`;
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    Array.from(document.querySelectorAll('.sbw-serp-tools button')).find((b) => b.textContent === 'Analyze top 10').click();
+    expect(checkMessages().at(-1).items.map((i) => i.url)).toEqual(['https://a.example/page-0', 'https://b.example/page-2']);
+    expect(document.querySelector('[data-role="analyze-line"]').textContent).toMatch(/Checking 2 pages, three at a time/);
   });
 });
 
@@ -1064,11 +1068,11 @@ describe('1.11.0: the panel and the look', () => {
   }
   const groups = () => Array.from(document.querySelectorAll('.sbw-serp-tools .sbw-group')).map((g) => g.getAttribute('data-group'));
 
-  it('is one panel with groups: Figures, Export, People also ask, Collect pages, Location', async () => {
+  it('is one panel with groups: Figures, Analyze, Table, AI Overview sources, Export, People also ask, Collect pages, Location', async () => {
     freshDom(['alpha.example']);
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
-    expect(groups()).toEqual(['figures', 'export', 'paa', 'collect', 'location']);
+    expect(groups()).toEqual(['figures', 'analyze', 'table', 'sources', 'export', 'paa', 'collect', 'location']);
     expect(document.querySelector('.sbw-serp-tools').getAttribute('aria-label')).toBe('SEO Bandwagon');
     // No <h3> of ours: the parser reads h3s as result headings.
     expect(document.querySelectorAll('.sbw-serp-tools h3')).toHaveLength(0);
@@ -1248,5 +1252,116 @@ describe('1.11.0 review: retries, cosmetic settings, a new account', () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(barFor('alpha.example').textContent).not.toContain('your checklist');
     delete window.chrome.storage.onChanged;
+  });
+});
+
+describe('1.12.0: the results table, a pinned page and the AI Overview\'s sources', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const table = () => document.querySelector('[data-role="table"] table');
+  const headers = () => Array.from(table().querySelectorAll('thead th')).map((th) => th.textContent);
+  const cellsOf = (label) => {
+    const i = headers().indexOf(label);
+    return Array.from(table().querySelectorAll('tbody tr')).map((tr) => tr.children[i]);
+  };
+  function withFigures(byDomain) {
+    sendMessageImpl = (msg, cb) => {
+      if (msg.action === 'serpFigures') {
+        const results = {};
+        msg.items.forEach((i) => { results[i.key] = byDomain[i.domain] || { page: null, domain: null, whois: null, checklist: null }; });
+        setTimeout(() => cb({ state: 'ok', results, plan: 'free', allowance: { limit: 20, used: 1, remaining: 19 }, lookups: 'done', notice: null }), 5);
+        return;
+      }
+      defaultSendMessageImpl(msg, cb);
+    };
+  }
+  const f = (rd, rank) => ({ page: { referringDomains: rd, backlinks: null, rank, etv: null, keywords: null }, domain: null, whois: { age: '10y' }, checklist: null });
+
+  it('one row per result with its figures, each cell marked against the median', async () => {
+    withFigures({ 'a.example': f(400, 40), 'b.example': f(100, 20), 'c.example': f(50, 10) });
+    freshDom(['a.example', 'b.example', 'c.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(headers().slice(0, 4)).toEqual(['#', 'On page', 'Result', 'Type']);
+    const rd = cellsOf('Page ref. domains');
+    expect(rd.map((td) => td.textContent)).toEqual(['400 ▲', '100', '50 ▼']);
+    expect(rd[0].getAttribute('data-mark')).toBe('above');
+    expect(rd[0].title).toMatch(/above the median of these results \(100\)/);
+    expect(document.querySelector('.sbw-table-note').textContent).toMatch(/DataForSEO’s \(rank 0 to 100\)/);
+  });
+
+  it('sorts by a column when its header is clicked', async () => {
+    withFigures({ 'a.example': f(50, 40), 'b.example': f(400, 20), 'c.example': f(100, 10) });
+    freshDom(['a.example', 'b.example', 'c.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(200);
+    const sortBy = (label) => Array.from(table().querySelectorAll('thead button')).find((b) => b.textContent === label).click();
+    sortBy('Page ref. domains');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(cellsOf('Page ref. domains').map((td) => parseInt(td.textContent, 10))).toEqual([50, 100, 400]);
+    sortBy('Page ref. domains');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(cellsOf('Page ref. domains').map((td) => parseInt(td.textContent, 10))).toEqual([400, 100, 50]);
+    expect(table().querySelector('th[aria-sort]').getAttribute('aria-sort')).toBe('descending');
+  });
+
+  it('shows only the columns chosen in settings', async () => {
+    window.chrome.storage.local = { get: vi.fn(async () => ({ serpSettings: { tableColumns: { overall: false, type: false, inUrl: false } } })), set: vi.fn(async () => {}) };
+    freshDom(['a.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(headers()).not.toContain('On page');
+    expect(headers()).not.toContain('In URL');
+    expect(headers()).toContain('In title');
+  });
+
+  it('pins your page as the first row: its checks from its HTML, and its figures', async () => {
+    withFigures({ 'mine.example': f(300, 30), 'a.example': f(400, 40), 'b.example': f(100, 20) });
+    freshDom(['a.example', 'b.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(200);
+    const input = document.querySelector('.sbw-pin-input');
+    input.value = 'https://mine.example/plumbing#top';
+    Array.from(document.querySelectorAll('.sbw-serp-tools button')).find((b) => b.textContent === 'Pin').click();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(sentMessages.find((m) => m.action === 'serpPageCheck').items).toEqual([{ key: 'pin:https://mine.example/plumbing', url: 'https://mine.example/plumbing' }]);
+    expect(sentMessages.filter((m) => m.action === 'serpFigures').at(-1).items).toEqual([{ key: 'pin:https://mine.example/plumbing', url: 'https://mine.example/plumbing', domain: 'mine.example' }]);
+    const first = table().querySelector('tbody tr');
+    expect(first.getAttribute('data-pinned')).toBe('true');
+    expect(first.textContent).toMatch(/^Your page:/);
+  });
+
+  it('exports the table with the same columns', async () => {
+    withFigures({ 'a.example': f(400, 40) });
+    freshDom(['a.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(200);
+    let blob = null;
+    const origCreate = URL.createObjectURL;
+    URL.createObjectURL = (b) => { blob = b; return 'blob:x'; };
+    URL.revokeObjectURL = () => {};
+    Array.from(document.querySelectorAll('.sbw-serp-tools button')).find((b) => b.textContent === 'Export table CSV').click();
+    URL.createObjectURL = origCreate;
+    const text = await blob.text();
+    expect(text.split('\r\n')[0]).toContain('Page ref. domains (DataForSEO)');
+    expect(text).toContain('https://a.example/page-0');
+  });
+
+  it('lists the AI Overview\'s sources with the same figures, loaded on a click', async () => {
+    withFigures({ 'seobandwagon.com': f(900, 55) });
+    window.history.pushState({}, '', '/search?q=seo+bandwagon');
+    document.body.innerHTML = fs.readFileSync(path.join(__dirname, '../fixtures/serp-google-social-profiles.html'), 'utf8');
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(200);
+    const group = document.querySelector('[data-group="sources"]');
+    expect(group.hidden).toBe(false);
+    expect(group.querySelectorAll('tbody tr')).toHaveLength(9);
+    const before = sentMessages.filter((m) => m.action === 'serpFigures').length;
+    Array.from(group.querySelectorAll('button')).find((b) => b.textContent === 'Load figures for sources').click();
+    await vi.advanceTimersByTimeAsync(200);
+    const sent = sentMessages.filter((m) => m.action === 'serpFigures');
+    expect(sent.length).toBe(before + 1);
+    expect(sent.at(-1).items[0]).toMatchObject({ key: 'ai:https://seobandwagon.com/pricing', domain: 'seobandwagon.com' });
+    expect(group.querySelector('tbody tr').textContent).toContain('900');
   });
 });

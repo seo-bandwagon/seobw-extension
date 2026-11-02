@@ -78,7 +78,7 @@ jobs:
       # from 127.0.0.1, and all of them block everything else. No secrets.
       # The production canary stays in canary.yml.
       - name: Run offline e2e under xvfb
-        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs tests/e2e/serp-figures.spec.mjs
+        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs tests/e2e/serp-figures.spec.mjs tests/e2e/serp-analyze.spec.mjs
 
       - name: Upload trace on failure
         if: failure()
