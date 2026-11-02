@@ -82,7 +82,9 @@
     if (isPrivateIpv4(host)) return true;
     if (/^\d+$/.test(host) || /^0x/i.test(host)) return true; // 2130706433, 0x7f000001
     if (!host.includes('.')) return true; // "router", "localhost"
-    return /(^|\.)(localhost|local|internal|intranet|lan|home|corp|home\.arpa)$/.test(host);
+    // Names that only resolve inside a network, and the public names that
+    // resolve to whatever address they spell (x.127.0.0.1.nip.io).
+    return /(^|\.)(localhost|local|internal|intranet|lan|home|corp|home\.arpa|nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me)$/.test(host);
   }
 
   function isGooglePage(u) {
@@ -116,14 +118,23 @@
    * subdomains too. A public name that resolves to a private address can't
    * be told from here.
    */
-  const PORT_AND_REST = '(:[0-9]+)?([/?#]|$)';
+  // A host may end in a dot ("nas.local.", "127.0.0.1."), which is the same
+  // host: every pattern allows one.
+  const PORT_AND_REST = '\\.?(:[0-9]+)?([/?#]|$)';
   const LOCAL_PATTERNS = [
     '^https?://(127|10|0)\\.[0-9]+\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
     '^https?://(192\\.168|169\\.254)\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
     '^https?://172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
     '^https?://100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
+    // Multicast and reserved, 224.0.0.0 and up, as isLocalHost refuses.
+    '^https?://(22[4-9]|2[3-5][0-9])\\.[0-9]+\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
+    // The local names with a trailing dot, which a domain list may not
+    // match; without one they go by `requestDomains` below. Two small
+    // patterns: one with all the names compiles past Chrome's limit.
+    '^https?://[^/?#]*\\.(localhost|local|internal|intranet|lan|home|corp|arpa)\\.(:[0-9]+)?([/?#]|$)',
+    '^https?://[^/?#]*\\.(nip\\.io|sslip\\.io|xip\\.io|localtest\\.me|lvh\\.me)\\.(:[0-9]+)?([/?#]|$)',
     '^https?://\\[(::1?|::ffff:[^\\]]*|f[cd][0-9a-f]*:[^\\]]*|fe[89ab][0-9a-f]*:[^\\]]*)\\]',
-    '^https?://[^/:?#.]+\\.?' + PORT_AND_REST
+    '^https?://[^/:?#.]+' + PORT_AND_REST
   ];
   const LOCAL_DOMAINS = ['localhost', 'local', 'internal', 'intranet', 'lan', 'home', 'corp', 'home.arpa',
     'nip.io', 'sslip.io', 'xip.io', 'localtest.me', 'lvh.me'];

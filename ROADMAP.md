@@ -277,8 +277,10 @@ table asked for on 2026-10-17 and 2026-10-23. Store submission C, with
   Analyze reads pages, `declarativeNetRequest` session rules (seven small
   ones: Chrome refused a single pattern past its 2 KB compiled limit)
   block the extension's own requests to local and private addresses on
-  every hop, and are removed after; if Chrome won't take them, nothing is
-  read. Two tabs analyzing one page each hear back. A pinned page's and an
+  every hop, trailing dots and 224 and up included, and are removed after;
+  if Chrome won't take them, nothing is read. A test holds the rules to the
+  code's own check on one list of addresses, and a probe in Chrome showed
+  every local form blocked and public names through. Two tabs analyzing one page each hear back. A pinned page's and an
   AI Overview source's address goes without any part of the search, like a
   result's. Google's home, Maps, Books and Scholar searches are never
   fetched. A page's own relative `<base href="/">` and a Google link's

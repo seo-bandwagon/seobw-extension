@@ -195,6 +195,31 @@ describe('1.12.0 review fixes', () => {
     vi.useRealTimers();
   });
 
+  it('the rules Chrome enforces refuse exactly what isLocalHost refuses, on one list of addresses', () => {
+    const { localBlockRules, isLocalHost } = require('../../extension/src/lib/serp-page-check.js');
+    const rules = localBlockRules();
+    const blocked = (u) => {
+      const host = new URL(u).hostname;
+      return rules.some((r) => (r.condition.regexFilter && new RegExp(r.condition.regexFilter).test(u)) ||
+        (r.condition.requestDomains && r.condition.requestDomains.some((d) => host === d || host.endsWith('.' + d))));
+    };
+    const corpus = [
+      'http://127.0.0.1/', 'http://127.0.0.1./', 'http://10.1.2.3:8080/x', 'http://0.0.0.0/', 'http://192.168.0.1/', 'http://169.254.169.254/',
+      'http://172.16.0.1/', 'http://172.31.255.255/', 'http://172.15.0.1/', 'http://172.32.0.1/', 'http://100.64.0.1/', 'http://100.127.1.1/',
+      'http://100.128.0.1/', 'http://224.0.0.1/', 'http://239.255.255.250/', 'http://255.255.255.255/', 'http://223.255.255.255/',
+      'http://8.8.8.8/', 'http://[::1]/', 'http://[fd12::1]/', 'http://[fe80::1]/', 'http://[::ffff:192.168.1.1]/', 'http://[2001:4860::8888]/',
+      'http://localhost/', 'http://localhost./', 'http://router/', 'http://router./', 'http://nas.local/', 'http://nas.local./',
+      'http://db.internal./', 'http://box.home.arpa./', 'http://a.b.lan/', 'http://x.nip.io/', 'http://x.nip.io./',
+      'https://example.com/', 'https://example.com./', 'https://www.google.com/', 'https://localhost.example.com/', 'https://local.example/',
+      'https://my-home.com/', 'https://homes.com/', 'https://corp.example.org/'
+    ];
+    // isLocalHost refuses a few literals Chrome would never ask for in this
+    // shape (WHATWG turns 2130706433 into 127.0.0.1 first); everything here
+    // is a URL as the browser would request it.
+    const mismatches = corpus.filter((u) => blocked(u) !== isLocalHost(new URL(u).hostname));
+    expect(mismatches).toEqual([]);
+  });
+
   it('the rules block local addresses on any hop, never a public site', () => {
     const { localBlockRules } = require('../../extension/src/lib/serp-page-check.js');
     const rules = localBlockRules();
