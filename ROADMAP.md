@@ -254,7 +254,8 @@ The results export carries the AI Overview, for SEO Bandwagon's AI Overview
 inclusion study (pilot 2026-11-30). Four columns are appended at the very
 end of the results CSV and the clipboard export, on every row, so a file
 from before reads the same up to its last column. They are read from the
-results page when the export is run; nothing new is sent anywhere. Joins
+results page when the export is run, or when a page is added to Collect
+pages; nothing new is sent anywhere. Joins
 1.10.3 to 1.13.1 in the combined submission, which now uploads 1.13.2.
 
 - **AI Overview state:** `none` (the page has no AI Overview), `loaded` (it
@@ -263,9 +264,10 @@ results page when the export is run; nothing new is sent anywhere. Joins
   collapsed and cut at 20,000 characters. Left out: its heading, the "AI
   Mode reply for" line, the source chips and the source cards.
 - **AI Overview citations via Google redirect:** how many of the overview's
-  sources link through a Google redirect (`/goto`, `/url`), each counted
-  once. The existing AI Overview citations column can only name the direct
-  links, so this is the count of sources it cannot.
+  links go through a Google redirect (`/goto`, `/url`), each link counted
+  once (a signed-out token is unique to its link, so one source linked twice
+  can count twice). The existing AI Overview citations column can only name
+  the direct links, so this is the count of links it cannot.
 - **Extension version:** the version of the extension that took the capture,
   so a file says what wrote it. Empty outside an extension.
 - **Collect pages** now copies the page-level fields through

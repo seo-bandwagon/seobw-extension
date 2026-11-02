@@ -848,8 +848,13 @@
   // markup that is not one of Google's rotating class names where one
   // exists. `ads` counts the ad units shown, top and bottom. Read from the
   // page only; the popup shows them and the exports carry them.
+  // Where the AI Overview is: the one selector for this list and for the
+  // text, state and citation reads further down (1.13.2), so they can't
+  // disagree about what an AI Overview is. Defined here because FEATURES
+  // reads it as the module loads.
+  const AI_OVERVIEW_SELECTOR = '[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]';
   const FEATURES = [
-    ['ai_overview', 'AI Overview', '[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]'],
+    ['ai_overview', 'AI Overview', AI_OVERVIEW_SELECTOR],
     ['featured_snippet', 'Featured snippet', 'block-component, .c2xzTb, [data-attrid="wa:/description"], [data-tts="answers"]'],
     ['local_pack', 'Local pack', '#lu_map, [data-local-attribute], a[href*="tbm=lcl"], [data-attrid*="kc:/local" i]'],
     ['people_also_ask', 'People also ask', PAA_CONTAINER_SELECTOR],
@@ -894,16 +899,20 @@
     return (features || []).map((f) => (f.count ? `${f.label} (${f.count})` : f.label)).join(' | ');
   }
 
-  // 1.13.2, for the AI Overview inclusion study: where the AI Overview is,
-  // and what in it is not the answer. This extension's own bar can land inside
-  // the box (the signed-in social-profiles fixture has one); it is never read.
-  const AI_OVERVIEW_SELECTOR = '[data-subtree="aimc"], [data-attrid*="Overview" i], [data-mcpr]';
+  // 1.13.2, for the AI Overview inclusion study: what in the AI Overview is
+  // not the answer (AI_OVERVIEW_SELECTOR, above, says where it is). This
+  // extension's own bar can land inside the box (the signed-in social-profiles
+  // fixture has one); it is never read.
   const SBW_OWN_UI_SELECTOR = '[class^="sbw-"], [class*=" sbw-"]';
   // Google's own "not part of the answer" marker (the source cards and the
   // side panel), the source chips (buttons), the headings ("AI Mode reply
   // for …"), and this extension's bar. The inline links stay: the answer's
-  // first words can be a link on the brand.
-  const AI_OVERVIEW_NOT_ANSWER = '[data-ignore-copy], button, [role="button"], h1, h2, h3, ' + SBW_OWN_UI_SELECTOR;
+  // first words can be a link on the brand. `script`, `style`, `noscript` and
+  // `template` are code, not words: a live page carries inline scripts inside
+  // the overview (the chip images are filled by `_setImageSrc` ones), which
+  // textContent would read as text (NOT_CONTENT_SELECTOR does the same).
+  const AI_OVERVIEW_NOT_ANSWER = '[data-ignore-copy], button, [role="button"], h1, h2, h3, ' +
+    'script, style, noscript, template, ' + SBW_OWN_UI_SELECTOR;
   // Where a block ends: textContent would run "Tools" into the next "Free Tools:".
   const AI_OVERVIEW_BLOCKS = 'div, p, li, ul, ol, br, h4, h5, h6, tr, td, th, [role="heading"]';
   const AI_OVERVIEW_TEXT_MAX = 20000;
@@ -928,9 +937,15 @@
     return out;
   }
 
+  // The AI Overview boxes the page shows, outermost only. The same filter
+  // detectFeatures applies to its AI Overview matches (not this extension's
+  // own UI, and shown), so a hidden stale box is no overview here either and
+  // `Search features` and `AI Overview state` agree. At the box level only:
+  // the collapsed half of a real answer is aria-hidden inside the box.
   function aiOverviewBoxes(doc) {
     if (!doc || !doc.querySelectorAll) return [];
-    return topMost(doc.querySelectorAll(AI_OVERVIEW_SELECTOR));
+    return topMost(doc.querySelectorAll(AI_OVERVIEW_SELECTOR))
+      .filter((box) => !box.closest(SBW_OWN_UI_SELECTOR) && isShown(box));
   }
 
   // The text directly inside the element, not its children's.
@@ -941,15 +956,22 @@
   }
 
   function aiOverviewBoxText(box) {
+    const doc = box.ownerDocument;
+    const space = () => doc.createTextNode(' ');
     const clone = box.cloneNode(true);
-    clone.querySelectorAll(AI_OVERVIEW_NOT_ANSWER).forEach((n) => n.remove());
+    // A removed node leaves a space, not a gap: a chip between two inline
+    // spans would otherwise glue "2010." to "Next sentence."
+    clone.querySelectorAll(AI_OVERVIEW_NOT_ANSWER).forEach((n) => n.replaceWith(space()));
     // The heading's own words, by exact text: an answer to a definition
     // search can begin "AI Overviews are …".
     clone.querySelectorAll('*').forEach((n) => {
       const own = directText(n);
-      if (own === 'AI Overview' || own.startsWith('AI Mode reply for')) n.remove();
+      if (own === 'AI Overview' || own.startsWith('AI Mode reply for')) n.replaceWith(space());
     });
-    clone.querySelectorAll(AI_OVERVIEW_BLOCKS).forEach((n) => n.after(box.ownerDocument.createTextNode(' ')));
+    // A space on both sides of a block: bare text right before one ("Includes"
+    // then a list) would otherwise run into its first words. The whitespace
+    // is collapsed after, so a doubled space is harmless.
+    clone.querySelectorAll(AI_OVERVIEW_BLOCKS).forEach((n) => { n.before(space()); n.after(space()); });
     return cleanText(clone);
   }
 
@@ -976,9 +998,11 @@
     }
   }
 
-  // How many of the AI Overview's citations go through a Google redirect
-  // (/goto?url=…, /url?q=…), each once. aiOverviewCitations lists only the
-  // direct links, so this is the count of sources it cannot name. The
+  // How many of the AI Overview's links go through a Google redirect
+  // (/goto?url=…, /url?q=…), each link once. aiOverviewCitations lists only
+  // the direct links, so this is the count of links it cannot name. A
+  // signed-out token is unique to its link, so one source linked twice can
+  // count twice. The
   // attribute is read, not `a.href`: a relative href has no base to resolve
   // against in a saved page.
   function aiOverviewRedirectCount(doc) {
@@ -1205,8 +1229,8 @@
     // 1.13.2, appended for the same reason: for the AI Overview inclusion
     // study (page-level, on every row). The state is "none" (no overview on
     // the page), "loaded" or "empty" (a box that held no text); the text is
-    // the overview's answer; the count is its sources linked through a
-    // Google redirect, which AI Overview citations can't name; and the
+    // the overview's answer; the count is its links through a Google
+    // redirect (each link once), which AI Overview citations can't name; and the
     // version is the extension's that took the capture.
     ['AI Overview state', 'aiState'],
     ['AI Overview text', 'aiText'],

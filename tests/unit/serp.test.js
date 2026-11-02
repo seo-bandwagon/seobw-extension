@@ -484,6 +484,11 @@ describe('searchContext + export completeness', () => {
     expect(ctx.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
+  it('says empty for a box that is there with no text, and none for no box', () => {
+    expect(SBWSerp.searchContext({ search: '?q=x' }, parseFragment('<div data-subtree="aimc"><div></div></div>')).aiState).toBe('empty');
+    expect(SBWSerp.searchContext({ search: '?q=x' }, parseFragment('<div>no overview</div>')).aiState).toBe('none');
+  });
+
   it('defaults to page 1 and empty strings rather than undefined', () => {
     const ctx = SBWSerp.searchContext({ search: '' });
     expect(ctx).toMatchObject({ query: '', country: '', language: '', location: '', page: 1 });
@@ -1461,5 +1466,51 @@ describe('AI Overview text and state (AIO study)', () => {
   it('caps the text at 20,000 characters', () => {
     const doc = parseFragment(`<div data-subtree="aimc"><p>${'word '.repeat(6000)}</p></div>`);
     expect(S.aiOverviewText(doc).length).toBe(20000);
+  });
+
+  // Final review fix wave: live Google pages carry inline scripts and styles inside the
+  // overview (the chip images are filled by `_setImageSrc` scripts); the saved fixtures
+  // were cleaned of them, so only a fragment can pin this.
+  it('reads no script, style or noscript text, and a box holding only them is empty', () => {
+    expect(S.aiOverviewText(parseFragment('<div data-subtree="aimc"><style>.x{color:red}</style><p>Answer.</p><script>(function(){window.sn={}})();</script><noscript>Turn on JavaScript</noscript></div>'))).toBe('Answer.');
+    expect(S.aiOverviewState(parseFragment('<div data-subtree="aimc"><style>.s{}</style><script>var a=1;</script></div>'))).toBe('empty');
+  });
+
+  it('says empty for a box holding only a heading, source chips and a do-not-copy panel', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><div role="heading"><strong>AI Overview</strong></div>' +
+      '<button>Chip +2</button><button>Chip +3</button><div data-ignore-copy>Connect your account</div></div>');
+    expect(S.aiOverviewText(doc)).toBe('');
+    expect(S.aiOverviewState(doc)).toBe('empty');
+  });
+
+  it('lists no direct citation but counts the redirects when every citation goes through Google', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Answer.</p>' +
+      '<a href="/goto?url=CAESAA1">a</a><a href="https://www.google.com/goto?url=CAESAA2">b</a></div>');
+    expect(S.aiOverviewCitations(doc)).toEqual([]);
+    expect(S.aiOverviewRedirectCount(doc)).toBeGreaterThan(0);
+  });
+
+  it('puts a space where a removed chip or a block starts, so no words are glued', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p><span>Founded in 2010.</span><button>Chip +2</button><span>Next sentence.</span></p>' +
+      '<div>Includes<ul><li>Acme</li></ul></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Founded in 2010. Next sentence. Includes Acme');
+  });
+
+  it('is no overview when the box is hidden, so state and Search features agree', () => {
+    ['<div data-subtree="aimc" style="display:none"><p>Stale answer.</p></div>',
+      '<div hidden><div data-subtree="aimc"><p>Stale answer.</p></div></div>'].forEach((html) => {
+      const doc = parseFragment(html);
+      expect(S.aiOverviewState(doc)).toBe('none');
+      expect(S.aiOverviewText(doc)).toBe('');
+      expect(S.aiOverviewRedirectCount(doc)).toBe(0);
+      expect(S.detectFeatures(doc).some((f) => f.key === 'ai_overview')).toBe(false);
+    });
+  });
+
+  it('still reads the collapsed half of the answer, aria-hidden inside a shown box', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Shown half.</p><div aria-hidden="true"><p>Collapsed half.</p></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Shown half. Collapsed half.');
+    expect(S.aiOverviewState(doc)).toBe('loaded');
+    expect(S.detectFeatures(doc).some((f) => f.key === 'ai_overview')).toBe(true);
   });
 });
