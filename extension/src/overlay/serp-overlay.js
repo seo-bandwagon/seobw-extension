@@ -977,7 +977,7 @@
           // `link`, the href Google rendered, tells apart two results whose
           // URL is only their site's home address (SBWSerpCollect.matchKey).
           rows: exportRows(rows).map((r, i) => Object.assign(r, { link: rows[i]._href || rows[i].url })),
-          context: { capturedAt: now.capturedAt, resultStats: now.resultStats, relatedSearches: now.relatedSearches, paa: now.paa, features: now.features, aiCitations: now.aiCitations }
+          context: S.collectContext(now)
         }
       });
       if (reply.error === 'full') { flashLabel(btn, "10 pages is the limit"); return; }

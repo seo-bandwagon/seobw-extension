@@ -484,6 +484,11 @@ describe('searchContext + export completeness', () => {
     expect(ctx.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
+  it('says empty for a box that is there with no text, and none for no box', () => {
+    expect(SBWSerp.searchContext({ search: '?q=x' }, parseFragment('<div data-subtree="aimc"><div></div></div>')).aiState).toBe('empty');
+    expect(SBWSerp.searchContext({ search: '?q=x' }, parseFragment('<div>no overview</div>')).aiState).toBe('none');
+  });
+
   it('defaults to page 1 and empty strings rather than undefined', () => {
     const ctx = SBWSerp.searchContext({ search: '' });
     expect(ctx).toMatchObject({ query: '', country: '', language: '', location: '', page: 1 });
@@ -528,6 +533,83 @@ describe('searchContext + export completeness', () => {
     const csv = SBWSerp.resultsToCsv(rows, { query: '+evil', capturedAt: 'Z', page: 1 });
     expect(csv).not.toContain(',=SUM(A1)');
     expect(csv).not.toContain(',+evil');
+  });
+
+  // 1.13.2: the AI Overview inclusion study reads these four columns by
+  // name (another repo), so the headers and context keys are a contract.
+  describe('the AI Overview study columns', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const saved = (f) => new JSDOM('<!doctype html><body>' + fs.readFileSync(path.join(__dirname, '../fixtures', f), 'utf8') + '</body>').window.document;
+    const withChrome = (chromeStub, fn) => {
+      globalThis.chrome = chromeStub;
+      try { return fn(); } finally { delete globalThis.chrome; }
+    };
+    const oneRow = [{ position: 1, url: 'https://a.com/', domain: 'a.com' }];
+
+    it('puts the AI Overview fields and the version in the context', () => {
+      const doc = saved('serp-google-social-profiles.html');
+      withChrome({ runtime: { getManifest: () => ({ version: '9.9.9' }) } }, () => {
+        const ctx = SBWSerp.searchContext({ search: '?q=seo+bandwagon' }, doc);
+        expect(ctx.aiState).toBe('loaded');
+        expect(ctx.aiText).toContain('Seattle-based');
+        expect(ctx.aiRedirectCitations).toBe(0);
+        expect(ctx.extensionVersion).toBe('9.9.9');
+      });
+      expect(SBWSerp.searchContext({ search: '' }).extensionVersion).toBe('');
+    });
+
+    it('says none on a page with no AI Overview, and leaves the overview fields empty with no page to read', () => {
+      expect(SBWSerp.searchContext({ search: '?q=x' }, saved('serp-google-goto-links.html')))
+        .toMatchObject({ aiState: 'none', aiText: '', aiRedirectCitations: 0 });
+      expect(SBWSerp.searchContext({ search: '?q=x' })).toMatchObject({ aiState: '', aiText: '', aiRedirectCitations: 0 });
+    });
+
+    it('leaves the version empty when the extension context is gone or the manifest cannot be read', () => {
+      const version = () => SBWSerp.searchContext({ search: '' }).extensionVersion;
+      expect(withChrome({}, version)).toBe('');
+      expect(withChrome({ runtime: {} }, version)).toBe('');
+      expect(withChrome({ runtime: { getManifest: () => { throw new Error('Extension context invalidated.'); } } }, version)).toBe('');
+      expect(withChrome({ runtime: { getManifest: () => ({}) } }, version)).toBe('');
+    });
+
+    it('appends the four AIO study columns last, in order', () => {
+      const csv = SBWSerp.resultsToCsv(oneRow, { query: 'q', page: 1, capturedAt: 'Z' });
+      const header = csv.replace(/^﻿/, '').split('\r\n')[0].split(',');
+      expect(header.slice(-4)).toEqual(['AI Overview state', 'AI Overview text',
+        'AI Overview citations via Google redirect', 'Extension version']);
+    });
+
+    it('writes the four values on the row, in the CSV and in the pasted text', () => {
+      const ctx = { query: 'q', page: 1, capturedAt: 'Z', aiState: 'loaded', aiText: 'An answer.', aiRedirectCitations: 3, extensionVersion: '1.13.2' };
+      const csv = SBWSerp.resultsToCsv(oneRow, ctx);
+      expect(csv.replace(/^﻿/, '').trim().split('\r\n')[1].endsWith(',loaded,An answer.,3,1.13.2')).toBe(true);
+      const tsv = SBWSerp.resultsToTsv(oneRow, ctx);
+      expect(tsv.split('\n')[1].endsWith('\tloaded\tAn answer.\t3\t1.13.2')).toBe(true);
+    });
+
+    it('keeps AI Overview text with commas and quotes in one cell, and guards a leading =', () => {
+      const csv = SBWSerp.resultsToCsv(oneRow, { query: 'q', page: 1, capturedAt: 'Z', aiText: '=1+1, "two"' });
+      const lines = csv.replace(/^﻿/, '').trim().split('\r\n');
+      expect(lines).toHaveLength(2);
+      expect(csv).not.toContain(',=1+1');
+      expect(lines[1]).toContain(',"\'=1+1, ""two"""');
+    });
+
+    it('Collect pages keeps every page-level field, the AIO study ones included', () => {
+      const ctx = { capturedAt: 'Z', resultStats: 's', relatedSearches: 'r', paa: 'p', features: 'f',
+        aiCitations: 'c', aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9',
+        query: 'q', page: 2 };
+      expect(Object.keys(SBWSerp.collectContext(ctx)).sort()).toEqual(['aiCitations', 'aiRedirectCitations',
+        'aiState', 'aiText', 'capturedAt', 'extensionVersion', 'features', 'paa', 'relatedSearches', 'resultStats']);
+      expect(SBWSerp.collectContext(ctx)).toMatchObject({ aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9' });
+    });
+
+    it('collectContext gives an empty string for a field the context lacks, so a row never falls through to another page', () => {
+      expect(SBWSerp.collectContext({ query: 'q' })).toEqual({ capturedAt: '', resultStats: '', relatedSearches: '', paa: '',
+        features: '', aiCitations: '', aiState: '', aiText: '', aiRedirectCitations: '', extensionVersion: '' });
+      expect(SBWSerp.collectContext(null).aiState).toBe('');
+    });
   });
 });
 
@@ -1316,5 +1398,119 @@ describe('1.11.0: what the search shows, read from saved Google pages', () => {
     expect(names.filter((n) => /Page|Site/.test(n) && /referring|backlinks|rank|traffic|keywords/i.test(n)).every((n) => n.endsWith('(DataForSEO)'))).toBe(true);
     expect(names.filter((n) => /Domain age|Registered|Registrar|Expires/.test(n)).every((n) => n.endsWith('(RDAP)'))).toBe(true);
     expect(names.some((n) => n.includes(','))).toBe(false);
+  });
+});
+
+/* ---------- 1.13.2: the AI Overview's text, state and redirect citations (AI Overview inclusion study) ---------- */
+
+describe('AI Overview text and state (AIO study)', () => {
+  const S = globalThis.SBWSerp;
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const saved = (f) => new JSDOM('<!doctype html><body>' + fs.readFileSync(path.join(__dirname, '../fixtures', f), 'utf8') + '</body>').window.document;
+
+  it('reads the answer from the real signed-in page, without its heading, source chips, cards or side panel', () => {
+    const doc = saved('serp-google-social-profiles.html');
+    expect(S.aiOverviewState(doc)).toBe('loaded');
+    const text = S.aiOverviewText(doc);
+    expect(text.startsWith('SEO Bandwagon is a Seattle-based small business SEO agency')).toBe(true);
+    expect(text).toContain('Core Services & Tools Free Tools:');
+    expect(text.startsWith('AI Overview')).toBe(false);
+    expect(text).not.toContain('AI Mode reply for');
+    expect(text).not.toContain('+4');
+    expect(text).not.toContain('SEO Services That Actually Work');
+    expect(text).not.toContain('Connect your account');
+    expect(text).not.toContain('0 files');
+  });
+
+  it('says none on a page without an overview', () => {
+    const doc = saved('serp-google-goto-links.html');
+    expect(S.aiOverviewState(doc)).toBe('none');
+    expect(S.aiOverviewText(doc)).toBe('');
+    expect(S.aiOverviewRedirectCount(doc)).toBe(0);
+  });
+
+  it('says empty for a box with no text (a placeholder that never loaded)', () => {
+    expect(S.aiOverviewState(parseFragment('<div data-subtree="aimc"><div></div></div>'))).toBe('empty');
+  });
+
+  it('reads nested matches once', () => {
+    const doc = parseFragment('<div data-mcpr><div data-subtree="aimc"><p>Answer text here.</p></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Answer text here.');
+  });
+
+  it('drops the "AI Overview" label but keeps an answer that begins "AI Overviews are"', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><div role="heading"><strong>AI Overview</strong></div>' +
+      '<p>AI Overviews are summaries Google writes.</p></div>');
+    expect(S.aiOverviewText(doc)).toBe('AI Overviews are summaries Google writes.');
+  });
+
+  it('counts each citation that goes through a Google redirect once, and still lists only direct ones', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Answer.</p>' +
+      '<a href="/goto?url=CAESAA1">a</a><a href="/goto?url=CAESAA1">again</a>' +
+      '<a href="https://www.google.com/goto?url=CAESAA2">b</a>' +
+      '<a href="https://example.com/page">c</a></div>');
+    expect(S.aiOverviewRedirectCount(doc)).toBe(2);
+    expect(S.aiOverviewCitations(doc).map((c) => c.url)).toEqual(['https://example.com/page']);
+  });
+
+  it('leaves this extension\'s own bar out of the text, the citations and the redirect count', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Answer.</p>' +
+      '<div class="sbw-serp-bar"><a class="sbw-serp-analyze" href="https://seobandwagon.com/pricing">Analyze</a>' +
+      '<a class="sbw-serp-analyze" href="/url?q=https://example.org/">Analyze</a></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Answer.');
+    expect(S.aiOverviewCitations(doc)).toEqual([]);
+    expect(S.aiOverviewRedirectCount(doc)).toBe(0);
+  });
+
+  it('caps the text at 20,000 characters', () => {
+    const doc = parseFragment(`<div data-subtree="aimc"><p>${'word '.repeat(6000)}</p></div>`);
+    expect(S.aiOverviewText(doc).length).toBe(20000);
+  });
+
+  // Final review fix wave: live Google pages carry inline scripts and styles inside the
+  // overview (the chip images are filled by `_setImageSrc` scripts); the saved fixtures
+  // were cleaned of them, so only a fragment can pin this.
+  it('reads no script, style or noscript text, and a box holding only them is empty', () => {
+    expect(S.aiOverviewText(parseFragment('<div data-subtree="aimc"><style>.x{color:red}</style><p>Answer.</p><script>(function(){window.sn={}})();</script><noscript>Turn on JavaScript</noscript></div>'))).toBe('Answer.');
+    expect(S.aiOverviewState(parseFragment('<div data-subtree="aimc"><style>.s{}</style><script>var a=1;</script></div>'))).toBe('empty');
+  });
+
+  it('says empty for a box holding only a heading, source chips and a do-not-copy panel', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><div role="heading"><strong>AI Overview</strong></div>' +
+      '<button>Chip +2</button><button>Chip +3</button><div data-ignore-copy>Connect your account</div></div>');
+    expect(S.aiOverviewText(doc)).toBe('');
+    expect(S.aiOverviewState(doc)).toBe('empty');
+  });
+
+  it('lists no direct citation but counts the redirects when every citation goes through Google', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Answer.</p>' +
+      '<a href="/goto?url=CAESAA1">a</a><a href="https://www.google.com/goto?url=CAESAA2">b</a></div>');
+    expect(S.aiOverviewCitations(doc)).toEqual([]);
+    expect(S.aiOverviewRedirectCount(doc)).toBeGreaterThan(0);
+  });
+
+  it('puts a space where a removed chip or a block starts, so no words are glued', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p><span>Founded in 2010.</span><button>Chip +2</button><span>Next sentence.</span></p>' +
+      '<div>Includes<ul><li>Acme</li></ul></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Founded in 2010. Next sentence. Includes Acme');
+  });
+
+  it('is no overview when the box is hidden, so state and Search features agree', () => {
+    ['<div data-subtree="aimc" style="display:none"><p>Stale answer.</p></div>',
+      '<div hidden><div data-subtree="aimc"><p>Stale answer.</p></div></div>'].forEach((html) => {
+      const doc = parseFragment(html);
+      expect(S.aiOverviewState(doc)).toBe('none');
+      expect(S.aiOverviewText(doc)).toBe('');
+      expect(S.aiOverviewRedirectCount(doc)).toBe(0);
+      expect(S.detectFeatures(doc).some((f) => f.key === 'ai_overview')).toBe(false);
+    });
+  });
+
+  it('still reads the collapsed half of the answer, aria-hidden inside a shown box', () => {
+    const doc = parseFragment('<div data-subtree="aimc"><p>Shown half.</p><div aria-hidden="true"><p>Collapsed half.</p></div></div>');
+    expect(S.aiOverviewText(doc)).toBe('Shown half. Collapsed half.');
+    expect(S.aiOverviewState(doc)).toBe('loaded');
+    expect(S.detectFeatures(doc).some((f) => f.key === 'ai_overview')).toBe(true);
   });
 });
