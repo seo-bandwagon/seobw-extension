@@ -1,13 +1,13 @@
 /* SEO Bandwagon — new tab page.
  *
- * Layout only. Every colour and face comes from the tokens in
+ * Layout only. Every color and face comes from the tokens in
  * ../styles/popup.css, so the page follows Night / Day / Auto with the popup,
  * both side panels and the options page (token map: see ../panel/panel.css).
  *
  * An extension's new tab replaces Chrome's, so a Neon theme's own wallpaper
  * never shows behind it. This page draws the same art instead: the Neon Night
  * and Neon Day 1.0.1 wallpapers (seo-bandwagon/seobw-themes, 3840 x 1080),
- * re-encoded as WebP, placed the way Chrome places a theme's: bottom centre,
+ * re-encoded as WebP, placed the way Chrome places a theme's: bottom center,
  * never scaled.
  */
 

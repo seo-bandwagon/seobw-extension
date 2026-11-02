@@ -141,7 +141,7 @@ describe('page-scroller', () => {
 
   it('hides the page scrollbar while capturing and puts it back', async () => {
     // macOS draws its overlay scrollbar for a moment after every scroll, and
-    // it landed in each frame as a grey bar at the right edge.
+    // it landed in each frame as a gray bar at the right edge.
     document.documentElement.style.setProperty('scrollbar-width', 'thin');
     await call('fpPrepare');
     const de = document.documentElement.style;

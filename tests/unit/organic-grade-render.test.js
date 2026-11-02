@@ -659,7 +659,7 @@ describe('renderAndScore', () => {
         u === url
           ? ok(
               '<h1>Policy page</h1><script>document.title = "the policy was ignored";</script>',
-              `<title>Raw title, policy honoured</title><meta http-equiv="Content-Security-Policy" content="script-src 'none'">`
+              `<title>Raw title, policy honored</title><meta http-equiv="Content-Security-Policy" content="script-src 'none'">`
             )
           : undefined
       );
@@ -668,7 +668,7 @@ describe('renderAndScore', () => {
       await renderAndScore([url], dir, bridge.base, quiet);
 
       const [record] = renderedOf(dir);
-      expect(record).toMatchObject({ error: null, titleText: 'Raw title, policy honoured' });
+      expect(record).toMatchObject({ error: null, titleText: 'Raw title, policy honored' });
       expect(record.score).toBeTypeOf('number');
     });
 
@@ -677,7 +677,7 @@ describe('renderAndScore', () => {
       // page asks for its document and then its script, so the requests being
       // answered at any moment are at most the pages in flight.
       const urls = [];
-      // The two pages of a host are neighbours, so a runner that ignored hosts would start them together.
+      // The two pages of a host are neighbors, so a runner that ignored hosts would start them together.
       for (let h = 0; h < 6; h++) for (let n = 0; n < 2; n++) urls.push(`http://host${h}.test/page${n}`);
       const bridge = await fakeBridge((u) => {
         if (u.endsWith('/s.js')) return { type: 'text/javascript', body: '', delayMs: 250 };

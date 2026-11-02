@@ -1,5 +1,5 @@
 // Unit tests for the pure Options page helpers (src/lib/options-logic.js).
-// Covers: Advanced API URL validation/normalisation and the
+// Covers: Advanced API URL validation/normalization and the
 // SBW.verifyKey() result → status message/class mapping.
 
 import { describe, it, expect } from 'vitest';
@@ -108,7 +108,7 @@ describe('normalizeApiUrl', () => {
     expect(SBWOptions.normalizeApiUrl('   ')).toBe('https://seobandwagon.com/api');
   });
 
-  it('normalises a localhost URL the same way', () => {
+  it('normalizes a localhost URL the same way', () => {
     expect(SBWOptions.normalizeApiUrl('http://localhost:8000')).toBe('http://localhost:8000/api');
   });
 });

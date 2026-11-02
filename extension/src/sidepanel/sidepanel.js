@@ -604,7 +604,7 @@ async function reviewOutlet(id, action) {
   if (action === 'reject') {
     // Server max (sql/033 prospects/review schema): reason.max(500).
     const input = window.prompt('Reason for rejecting this outlet (3-500 characters):');
-    if (input === null) return; // cancelled
+    if (input === null) return; // canceled
     reason = input.trim();
     if (reason.length < 3) { setFoot('Reason must be at least 3 characters'); return; }
     if (reason.length > 500) { setFoot('Reason must be 500 characters or fewer'); return; }
@@ -804,7 +804,7 @@ async function reviewPitch(id, action) {
     // longer reason than outlets (500) since it doubles as angle/template
     // tuning data (§10).
     const input = window.prompt('Reason for rejecting this pitch (3-1000 characters):');
-    if (input === null) return; // cancelled
+    if (input === null) return; // canceled
     reason = input.trim();
     if (reason.length < 3) { setFoot('Reason must be at least 3 characters'); return; }
     if (reason.length > 1000) { setFoot('Reason must be 1000 characters or fewer'); return; }

@@ -115,7 +115,7 @@ describe('SBWTheme', () => {
       'https://chromewebstore.google.com/detail/ldifldabjbffldoekbebpickddaiiggm'
     );
     // Anything that is not a 32-char a–p id hides the link rather than
-    // producing a broken URL — the pre-upload behaviour, still reachable.
+    // producing a broken URL — the pre-upload behavior, still reachable.
     S.THEME_IDS.dark = 'REPLACE_WITH_NEON_NIGHT_ITEM_ID';
     expect(S.listingUrl('dark')).toBeNull();
     S.THEME_IDS.light = '';

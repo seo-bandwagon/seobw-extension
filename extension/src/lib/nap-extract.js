@@ -180,16 +180,16 @@
     return '';
   }
 
-  // The business's website as the page links it: a link labelled as the
+  // The business's website as the page links it: a link labeled as the
   // website (its text, title or aria-label), else a link whose text is an
   // address, on another site than the directory's.
   function websiteFromLinks(doc, pageUrl, scope) {
     const links = Array.from((scope || doc).querySelectorAll('a[href]'));
     const label = a => [a.textContent, a.getAttribute('title'), a.getAttribute('aria-label')]
       .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-    const labelled = links.filter(a => WEBSITE_LABEL_RE.test(label(a)) || a.getAttribute('itemprop') === 'url');
+    const labeled = links.filter(a => WEBSITE_LABEL_RE.test(label(a)) || a.getAttribute('itemprop') === 'url');
     const bare = links.filter(a => BARE_DOMAIN_RE.test((a.textContent || '').trim()));
-    return firstOffSite(labelled.concat(bare).map(a => a.getAttribute('href')), pageUrl);
+    return firstOffSite(labeled.concat(bare).map(a => a.getAttribute('href')), pageUrl);
   }
 
   // A JSON-LD node's own website: its url, when on another site. Not sameAs,

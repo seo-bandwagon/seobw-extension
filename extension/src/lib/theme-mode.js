@@ -23,7 +23,7 @@
 
   // The two published Chrome theme items (filled 2026-09-08). A non-id here —
   // a placeholder, or a cleared string — makes listingUrl() return null and
-  // every link to a theme hide itself, which is the behaviour before upload.
+  // every link to a theme hide itself, which is the behavior before upload.
   const THEME_IDS = {
     dark: 'bomhiblgnbmpgbddhocomnbijdkmpbhl',
     light: 'ldifldabjbffldoekbebpickddaiiggm',

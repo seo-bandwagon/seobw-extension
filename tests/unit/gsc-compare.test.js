@@ -265,7 +265,7 @@ describe('detectCompareColumns', () => {
   });
 
   // fix-1 item 5 (IMPORTANT): pairing must key off the word "previous" in the
-  // header text, not encounter order -- GSC (or a differently-localised
+  // header text, not encounter order -- GSC (or a differently-localized
   // build) may render the previous-period column first.
   it('identifies prevIdx by header text, not position, when headers are reversed', () => {
     const table = tableFromHtml(`

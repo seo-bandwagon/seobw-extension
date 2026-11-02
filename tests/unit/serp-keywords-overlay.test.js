@@ -259,7 +259,7 @@ describe('with keyword data', () => {
     });
   });
 
-  it('shows the search\'s figures, labelled as DataForSEO\'s, and the allowance', async () => {
+  it('shows the search\'s figures, labeled as DataForSEO\'s, and the allowance', async () => {
     await shown();
     const search = strip().querySelector('[data-role="kw-search"]');
     expect(search.querySelector('[data-kw="volume"]').textContent).toBe('2.9K searches/mo');

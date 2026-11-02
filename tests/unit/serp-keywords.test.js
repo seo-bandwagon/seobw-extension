@@ -35,7 +35,7 @@ describe('keywordOf: a shown search as it is sent', () => {
 });
 
 describe('lookupOf: the site\'s lookup form (website lookupForm)', () => {
-  it('drops apostrophes, reads a question mark and other punctuation as a space, drops a full stop that ends a word', () => {
+  it('drops apostrophes, reads a question mark and other punctuation as a space, drops a period that ends a word', () => {
     expect(K.lookupOf('What’s the 33% rule for nonprofits?')).toBe('whats the 33 rule for nonprofits');
     expect(K.lookupOf("Joe's B&B near St. Paul")).toBe('joes b&b near st paul');
     expect(K.lookupOf('node.js hosting')).toBe('node.js hosting');

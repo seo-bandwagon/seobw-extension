@@ -871,7 +871,7 @@ describe('1.11.0: figures under each result', () => {
     window.chrome.storage.local = { get: vi.fn(async () => ({ serpSettings: settings })), set: vi.fn(async () => {}) };
   }
 
-  it('shows the page\'s and the site\'s figures, labelled DataForSEO\'s, with domain age and your checklist', async () => {
+  it('shows the page\'s and the site\'s figures, labeled DataForSEO\'s, with domain age and your checklist', async () => {
     figuresReply((msg) => okReply('done', msg));
     freshDom(['alpha.example', 'beta.example']);
     await loadOverlay();
