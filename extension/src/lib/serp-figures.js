@@ -92,6 +92,17 @@
     return { key, url, domain: row.domain };
   }
 
+  /**
+   * An address that isn't a result (a pinned page, an AI Overview's
+   * source), as the figures may send it: on its own site, without its
+   * fragment and without anything carrying the search; null when it can't
+   * be sent.
+   */
+  function cleanAddress(url, domain, query) {
+    const item = requestItem({ url, domain, _key: url }, query);
+    return item ? item.url : null;
+  }
+
   function requestItems(rows, query) {
     const seen = new Set();
     const out = [];
@@ -348,6 +359,7 @@
     FIGURE_WORDS,
     requestItem,
     requestItems,
+    cleanAddress,
     cacheKey,
     batches,
     resultFigures,

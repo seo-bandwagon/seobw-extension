@@ -51,7 +51,7 @@ describe('Chrome and Edge: today\'s switches', () => {
   it('figures: nothing until the person accepts in Options', async () => {
     expect(await C.check('serpFigures')).toEqual({ ok: false, reason: 'not_accepted' });
     expect(await C.accept('serpFigures', Date.UTC(2026, 10, 1))).toBe(true);
-    expect(local[C.STORAGE_KEY].serpFigures).toEqual({ acceptedAt: '2026-11-01T00:00:00.000Z', version: 1 });
+    expect(local[C.STORAGE_KEY].serpFigures).toEqual({ acceptedAt: '2026-11-01T00:00:00.000Z', version: 2 });
     expect(await C.check('serpFigures')).toEqual({ ok: true });
   });
 
@@ -70,8 +70,8 @@ describe('Chrome and Edge: today\'s switches', () => {
     expect(await C.acceptance('serpFigures')).toBeNull();
   });
 
-  it('new words for a flow ask everyone again', async () => {
-    local[C.STORAGE_KEY] = { serpFigures: { acceptedAt: '2026-11-01T00:00:00Z', version: 0 } };
+  it('new words for a flow ask everyone again: 1.11.0\'s acceptance (version 1) is asked again for 1.12.0\'s pinned page', async () => {
+    local[C.STORAGE_KEY] = { serpFigures: { acceptedAt: '2026-11-01T00:00:00Z', version: 1 } };
     expect(await C.check('serpFigures')).toMatchObject({ reason: 'not_accepted' });
   });
 

@@ -20,8 +20,9 @@ for working in the repo.
   saved Google pages in `tests/fixtures`, `account.spec.mjs`, the account
   surfaces in a fresh profile with seobandwagon.com's answers stubbed, and
   `serp-figures.spec.mjs`, the figures under Google results against the
-  saved route answers in `tests/fixtures/serp-metrics` (all every PR). No
-  test queries Google.
+  saved route answers in `tests/fixtures/serp-metrics`, and
+  `serp-analyze.spec.mjs`, Analyze on Google read offscreen from pages on a
+  local server (all every PR). No test queries Google.
 - `scripts/` — version bump and zip checks. `docs/archive/` — history only:
   just the two files `ROADMAP.md` links to. Don't add planning or spec docs
   to the repo; they go where findings go (below).
@@ -67,6 +68,9 @@ changelog section. Full rules: ROADMAP.md → "Versioning policy", README.md →
 - `extension/src/background/service-worker.js` (~1200 lines) holds every
   background message handler across several `onMessage` listeners. Add a new
   action next to its feature's existing listener, not in a new listener.
+- Analyze on Google (1.12.0) reads a page's HTML in `src/offscreen/offscreen.html`,
+  which loads the analyzer libs itself, and the worker imports them too for
+  Firefox's background page; a new analyzer lib goes in both.
 - The list of analyzer files injected into a page is written out in four places:
   `service-worker.js`, `popup/popup.js`, `popup/link-check.js`, and
   `ANALYZER_FILES` in `lib/sbw-data.js`. Change all four together.

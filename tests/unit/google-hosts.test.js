@@ -26,8 +26,8 @@ describe('Google search hosts', () => {
     expect(new Set(hosts).size).toBe(30);
   });
 
-  it('the overlay loads the figures and settings modules before itself', () => {
-    expect(overlay.js).toEqual(['src/lib/serp.js', 'src/lib/serp-figures.js', 'src/lib/serp-settings.js', 'src/overlay/serp-overlay.js']);
+  it('the overlay loads the figures, settings and table modules before itself', () => {
+    expect(overlay.js).toEqual(['src/lib/serp.js', 'src/lib/serp-figures.js', 'src/lib/serp-settings.js', 'src/lib/serp-table.js', 'src/overlay/serp-overlay.js']);
   });
 
   it.each(['src/popup/popup.js', 'src/lib/sbw-data.js'])('%s names the same hosts as the manifest', (file) => {

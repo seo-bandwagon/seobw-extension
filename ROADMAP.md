@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.11.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.12.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -142,13 +142,13 @@ grant; the coverage report (#74).
 - [x] Allowances (owner, 2026-10-23; starting values 2026-11-01): free 20 searches with figures a day, Pro 250, $100 a month site-wide, all config values; measured about $0.039 an uncached search
 
 ### 1.12.0: Analyze on Google, and the results table
-- [ ] Analyze opens a row under the result, on Google (owner, 2026-11-01): title and description with pixel lengths, H1, word count, schema types, canonical, indexable, status and redirects, hreflang, technologies, AI crawlers blocked in robots.txt, llms.txt, the on-page checklist
-- [ ] The page's HTML fetched without cookies under the all-sites access; the popup's analyzer runs in an offscreen document on Chrome and Edge (`offscreen`, no warning; measured first) and the background page on Firefox; no tab opens; "Full report" opens the rendered analysis
-- [ ] "Analyze top 10": every row and the table's on-page columns in one click, three pages at a time
-- [ ] The Market Samurai-style table at the panel's place: position, title/URL, result type, the search's words in title, URL and description, title length, date, page and site link and traffic figures, domain age, word count, schema, the on-page checklist; cells coloured against the search's median or your pinned page; columns chosen and sortable; same columns in the export
-- [ ] Your page pinned as a comparison row (the account's site, or a typed URL)
-- [ ] AI Overview sources with the same figures and their own export
-- [ ] Signed out of Google, a row Google hides asks to sign in to Google or open it; no request to Google
+- [x] Analyze opens a row under the result, on Google (owner, 2026-11-01): title and description with pixel lengths, H1, word count, schema types, canonical, indexable, status and redirects, hreflang, technologies, AI crawlers blocked in robots.txt, llms.txt, the on-page checklist
+- [x] The page's HTML fetched without cookies under the all-sites access; the popup's analyzer runs in an offscreen document on Chrome and Edge (`offscreen`, no warning; measured with Chrome for Testing 156) and the background page on Firefox; no tab opens; "Full report" opens the rendered analysis
+- [x] "Analyze top 10": every row and the table's on-page columns in one click, three pages at a time
+- [x] The Market Samurai-style table at the panel's place: position, title/URL, result type, the search's words in title, URL and description, title length, date, page and site link and traffic figures, domain age, word count, schema, the on-page checklist; cells marked against the search's median or your pinned page; columns chosen and sortable; same columns in the export
+- [x] Your page pinned as a comparison row (a typed URL; the account's site waits for 1.14.0)
+- [x] AI Overview sources with the same figures and their own export
+- [x] Signed out of Google, a row Google hides asks to sign in to Google or open it; no request to Google
 
 ### 1.13.0: keyword data on Google, into the account (#68)
 - [ ] On a click or automatically: volume, difficulty, CPC, competition and trend under the search box; volumes for related searches and People Also Ask
@@ -233,6 +233,85 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.12.0 (2026-11-02)
+
+Analyze on Google, and the results table: the owner's choice of 2026-11-01
+("Stay on Google": "the result opens a row under it, on Google, with that
+page's checks"; "Analyze top 10 fills the whole table at once") and the
+table asked for on 2026-10-17 and 2026-10-23. Store submission C, with
+1.13.0. Built on 1.11.0 (#147), which goes first.
+
+- **Analyze opens the page's checks under the result** (`src/lib/serp-page-check.js`,
+  `src/lib/page-row.js`): title and description in characters and Google's
+  pixels (`src/lib/serp-preview.js`), H1, words, schema types, canonical,
+  indexable with the reason (status, robots or Googlebot meta, X-Robots-Tag,
+  canonical elsewhere), status and redirect, hreflang, technologies, the AI
+  crawlers the site's robots.txt blocks for that page (`src/lib/robots-ai.js`:
+  eleven crawlers, read as RFC 9309 reads them), llms.txt, and the on-page
+  checklist. Each item has its detail on hover; a missing title, a cut one,
+  a canonical elsewhere and a page that can't be indexed are flagged.
+- **How it reads the page:** the worker fetches the page from the user's
+  browser, without cookies, three at a time, under the optional all-sites
+  access (asked once from 1.10.2's window, whose words now say what
+  happens), and its site's robots.txt and llms.txt once a session, however
+  many of the site's pages are checked at once. The HTML goes to an
+  offscreen document (`src/offscreen/`, reason `DOM_PARSER`; the new
+  `offscreen` permission adds no install warning, measured) that runs the
+  popup's analyzer on it with a `<base>` of the page's address; on Firefox
+  the background page has a DOM parser and reads it itself. No tab opens.
+  A page is kept for the session. Google's search and redirect pages are
+  never fetched, and a result Google hides from a signed-out user asks to
+  sign in to Google or open it. "Full report" opens the page in a new tab
+  with the popup's analysis of it as drawn (1.8.4's flow).
+- **Never a local address** (found by the security review before release):
+  a result, its redirect or a pinned address on loopback, a private, link-
+  local or CGNAT range, an IPv6 local range, a bare number, a one-word host
+  or a `.local`/`.internal`-style name is not fetched, and a page that
+  redirects to one is not read, nor that site's robots.txt. robots.txt rules
+  are matched by a linear wildcard matcher (rules cut at 2 KB, paths at
+  4 KB), never compiled into a regular expression a hostile file could make
+  backtrack.
+- **Found in review before release, and fixed:** a redirect is followed
+  by the browser before the extension can see where it goes, so while
+  Analyze reads pages, `declarativeNetRequest` session rules (seven small
+  ones: Chrome refused a single pattern past its 2 KB compiled limit)
+  block the extension's own requests to local and private addresses on
+  every hop, trailing dots and 224 and up included, and are removed after;
+  if Chrome won't take them, nothing is read. A test holds the rules to the
+  code's own check on one list of addresses, and a probe in Chrome showed
+  every local form blocked and public names through. Two tabs analyzing one page each hear back. A pinned page's and an
+  AI Overview source's address goes without any part of the search, like a
+  result's. Google's home, Maps, Books and Scholar searches are never
+  fetched. A page's own relative `<base href="/">` and a Google link's
+  `srsltid=` no longer read as "canonical points elsewhere".
+  `X-Robots-Tag: max-image-preview:large, noindex` is a noindex. An age
+  under a year ("11m") is read, sorting is the same whatever the order, the
+  CSV writes "2 of 3" (never a date), the pinned row's description is its
+  own, robots.txt is kept to 128 KB and 100 sites a session, and a page is
+  read in its own character set.
+- **Analyze top 10** in the panel; its line counts what is checked, waiting
+  or hidden.
+- **The results table** (`src/lib/serp-table.js`) in the panel, at the top
+  or the bottom with it: 22 columns, chosen in settings ("Results table"),
+  sorted by a click on a header (`aria-sort`), marked ▲ above or ▼ below the
+  search's median or the pinned page, only where higher is better, with the
+  comparison on hover; "Export table CSV" carries the same columns, figures
+  named for their source.
+- **Your page pinned:** a typed address becomes the first row, checked from
+  its HTML and, with figures on, given its figures on the Pin click.
+- **AI Overview sources** in their own table, with figures and checks on a
+  click and their own CSV.
+- **Consent:** the figures' words now name a pinned page and the AI
+  Overview's sources, sent only on the user's click; their version is 2, so
+  anyone who accepted 1.11.0's words is asked again.
+- **Data use:** the page fetches go to the result's own site, never to us.
+  New to us only on a click: a pinned page's address and the AI Overview's
+  sources, for their figures. Dashboard texts: `CHROMEWEBSTORE.md`, "To
+  paste with submission C".
+- **Not in 1.12.0:** the account's own site as the pinned page waits for
+  1.14.0. 1.10.2's background-tab Analyze (`src/lib/serp-analyze.js`) is no
+  longer called by the overlay; its worker handlers stay until a cleanup.
 
 ## Changelog — v1.11.0 (2026-11-01)
 

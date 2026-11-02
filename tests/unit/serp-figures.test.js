@@ -158,3 +158,11 @@ describe('the words for every answer that is not figures', () => {
     expect(F.errorWords('network').text).toMatch(/^Offline/);
   });
 });
+
+describe('1.12.0: addresses that aren\'t results', () => {
+  it('an AI Overview source or a pinned page goes without the search or its fragment', () => {
+    expect(F.cleanAddress('https://books.google.com/books?id=1&dq=emergency+plumber+austin#x', 'books.google.com', 'emergency plumber austin')).toBe('https://books.google.com/books');
+    expect(F.cleanAddress('https://mine.example/page?s=emergency+plumber+austin', 'mine.example', 'emergency plumber austin')).toBe('https://mine.example/page');
+    expect(F.cleanAddress('https://elsewhere.example/', 'mine.example', '')).toBeNull();
+  });
+});

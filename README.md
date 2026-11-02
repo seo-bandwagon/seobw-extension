@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.11.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.12.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -119,7 +119,8 @@ are bundled in `src/styles/fonts/` because MV3 blocks remote `font-src`.
 | `alarms` | The 15-minute background retry drainer for captures that failed to sync |
 | `webRequest` | Observes top-level navigations in every tab (a fixed listener filter, `types: ['main_frame']`) — not just the one you're looking at — buffering the last 25 redirect/status/response-header events per tab in `chrome.storage.session`; only the buffer for the tab you currently have the popup open on is ever read, by the Indexability panel. Cleared when that tab closes, the browser restarts, or the optional permission below is revoked. Fires on nothing without `<all_urls>` below, and never reads a response body |
 | `webNavigation` | Detect client-side (JS) redirects for the same Indexability section, and notice when a reload finishes so "Reload to capture" can re-check the page |
-| `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
+| `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. From 1.12.0, while Analyze on Google reads pages, it also blocks the extension's own requests to local and private addresses (redirect hops included) and removes those rules when done. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
+| `offscreen` | 1.12.0. Analyze on Google reads a result's HTML in an offscreen document (reason `DOM_PARSER`), since the service worker can't parse HTML: the popup's analyzer, on a page fetched on your click. No install warning (measured with `getPermissionWarningsByManifest`) |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
 | `content_scripts` matches: `https://www.google.com/search*` and the same path on 29 other Google domains (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.co.in`, and from 1.11.0 `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, shows each one's position and, from 1.11.0, its figures, and copies results/PAA questions to your clipboard or a CSV only when you click. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the search) to `seobandwagon.com` for the figures; otherwise it sends nothing (1.10.2 sent nothing; until then, the bare domains of the results, for a per-site stat). The twenty domains added in 1.11.0 left the install warning unchanged (measured with `getPermissionWarningsByManifest`: Chrome names every `www.google.*` host as www.google.com). It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use. Its Analyze button reads the result in a background tab, which needs the optional `<all_urls>` permission below; the extension asks for it once, from its own window, when Analyze is first clicked. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` only redirects there, so the overlay never ran in India); the install warning is unchanged (measured with `getPermissionWarningsByManifest`) |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
@@ -193,18 +194,47 @@ and ad labels are read in each Google's own language (1.11.0).
   right; People also ask answers are never results. (Until 1.10.2 the bar
   showed "Score N · M captures", an on-page grade averaged over the whole
   host and every account's captures.)
-- **Analyze** (1.10.2, the owner's "Stay on Google"): a click opens the
-  result in a background tab beside the results page, so you stay on
-  Google; the worker analyzes that tab by its ID with the popup's own
-  analyzer (`src/lib/serp-analyze.js`) and puts one line under the result:
-  the page's **on-page checklist** score and issue count, and **Open
-  report**, which switches to that tab and opens the popup on its analysis.
-  The checklist is not a ranking factor and the line never says it is.
-  Without "access to all sites", the first click opens the extension's own
-  small window (`src/access/access.html`) with the reason; once allowed, the
-  waiting results are analyzed and every later click runs straight through.
-  A second click on a result reuses its tab; several quick clicks each get
-  their own. Ctrl/Cmd/Shift and middle clicks open the link as a plain link.
+- **Analyze** (1.12.0, the owner's "Stay on Google"): a click opens a row
+  under the result with the page's checks: its title and description in
+  characters and in Google's pixels, H1, word count, structured-data types,
+  canonical (itself or elsewhere), indexable and why not (status, the robots
+  or Googlebot meta, the X-Robots-Tag header, a canonical elsewhere), status
+  and redirect, hreflang, technologies, the AI crawlers its site's
+  robots.txt blocks, whether the site has an llms.txt, and the **on-page
+  checklist**. The worker fetches the page from your browser without
+  cookies, three at a time, and its site's robots.txt and llms.txt once a
+  session (`src/lib/serp-page-check.js`); an offscreen document reads the
+  HTML with the popup's own analyzer (`src/offscreen/`, `src/lib/page-row.js`;
+  the `offscreen` permission, no install warning), and on Firefox the
+  background page does. No tab opens, and nothing it reads goes to
+  SEO Bandwagon. It never reads a local or private address (loopback,
+  private, link-local, `.local` and the like): such an address is refused,
+  and while pages are read `declarativeNetRequest` session rules block the
+  extension's own requests to one, so a page that redirects there is never
+  followed (if Chrome won't take the rules, nothing is read). The row says the checks are from the page's HTML (no
+  scripts run); **Full report** opens the page in a new tab with the full
+  analysis of it as your browser draws it. Without "access to all sites",
+  the first click opens the extension's own small window
+  (`src/access/access.html`) with the reason; once allowed, the waiting
+  pages are checked. A result Google hides while you're signed out of
+  Google asks you to sign in to Google or open it; nothing fetches it.
+  Ctrl/Cmd/Shift and middle clicks open the link as a plain link. (1.10.2
+  to 1.11.0 opened the result in a background tab instead.)
+- **Analyze top 10** (1.12.0) in the panel checks every result at once.
+- **The results table** (1.12.0, `src/lib/serp-table.js`) in the panel: one
+  row per result with its position (on the page and counting everything),
+  title and URL, type, the search's words in its title, URL and
+  description, title length, date, the page's and the site's figures,
+  domain age, words, schema and checklist. Cells are marked ▲ above or ▼
+  below the search's median, or your pinned page (settings); only columns
+  where higher is better are marked. Columns are chosen in settings and
+  sorted by a click; **Export table CSV** carries the same columns.
+- **Your page pinned** (1.12.0): type its address in the table and Pin; it
+  becomes the first row, checked from its HTML and, with figures on, given
+  its figures (its address goes to SEO Bandwagon for them on that click).
+- **AI Overview sources** (1.12.0): the pages an AI Overview cites, in a
+  table of their own, with "Load figures for sources" (one search of the
+  day's allowance), "Analyze sources" and their own CSV.
 - **Figures** (1.11.0, the owner's "metrics on the SERP page"): the bar's
   second row, with the figures chosen in settings: the **page**'s referring
   domains, backlinks, rank, estimated traffic and ranking keywords; the
@@ -237,7 +267,8 @@ and ad labels are read in each Google's own language (1.11.0).
 - **The panel** (1.11.0; was the toolbar): one collapsible SEO Bandwagon
   panel, below or above the results by setting (#53; above, it pushes them
   down), with groups: **Figures** (the plan and allowance, Load figures when
-  they load on a click), **Export** (**Copy results (N)**, TSV to clipboard,
+  they load on a click), **Analyze** and **Table** (1.12.0), **AI Overview
+  sources** (when the page has one), **Export** (**Copy results (N)**, TSV to clipboard,
   and **Export CSV**), **People also ask** (**Copy PAA (N)**), **Collect
   pages** and **Location** (the simulator).
 - **Settings** ("Google results" in Options and in the popup): the overlay
@@ -470,7 +501,10 @@ extension/               # the only folder that ships (load unpacked from here; 
                              # every send's data category and acceptance), serp-figures.js (the figures
                              # under each Google result: request, words, allowance), serp-figures-service.js
                              # (the worker's figures calls and session cache), serp-settings.js and
-                             # serp-settings-ui.js (the "Google results" settings)
+                             # serp-settings-ui.js (the "Google results" settings), 1.12.0:
+                             # serp-page-check.js (Analyze's fetch, robots.txt, llms.txt), page-row.js
+                             # (a page's checks from its HTML), robots-ai.js, serp-table.js (the table)
+    offscreen/              # 1.12.0: the offscreen document Analyze on Google reads HTML in
     options/                # Settings page (API key, Advanced endpoint, dashboard links, Google results)
     overlay/                # SERP overlay content script (see "SERP overlay" above)
     popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section);
@@ -514,6 +548,7 @@ Three layers of automated test cover this extension, plus a manual dev harness:
 | Integration | vitest + JSDOM + fixture HTML | `tests/integration/` | Every PR + push |
 | E2E canary | Playwright + real Chromium + real prod; loads `extension/` and injects popup.js's own file list. With the `SBW_CANARY_KEY` secret (an `sbw_` key with the `captures` scope) it uploads a real capture; without it, it checks the no-key refusal and production's 401 | `tests/e2e/canary.spec.mjs` | Weekly cron + push to main |
 | E2E Collect pages | Playwright + real Chromium, offline; loads `extension/`, answers `www.google.com/search` from the saved pages in `tests/fixtures`, blocks every other request, and clicks the results overlay through Add page 1, Next, Add page 2 (twice), Add page 4 and Export collected CSV. No network, no secrets | `tests/e2e/serp-collect.spec.mjs` | Every PR + push |
+| E2E Analyze on Google | Playwright + real Chromium, offline; result pages from a local server, a results page in Google's markup linking to them: Analyze's checks read in the offscreen document, no tab opened, no cookie sent, robots.txt read once a site, a hidden result never fetched, Analyze top 10 filling the table. `SBW_SCREENSHOTS=<dir>` saves the row and the table | `tests/e2e/serp-analyze.spec.mjs` | Every PR + push |
 | E2E figures on Google | Playwright + real Chromium, offline; saved Google pages, and `POST /api/v1/serp/metrics` answered from `tests/fixtures/serp-metrics`: signed out sends nothing, the Options button accepts, the figures, plan and allowance show, a second look is answered from the session, then a 403, the allowance reached, the monthly pause and offline, a result hidden behind `/goto`, and the panel moved to the top. `SBW_SCREENSHOTS=<dir>` also saves the four looks | `tests/e2e/serp-figures.spec.mjs` | Every PR + push |
 
 CI workflows in `.github/workflows/`. The weekly canary auto-creates a GitHub issue on scheduled failure.

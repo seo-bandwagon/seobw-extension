@@ -1,6 +1,13 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-settings.js');
+importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+
+// 1.12.0: Firefox's background page has a DOM parser and reads Analyze's
+// pages itself; Chrome's worker hands them to the offscreen document, which
+// loads these on its own (src/offscreen/offscreen.html).
+if (typeof DOMParser === 'function') {
+  importScripts('../../lib/content-analysis.js', '../lib/structured-data.js', '../lib/serp-preview.js', '../lib/page-row.js');
+}
 
 // 1.10.2: the results overlay sends nothing to SEO Bandwagon. Its bar showed
 // "Score N · M captures" from POST /api/domain/quick-batch, an on-page grade
@@ -481,7 +488,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // The access page's answer (src/access/access.js).
   if (request.action === 'serpAccess') {
-    serpAnalyze.accessAnswered(request.granted === true).then(() => sendResponse({ ok: true }));
+    Promise.all([
+      serpAnalyze.accessAnswered(request.granted === true),
+      pageCheck.accessAnswered(request.granted === true)
+    ]).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // 1.12.0: Analyze on Google. The overlay sends [{ key, url }] (one result,
+  // or every result for "Analyze top 10"); each row's checks come back as
+  // { action: 'serpPageChecked', key, state, row } to the frame that asked
+  // (src/lib/serp-page-check.js).
+  if (request.action === 'serpPageCheck' && sender.tab) {
+    const reqs = (Array.isArray(request.items) ? request.items : []).slice(0, 30).map((i) => ({
+      key: i && i.key, url: i && i.url, serpTabId: sender.tab.id, frameId: sender.frameId || 0
+    }));
+    pageCheck.check(reqs, { fresh: request.fresh === true })
+      .then(sendResponse, () => sendResponse({ state: 'error', code: 'failed' }));
     return true;
   }
 
@@ -777,14 +800,86 @@ const serpAnalyze = SBWSerpAnalyze.createSerpAnalyze({
 
 chrome.tabs.onRemoved.addListener((tabId) => { serpAnalyze.tabRemoved(tabId); });
 
+// --- Analyze on Google: the page's checks from its HTML (1.12.0) ---
+//
+// The worker has no DOMParser. On Chrome and Edge an offscreen document
+// (`offscreen`, DOM_PARSER; no install warning, measured) reads the HTML
+// with the popup's analyzer; on Firefox the background page has a
+// DOMParser and reads it itself. The document closes a minute after its
+// last page.
+const OFFSCREEN_URL = 'src/offscreen/offscreen.html';
+let offscreenCreating = null;
+let offscreenTimer = null;
+
+async function ensureOffscreen() {
+  const url = chrome.runtime.getURL(OFFSCREEN_URL);
+  const contexts = chrome.runtime.getContexts
+    ? await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] })
+    : [];
+  if (contexts.length) return;
+  if (!offscreenCreating) {
+    offscreenCreating = chrome.offscreen.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: ['DOM_PARSER'],
+      justification: 'Read the HTML of a Google result the user asked to analyze, with the same analyzer as the popup.'
+    }).finally(() => { offscreenCreating = null; });
+  }
+  await offscreenCreating;
+}
+
+function closeOffscreenLater() {
+  if (offscreenTimer) clearTimeout(offscreenTimer);
+  offscreenTimer = setTimeout(() => {
+    offscreenTimer = null;
+    if (chrome.offscreen && chrome.offscreen.closeDocument) chrome.offscreen.closeDocument().catch(() => {});
+  }, 60 * 1000);
+}
+
+async function pageRowFromHtml(html, fetchInfo, site) {
+  // A read starting keeps the document: the close timer waits for the last.
+  if (offscreenTimer) { clearTimeout(offscreenTimer); offscreenTimer = null; }
+  if (typeof DOMParser === 'function') {
+    return SBWPageRow.fromDocument(SBWPageRow.parse(html, fetchInfo.finalUrl), fetchInfo, site);
+  }
+  await ensureOffscreen();
+  const reply = await chrome.runtime.sendMessage({ target: 'sbw-offscreen', action: 'pageRow', html, fetchInfo, site });
+  closeOffscreenLater();
+  if (!reply || !reply.row) throw Object.assign(new Error((reply && reply.error) || 'unreadable'), { code: 'unreadable' });
+  return reply.row;
+}
+
+// While pages are read, `guard` keeps a session rule in place that stops
+// the extension's own requests to a local or private address, redirect hops
+// included (SBWSerpPageCheck.localBlockRules).
+const pageCheck = SBWSerpPageCheck.createSerpPageCheck({
+  fetchText: SBWSerpPageCheck.fetchText,
+  analyze: pageRowFromHtml,
+  robots: SBWRobotsAi,
+  hasAccess: () => SBWPerms.hasAllUrls().catch(() => false),
+  openAccessPage: openSerpAccessPage,
+  storage: chrome.storage.session,
+  guard: (on) => chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: SBWSerpPageCheck.localBlockRules().map((r) => r.id),
+    addRules: on ? SBWSerpPageCheck.localBlockRules() : []
+  }),
+  notify: (req, msg) => {
+    chrome.tabs.sendMessage(req.serpTabId, Object.assign({ action: 'serpPageChecked', key: req.key }, msg), { frameId: req.frameId })
+      .catch(() => {}); // the results page was closed or left
+  }
+});
+
 // Granted from the access page, or from chrome://extensions while a click
 // waited: carry on. The window closed without an answer: tell the page.
-chrome.permissions.onAdded.addListener(() => { serpAnalyze.accessAnswered(true); });
+chrome.permissions.onAdded.addListener(() => {
+  serpAnalyze.accessAnswered(true);
+  pageCheck.accessAnswered(true);
+});
 chrome.windows.onRemoved.addListener(async (windowId) => {
   const got = await chrome.storage.session.get(SERP_ACCESS_WINDOW_KEY);
   if (got[SERP_ACCESS_WINDOW_KEY] !== windowId) return;
   await chrome.storage.session.remove(SERP_ACCESS_WINDOW_KEY);
   serpAnalyze.accessAnswered(false);
+  pageCheck.accessAnswered(false);
 });
 
 // The Google search hosts the overlay runs on, read from its own

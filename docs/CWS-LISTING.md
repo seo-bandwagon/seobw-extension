@@ -96,6 +96,8 @@ Reads the JSON-LD, Microdata and RDFa on the page, including nested items, and c
 RESULTS PAGE OVERLAY
 On Google's results pages, a bar under each organic listing shows its position and, with a free account, figures for that listing: the referring domains, backlinks, link rank and estimated traffic of the listing and of its site, how old the domain is, with its registrar and dates when you point at it, and your own checklist score where you analyzed it. Link and traffic figures come from DataForSEO and the domain dates from the registries' public records, and each figure says where it came from. You choose which figures show, whether they load with the page or when you ask, and the look: matching the results in light or dark, Night or Day. A free account gets a daily allowance of figures, and the panel shows what is left of it. Sites you list in Settings are marked as yours. Signed out, the bars show positions and nothing is sent. One panel below the results, or above them if you prefer, copies the listings to your clipboard as a table or exports them to a spreadsheet, with each listing's type, its figures and the features shown with them, such as an AI overview or a map pack. Each row keeps what Google showed for that result, its description and breadcrumb included, along with an approximate overall position when you are past the first page. Dates, ratings and ad labels are read in the language the results are in. Results pages can also be collected one at a time: add each page with a click, move on with the next-page link, and the pages you added become one list with repeats removed and an exact overall position for every listing, ready to copy or export. Another button copies the questions from the People Also Ask box. A location option reopens the same query as it would appear in another city, from 54 metro presets or any place you type, and can open two locations side by side for comparison.
 
+Analyze checks a listing right under it: its title and description measured in pixels, headings, word count, structured data, canonical, whether it can be indexed and why not, its status and redirects, the technology behind it, whether its site's robots.txt shuts out AI crawlers and whether it has an llms.txt, all read from its HTML in your browser without your cookies, with no new tab. One click checks the top ten. A table in the panel lines the listings up, with position, type, the query's words in each title, address and description, title length, date, figures, domain age, words, schema and checklist, each cell marked above or below the median, or below your own page once you pin it as the first row. The sources an AI overview cites get a table of their own.
+
 SEARCH CONSOLE HELPERS
 Inside Search Console's performance report, in any of its languages, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
 
@@ -119,6 +121,8 @@ Choose Night, Day or Auto, which follows your system setting. Two matching Chrom
 
 PRIVACY
 No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
+
+Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us.
 
 GETTING STARTED
 1. Add the extension and pin it to the toolbar.
@@ -181,13 +185,17 @@ It fires on nothing at all unless you've separately granted the optional
 Indexability panel, and notices when a page finishes reloading so the
 "Reload to capture" button can re-check it. Also observe-only.
 
-**`declarativeNetRequestWithHostAccess`** — used only for the Rendering
-section's "View as" option. Choosing a preset other than Default installs
+**`declarativeNetRequestWithHostAccess`** — used for the Rendering
+section's "View as" option, and from 1.12.0 to keep Analyze on Google off
+local addresses. Choosing a preset other than Default installs
 one session-scoped rule that rewrites the outgoing User-Agent header for
 requests from exactly the tab you're on; the rule is removed automatically
-the moment you switch back to Default or close that tab. No rule is ever
-installed until you pick a preset, and the extension ships with no static
-rulesets at all — every rule is created and torn down at runtime, per tab.
+the moment you switch back to Default or close that tab. While Analyze reads
+the result pages the user asked for, session rules block the extension's own
+requests (no tab) to loopback, private, link-local and `.local`-style
+addresses, so a result that redirects there is never followed, and are
+removed when the reading ends. The extension ships with no static rulesets
+at all — every rule is created and torn down at runtime.
 
 **`host_permissions`: `https://seobandwagon.com/*`** — the only host the
 extension talks to on your behalf: your own analyses, citation checks, and
@@ -203,8 +211,10 @@ access to check other sites" in the Link Check, Indexability, Hreflang, or
 Rendering section, or "Allow access to analyze other tabs" in the side
 panel's Page checks or the popup opened by "Analyze linked page", or (from
 1.10.2) "Allow access" in the extension's own small window that the first
-Analyze click on a Google results page opens: Analyze reads that result in a
-background tab, which Chrome allows only with this access. The
+Analyze click on a Google results page opens: from 1.12.0 Analyze fetches
+the result's page, and its site's robots.txt and llms.txt, from the user's
+browser without cookies (1.10.2 to 1.11.0 opened it in a background tab),
+which Chrome allows only with this access. The
 consent text shown at request time, verbatim
 (`ALL_URLS_REASON` in `src/lib/perms.js`):
 
@@ -245,6 +255,16 @@ Measured before the domains were added
 www.google.com" first; a control with a non-Google host added changes that
 line to "a number of websites". Until 1.10.2 the script sent the bare domain
 names of the results; 1.10.2 sent nothing.
+
+**`offscreen`** (1.12.0) — Analyze on a Google results page reads the
+clicked result's page in an offscreen document (reason `DOM_PARSER`), because
+the extension's service worker cannot parse HTML. The document runs the same
+on-page analyzer as the popup on the HTML the extension fetched on the user's
+click, from the user's browser, without cookies. Nothing is shown in it and
+nothing it reads is sent anywhere. Measured with
+`getPermissionWarningsByManifest` (Chrome for Testing 156): it adds no
+warning. The paste-ready text is in `CHROMEWEBSTORE.md`, "To paste with
+submission C".
 
 **`management`** (1.9.5) — reads the list of installed themes with
 `chrome.management.getAll()` to find out whether SEO Bandwagon's own Neon Night
@@ -355,7 +375,11 @@ with the reasoning behind each:
   its figures for 30 days, without who asked; the account keeps only its
   count of searches with new figures that day, and the call's path in its
   activity record. The user's own checklist score comes from the user's own
-  captures.
+  captures. From 1.12.0, on the user's click, also the address of a page the
+  user pins to compare with the results and of the pages an AI Overview
+  cites; the words the user accepts say so (their version 2 asks again
+  anyone who accepted 1.11.0's). Analyze's page fetches go to the result's
+  own site, never to us.
 
 Proof screenshots are saved to the user's own device as a download (JPEG for
 a full page from 1.7.8, PNG for the visible area); the extension never uploads
@@ -381,7 +405,17 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.11.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.12.0 (release notes, ≤ 10 lines)
+
+```
+- Analyze on Google: each result's page checks open right under it, read
+  from its HTML in your browser, with no new tab. Analyze top 10 in a click.
+- A results table: position, type, your search's words, figures, domain
+  age, words, schema and checklist, marked against the median or your page.
+- Pin your own page as a row; the AI Overview's sources get their own table.
+```
+
+1.11.0 (if it wasn't published on its own, use these lines too):
 
 Submission B carries 1.10.3 and 1.10.4 too:
 
@@ -555,6 +589,15 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   "Send result addresses and show figures" turns them on. Reload the results
   page: each bar shows its figures, and the panel the plan and what is left
   of the day's allowance. "Stop sending result addresses" turns them off.
+- **Analyze on Google (1.12.0)**: on a results page, click a result's
+  Analyze. The first time, a small SEO Bandwagon window asks for access to
+  all sites (the optional `<all_urls>`); allow it. The page's checks open
+  under the result, read from its HTML: no tab opens. The page, its site's
+  robots.txt and its llms.txt are fetched from the browser without cookies;
+  the extension's offscreen document (`offscreen`) runs the analyzer.
+  "Analyze top 10" in the panel checks every result; the panel's Table lists
+  them. Signed out of Google, a result Google hides asks to sign in to Google
+  or open it, and nothing is fetched for it.
 - An API key (free to create at seobandwagon.com) is only needed for the
   figures in the overlay and to sync captures/citations/link-building
   data — every other feature above works fully signed out.

@@ -18,6 +18,10 @@
 //   figures     which figures each bar shows (FIGURES)
 //   ownSites    the person's own sites, highlighted on the bars; a local
 //               list until 1.14.0 fills it from the account
+//   tableColumns  (1.12.0) the results table's columns; a column is shown
+//               unless set false (src/lib/serp-table.js COLUMNS)
+//   compareTo   (1.12.0) the table marks each cell against the search's
+//               'median', or against the person's 'pinned' page
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWSerpSettings` when loaded as a classic <script>, content
@@ -56,6 +60,7 @@
   const PLACEMENTS = ['bottom', 'top'];
   const LOOKS = ['google', 'dark', 'light'];
   const LOADS = ['auto', 'click'];
+  const COMPARES = ['median', 'pinned'];
   const MAX_OWN_SITES = 50;
 
   function defaults() {
@@ -69,7 +74,9 @@
       look: 'google',
       collapsed: false,
       figures,
-      ownSites: []
+      ownSites: [],
+      tableColumns: {},
+      compareTo: 'median'
     };
   }
 
@@ -93,8 +100,19 @@
       look: pick(r.look, LOOKS, d.look),
       collapsed: r.collapsed === true,
       figures,
-      ownSites: Array.isArray(r.ownSites) ? normalizeSites(r.ownSites) : []
+      ownSites: Array.isArray(r.ownSites) ? normalizeSites(r.ownSites) : [],
+      tableColumns: columnChoice(r.tableColumns),
+      compareTo: pick(r.compareTo, COMPARES, d.compareTo)
     };
+  }
+
+  // Only booleans under a column key: { pageKW: false }.
+  function columnChoice(raw) {
+    const out = {};
+    if (raw && typeof raw === 'object') {
+      Object.keys(raw).forEach((k) => { if (/^[A-Za-z]{1,30}$/.test(k) && typeof raw[k] === 'boolean') out[k] = raw[k]; });
+    }
+    return out;
   }
 
   // A typed site: "https://www.Example.com/blog" → "example.com". Anything
@@ -147,7 +165,8 @@
     const area = storage || chrome.storage.local;
     const current = await load(area);
     const next = normalize(Object.assign({}, current, patch || {}, {
-      figures: Object.assign({}, current.figures, (patch && patch.figures) || {})
+      figures: Object.assign({}, current.figures, (patch && patch.figures) || {}),
+      tableColumns: Object.assign({}, current.tableColumns, (patch && patch.tableColumns) || {})
     }));
     await area.set({ [STORAGE_KEY]: next });
     return next;
@@ -159,6 +178,7 @@
     PLACEMENTS,
     LOOKS,
     LOADS,
+    COMPARES,
     MAX_OWN_SITES,
     defaults,
     normalize,

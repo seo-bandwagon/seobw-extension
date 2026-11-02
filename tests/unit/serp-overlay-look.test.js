@@ -45,7 +45,7 @@ describe('every look meets WCAG AA', () => {
   Object.entries(LOOKS).forEach(([name, look]) => {
     look.grounds.forEach((groundHex) => {
       const ground = groundHex ? rgb(groundHex).slice(0, 3) : rgb(look.tokens['sbw-surface']).slice(0, 3);
-      ['sbw-ink', 'sbw-muted', 'sbw-accent-text'].forEach((token) => {
+      ['sbw-ink', 'sbw-muted', 'sbw-accent-text', 'sbw-good', 'sbw-bad'].forEach((token) => {
         it(`${name}${groundHex ? ' on ' + groundHex : ''}: ${token} is at least 4.5:1`, () => {
           const fg = over(rgb(look.tokens[token]), ground);
           expect(contrast(fg, ground)).toBeGreaterThanOrEqual(4.5);
