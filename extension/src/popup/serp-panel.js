@@ -10,9 +10,13 @@
 //   - the account: connected or not, the figures accepted or not, the plan
 //     and what is left of today's allowance, the limit or the monthly pause,
 //     each with the one link that helps;
+//   - (1.13.0) keyword data for the search: on or off, said yes to or not,
+//     the search's volume, its own allowance and limits, "Show keyword
+//     data" on the page, and the keywords CSV;
 //   - the "Google results" settings (src/lib/serp-settings-ui.js).
 // Everything here is asked of the overlay in the tab ('serpStatus',
-// 'serpExport', 'serpLoadFigures') or of the worker ('serpFiguresStatus');
+// 'serpExport', 'serpLoadFigures', 'serpLoadKeywords') or of the worker
+// ('serpFiguresStatus', 'serpKeywordsStatus');
 // nothing is sent anywhere by opening the popup.
 
 (function () {
@@ -147,9 +151,9 @@
 
   async function exportAction(tab, kind, out) {
     const reply = await ask(tab.id, { action: 'serpExport', kind });
-    const nothing = { tsv: 'No results to copy.', csv: 'No results to export.', paa: 'No People also ask questions on this page.', ai: 'No AI Overview sources on this page.' };
+    const nothing = { tsv: 'No results to copy.', csv: 'No results to export.', paa: 'No People also ask questions on this page.', ai: 'No AI Overview sources on this page.', keywords: 'No search to export keywords for.' };
     if (!reply || !reply.text) { out.textContent = reply === undefined ? 'Reload the results page first.' : nothing[kind]; return; }
-    if (kind === 'csv') {
+    if (kind === 'csv' || kind === 'keywords') {
       download(reply.text, reply.filename || 'serp-results.csv');
       out.textContent = 'Downloaded ' + (reply.filename || 'the CSV') + '.';
       return;
@@ -175,13 +179,18 @@
             <button type="button" class="srp-btn" data-export="csv">Download CSV</button>
             <button type="button" class="srp-btn" data-export="paa">Copy People also ask</button>
             <button type="button" class="srp-btn" data-export="ai">Copy AI Overview sources</button>
+            <button type="button" class="srp-btn" data-export="keywords">Download keywords CSV</button>
           </div>
-          <p class="srp-line srp-muted">With each result’s type, its figures where loaded, and the search’s features.</p>
+          <p class="srp-line srp-muted">With each result’s type, its figures and the search’s keyword data where loaded, and the search’s features.</p>
           <p class="srp-line" id="serpExportStatus" role="status"></p>
         </section>
         <section class="srp-block" aria-labelledby="spAccountTitle">
           <div class="srp-block-title" id="spAccountTitle">Figures and your account</div>
           <div id="serpAccount"><span class="srp-muted">Checking…</span></div>
+        </section>
+        <section class="srp-block" aria-labelledby="spKeywordsTitle">
+          <div class="srp-block-title" id="spKeywordsTitle">Keyword data</div>
+          <div id="serpKeywords"><span class="srp-muted">Checking…</span></div>
         </section>
         <section class="srp-block" aria-labelledby="spSettingsTitle">
           <div class="srp-block-title" id="spSettingsTitle">Google results settings</div>
@@ -216,8 +225,68 @@
         }, 1500);
       }
     });
+    const keywords = container.querySelector('#serpKeywords');
+    keywords.innerHTML = await keywordsHtml(status);
+    keywords.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-keywords]');
+      if (!b) return;
+      const a = b.getAttribute('data-keywords');
+      if (a === 'connect') openSite('/dashboard/api-keys');
+      else if (a === 'upgrade') openSite('/pricing');
+      else if (a === 'settings') chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html#keyword-data') });
+      else if (a === 'load') {
+        await ask(tab.id, { action: 'serpLoadKeywords' });
+        b.disabled = true;
+        b.textContent = 'Asked on the page';
+        setTimeout(async () => {
+          keywords.innerHTML = await keywordsHtml(await ask(tab.id, { action: 'serpStatus' }));
+        }, 1500);
+      }
+    });
     return status;
   }
 
-  globalThis.SBWSerpPanel = { render, noticeLine, featuresHtml, KEY_FEATURES };
+  // 1.13.0: keyword data's lines: whether it is on and said yes to, the
+  // search's monthly searches, its own allowance and limits, and the one
+  // button that helps. Opening the popup sends nothing.
+  async function keywordsHtml(status) {
+    const K = globalThis.SBWSerpKeywords;
+    const kw = (status && status.keywords) || null;
+    const [{ apiKey }, record, last] = await Promise.all([
+      new Promise((resolve) => chrome.storage.sync.get({ apiKey: '' }, resolve)),
+      SBWConsent.acceptance('keywordData'),
+      askWorker({ action: 'serpKeywordsStatus' })
+    ]);
+    const lines = [];
+    const buttons = [];
+    if (kw && kw.on === false) {
+      lines.push('No keyword data for this search: it is off in settings, or the search uses an operator such as site:.');
+    } else if (!apiKey) {
+      lines.push('Monthly searches, difficulty, CPC, competition and trend for the search need a free account.');
+      buttons.push(['connect', 'Connect free']);
+    } else if (!record) {
+      lines.push('Keyword data is off: it sends the search to SEO Bandwagon, so it asks first, on the page or in Settings.');
+      buttons.push(['load', 'Show keyword data on the page'], ['settings', 'Keyword data in Settings']);
+    } else if (kw && kw.state === 'error' && kw.code) {
+      lines.push(K.errorWords(kw.code).text + '.');
+      if (K.errorWords(kw.code).action === 'connect') buttons.push(['connect', 'Reconnect']);
+    } else if (kw && kw.search) {
+      lines.push(`This search: ${K.volumeText(kw.search.volume).replace('/mo', ' searches a month')}, difficulty ${K.difficultyText(kw.search.difficulty)}, CPC ${K.cpcText(kw.search.cpc)}, competition ${K.competitionText(kw.search.competition)} (DataForSEO).`);
+      if (kw.tracked && kw.tracked.summary) lines.push(`Your rank tracker, ${kw.tracked.domain}: ${kw.tracked.summary.text.replace(/^your tracker /, '')}${kw.tracked.summary.change ? ', ' + kw.tracked.summary.change : ''}.`);
+    } else if (kw) {
+      buttons.push(['load', 'Show keyword data on the page']);
+    }
+    const standing = kw && kw.allowance ? kw : (last || null);
+    const allowance = K.allowanceLine(standing);
+    if (allowance) lines.push(allowance);
+    const notice = K.lookupNotice(standing);
+    if (notice) {
+      lines.push(notice.text);
+      if (notice.upgrade) buttons.push(['upgrade', 'Upgrade for more keyword data']);
+    }
+    return `${lines.map((l) => `<p class="srp-line">${esc(l)}</p>`).join('')}
+      <div class="srp-actions">${buttons.map(([a, label]) => `<button type="button" class="srp-btn" data-keywords="${a}">${esc(label)}</button>`).join('')}</div>`;
+  }
+
+  globalThis.SBWSerpPanel = { render, noticeLine, featuresHtml, keywordsHtml, KEY_FEATURES };
 })();

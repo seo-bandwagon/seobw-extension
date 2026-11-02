@@ -197,8 +197,10 @@
   // 1.11.0: and the figures under Google results kept this session
   // (src/lib/serp-figures-service.js), whose on-page checklist is the
   // account's own and whose allowance is the account's plan.
-  const ACCOUNT_SESSION_KEYS = ['sbwProgress', 'serpFiguresStatus', 'serpFiguresHold'];
-  const ACCOUNT_SESSION_PREFIXES = ['dh:', 'serpFig:'];
+  // 1.13.0: and the keyword data, whose rank history is the account's own
+  // tracker's (src/lib/serp-keywords-service.js).
+  const ACCOUNT_SESSION_KEYS = ['sbwProgress', 'serpFiguresStatus', 'serpFiguresHold', 'serpKeywordsStatus', 'serpKeywordsHold'];
+  const ACCOUNT_SESSION_PREFIXES = ['dh:', 'serpFig:', 'kw:', 'kwTracked:'];
 
   async function clearAccountCaches() {
     await chrome.storage.local.remove(ACCOUNT_LOCAL_KEYS);
@@ -271,6 +273,23 @@
   async function serpMetrics(results) {
     if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/v1/serp/metrics', { method: 'POST', body: { results } });
+  }
+
+  // 1.13.0: keyword data for a Google search (POST /api/v1/keywords/metrics,
+  // scope `keywords`; a key minted before it answers 403 'forbidden').
+  // `body` is { keywords: [the search, ...], gl?, hl? }. The caller
+  // (src/lib/serp-keywords-service.js) has already asked the consent module.
+  async function keywordMetrics(body) {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/v1/keywords/metrics', { method: 'POST', body });
+  }
+
+  // 1.13.0: "Add to my keywords" (POST /api/v1/keywords, scope `keywords`):
+  // `body` is { keyword, gl?, hl?, trackerId? }. A 409 ('conflict') carries
+  // `no_tracker` or `choose_tracker` in its data.
+  async function addKeyword(body) {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/v1/keywords', { method: 'POST', body });
   }
 
   // 1.11.0: every send asks the consent module first (src/lib/consent.js),
@@ -641,6 +660,8 @@
     progress,
     quickBatch,
     serpMetrics,
+    keywordMetrics,
+    addKeyword,
     sendAllowed,
     syncCapture,
     drainPendingCaptures,

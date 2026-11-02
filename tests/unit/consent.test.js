@@ -100,3 +100,46 @@ describe('Firefox: its own data-collection consent', () => {
     expect(local[C.STORAGE_KEY]).toBeUndefined();
   });
 });
+
+describe('keyword data (1.13.0): the search itself, only after its own yes', () => {
+  it('is Firefox\'s searchTerms, and says it sends the search and never a result\'s address with it', () => {
+    expect(C.FLOWS.keywordData.firefox).toEqual(['searchTerms']);
+    expect(C.FLOWS.keywordData.acceptedBy).toBe('action');
+    expect(C.FLOWS.keywordData.sends).toMatch(/The words of a Google search you open/);
+    expect(C.FLOWS.keywordData.sends).toMatch(/Never a result’s address with them, and never a request to Google/);
+  });
+
+  it('nothing until the person says yes; the figures\' yes is not keyword data\'s', async () => {
+    await C.accept('serpFigures');
+    expect(await C.check('keywordData')).toEqual({ ok: false, reason: 'not_accepted' });
+    expect(await C.accept('keywordData', Date.UTC(2026, 10, 2))).toBe(true);
+    expect(local[C.STORAGE_KEY].keywordData).toEqual({ acceptedAt: '2026-11-02T00:00:00.000Z', version: 1 });
+    expect(await C.check('keywordData')).toEqual({ ok: true });
+  });
+
+  it('keyword data or the overlay turned off in settings stops the send, accepted or not; the figures go on', async () => {
+    await C.accept('keywordData');
+    await C.accept('serpFigures');
+    local.serpSettings = { overlay: true, figuresOn: true, keywordsOn: false };
+    expect(await C.check('keywordData')).toEqual({ ok: false, reason: 'category_off' });
+    expect(await C.check('serpFigures')).toEqual({ ok: true });
+    local.serpSettings = { overlay: false, keywordsOn: true };
+    expect(await C.check('keywordData')).toEqual({ ok: false, reason: 'category_off' });
+  });
+
+  it('withdrawing it stops it, and leaves the figures\' yes alone', async () => {
+    await C.accept('keywordData');
+    await C.accept('serpFigures');
+    await C.withdraw('keywordData');
+    expect(await C.check('keywordData')).toEqual({ ok: false, reason: 'not_accepted' });
+    expect(await C.check('serpFigures')).toEqual({ ok: true });
+  });
+
+  it('on Firefox, the yes asks the browser for searchTerms; outside an extension page\'s click it is refused', async () => {
+    const request = vi.fn(async () => false);
+    globalThis.browser = { runtime: { getBrowserInfo: () => {} }, permissions: { contains: async () => false, request } };
+    expect(await C.accept('keywordData')).toBe(false);
+    expect(request).toHaveBeenCalledWith({ data_collection: ['searchTerms'] });
+    expect(local[C.STORAGE_KEY]).toBeUndefined();
+  });
+});

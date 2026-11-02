@@ -98,3 +98,47 @@ describe('a new account and pages added to Collect', () => {
     expect(session['serpCollect::q=crm'].pages[0].rows).toEqual([{ url: 'https://a.example/' }]);
   });
 });
+
+describe('SBW.keywordMetrics and SBW.addKeyword (1.13.0)', () => {
+  it('posts the keywords and the market to /v1/keywords/metrics with the key', async () => {
+    chromeWith({ local: { sbwKeyStatus: 'valid' } });
+    const body = { keywords: ['best crm for nonprofits', 'what is the best free crm for nonprofits'], gl: 'us', hl: 'en' };
+    await SBW.keywordMetrics(body);
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://seobandwagon.com/api/v1/keywords/metrics');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer sbw_test');
+    expect(JSON.parse(init.body)).toEqual(body);
+  });
+
+  it('posts one keyword to /v1/keywords; a 409 comes back as "conflict" with its reason', async () => {
+    chromeWith({ local: { sbwKeyStatus: 'valid' } });
+    globalThis.fetch.mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: 'no_tracker' }), headers: { get: () => null } });
+    const res = await SBW.addKeyword({ keyword: 'crm', gl: 'us' });
+    expect(globalThis.fetch.mock.calls[0][0]).toBe('https://seobandwagon.com/api/v1/keywords');
+    expect(JSON.parse(globalThis.fetch.mock.calls[0][1].body)).toEqual({ keyword: 'crm', gl: 'us' });
+    expect(res).toMatchObject({ ok: false, code: 'conflict', data: { error: 'no_tracker' } });
+  });
+
+  it('sends nothing without a key', async () => {
+    chromeWith({ apiKey: '' });
+    expect(await SBW.keywordMetrics({ keywords: ['crm'] })).toMatchObject({ code: 'no_key' });
+    expect(await SBW.addKeyword({ keyword: 'crm' })).toMatchObject({ code: 'no_key' });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('a new account forgets the keyword data and the rank history of the old one', async () => {
+    chromeWith();
+    const session = { 'kw:us|en:crm': { figures: {} }, 'kwTracked:us|en:crm': { tracked: {} }, serpKeywordsStatus: {}, serpKeywordsHold: 1, other: 1 };
+    const removed = [];
+    globalThis.chrome.storage.session = {
+      get: vi.fn(async () => Object.assign({}, session)),
+      remove: vi.fn(async (keys) => { removed.push(...keys); }),
+      set: vi.fn(async () => {})
+    };
+    await SBW.clearAccountCaches();
+    expect(removed).toEqual(expect.arrayContaining(['kw:us|en:crm', 'kwTracked:us|en:crm', 'serpKeywordsStatus', 'serpKeywordsHold']));
+    expect(removed).not.toContain('other');
+  });
+});
+

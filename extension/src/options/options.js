@@ -197,6 +197,10 @@ async function initGoogleResults() {
   if (!section || !globalThis.SBWSerpSettingsUI) return;
   SBWSerpSettingsUI.render(document.getElementById('serpSettings'), { idPrefix: 'opt' });
   if (location.hash === '#google-results') section.scrollIntoView();
+  // 1.13.0: keyword data's own yes, and where its disclosure on Google sends
+  // a browser that must ask for itself (Firefox).
+  initKeywordConsent();
+  if (location.hash === '#keyword-data') document.getElementById('keyword-data').scrollIntoView();
 
   const status = document.getElementById('serpConsentStatus');
   const accept = document.getElementById('serpConsentAccept');
@@ -238,6 +242,39 @@ async function initGoogleResults() {
       ? `Saved ${saved.ownSites.length} site${saved.ownSites.length === 1 ? '' : 's'}.`
       : 'No sites saved.', 'success');
   });
+}
+
+/* Keyword data (1.13.0): the search leaves the browser only after this yes
+   (or the same yes in its disclosure on Google). */
+function initKeywordConsent() {
+  const status = document.getElementById('kwConsentStatus');
+  const accept = document.getElementById('kwConsentAccept');
+  const withdraw = document.getElementById('kwConsentWithdraw');
+  if (!status || !accept || !withdraw) return;
+  async function paint() {
+    const record = await SBWConsent.acceptance('keywordData');
+    const hasKey = await SBW.hasApiKey();
+    accept.hidden = !!record;
+    withdraw.hidden = !record;
+    if (record) {
+      const when = record.acceptedAt ? new Date(record.acceptedAt).toLocaleDateString() : '';
+      status.textContent = `On since ${when}: your searches are sent for keyword data when you ask for it.` +
+        (hasKey ? '' : ' Connect your account above to see it.');
+    } else {
+      status.textContent = 'Not turned on: no search is sent.';
+    }
+  }
+  // Saying yes also turns keyword data on, since that is what was asked.
+  accept.addEventListener('click', async () => {
+    const ok = await SBWConsent.accept('keywordData');
+    if (ok) await SBWSerpSettings.save({ overlay: true, keywordsOn: true });
+    paint();
+  });
+  withdraw.addEventListener('click', async () => {
+    await SBWConsent.withdraw('keywordData');
+    paint();
+  });
+  paint();
 }
 
 /* New tab (1.9.5): which page a new tab opens, saved on change. */

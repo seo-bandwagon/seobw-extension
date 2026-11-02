@@ -81,3 +81,19 @@ describe('the brand and Google\'s page', () => {
     expect(css).not.toMatch(/(^|[\s,}])(:root|html|body)\s*\{/);
   });
 });
+
+describe('keyword data (1.13.0) takes the overlay\'s looks', () => {
+  it('the strip and the volume labels are in every look\'s token block', () => {
+    ['', '[data-sbw-look="light"]', '[data-sbw-look="google-light"]', '[data-sbw-look="google-dark"]'].forEach((look) => {
+      const block = css.split('}').find((b) => b.includes('.sbw-serp-tools' + look + ',') || b.trim().startsWith('.sbw-serp-bar' + look + ','));
+      expect(block).toContain('.sbw-serp-keywords' + look);
+      expect(block).toContain('.sbw-kw-badge' + look);
+    });
+  });
+
+  it('the trend and rank lines are drawn in the accent, never filled behind text', () => {
+    const rule = /\n\.sbw-kw-spark path\s*\{([^}]*)\}/.exec(css)[1];
+    expect(rule).toMatch(/fill:\s*none/);
+    expect(rule).toMatch(/stroke:\s*var\(--sbw-accent\)/);
+  });
+});
