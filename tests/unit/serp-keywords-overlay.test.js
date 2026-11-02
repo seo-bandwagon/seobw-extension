@@ -227,11 +227,11 @@ describe('with keyword data', () => {
     expect(search.querySelector('[data-kw="volume"]').textContent).toBe('2.9K searches/mo');
     expect(search.querySelector('[data-kw="difficulty"]').textContent).toBe('difficulty 47/100');
     expect(search.querySelector('[data-kw="cpc"]').textContent).toBe('CPC $18.42');
-    expect(search.querySelector('[data-kw="competition"]').textContent).toBe('competition High');
+    expect(search.querySelector('[data-kw="competition"]').textContent).toBe('competition High (0.82)');
     expect(search.querySelector('[data-kw="trend"]').textContent).toContain('▲ 30% over 12 months');
     expect(search.querySelector('[data-kw="trend"] svg path').getAttribute('d')).toMatch(/^M0\.0,/);
     expect(strip().querySelector('.sbw-fig-source').textContent).toBe('DataForSEO');
-    expect(strip().querySelector('[data-role="kw-allowance"]').textContent).toContain('Free plan: 16 of 20 searches with new keyword data left today (UTC).');
+    expect(strip().querySelector('[data-role="kw-allowance"]').textContent).toContain('Free plan: 6 of 10 searches with new keyword data left today (UTC).');
   });
 
   it('puts each related search\'s and question\'s volume beside it on Google\'s page, and lists them with Add', async () => {
@@ -243,7 +243,7 @@ describe('with keyword data', () => {
     // The parser still reads Google's own words, not our label.
     expect(globalThis.SBWSerp.parseRelatedSearches(document)).toEqual(['Best crm for nonprofits reddit', 'Salesforce for nonprofits']);
     const rows = Array.from(strip().querySelectorAll('[data-role="kw-more"] tbody tr'));
-    expect(rows.map((r) => r.getAttribute('data-keyword'))).toEqual(['best crm for nonprofits reddit', 'salesforce for nonprofits', 'what is the best free crm for nonprofits', 'is salesforce free for nonprofits']);
+    expect(rows.map((r) => r.getAttribute('data-keyword'))).toEqual(['best crm for nonprofits reddit', 'salesforce for nonprofits', 'what is the best free crm for nonprofits?', 'is salesforce free for nonprofits?']);
     expect(rows[1].textContent).toContain('8.1K');
     expect(rows[1].querySelector('button').textContent).toBe('+ Add');
   });
@@ -268,14 +268,14 @@ describe('with keyword data', () => {
     let kw;
     listeners.forEach((fn) => fn({ action: 'serpExport', kind: 'keywords' }, {}, (r) => { if (r) kw = r; }));
     expect(kw.filename).toMatch(/^serp-keywords-best-crm-for-nonprofits-\d{4}-\d{2}-\d{2}\.csv$/);
-    expect(kw.text).toContain('is salesforce free for nonprofits,Is Salesforce free for nonprofits?,People also ask,590');
+    expect(kw.text).toContain('is salesforce free for nonprofits?,Is Salesforce free for nonprofits?,People also ask,590');
   });
 
   it('the popup reads the state, the plan and the allowance', async () => {
     await shown();
     let status;
     listeners.forEach((fn) => fn({ action: 'serpStatus' }, {}, (r) => { if (r) status = r; }));
-    expect(status.keywords).toMatchObject({ on: true, state: 'ok', hasKey: true, accepted: true, plan: 'free', allowance: { limit: 20, remaining: 16 }, search: { volume: 2900 } });
+    expect(status.keywords).toMatchObject({ on: true, state: 'ok', hasKey: true, accepted: true, plan: 'free', allowance: { limit: 10, remaining: 6 }, search: { volume: 2900 } });
   });
 });
 

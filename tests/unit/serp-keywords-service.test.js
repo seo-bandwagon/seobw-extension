@@ -85,14 +85,14 @@ describe('one request a search', () => {
     const out = await svc.lookup(REQ);
     expect(post).toHaveBeenCalledTimes(1);
     expect(post.mock.calls[0][0]).toEqual({
-      keywords: ['best crm for nonprofits', 'best crm for nonprofits reddit', 'best crm for small nonprofits', 'what is the best free crm for nonprofits'],
+      keywords: ['best crm for nonprofits', 'best crm for nonprofits reddit', 'best crm for small nonprofits', 'what is the best free crm for nonprofits?'],
       gl: 'us',
       hl: 'en'
     });
     expect(out.state).toBe('ok');
     expect(out.results['best crm for nonprofits']).toMatchObject({ volume: 2900, difficulty: 47 });
-    expect(out.results['what is the best free crm for nonprofits'].volume).toBe(90);
-    expect(out).toMatchObject({ plan: 'free', allowance: { limit: 20, used: 4, remaining: 16 }, lookups: 'done', notice: null, tracked: null });
+    expect(out.results['what is the best free crm for nonprofits?'].volume).toBe(90);
+    expect(out).toMatchObject({ plan: 'free', allowance: { limit: 10, used: 4, remaining: 6 }, lookups: 'done', notice: null, tracked: null });
     expect(out.market).toEqual({ locationCode: 2840, languageCode: 'en' });
     expect(storage.data[STATUS_KEY]).toMatchObject({ plan: 'free', lookups: 'done' });
   });
@@ -109,14 +109,14 @@ describe('one request a search', () => {
     expect(post).toHaveBeenCalledTimes(1);
     expect(again.state).toBe('ok');
     expect(again.results['best crm for nonprofits reddit'].volume).toBe(170);
-    expect(again.allowance).toEqual({ limit: 20, used: 4, remaining: 16 });
+    expect(again.allowance).toEqual({ limit: 10, used: 4, remaining: 6 });
   });
 
   it('a new question asks for it alone, with the search first as the route reads it', async () => {
     await svc.lookup(REQ);
     await svc.lookup(Object.assign({}, REQ, { paa: REQ.paa.concat('Is Salesforce free for nonprofits?') }));
     expect(post).toHaveBeenCalledTimes(2);
-    expect(post.mock.calls[1][0].keywords).toEqual(['best crm for nonprofits', 'is salesforce free for nonprofits']);
+    expect(post.mock.calls[1][0].keywords).toEqual(['best crm for nonprofits', 'is salesforce free for nonprofits?']);
   });
 
   it('a market keeps its own figures: the same search on google.co.uk is asked again', async () => {
@@ -148,7 +148,23 @@ describe('the allowance, the ceiling and the refusals', () => {
     post.mockResolvedValue(okRes(answer('paused')));
     const out = await svc.lookup(REQ);
     expect(out.notice).toMatchObject({ kind: 'paused', upgrade: false });
-    expect(out.results).toEqual({});
+    expect(out.results['best crm for nonprofits'].volume).toBeNull();
+  });
+
+  it('a country DataForSEO has no keyword data for: says so, keeps nothing', async () => {
+    post.mockResolvedValue(okRes(answer('unsupported-market')));
+    const out = await svc.lookup(Object.assign({}, REQ, { gl: 'is' }));
+    expect(out.lookups).toBe('unsupported_market');
+    expect(out.notice).toMatchObject({ kind: 'unsupported_market' });
+    await svc.lookup(Object.assign({}, REQ, { gl: 'is' }));
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it('a 400 naming gl or hl is a market the site doesn\'t know', async () => {
+    post.mockResolvedValue({ ok: false, status: 400, data: { error: 'Invalid input', details: { gl: 'not a country the site knows' } }, code: 'error' });
+    expect(await svc.lookup(REQ)).toMatchObject({ state: 'error', code: 'unsupported_market' });
+    post.mockResolvedValue({ ok: false, status: 400, data: { error: 'Invalid input', details: { fieldErrors: {} } }, code: 'error' });
+    expect(await svc.lookup(REQ)).toMatchObject({ state: 'error', code: 'error' });
   });
 
   it('a key without the keywords scope (403): "forbidden", for Reconnect', async () => {
@@ -181,7 +197,7 @@ describe('the tracked search', () => {
   it('comes with the answer, and is kept for the session', async () => {
     post.mockResolvedValue(okRes(answer('tracked')));
     const out = await svc.lookup(REQ);
-    expect(out.tracked).toMatchObject({ domain: 'example.org', trackerId: 'trk_example_1' });
+    expect(out.tracked).toMatchObject({ domain: 'example.org', trackerId: '7b1f3c52-0d5e-4b8a-9a61-3e2f4c5d6e7f' });
     expect(out.tracked.history.map((h) => h.position)).toEqual([9, 8, 6, 5, 4]);
     const again = await svc.lookup(REQ);
     expect(post).toHaveBeenCalledTimes(1);
@@ -192,7 +208,7 @@ describe('the tracked search', () => {
 describe('"Add to my keywords"', () => {
   it('sends the keyword normalized, with the market', async () => {
     expect(await svc.add({ keyword: 'What is the best free CRM for nonprofits?', gl: 'us', hl: 'en' })).toEqual({ state: 'added', trackerId: 't1' });
-    expect(add).toHaveBeenCalledWith({ keyword: 'what is the best free crm for nonprofits', gl: 'us', hl: 'en' });
+    expect(add).toHaveBeenCalledWith({ keyword: 'what is the best free crm for nonprofits?', gl: 'us', hl: 'en' });
   });
 
   it('with a chosen tracker, sends its id', async () => {
@@ -206,7 +222,14 @@ describe('"Add to my keywords"', () => {
     add.mockResolvedValueOnce({ ok: false, status: 409, code: 'conflict', data: { error: 'no_tracker' } });
     expect(await svc.add({ keyword: 'crm' })).toEqual({ state: 'no_tracker' });
     add.mockResolvedValueOnce({ ok: false, status: 409, code: 'conflict', data: { error: 'choose_tracker', trackers: [{ id: 'a', domain: 'example.org' }, { id: 'b', domain: 'example.net' }] } });
-    expect(await svc.add({ keyword: 'crm' })).toEqual({ state: 'choose_tracker', trackers: [{ id: 'a', domain: 'example.org' }, { id: 'b', domain: 'example.net' }] });
+    expect(await svc.add({ keyword: 'crm' })).toEqual({ state: 'choose_tracker', trackers: [{ id: 'a', domain: 'example.org', label: null }, { id: 'b', domain: 'example.net', label: null }] });
+  });
+
+  it('the plan\'s keyword limit and a tracker gone have their own answers', async () => {
+    add.mockResolvedValueOnce({ ok: false, status: 403, code: 'forbidden', data: { error: 'limit_reached', limit: 50 } });
+    expect(await svc.add({ keyword: 'crm' })).toEqual({ state: 'tracker_full', limit: 50 });
+    add.mockResolvedValueOnce({ ok: false, status: 404, code: 'error', data: { error: 'tracker_not_found' } });
+    expect(await svc.add({ keyword: 'crm', trackerId: 'gone' })).toEqual({ state: 'tracker_gone' });
   });
 
   it('a 403 is "forbidden" (Reconnect); a too-long keyword is never sent', async () => {

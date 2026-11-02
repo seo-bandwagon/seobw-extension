@@ -9,7 +9,7 @@
       "keyword": "best crm for nonprofits",
       "volume": 2900,
       "cpc": 18.42,
-      "competition": "HIGH",
+      "competition": 0.82,
       "difficulty": 47,
       "trend": [
         {
@@ -60,13 +60,14 @@
           "month": "2026-10",
           "volume": 3120
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "best crm for nonprofits reddit",
       "volume": 170,
       "cpc": 0,
-      "competition": "LOW",
+      "competition": 0.08,
       "difficulty": 12,
       "trend": [
         {
@@ -117,13 +118,14 @@
           "month": "2026-10",
           "volume": 180
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "best crm for small nonprofits",
       "volume": 390,
       "cpc": 21.1,
-      "competition": "HIGH",
+      "competition": 0.91,
       "difficulty": 38,
       "trend": [
         {
@@ -174,13 +176,14 @@
           "month": "2026-10",
           "volume": 390
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "best crm for nonprofits free",
       "volume": 320,
       "cpc": 9.75,
-      "competition": "MEDIUM",
+      "competition": 0.55,
       "difficulty": 35,
       "trend": [
         {
@@ -231,7 +234,8 @@
           "month": "2026-10",
           "volume": 330
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "best crm for nonprofits in usa",
@@ -239,13 +243,14 @@
       "cpc": null,
       "competition": null,
       "difficulty": null,
-      "trend": []
+      "trend": [],
+      "fetchedAt": null
     },
     {
       "keyword": "zoho crm for nonprofits",
       "volume": 260,
       "cpc": 12.3,
-      "competition": "MEDIUM",
+      "competition": 0.48,
       "difficulty": 29,
       "trend": [
         {
@@ -296,13 +301,14 @@
           "month": "2026-10",
           "volume": 234
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "salesforce for nonprofits",
       "volume": 8100,
       "cpc": 7.9,
-      "competition": "MEDIUM",
+      "competition": 0.41,
       "difficulty": 64,
       "trend": [
         {
@@ -353,13 +359,14 @@
           "month": "2026-10",
           "volume": 8100
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "nonprofit crm software comparison",
       "volume": 110,
       "cpc": 24.5,
-      "competition": "HIGH",
+      "competition": 0.87,
       "difficulty": 31,
       "trend": [
         {
@@ -410,13 +417,14 @@
           "month": "2026-10",
           "volume": 110
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
       "keyword": "free salesforce for nonprofits",
       "volume": 720,
       "cpc": 6.2,
-      "competition": "LOW",
+      "competition": 0.22,
       "difficulty": 42,
       "trend": [
         {
@@ -467,13 +475,14 @@
           "month": "2026-10",
           "volume": 700
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
-      "keyword": "what is the best free crm for nonprofits",
+      "keyword": "what is the best free crm for nonprofits?",
       "volume": 90,
       "cpc": 11.0,
-      "competition": "MEDIUM",
+      "competition": 0.6,
       "difficulty": 22,
       "trend": [
         {
@@ -524,13 +533,14 @@
           "month": "2026-10",
           "volume": 90
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
-      "keyword": "what is the 33 rule for nonprofits",
+      "keyword": "what is the 33% rule for nonprofits?",
       "volume": 1000,
       "cpc": 0.85,
-      "competition": "LOW",
+      "competition": 0.03,
       "difficulty": 18,
       "trend": [
         {
@@ -581,13 +591,14 @@
           "month": "2026-10",
           "volume": 1200
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
-      "keyword": "what is the best crm system for charities",
+      "keyword": "what is the best crm system for charities?",
       "volume": 50,
       "cpc": 14.0,
-      "competition": "MEDIUM",
+      "competition": 0.52,
       "difficulty": 20,
       "trend": [
         {
@@ -638,13 +649,14 @@
           "month": "2026-10",
           "volume": 50
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     },
     {
-      "keyword": "is salesforce free for nonprofits",
+      "keyword": "is salesforce free for nonprofits?",
       "volume": 590,
       "cpc": 3.1,
-      "competition": "LOW",
+      "competition": 0.18,
       "difficulty": 33,
       "trend": [
         {
@@ -695,15 +707,16 @@
           "month": "2026-10",
           "volume": 590
         }
-      ]
+      ],
+      "fetchedAt": "2026-11-02T13:34:00.000Z"
     }
   ],
   "tracked": null,
   "plan": "free",
   "allowance": {
-    "limit": 20,
+    "limit": 10,
     "used": 4,
-    "remaining": 16
+    "remaining": 6
   },
   "lookups": "done"
 }

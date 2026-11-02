@@ -14,34 +14,39 @@ require('../../extension/src/lib/serp.js');
 
 const answer = (name) => JSON.parse(readFileSync(resolve(__dirname, '../fixtures/keyword-metrics', name + '.json'), 'utf8'));
 
-describe('keywordOf: a shown search as the routes take it', () => {
-  it('lowercases, drops a question mark and other punctuation, collapses spaces', () => {
-    expect(K.keywordOf('What is the best free CRM for nonprofits?')).toBe('what is the best free crm for nonprofits');
-    expect(K.keywordOf('What is the 33% rule for nonprofits?')).toBe('what is the 33 rule for nonprofits');
-    expect(K.keywordOf('  Best  CRM — for nonprofits!! ')).toBe('best crm for nonprofits');
-  });
-
-  it('keeps apostrophes, ampersands, hyphens and dots inside a keyword, and other scripts', () => {
+describe('keywordOf: a shown search as it is sent', () => {
+  it('lowercases and collapses spaces, and keeps its punctuation: the site reads it in its own lookup form and tracks it as sent', () => {
+    expect(K.keywordOf('What is the best free CRM for nonprofits?')).toBe('what is the best free crm for nonprofits?');
+    expect(K.keywordOf('What is the 33% rule for nonprofits?')).toBe('what is the 33% rule for nonprofits?');
+    expect(K.keywordOf('  C#   Jobs ')).toBe('c# jobs');
     expect(K.keywordOf("Joe's B&B near St. Paul")).toBe("joe's b&b near st. paul");
-    expect(K.keywordOf('e-commerce seo')).toBe('e-commerce seo');
     expect(K.keywordOf('Kaffee München')).toBe('kaffee münchen');
     expect(K.keywordOf('東京 ホテル')).toBe('東京 ホテル');
   });
 
-  it('is empty for a search with an operator, an empty one, and one Google Ads refuses (80 characters, 10 words)', () => {
+  it('is empty for a search with an operator, an empty one, and one Google Ads refuses (80 characters, 10 words in lookup form)', () => {
     expect(K.keywordOf('site:example.com plumbing')).toBe('');
     expect(K.keywordOf('plumbing inurl:blog')).toBe('');
     expect(K.keywordOf('  ?? ')).toBe('');
-    expect(K.keywordOf('one two three four five six seven eight nine ten')).not.toBe('');
+    expect(K.keywordOf('one two three four five six seven eight nine ten?')).not.toBe('');
     expect(K.keywordOf('one two three four five six seven eight nine ten eleven')).toBe('');
     expect(K.keywordOf('a'.repeat(81))).toBe('');
+  });
+});
+
+describe('lookupOf: the site\'s lookup form (website lookupForm)', () => {
+  it('drops apostrophes, reads a question mark and other punctuation as a space, drops a full stop that ends a word', () => {
+    expect(K.lookupOf('What’s the 33% rule for nonprofits?')).toBe('whats the 33 rule for nonprofits');
+    expect(K.lookupOf("Joe's B&B near St. Paul")).toBe('joes b&b near st paul');
+    expect(K.lookupOf('node.js hosting')).toBe('node.js hosting');
   });
 });
 
 describe('request: one request a results page', () => {
   it('puts the search first, then related searches, then People also ask, each once', () => {
     const r = K.request('Best CRM for nonprofits', ['Best crm for nonprofits reddit', 'best CRM for nonprofits'], ['What is the best free CRM for nonprofits?', 'Best crm for nonprofits reddit?']);
-    expect(r.keywords).toEqual(['best crm for nonprofits', 'best crm for nonprofits reddit', 'what is the best free crm for nonprofits']);
+    // The question with a "?" and the related search without are one keyword.
+    expect(r.keywords).toEqual(['best crm for nonprofits', 'best crm for nonprofits reddit', 'what is the best free crm for nonprofits?']);
     expect(r.items.map((i) => i.source)).toEqual(['search', 'related', 'paa']);
     expect(r.items[2].text).toBe('What is the best free CRM for nonprofits?');
     expect(r.search).toMatchObject({ text: 'Best CRM for nonprofits', keyword: 'best crm for nonprofits' });
@@ -87,10 +92,11 @@ describe('the market', () => {
 describe('the answer', () => {
   it('reads every keyword by the same normalization, figures checked; blank stays null', () => {
     const res = K.resultsByKeyword(answer('done'));
-    expect(res['best crm for nonprofits']).toMatchObject({ volume: 2900, cpc: 18.42, competition: 'HIGH', difficulty: 47 });
+    expect(res['best crm for nonprofits']).toMatchObject({ volume: 2900, cpc: 18.42, competition: 0.82, difficulty: 47, fetchedAt: '2026-11-02T13:34:00.000Z' });
     expect(res['best crm for nonprofits'].trend).toHaveLength(12);
-    expect(res['best crm for nonprofits in usa']).toEqual({ volume: null, cpc: null, competition: null, difficulty: null, trend: [] });
-    expect(K.resultsByKeyword({ results: [{ keyword: 'What is SEO?', volume: '12' }] })['what is seo'].volume).toBeNull();
+    expect(res['what is the 33% rule for nonprofits?'].volume).toBe(1000);
+    expect(res['best crm for nonprofits in usa']).toEqual({ volume: null, cpc: null, competition: null, difficulty: null, trend: [], fetchedAt: null });
+    expect(K.resultsByKeyword({ results: [{ keyword: 'What is SEO?', volume: '12' }] })['what is seo?'].volume).toBeNull();
   });
 
   it('takes competition as Google Ads\' level or a number', () => {
@@ -112,6 +118,13 @@ describe('the answer', () => {
     expect(K.marketAnswered(answer('done'))).toEqual({ locationCode: 2840, languageCode: 'en' });
     expect(K.marketAnswered({})).toBeNull();
   });
+
+  it('reads the plan, the allowance and `lookups`, keyword data\'s unsupported_market among them', () => {
+    expect(K.standing(answer('done'))).toEqual({ plan: 'free', allowance: { limit: 10, used: 4, remaining: 6 }, lookups: 'done' });
+    expect(K.standing(answer('unsupported-market')).lookups).toBe('unsupported_market');
+    expect(K.lookupNotice(K.standing(answer('unsupported-market')))).toMatchObject({ kind: 'unsupported_market', upgrade: false });
+    expect(K.standing({ lookups: 'bogus' }).lookups).toBeNull();
+  });
 });
 
 describe('"Add to my keywords": the route\'s four answers', () => {
@@ -122,8 +135,13 @@ describe('"Add to my keywords": the route\'s four answers', () => {
 
   it('409 no_tracker, and 409 choose_tracker with the trackers to choose from', () => {
     expect(K.addResult({ ok: false, status: 409, code: 'conflict', data: { error: 'no_tracker' } })).toEqual({ state: 'no_tracker' });
-    expect(K.addResult({ ok: false, status: 409, code: 'conflict', data: { error: 'choose_tracker', trackers: [{ id: 'a', domain: 'www.example.org' }, { id: 7, domain: 'shop.example.org' }, { id: null, domain: 'x.example' }] } }))
-      .toEqual({ state: 'choose_tracker', trackers: [{ id: 'a', domain: 'example.org' }, { id: 7, domain: 'shop.example.org' }] });
+    expect(K.addResult({ ok: false, status: 409, code: 'conflict', data: { error: 'choose_tracker', trackers: [{ id: 'a', domain: 'www.example.org', label: 'Main site' }, { id: 7, domain: 'shop.example.org' }, { id: null, domain: 'x.example' }] } }))
+      .toEqual({ state: 'choose_tracker', trackers: [{ id: 'a', domain: 'example.org', label: 'Main site' }, { id: 7, domain: 'shop.example.org', label: null }] });
+  });
+
+  it('403 limit_reached is the plan\'s keyword limit, not the key\'s scope; 404 tracker_not_found is a tracker gone', () => {
+    expect(K.addResult({ ok: false, status: 403, code: 'forbidden', data: { error: 'limit_reached', limit: 50, message: 'x' } })).toEqual({ state: 'tracker_full', limit: 50 });
+    expect(K.addResult({ ok: false, status: 404, code: 'error', data: { error: 'tracker_not_found' } })).toEqual({ state: 'tracker_gone' });
   });
 
   it('anything else is an error with its code (403 Reconnect, offline)', () => {
@@ -193,9 +211,9 @@ describe('exports', () => {
     const csv = K.keywordsToCsv(asked.items, figuresOf, { query: 'best crm for nonprofits', country: 'us', language: 'en', capturedAt: '2026-11-02T10:00:00Z' });
     const lines = csv.replace(/^﻿/, '').trim().split('\r\n');
     expect(lines[0]).toBe('Query,Keyword,Shown on Google as,Source,Search volume a month (DataForSEO),CPC USD (DataForSEO),Competition (DataForSEO),Keyword difficulty 0-100 (DataForSEO),Trend 12 months (DataForSEO),Country,Language,Captured');
-    expect(lines[1]).toMatch(/^best crm for nonprofits,best crm for nonprofits,best crm for nonprofits,Search,2900,18\.42,high,47,2025-11: 2400 \|/);
+    expect(lines[1]).toMatch(/^best crm for nonprofits,best crm for nonprofits,best crm for nonprofits,Search,2900,18\.42,0\.82,47,2025-11: 2400 \|/);
     expect(lines[3]).toBe('best crm for nonprofits,best crm for nonprofits in usa,Best crm for nonprofits in usa,Related search,,,,,,us,en,2026-11-02T10:00:00Z');
-    expect(lines[4]).toMatch(/,People also ask,90,11,medium,22,/);
+    expect(lines[4]).toMatch(/^best crm for nonprofits,what is the best free crm for nonprofits\?,What is the best free CRM for nonprofits\?,People also ask,90,11,0\.6,22,/);
   });
 
   it('guards a cell a spreadsheet would run as a formula', () => {
@@ -205,7 +223,7 @@ describe('exports', () => {
 
   it('the results exports\' page-level keyword columns', () => {
     const ctx = K.exportContext(asked.items, figuresOf);
-    expect(ctx).toMatchObject({ keywordVolume: 2900, keywordCpc: 18.42, keywordCompetition: 'high', keywordDifficulty: 47 });
+    expect(ctx).toMatchObject({ keywordVolume: 2900, keywordCpc: 18.42, keywordCompetition: 0.82, keywordDifficulty: 47 });
     expect(ctx.relatedVolumes).toBe('Best crm for nonprofits reddit (170)');
     expect(ctx.paaVolumes).toBe('What is the best free CRM for nonprofits? (90)');
     expect(K.exportContext(asked.items, () => null)).toMatchObject({ keywordVolume: '', relatedVolumes: '' });

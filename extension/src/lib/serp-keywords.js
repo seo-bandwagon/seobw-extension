@@ -10,13 +10,19 @@
 //   POST /api/v1/keywords/metrics  { keywords: [the search, ...related
 //     searches and People also ask, 50 at most], gl?, hl? } →
 //     { source: 'DataForSEO', market: { locationCode, languageCode },
-//       results: [{ keyword, volume, cpc, competition, difficulty,
-//                   trend: [{ month: 'YYYY-MM', volume }] }],
+//       results: [{ keyword (as sent), volume, cpc, competition (0 to 1),
+//                   difficulty, trend: [{ month: 'YYYY-MM', volume }], fetchedAt }],
 //       tracked: { keyword, trackerId, domain, history: [{ date, position }] } | null,
-//       plan, allowance, lookups }   (the last three as the figures route's)
+//       plan, allowance, lookups }   (the last three as the figures route's,
+//     and `lookups: 'unsupported_market'` for a country DataForSEO has no
+//     keyword data for; a `gl` or `hl` the site doesn't know is a 400)
 //   POST /api/v1/keywords  { keyword, gl?, hl?, trackerId? } →
 //     201 { trackerId, keyword } · 200 { alreadyTracked: true, trackerId } ·
-//     409 { error: 'no_tracker' } · 409 { error: 'choose_tracker', trackers: [{ id, domain }] }
+//     409 { error: 'no_tracker' } · 409 { error: 'choose_tracker', trackers: [{ id, domain, label }] } ·
+//     404 { error: 'tracker_not_found' } · 403 { error: 'limit_reached', limit }
+//   (website change 1d2ba972). The site reads each keyword in its own lookup
+//   form (lowercase, punctuation dropped) and tracks it as sent, so the
+//   extension sends what Google shows, lowercased: "c# jobs" stays itself.
 //
 // This is the first thing the extension sends that carries the search
 // itself, so it goes only with its own consent (src/lib/consent.js,
@@ -71,18 +77,33 @@
   }
 
   /**
-   * A shown search, question or refinement as the routes take it: NFKC,
-   * lowercase, punctuation other than ' & - . made a space (a People also
-   * ask question goes without its "?"), whitespace collapsed. '' when it
-   * can't be one: empty, an operator search, past 80 characters or 10
-   * words. Answers are matched to what was asked by this same function.
+   * The site's lookup form of a keyword (website `lookupForm`): lowercase,
+   * apostrophes dropped, a question mark and other punctuation read as a
+   * space, a full stop ending a word dropped. Two shown texts with one
+   * lookup form are one keyword; past 80 characters or 10 words in it,
+   * Google Ads has none.
+   */
+  function lookupOf(text) {
+    return String(text || '').normalize('NFKC').toLowerCase()
+      .replace(/['’‘`´]/g, '')
+      .replace(/[?¿!¡,;:"“”«»()[\]{}<>|\\^=~@%*]/g, ' ')
+      .replace(/\.+(?=\s|$)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * A shown search, question or refinement as it is sent: NFKC, lowercase,
+   * whitespace collapsed, its punctuation kept (the site looks it up in its
+   * own lookup form and tracks it as sent). '' when it can't be one: empty,
+   * an operator search, or past 80 characters or 10 words in lookup form.
+   * Answers are matched to what was asked by this same function.
    */
   function keywordOf(text) {
-    let s = String(text || '').normalize('NFKC').toLowerCase();
-    if (hasOperator(s)) return '';
-    s = s.replace(/[^\p{L}\p{N}\p{M}\s'&.-]+/gu, ' ').replace(/\s+/g, ' ').trim();
-    s = s.replace(/^['&.\s-]+|['&.\s-]+$/g, '');
-    if (!s || s.length > MAX_CHARS || s.split(' ').length > MAX_WORDS) return '';
+    const s = String(text || '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!s || hasOperator(s)) return '';
+    const look = lookupOf(s);
+    if (!look || look.length > MAX_CHARS || look.split(' ').length > MAX_WORDS) return '';
     return s;
   }
 
@@ -99,14 +120,14 @@
     const search = keyword ? { text: String(query).trim(), keyword, source: 'search' } : null;
     const out = { search, items: [], keywords: [], skipped: [] };
     if (!search) return out;
-    const seen = new Set([keyword]);
+    const seen = new Set([lookupOf(keyword)]);
     out.items.push(search);
     out.keywords.push(keyword);
     const add = (text, source) => {
       const k = keywordOf(text);
       if (!k) { out.skipped.push({ text: String(text || '').trim(), source }); return; }
-      if (seen.has(k) || out.keywords.length >= MAX_KEYWORDS) return;
-      seen.add(k);
+      if (seen.has(lookupOf(k)) || out.keywords.length >= MAX_KEYWORDS) return;
+      seen.add(lookupOf(k));
       out.items.push({ text: String(text).trim(), keyword: k, source });
       out.keywords.push(k);
     };
@@ -181,8 +202,21 @@
       cpc: num(entry.cpc),
       competition: competitionOf(entry.competition),
       difficulty: num(entry.difficulty),
-      trend: trendOf(entry.trend)
+      trend: trendOf(entry.trend),
+      fetchedAt: typeof entry.fetchedAt === 'string' && /^\d{4}-\d{2}-\d{2}/.test(entry.fetchedAt) ? entry.fetchedAt : null
     };
+  }
+
+  // The figures route's `lookups` values, and keyword data's own: a country
+  // DataForSEO has no keyword data for.
+  const LOOKUPS = ['not_needed', 'done', 'failed', 'limit_reached', 'paused', 'unavailable', 'unsupported_market'];
+
+  /** The answer's `{ plan, allowance, lookups }`, each checked (the figures' standing, plus `unsupported_market`). */
+  function standing(data) {
+    const F = figuresLib();
+    const s = F ? F.standing(data) : { plan: null, allowance: null, lookups: null };
+    const l = data && data.lookups;
+    return Object.assign({}, s, { lookups: LOOKUPS.includes(l) ? l : null });
   }
 
   /** The answer's `results`, by keywordOf(keyword). */
@@ -251,9 +285,13 @@
       const trackers = (Array.isArray(d.trackers) ? d.trackers : [])
         .filter((t) => t && (typeof t.id === 'string' || typeof t.id === 'number') && bareHost(t.domain))
         .slice(0, 20)
-        .map((t) => ({ id: t.id, domain: bareHost(t.domain) }));
+        .map((t) => ({ id: t.id, domain: bareHost(t.domain), label: typeof t.label === 'string' && t.label.trim() ? t.label.trim().slice(0, 80) : null }));
       if (trackers.length) return { state: 'choose_tracker', trackers };
     }
+    // The plan's tracked-keyword limit (a 403 that is not the key's scope),
+    // and a tracker deleted since it was offered.
+    if (res.status === 403 && d.error === 'limit_reached') return { state: 'tracker_full', limit: num(d.limit) };
+    if (res.status === 404 && d.error === 'tracker_not_found') return { state: 'tracker_gone' };
     return { state: 'error', code: res.code || 'error' };
   }
 
@@ -398,6 +436,9 @@
     if (lookups === 'unavailable') {
       return { kind: 'unavailable', text: 'New keyword data is not available from SEO Bandwagon right now. Keyword data already looked up still shows.', upgrade: false };
     }
+    if (lookups === 'unsupported_market') {
+      return { kind: 'unsupported_market', text: 'DataForSEO has no keyword data for this Google’s country yet. Everything else works.', upgrade: false };
+    }
     return null;
   }
 
@@ -411,7 +452,9 @@
     network: { text: 'Offline: no keyword data until SEO Bandwagon can be reached', action: 'retry' },
     error: { text: 'Keyword data didn’t load', action: 'retry' },
     reloaded: { text: 'SEO Bandwagon was updated. Reload this page for keyword data', action: null },
-    not_a_keyword: { text: 'No keyword data for a search with an operator such as site:', action: null }
+    not_a_keyword: { text: 'No keyword data for a search with an operator such as site:', action: null },
+    // A 400 naming `gl` or `hl`: a country or language the site doesn't know.
+    unsupported_market: { text: 'No keyword data for this Google’s country or language', action: null }
   };
 
   function errorWords(code) {
@@ -422,7 +465,9 @@
     added: 'Added to your rank tracker',
     already: 'Already in your rank tracker',
     no_tracker: 'You have no rank tracker yet: create one on your dashboard, then add this',
-    choose_tracker: 'Which rank tracker?'
+    choose_tracker: 'Which rank tracker?',
+    tracker_full: 'Your rank tracker is at your plan’s keyword limit',
+    tracker_gone: 'That rank tracker is gone; add it again to choose another'
   };
 
   // ---------- exports ----------
@@ -510,13 +555,16 @@
     ERROR_WORDS,
     ADD_WORDS,
     KEYWORD_CSV_COLUMNS,
+    LOOKUPS,
     hasOperator,
+    lookupOf,
     keywordOf,
     request,
     countryOfHost,
     marketOf,
     marketKey,
     keywordFigures,
+    standing,
     resultsByKeyword,
     trackedOf,
     marketAnswered,

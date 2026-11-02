@@ -272,6 +272,16 @@ Everywhere charges credits for the volume itself. Uploaded with 1.10.3 to
   says it too; labelled as the user's own tracker's, not DataForSEO's.
 - **The market:** `gl` from the address, else the Google's own country
   (google.co.uk is `gb`); `hl` from the address, else the page's language.
+- **Matched to the website as built** (change `1d2ba972`): each keyword goes
+  as Google shows it, lowercased with its punctuation kept, since the site
+  reads it in its own lookup form and the rank tracker tracks it as sent
+  ("c# jobs" stays itself; two texts with one lookup form are asked once);
+  competition is Google Ads' 0 to 1; each figure carries the day it was
+  bought; a country DataForSEO has no keyword data for
+  (`unsupported_market`), and a `gl` or `hl` the site doesn't know (a 400),
+  say so; adding at the plan's tracked-keyword limit (a 403 that is not the
+  key's scope) offers the upgrade, not Reconnect, and a tracker deleted
+  since it was offered says so; trackers are offered by their label.
 - **Consent** (`keywordData` in `src/lib/consent.js`, Firefox's
   `searchTerms`): the search's words leave the browser for the first time, so
   nothing is sent without a key ("Connect free", up front: the worker reads

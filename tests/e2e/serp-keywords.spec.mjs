@@ -21,7 +21,8 @@
 //      related searches and questions show; the keywords CSV downloads.
 //   4. The same search again this session sends nothing.
 //   5. "Add to my keywords": added, already tracked, no tracker (a link to
-//      the dashboard), which tracker (the choice is sent with its id).
+//      the dashboard), which tracker (the choice is sent with its id), the
+//      plan's keyword limit (Upgrade, not Reconnect).
 //   6. A tracked search: the tracked site's bar shows its rank history.
 //   7. A 403 says Reconnect; the allowance reached says so and offers the
 //      upgrade; paused says so; offline says so. Position and Analyze work
@@ -93,8 +94,9 @@ test('keyword data on Google: signed out, the yes, cached, add, tracked, every r
       addCalls.push(body);
       const json = (status, data) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
       if (addMode === 'already') return json(200, { alreadyTracked: true, trackerId: 'trk_1' });
-      if (addMode === 'no_tracker') return json(409, { error: 'no_tracker' });
-      if (addMode === 'choose_tracker' && !body.trackerId) return json(409, { error: 'choose_tracker', trackers: [{ id: 'trk_1', domain: 'example.org' }, { id: 'trk_2', domain: 'example.net' }] });
+      if (addMode === 'no_tracker') return json(409, { error: 'no_tracker', message: 'No rank tracker in this market' });
+      if (addMode === 'full') return json(403, { error: 'limit_reached', limit: 50, message: 'At the plan\'s keyword limit' });
+      if (addMode === 'choose_tracker' && !body.trackerId) return json(409, { error: 'choose_tracker', trackers: [{ id: 'trk_1', domain: 'example.org', label: 'example.org' }, { id: 'trk_2', domain: 'example.net', label: 'Shop' }] });
       return json(201, { trackerId: body.trackerId || 'trk_1', keyword: body.keyword });
     }
     if (!/^https?:$/.test(url.protocol)) return route.continue();
@@ -156,10 +158,10 @@ test('keyword data on Google: signed out, the yes, cached, add, tracked, every r
       expect(body).toMatchObject({ gl: 'us', hl: 'en' });
       expect(body.keywords[0]).toBe(QUERY);
       expect(body.keywords).toContain('best crm for nonprofits reddit');
-      expect(body.keywords).toContain('what is the 33 rule for nonprofits');
+      expect(body.keywords).toContain('what is the 33% rule for nonprofits?');
       expect(JSON.stringify(body)).not.toMatch(/https?:|\.com|\.org/);
       await expect(strip.locator('.sbw-fig-source')).toHaveText('DataForSEO');
-      await expect(strip.locator('[data-role="kw-allowance"]')).toContainText('Free plan: 16 of 20 searches with new keyword data left today (UTC).');
+      await expect(strip.locator('[data-role="kw-allowance"]')).toContainText('Free plan: 6 of 10 searches with new keyword data left today (UTC).');
       await expect(page.locator('.b2Rnsc .sbw-kw-badge').first()).toHaveText('170/mo');
       await expect(page.locator('[data-q="What is the 33% rule for nonprofits?"] .sbw-kw-badge')).toHaveText('1K/mo');
       await expect(strip.locator('[data-role="kw-more"] tbody tr')).toHaveCount(12);
@@ -244,11 +246,18 @@ test('keyword data on Google: signed out, the yes, cached, add, tracked, every r
       await expect.poll(() => other.some((u) => new URL(u).pathname === '/dashboard/rank-tracker')).toBe(true);
 
       addMode = 'choose_tracker';
-      await strip.locator('[data-role="kw-more"] tr[data-keyword="what is the 33 rule for nonprofits"]').getByRole('button', { name: '+ Add' }).click();
+      await strip.locator('[data-role="kw-more"] tr[data-keyword="what is the 33% rule for nonprofits?"]').getByRole('button', { name: '+ Add' }).click();
       await expect(strip.locator('[data-role="kw-add-message"]')).toContainText('to which rank tracker?');
-      await strip.getByRole('button', { name: 'example.net' }).click();
+      await strip.getByRole('button', { name: 'Shop (example.net)' }).click();
       await expect(strip.locator('[data-role="kw-add-message"]')).toContainText('Added to your rank tracker');
-      expect(addCalls.at(-1)).toEqual({ keyword: 'what is the 33 rule for nonprofits', gl: 'us', hl: 'en', trackerId: 'trk_2' });
+      expect(addCalls.at(-1)).toEqual({ keyword: 'what is the 33% rule for nonprofits?', gl: 'us', hl: 'en', trackerId: 'trk_2' });
+
+      // The plan's keyword limit is not the key's scope: no Reconnect.
+      addMode = 'full';
+      await strip.locator('[data-role="kw-more"] tr[data-keyword="free salesforce for nonprofits"]').getByRole('button', { name: '+ Add' }).click();
+      await expect(strip.locator('[data-role="kw-add-message"]')).toContainText('at your plan’s keyword limit (50)');
+      await expect(strip.locator('[data-role="kw-add-message"]').getByRole('button', { name: 'Upgrade for more keywords' })).toBeVisible();
+      await expect(strip.locator('[data-role="kw-add-message"]')).not.toContainText('Reconnect');
       addMode = 'added';
     });
 
@@ -320,8 +329,8 @@ test('keyword data on Google: signed out, the yes, cached, add, tracked, every r
         const tab = await chrome.tabs.get(tabId);
         await globalThis.SBWSerpPanel.render(document.getElementById('content'), tab);
       }, tabId);
-      await expect(popup.locator('#serpKeywords')).toContainText('This search: 2.9K searches a month, difficulty 47/100, CPC $18.42, competition High (DataForSEO).');
-      await expect(popup.locator('#serpKeywords')).toContainText('Free plan: 16 of 20 searches with new keyword data left today (UTC).');
+      await expect(popup.locator('#serpKeywords')).toContainText('This search: 2.9K searches a month, difficulty 47/100, CPC $18.42, competition High (0.82) (DataForSEO).');
+      await expect(popup.locator('#serpKeywords')).toContainText('Free plan: 6 of 10 searches with new keyword data left today (UTC).');
       await popup.close();
     });
 

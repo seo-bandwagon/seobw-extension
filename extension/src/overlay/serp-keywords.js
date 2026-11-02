@@ -188,8 +188,9 @@
 
   function searchChips(box, f) {
     const mt = marketTitle();
+    const asOf = f.fetchedAt ? ` As of ${f.fetchedAt.slice(0, 10)}.` : '';
     box.appendChild(chip(K.volumeText(f.volume).replace('/mo', ' searches/mo'),
-      f.volume === null ? `${K.SOURCE} has no monthly search figure for this search.${mt}` : `${K.SOURCE}: about ${Math.round(f.volume).toLocaleString('en-US')} searches a month, averaged over the last 12 months.${mt}`, 'volume'));
+      f.volume === null ? `${K.SOURCE} has no monthly search figure for this search.${mt}` : `${K.SOURCE}: about ${Math.round(f.volume).toLocaleString('en-US')} searches a month, averaged over the last 12 months.${mt}${asOf}`, 'volume'));
     box.appendChild(chip(`difficulty ${K.difficultyText(f.difficulty)}`,
       `${K.SOURCE}’s keyword difficulty, 0 to 100: how hard it estimates ranking in the top 10 is, from the links of the pages there.`, 'difficulty'));
     box.appendChild(chip(`CPC ${K.cpcText(f.cpc)}`, `${K.SOURCE} (Google Ads): what advertisers pay a click on average, in US dollars.`, 'cpc'));
@@ -423,7 +424,7 @@
   // error. One at a time, the latest.
   function renderAddMessage(box) {
     let latest = null;
-    adds.forEach((a) => { if (['choose_tracker', 'no_tracker', 'error', 'no_key', 'not_a_keyword', 'added'].includes(a.state)) latest = a; });
+    adds.forEach((a) => { if (['choose_tracker', 'no_tracker', 'tracker_full', 'tracker_gone', 'error', 'no_key', 'not_a_keyword', 'added'].includes(a.state)) latest = a; });
     if (!latest) return;
     const p = el('div', 'sbw-kw-add-message');
     p.setAttribute('data-role', 'kw-add-message');
@@ -434,12 +435,19 @@
     } else if (latest.state === 'choose_tracker') {
       p.appendChild(el('span', null, `Add ${name} to which rank tracker?`));
       latest.trackers.forEach((t) => {
-        p.appendChild(button(t.domain, 'sbw-btn sbw-kw-tracker', (e) => addKeyword(latest.item, t.id, e), `Adds it to the tracker for ${t.domain}.`));
+        const name = t.label && t.label.toLowerCase() !== t.domain ? `${t.label} (${t.domain})` : t.domain;
+        p.appendChild(button(name, 'sbw-btn sbw-kw-tracker', (e) => addKeyword(latest.item, t.id, e), `Adds it to the tracker for ${t.domain}.`));
       });
       p.appendChild(button('Cancel', 'sbw-serp-act', () => { adds.delete(latest.item.keyword); render(); }));
     } else if (latest.state === 'no_tracker') {
       p.appendChild(el('span', null, `${K.ADD_WORDS.no_tracker}.`));
       p.appendChild(button('Create a rank tracker', 'sbw-btn', () => openPage('rank-tracker')));
+    } else if (latest.state === 'tracker_full') {
+      p.appendChild(el('span', null, `${name} wasn’t added: ${K.ADD_WORDS.tracker_full}${latest.limit ? ` (${latest.limit})` : ''}.`));
+      p.appendChild(button('Upgrade for more keywords', 'sbw-btn', () => openPage('upgrade')));
+      p.appendChild(button('Open rank tracker', 'sbw-serp-act', () => openPage('rank-tracker')));
+    } else if (latest.state === 'tracker_gone') {
+      p.appendChild(el('span', null, `${name} wasn’t added. ${K.ADD_WORDS.tracker_gone}.`));
     } else if (latest.state === 'no_key') {
       p.appendChild(el('span', null, 'Connect free to add keywords to a rank tracker.'));
       p.appendChild(button('Connect free', 'sbw-btn', () => openPage('connect')));

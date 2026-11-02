@@ -149,14 +149,15 @@
       const body = Object.assign({ keywords: [search].concat(misses.filter((k) => k !== search)) }, market);
       const res = await deps.post(body);
       if (!res || !res.ok) {
-        const code = (res && res.code) || 'network';
+        const details = res && res.status === 400 && res.data && res.data.details;
+        const code = details && (details.gl || details.hl) ? 'unsupported_market' : (res && res.code) || 'network';
         if (code === 'rate_limited') {
           try { await deps.storage.set({ [HOLD_KEY]: now() + 1000 * (Number(res.retryAfter) || 60) }); } catch (e) { /* noop */ }
         }
         return { state: 'error', code, retryAfter: res && res.retryAfter, results, tracked: trackedHit ? trackedHit.tracked : null };
       }
       const data = res.data || {};
-      const s = F.standing(data);
+      const s = K.standing(data);
       last = { plan: s.plan, allowance: s.allowance, lookups: s.lookups, market: K.marketAnswered(data), at: now() };
       try { await deps.storage.set({ [STATUS_KEY]: last }); } catch (e) { /* noop */ }
 
