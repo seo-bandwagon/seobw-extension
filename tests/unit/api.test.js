@@ -368,6 +368,66 @@ describe('no_key short-circuit — account endpoints skip the network entirely',
   });
 });
 
+describe('1.13.3: the AI Overview study calls', () => {
+  it('each returns a no_key result without calling fetch', async () => {
+    globalThis.chrome = mockChrome({ apiKey: '' });
+    const calls = [
+      () => SBW.aioStudyToday(),
+      () => SBW.aioStudySend({ term_id: 't1', csv: 'a,b\n1,2\n' }),
+      () => SBW.aioStudyStop()
+    ];
+    for (const call of calls) {
+      expect(await call()).toEqual({ ok: false, status: 0, data: null, retryAfter: null, code: 'no_key' });
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('aioStudyToday() GETs /v1/aio-study/today with the key and no body', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_study' });
+    const today = { enrolled: true, week: 0, paused: false, date: '2026-11-03', terms: [] };
+    globalThis.fetch.mockResolvedValue(mockResponse(200, today));
+    const res = await SBW.aioStudyToday();
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://seobandwagon.com/api/v1/aio-study/today');
+    expect(init.method).toBe('GET');
+    expect(init.headers.Authorization).toBe('Bearer sbw_study');
+    expect(init.body).toBeUndefined();
+    expect(res).toMatchObject({ ok: true, status: 200, data: today });
+  });
+
+  it('aioStudySend() POSTs { term_id, csv } to /v1/aio-study/captures; a 201 is ok', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_study' });
+    globalThis.fetch.mockResolvedValue(mockResponse(201, { ok: true }));
+    const res = await SBW.aioStudySend({ term_id: 't1', csv: 'a,b\n1,2\n' });
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://seobandwagon.com/api/v1/aio-study/captures');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer sbw_study');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(init.body)).toEqual({ term_id: 't1', csv: 'a,b\n1,2\n' });
+    expect(res).toMatchObject({ ok: true, status: 201 });
+  });
+
+  it('aioStudyStop() POSTs an empty object to /v1/aio-study/stop', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_study' });
+    globalThis.fetch.mockResolvedValue(mockResponse(200, { ok: true, carried: 3 }));
+    const res = await SBW.aioStudyStop();
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://seobandwagon.com/api/v1/aio-study/stop');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer sbw_study');
+    expect(JSON.parse(init.body)).toEqual({});
+    expect(res).toMatchObject({ ok: true, data: { carried: 3 } });
+  });
+
+  it('keeps the status and the error code the study answers, for SBWAioStudy to read', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_study' });
+    globalThis.fetch.mockResolvedValue(mockResponse(422, { error: 'query_mismatch' }));
+    const res = await SBW.aioStudySend({ term_id: 't1', csv: 'x' });
+    expect(res).toMatchObject({ ok: false, status: 422, data: { error: 'query_mismatch' } });
+  });
+});
+
 describe('autoSaveLocal — storage shape + return value', () => {
   it('stamps a new capture with sync: SBWSync.initialSync() and returns its key', async () => {
     const store = {};
@@ -656,6 +716,19 @@ describe('1.10.3 — the account on this device', () => {
     await SBW.clearAccountCaches();
 
     expect(Object.keys(store).sort()).toEqual(['bwThemeMode', 'capture_100', 'dataCollection']);
+    expect(Object.keys(session)).toEqual(['serpAnalyzeTabs']);
+  });
+
+  it('clearAccountCaches also drops the study\'s list for today and the tabs it opened', async () => {
+    const session = { aioStudyToday: { at: 1, today: {} }, aioStudyTabs: { 5: { termId: 't1' } }, serpAnalyzeTabs: { a: 1 } };
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_x' });
+    globalThis.chrome.storage.session = {
+      get: vi.fn(async () => Object.assign({}, session)),
+      remove: vi.fn(async (keys) => { keys.forEach(k => { delete session[k]; }); })
+    };
+
+    await SBW.clearAccountCaches();
+
     expect(Object.keys(session)).toEqual(['serpAnalyzeTabs']);
   });
 
