@@ -16,6 +16,15 @@ account connected and after the user says yes to its own disclosure (sections
 3 and 5). Paste each section into the matching Chrome Web Store Developer
 Dashboard field when submitting.
 
+1.13.3 (study mode for SEO Bandwagon's AI Overview study, invited testers
+only) follows the combined submission and is not part of it; outside testers
+start from the store on 2026-12-07. It adds a fourth flow: an invited
+tester's study search and that results page's export, sent only after the
+study's own yes and a click on Send to study (sections 3, 5 and 6; the
+description's PRIVACY paragraph). It adds no permission or host, and the
+install warning is unchanged (measured). The single-purpose text in section 4
+is unchanged.
+
 The detailed description is the text inside the fence in section 2 and
 nothing after it: the live description read on 2026-10-06 ran on past
 "Nothing is sent until you connect" into sections 3 to 7 of this file.
@@ -128,7 +137,7 @@ Choose Night, Day or Auto, which follows your system setting. Two matching Chrom
 PRIVACY
 No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
 
-Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address.
+Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address. Study mode is for invited testers of SEO Bandwagon's AI Overview study and is off until you turn it on in Settings, which says what it sends first: the study's search and the export of its results, only when you click Send to study, to the study and not to your account.
 
 GETTING STARTED
 1. Add the extension and pin it to the toolbar.
@@ -250,16 +259,21 @@ and the same path on 29 other Google domains; India's is `www.google.co.in` from
 1.10.2, and 1.11.0 adds twenty: `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`,
 `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`,
 `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`). The paste-ready text,
-1.13.0 (952 of the field's 1,000 characters; 1.11.0's said "never the
+1.13.3 (993 of the field's 1,000 characters; 1.11.0's said "never the
 search terms", which keyword data's own yes now changes, and "a background
-tab", which 1.12.0's Analyze no longer opens):
+tab", which 1.12.0's Analyze no longer opens; 1.13.3 adds the AI Overview
+study's send, and to fit drops "like any content script", "restyles",
+"link, traffic, domain-age and keyword" and "from the user's browser"):
 
-> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install like any content script, not a host permission; the install warning is unchanged. The script reads the results already on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves, covers or restyles anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50), on a click unless set otherwise. seobandwagon.com answers with link, traffic, domain-age and keyword figures and the user's own checklist score and rank history. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page from the user's browser without cookies.
+> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install, not a host permission; the install warning is unchanged. The script reads the results already on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves or covers anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50); for the AI Overview study, after an invited tester's own yes, that search and its page's export, only when the tester clicks Send to study in a private window the study opened. seobandwagon.com answers with figures, the user's checklist score and rank history. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page without cookies.
 
 1.13.0 adds two files to the same content-script entry
 (`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`) and no match,
 host or permission: `getPermissionWarningsByManifest` gives the same warnings
 before and after (measured; see `CHROMEWEBSTORE.md` Version History).
+1.13.3 adds one more file (`src/lib/aio-study.js`), also with no match, host
+or permission, measured the same way (Chromium 156.0.8078.4: the same four
+warnings for 1.13.2's and 1.13.3's manifests).
 
 Measured before the domains were added
 (`chrome.management.getPermissionWarningsByManifest`, Chrome for Testing 156,
@@ -392,11 +406,15 @@ with the reasoning behind each:
   after the user says yes to keyword data, also the query of a Google search
   the user makes (the words in that results page's address) and that
   Google's country and language, to look up its keyword figures; and a query
-  the user adds to their rank tracker. Chrome's list has no search-terms
-  category (Firefox's has, `searchTerms`, which the consent module maps it
-  to), so the query is declared here, as the visited results page's own
-  data, and its related searches and questions under Website content: more
-  than one box rather than none. Both boxes were already ticked.
+  the user adds to their rank tracker. From 1.13.3, for an invited tester of
+  the AI Overview study who turned on study sends, also the study's search
+  term, on Send to study, and a record that Google stopped them that day, on
+  Google stopped me, to the study and apart from the account. Chrome's list
+  has no search-terms category (Firefox's has, `searchTerms`, which the
+  consent module maps it to), so the query is declared here, as the visited
+  results page's own data, and its related searches and questions under
+  Website content: more than one box rather than none. Both boxes were
+  already ticked.
 - **User activity — No.**
 - **Website content — Yes.** Extracted metadata of the pages a user chooses
   to analyze (title, meta tags, headings, links, images, structured-data type
@@ -405,8 +423,8 @@ with the reasoning behind each:
   site, up to 10 a request), for the figures under each result: sent only
   with an account connected and after the user accepts it with "Send result
   addresses and show figures" in the extension's settings, which say what is
-  sent before anything is. Never the search terms. seobandwagon.com looks the
-  figures up with DataForSEO by those addresses and caches each address with
+  sent before anything is. Never the search terms with them. seobandwagon.com
+  looks the figures up with DataForSEO by those addresses and caches each address with
   its figures for 30 days, without who asked; the account keeps only its
   count of searches with new figures that day, and the call's path in its
   activity record. The user's own checklist score comes from the user's own
@@ -421,7 +439,16 @@ with the reasoning behind each:
   their keyword figures: on the user's click, or with each results page if
   the user chooses that. Never a result's address with them.
   seobandwagon.com looks the figures up with DataForSEO; what it keeps, and
-  for how long, is the website's privacy policy (`/privacy`).
+  for how long, is the website's privacy policy (`/privacy`). From 1.13.3,
+  for an invited tester of the AI Overview study who turned on study sends,
+  on Send to study, that results page's export from a private window the
+  study opened: the results' addresses, sites, titles, snippets,
+  breadcrumbs, dates and ratings, the page's features, related searches and
+  People also ask questions, the AI Overview's text and sources, Google's
+  country and language, the capture time and the extension version, with no
+  figures, no keyword data and no "Your site" marks. It goes to the study,
+  kept apart from the account: not into its captures, history or keyword
+  data.
 
 Proof screenshots are saved to the user's own device as a download (JPEG for
 a full page from 1.7.8, PNG for the visible area); the extension never uploads
@@ -431,7 +458,9 @@ closes or the browser restarts.
 
 A user with the data-collection setting off sends no analyses; the result
 addresses go only with the figures accepted, a separate switch; the query and
-its related searches and questions only with keyword data's own yes, a third.
+its related searches and questions only with keyword data's own yes, a third;
+the study's search and export only for an invited tester who said yes to the
+study, a fourth, and clicked Send to study.
 A signed-out user (no API key configured) sends nothing at all.
 
 **Certifications** — This data is not sold to third parties. It is not used
@@ -448,7 +477,18 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.13.0 (release notes, ≤ 10 lines)
+## 6. What's new in 1.13.3 (release notes, ≤ 10 lines)
+
+```
+- For invited testers of SEO Bandwagon's AI Overview study: a STUDY tab in
+  the popup lists the day's searches and opens each in a private window; one
+  click sends that results page's export to the study. It is off until you
+  turn it on in Settings, which says what it sends first.
+- The export finds the AI Overview wherever it sits on the page and lists
+  the pages it cites on a signed-out page, too.
+```
+
+1.13.0 (the combined submission, which uploads 1.13.2, carries it):
 
 ```
 - Keyword data on Google: your search's monthly volume, difficulty, CPC,
@@ -660,6 +700,16 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   each related search and People also ask question, and "Add to my
   keywords", which needs a rank tracker on the account (with none, it links
   to making one). "Stop sending my searches" in settings turns it off.
+- **AI Overview study (1.13.3)**: for invited testers only. The extension's
+  settings show a card, "For invited testers of the AI Overview study", with
+  "Turn on study sends"; nothing is sent to the study until that yes, and the
+  popup has no STUDY tab before it. After it, the tab lists the day's terms
+  for an account enrolled on seobandwagon.com (any other account is told to
+  join first). Search opens a term in a private window and never in a normal
+  one (without Allow in Incognito it refuses and says how to switch it on);
+  there, Send to study (a real click) posts that results page's CSV export,
+  without figures or keyword data, to the study, and Google stopped me posts
+  a stop record. Figures and keyword data are off in that tab.
 - An API key (free to create at seobandwagon.com) is only needed for the
   figures and keyword data in the overlay and to sync captures/citations/
   link-building data — every other feature above works fully signed out.
