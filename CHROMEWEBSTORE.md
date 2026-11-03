@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-11-02
+> Last Updated: 2026-11-03
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -27,6 +27,16 @@ spelling (owner, 2026-11-02) and the AI Overview export columns, neither of whic
 upload must change is under **"To paste with the combined submission
 (1.13.0)"** below, paste-ready. With that upload, paste the whole detailed
 description from `docs/CWS-LISTING.md` §2.
+**1.13.3 is built and not submitted either:** study mode for SEO Bandwagon's AI
+Overview study, for invited testers. It follows the combined submission;
+outside testers start from the store on 2026-12-07, and pilot testers may load
+the build unpacked the week of 2026-11-30 if the store has not approved it. The install warning is unchanged
+(measured; Version History). It adds a sentence on the study to four of the
+texts below: the Google results justification (1), the Web history (5) and
+Website content (6) data-use texts and the description's PRIVACY block (8),
+each in its final form, and leaves the single purpose as it is. They say more
+than 1.13.2 does, not less, so whether the combined upload carries them or
+1.13.3's does is the owner's call.
 1.10.2 is store submission A on the road to 2.0.0, alone. Release (run
 `41323033820`) made GitHub release `v1.10.2` from `be5fe7d`; Submit to Chrome
 Web Store (run `41323144644`) read "Published now: PUBLISHED (1.10.1)",
@@ -160,7 +170,7 @@ per-permission fields.
 | `http://localhost/*`, `http://127.0.0.1/*` | optional_host_permissions | Requested only if the Advanced API URL points at a local dev server. |
 | `<all_urls>` | optional_host_permissions | Requested on first use of Link Check, Indexability, Hreflang or Rendering, with the consent text in `extension/src/lib/perms.js`; from 1.10.2 also on the first Analyze click on a Google results page, from the extension's own small window with the same text. From 1.12.0 Analyze fetches the result's page (and its site's robots.txt and llms.txt) from the user's browser instead of opening a tab. Cookieless fetches; nothing read on those sites is sent to us. |
 | `https://search.google.com/search-console/*` | content_scripts | Queries-tab "open in Google Search" icons and compare-mode percent badges, computed from the table already on the page. Nothing fetched or sent. From 1.10.2 the search opens with `pws=0` and the property's country (a country-code domain's `gl`), and a report tab switch is seen through the already-declared `webNavigation`. |
-| `https://www.google.com/search*` + 29 other Google domains | content_scripts | Results overlay: appends a bar under each result (its position, figures and Analyze), a keyword strip above the results (1.13.0) and one panel below or above them, never hides or moves anything including ads. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the query) for the figures under it; from 1.13.0, with keyword data's own yes, the query with its related searches and People also ask questions, for keyword data; otherwise nothing (1.10.2 sent nothing; until then, bare result domains). 1.13.0 adds two scripts to the entry (`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`) and no match: the install warning measured unchanged (Version History). 1.11.0 adds twenty Google domains (`.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`): `getPermissionWarningsByManifest` (Chrome for Testing 156) gives the same four warnings before and after. Dashboard text: "To paste with the combined submission (1.13.0)". The CSV and clipboard exports stay entirely on the device and carry each result's own snippet plus the search context read from the URL — none of it is transmitted. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` redirects); install warning measured unchanged. |
+| `https://www.google.com/search*` + 29 other Google domains | content_scripts | Results overlay: appends a bar under each result (its position, figures and Analyze), a keyword strip above the results (1.13.0) and one panel below or above them, never hides or moves anything including ads. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the query) for the figures under it; from 1.13.0, with keyword data's own yes, the query with its related searches and People also ask questions, for keyword data; from 1.13.3, for an invited tester of the AI Overview study who turned on study sends, that search and its results page's export on a click on Send to study, in a private window the study opened, and a note that Google stopped them on a click on Google stopped me; otherwise nothing (1.10.2 sent nothing; until then, bare result domains). 1.13.0 adds two scripts to the entry (`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`) and no match: the install warning measured unchanged (Version History). 1.11.0 adds twenty Google domains (`.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`): `getPermissionWarningsByManifest` (Chrome for Testing 156) gives the same four warnings before and after. Dashboard text: "To paste with the combined submission (1.13.0)". The CSV and clipboard exports a person makes stay entirely on the device and carry each result's own snippet plus the search context read from the URL — none of it is transmitted; the one send of a results page's export is 1.13.3's Send to study, by an invited tester, described above. 1.13.3 adds one script to the entry (`src/lib/aio-study.js`) and no match, host or permission: the install warning measured unchanged (Version History). India's host is `www.google.co.in` from 1.10.2 (`www.google.in` redirects); install warning measured unchanged. |
 | `offscreen` | permissions | 1.12.0. Analyze on Google reads a result's HTML in an offscreen document (reason `DOM_PARSER`), because the service worker has no DOM parser: the same analyzer the popup runs, on HTML the extension fetched on the user's click. Nothing is shown and nothing it reads is sent anywhere. `getPermissionWarningsByManifest` (Chrome for Testing 156): no warning, the same four before and after. Dashboard text: "To paste with the combined submission (1.13.0)". |
 | `externally_connectable` → `https://seobandwagon.com/*` | manifest key | Lets the dashboard's "Connect Chrome extension" button hand over a freshly minted API key. No other origin can message the extension. |
 | `chrome_url_overrides.newtab` → `src/newtab/newtab.html` | manifest key | 1.9.0. The new tab page lists the user's recent analyses with score changes and the first issue found, all read from `chrome.storage.local`; signed out it sends no request on open, and with an account connected it reads the account's rank tracking summary and derived tasks (`GET /api/extension/progress`) at most every 10 minutes. It has no web search box. Its scan box opens a typed site in that tab and the popup analyzes it. Owner ruling 2026-10-18, reversing the 2026-09-07 one. From 1.9.5 it shows only with Neon Night or Neon Day installed (or the Always setting); otherwise it hands the tab to Chrome's own new tab before drawing anything. |
@@ -208,8 +218,12 @@ connected, and each flow on its own switch: analyses with the data-collection
 setting on; from 1.11.0, the addresses of the results on a Google results page
 after the user accepts the figures in Options; from 1.13.0, the words of a
 Google search with its related searches and People also ask questions, after
-the user says yes to keyword data (`src/lib/consent.js` checks each before
-every send). Signed out, it sends nothing at all.
+the user says yes to keyword data; from 1.13.3, for an invited tester of the
+AI Overview study, a study search and that results page's export, and a
+note that Google stopped them, after the study's own yes in Options and a
+click on Send to study or Google stopped me
+(`src/lib/consent.js` checks each before every send). Signed out, it sends
+nothing at all.
 
 From 1.7.4 a first install opens our welcome page in a tab, and removing the
 extension opens a one-question survey page. Both are ordinary visits to
@@ -225,9 +239,9 @@ install id, setting or usage leaves with either, so no data-use answer changes.
 | Authentication info | Yes | Yes, to seobandwagon.com only | The user's own API key, as a Bearer header | No |
 | Personal communications | No | — | — | No |
 | Location | No | — | — | No |
-| Web history | Yes | Yes, to seobandwagon.com only | URL + timestamp of pages the user chose to analyze. From 1.13.0, after the user says yes to keyword data, the query of a Google search the user makes, with that Google's country and language, for its keyword figures, and a query the user adds to their rank tracker (Chrome has no search-terms category; Firefox's `searchTerms`) | No |
+| Web history | Yes | Yes, to seobandwagon.com only | URL + timestamp of pages the user chose to analyze. From 1.13.0, after the user says yes to keyword data, the query of a Google search the user makes, with that Google's country and language, for its keyword figures, and a query the user adds to their rank tracker (Chrome has no search-terms category; Firefox's `searchTerms`). From 1.13.3, for an invited tester of the AI Overview study who turned on study sends, the study's search term, on Send to study, and a record that Google stopped them that day, on Google stopped me; both to the study, apart from the account | No |
 | User activity | No | — | — | No |
-| Website content | Yes | Yes, to seobandwagon.com only | Extracted metadata of analyzed pages (title, meta, headings, links, images, structured-data type and property names, technical facts). Never structured-data values. From 1.11.0, after the user accepts it in the extension's settings, the result links on a Google results page the user opens, for the figures under each result; never the search with them. From 1.13.0, after the user says yes to keyword data, the related searches and People also ask questions shown on that page, with its query, for their keyword figures; never a result link with them | No |
+| Website content | Yes | Yes, to seobandwagon.com only | Extracted metadata of analyzed pages (title, meta, headings, links, images, structured-data type and property names, technical facts). Never structured-data values. From 1.11.0, after the user accepts it in the extension's settings, the result links on a Google results page the user opens, for the figures under each result; never the search with them. From 1.13.0, after the user says yes to keyword data, the related searches and People also ask questions shown on that page, with its query, for their keyword figures; never a result link with them. From 1.13.3, for an invited tester of the AI Overview study who turned on study sends, on Send to study, that results page's export (the results' positions, addresses, sites, titles, snippets, breadcrumbs, dates and ratings, the page's features, related searches and People also ask questions, the result count, the AI Overview's text and sources, Google's country and language, the capture time, the extension version), to the study apart from the account, with no figures or keyword data | No |
 
 Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
@@ -245,7 +259,7 @@ action first; until then none of it is sent:
 | 1.16.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
 | 1.18.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
 
-*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one. 2026-11-01: the Google results page comes first, so the result URLs move from 1.12.0 to 1.11.0.*
+*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one. 2026-11-01: the Google results page comes first, so the result URLs move from 1.12.0 to 1.11.0. 2026-11-03: 1.13.3 became the AI Overview study's study mode, a flow the road did not list (invited testers only, its own yes; Version History), so the planned 1.13.3 to 1.13.5 moved up one.*
 
 1.12.0's Analyze on Google sends nothing new to us: on a click the extension
 fetches the result's own page from the user's browser, without cookies,
@@ -271,15 +285,24 @@ only the last version is here. Paste them with the upload, before submitting
 for review. seobandwagon.com/privacy must cover all three flows first: the
 result addresses (1.11.0, live with the website's `/privacy` change of
 1.11.0), the pinned page and AI Overview sources (1.12.0) and the search's
-words for keyword data (1.13.0, the website's to add).
+words for keyword data (1.13.0, the website's to add). 1.13.3 adds the
+study's search and results page export, and the note that Google stopped a
+tester (the stop record), as a fourth, the website's to add to that section
+too, since it must stay in step with the table above.
+
+Texts 1, 5, 6 and the PRIVACY block of text 8 carry 1.13.3's sentence on the
+AI Overview study (invited testers only, off until their own yes, sent on a
+click on Send to study or Google stopped me, kept apart from the account). They are written for
+1.13.3, which follows the combined upload; they say more than 1.13.2 does, not
+less. Texts 2, 3, 4 and 7 are the same for both.
 
 **1. Privacy practices → Host permission justification: the Google results
 content scripts.** Replaces the live paragraph, stale since 1.10.2 (it says
-bare result domains are sent) (952 of 1,000 characters; the listing
-doc's own text, `docs/CWS-LISTING.md` §3):
+bare result domains are sent) (995 of 1,000 characters; the listing
+doc's own text, `docs/CWS-LISTING.md` §3; 1.13.3 added the study's sentence):
 
 ```
-Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install like any content script, not a host permission; the install warning is unchanged. The script reads the results already on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves, covers or restyles anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50), on a click unless set otherwise. seobandwagon.com answers with link, traffic, domain-age and keyword figures and the user's own checklist score and rank history. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page from the user's browser without cookies.
+Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): not a host permission, so the install warning is unchanged. It reads the results on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves or covers anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50); for the AI Overview study, after an invited tester's own yes and only on a click, that search and its page's export (Send to study, in a private window the study opened) or a note that Google stopped them (Google stopped me). seobandwagon.com answers with figures and the user's checklist score. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page without cookies.
 ```
 
 **2. Privacy practices → Host permission justification: the optional
@@ -304,18 +327,20 @@ Two uses, both session rules created at runtime; the extension ships no static r
 
 **5. Privacy practices → data usage, Web history.** Stays ticked. Stale
 since 1.10.2 (it names the bare domains on a Google results page); 1.13.0
-adds the query, since Chrome's list has no search-terms category:
+adds the query, since Chrome's list has no search-terms category; 1.13.3 adds
+the study's search term:
 
 ```
-The address and time of each page the user chooses to analyze, saved to the user's own SEO Bandwagon account while the data-collection setting is on. After the user says yes to keyword data, the query of a Google search the user makes, with that Google's country and language, to look up its monthly searches and other keyword figures, and a query the user adds to their rank tracker on seobandwagon.com.
+The address and time of each page the user chooses to analyze, saved to the user's own SEO Bandwagon account while the data-collection setting is on. After the user says yes to keyword data, the query of a Google search the user makes, with that Google's country and language, to look up its monthly searches and other keyword figures, and a query the user adds to their rank tracker on seobandwagon.com. For invited testers of SEO Bandwagon's AI Overview study who turn on study sends, the search term the study gave them, sent when they click Send to study on its results page, and a record that Google stopped them that day, sent when they click Google stopped me. Both go to the study, kept apart from the account.
 ```
 
 **6. Privacy practices → data usage, Website content.** Stays ticked; 1.11.0
 adds the result links, 1.12.0 the pinned page and AI Overview sources,
-1.13.0 the related searches and questions:
+1.13.0 the related searches and questions, 1.13.3 the study's results page
+export:
 
 ```
-Extracted metadata of the pages the user chooses to analyze (title, meta tags, headings, links, images, structured-data type and property names, technical facts; never structured-data values). After the user turns figures on in the extension's settings, the address and site of each result on a Google results page the user opens, up to 10 at a time, and, on the user's click, the address of a page the user pins to compare with the results and of the pages a Google AI Overview cites, to look up their link, traffic and domain-age figures. After the user says yes to keyword data, the related searches and People Also Ask questions shown on that results page, with its query, up to 50 at a time, for their keyword figures. Never a result's address with the keyword data.
+Extracted metadata of the pages the user chooses to analyze (title, meta tags, headings, links, images, structured-data type and property names, technical facts; never structured-data values). After the user turns figures on in the extension's settings, the address and site of each result on a Google results page the user opens, up to 10 at a time, and, on the user's click, the address of a page the user pins to compare with the results and of the pages a Google AI Overview cites, to look up their link, traffic and domain-age figures. After the user says yes to keyword data, the related searches and People Also Ask questions shown on that results page, with its query, up to 50 at a time, for their keyword figures. Never a result's address with the keyword data. For invited testers of SEO Bandwagon's AI Overview study who turn on study sends, on Send to study, that results page's export from a private window the study opened: the results' positions, addresses, sites, titles, snippets, breadcrumbs, dates and ratings, the page's features, related searches and People Also Ask questions, the result count, the AI Overview's text and sources, Google's country and language, the capture time and the extension version, with no figures or keyword data. It goes to the study, kept apart from the account.
 ```
 
 The other categories and the three certifications do not change. The
@@ -323,7 +348,9 @@ result addresses are links on a page (Website content), not pages the user
 visited; the query is declared under Web history as well as Website
 content, since no category names search terms; User activity stays No (no
 keystrokes, clicks or scrolling are recorded); nothing identifies the user
-beyond the key already declared under Authentication information.
+beyond the key already declared under Authentication information. The
+study's term and export are declared under the same two categories as the
+query is.
 
 **7. Single purpose** (998 of 1,000 characters; `docs/CWS-LISTING.md`
 §4, which has the check and what was trimmed):
@@ -339,6 +366,12 @@ figures under each result; "Add to my keywords" saves a keyword the user
 chose to the user's own account, as the analyses are saved. Nothing in
 1.13.0 runs outside a Google results page or the user's own account, and
 no new surface or permission is added.
+
+Single-purpose text, 1.13.3: unchanged (998 of 1,000 characters). The study
+(an invited tester sends a Google results page's export, which is what the
+overlay already reads and exports, to the study) adds no surface outside a
+Google results page; whether it needs a sentence of its own is the owner's
+call.
 
 **8. Detailed description.** Paste the whole block in `docs/CWS-LISTING.md`
 §2. These paragraphs are what changed since the live text (the live text
@@ -380,17 +413,18 @@ SEARCH CONSOLE HELPERS
 Inside Search Console's performance report, in any of its languages, each query gets two small buttons: open it on Google, or open it in a private window to see results without your history. When you compare two date ranges, the percent change is placed beside each number so you do not have to work it out.
 ```
 
-PRIVACY, 1.11.0 to 1.13.0 (two paragraphs):
+PRIVACY, 1.11.0 to 1.13.3 (two paragraphs):
 
 ```
 PRIVACY
 No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
 
-Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address.
+Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address. Study mode is for invited testers of SEO Bandwagon's AI Overview study and is off until you turn it on in Settings, which says what it sends first: the study's search and the export of its results when you click Send to study and, when you click its stop button, a note that you were stopped that day, to the study and not to your account.
 ```
 
-**9. Release notes:** `docs/CWS-LISTING.md` §6 (1.13.0's four lines; 1.12.0's
-and 1.11.0's if the field takes them).
+**9. Release notes:** `docs/CWS-LISTING.md` §6: 1.13.0's four lines for the
+combined upload (1.12.0's and 1.11.0's if the field takes them); 1.13.3's
+lines, first in that section, for 1.13.3's own upload.
 
 **Not text, but due with this upload:** store screenshot 4 shows the 1.9.4
 bars ("Score 90 · 1 capture") and toolbar, which 1.10.2 removed and 1.11.0
@@ -416,14 +450,14 @@ and when. Keep it in step with the table above.
 ## Other stores from 2.0.0
 
 Owner, 2026-10-31: "When we launch 2.0.0 I want to have Edge and Firefox
-versions." Plan in ROADMAP.md → "The road to 2.0.0" (1.13.4, 1.13.5, 2.0.0);
+versions." Plan in ROADMAP.md → "The road to 2.0.0" (1.13.5, 1.13.6, 2.0.0);
 reasoning in the SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
 Nothing is listed in either store yet; this section gets each store's fields
 when its listing is written, as the sections above do for Chrome.
 
 | | Microsoft Edge Add-ons | Firefox Add-ons (AMO) |
 |---|---|---|
-| Package | `npm run zip -- --target edge` (from 1.13.4): the Chrome manifest without `key`, the new-tab override and `management` | `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
+| Package | `npm run zip -- --target edge` (from 1.13.5): the Chrome manifest without `key`, the new-tab override and `management` | `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
 | Listing rules | Policy 1.1.2: the extension and listing name no other browser; reviewer test account (1.3.1); certification up to seven business days | Data consent: `required: ["none"]`; the optional categories follow the data-use table above (see the vault design's consent map); every send is gated on the user's choice |
 | Item ID | Assigned at the first upload; the site's Connect uses a bridge, so it doesn't need it | Ours, in `gecko.id` |
 | Publishing | `scripts/edge-publish.mjs` (Edge Add-ons API v1.1) uploads; the owner presses Publish in Partner Center (the API has no staged publish). The product and its first listing are created by hand | `web-ext sign --channel=listed`; listed versions go live after the automated check |
@@ -484,6 +518,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.13.3 | 2026-11-03 | 1.13.2 plus **study mode for SEO Bandwagon's AI Overview inclusion study** (invited testers only; the study's pilot is 2026-11-30) and **the AI Overview's sources read on a signed-out page**. **Study mode:** Options gains a section "AI Overview study" with the card "For invited testers of the AI Overview study" (the consent module's `aioStudy` flow, Firefox's `searchTerms`, `browsingActivity` and `websiteContent`; accepted with "Turn on study sends", ended with "Turn off study sends"; its words say the export holds the result count, that the extension never sends a request to Google itself, and that Google's personalization parameter is off (`hl=en`, `gl=us`, `pws=0`); the figures flow's words now read "Never your search terms with them, and never a request to Google.", its version staying 2). Only after that yes does the popup show a **STUDY** tab: `GET /api/v1/aio-study/today` (key scope `study`) lists the day's terms (To do, Carried over, Sent; the date is shown as UTC), each with Search; the worker keeps the list five minutes on the same UTC day, the tab draws it once per opening and asks afresh only after a refusal that says it is stale or a stop, and a rate-limited or unavailable answer never replaces a list it keeps (the site limits an account to a few requests a minute); its states are not available yet, connect, reconnect (a key without the study scope), join on seobandwagon.com, paused this week and turn on study sends. **Search** opens the term in a private window (`chrome.windows.create({ incognito: true })`, `https://www.google.com/search?q=<term>&hl=en&gl=us&pws=0`) and never in a normal one: if the extension is not allowed in private windows, or the window comes back not private, it refuses (closing such a window) and says how to switch on Allow in Incognito, with a button to the extension's Details page. The worker remembers the tab it opened (`chrome.storage.session`, cleared on Connect and Disconnect and when the tab closes). In that tab the overlay's panel sits at the top whatever the placement setting, shows even with "Show on Google results" off, and has an "AI Overview study" group: the term, the AI Overview's state, **Send to study** and **Google stopped me** (`POST /api/v1/aio-study/stop`) asks for a second click, because a stop moves the day's other terms to tomorrow: the first changes the button to "Click again to end today's searches" for five seconds; it is in the STUDY tab too (shown while the day has a term), since Google's CAPTCHA page is not a page the overlay runs on. Figures and keyword data never load or send in a study tab (the overlay never asks and the worker refuses for that tab whatever the settings). **Send to study** (a real click only) posts `{ term_id, csv }` to `POST /api/v1/aio-study/captures`: the overlay's own CSV export of that page, with no figures, no keyword data and no "Your site" marks, only from the tab the study opened, for a term on today's list not yet sent, while the tab still shows the study's search (same words, page 1, `hl=en`, `gl=us`, `pws=0`, not another Google tab such as Videos or News, and none of `tbs`, `lr`, `cr`, `num`, `nfpr`, `filter`, `uule` or `near`, which change the results), at most 262,144 bytes; a term the list names twice is filled oldest first. **The export, every results page:** `Search features` lists the AI Overview wherever it sits (1.13.2 missed it outside `#search` and `#center_col`); an expanded People also ask answer that holds its own AI answer is no longer read as the AI Overview; `AI Overview citations` also lists the pages read from Google's hidden source records (signed out, the overview's links are `/goto` redirects and each source carries a record with the real address) and a side-panel source card's site when its page is hidden; two columns follow `Extension version`: `AI Overview citations read from` (`link`, `record` or `card site`) and `AI Overview citation titles (JSON)`; the citations, text, state and redirect count read only the AI Overview boxes that are shown (1.13.2's known gap, a hidden stale box's links, is closed). The sources are read in the overview's own order (a source chip's link and its record side by side), and addresses of pictures, style sheets and scripts (including `ytimg.com` and `ggpht.com`) are not read as pages. The overlay's AI Overview sources table and the popup's count include the record pages. Measured on the three saved private-window pages (2026-11-03): 27 sources, 23 with page addresses, 4 card sites. **Install warning:** unchanged, measured (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4: the same four warnings for 1.13.2's and 1.13.3's manifests: "Read and change your data on search.google.com, seobandwagon.com, and www.google.com", "Replace the page you see when opening a new tab", "Read your browsing history" and "Manage your apps, extensions, and themes"). No permission or host; one script (`src/lib/aio-study.js`) joins the Google content-script entry. **Data use: new**, for invited testers who turn on study sends, on Send to study, the study's search term and that results page's export (the results' positions, addresses, sites, titles, snippets, breadcrumbs, dates and ratings, the page's features, related searches and People also ask questions, the result count, the AI Overview's text and sources, Google's country and language, the capture time, the extension version), to the study, kept apart from the account; and a stop record on Google stopped me (`POST /api/v1/aio-study/stop`, a note that Google stopped them that day). The Web history and Website content texts and the Google results justification change, and the description's PRIVACY paragraph gains a sentence: "To paste with the combined submission (1.13.0)" (texts 1, 5, 6 and 8). The single purpose (998 of 1,000) is unchanged. | Not submitted (follows the combined submission; outside testers start from the store on 2026-12-07) |
 | 1.13.2 | 2026-11-02 | 1.13.1 plus **the AI Overview in the export** (for SEO Bandwagon's AI Overview inclusion study): four columns appended to the results CSV and clipboard export, Collect pages included: AI Overview state (none, loaded or empty), AI Overview text, AI Overview citations via Google redirect, Extension version. Read from the results page on export, or when a page is added to Collect pages; nothing new is sent anywhere. No permission, host, content-script, data-use or listing change. Joins the combined submission, which now uploads 1.13.2. | Not submitted (the combined submission, uploaded at 1.13.2) |
 | 1.13.1 | 2026-11-02 | 1.13.0 plus **American English** (owner ruling 2026-11-02: every word the extension shows is American English). The full-page capture's cancel message reads "Capture canceled." (was "Capture cancelled."), the one British word the extension showed; comments and test names follow. No permission, host, content-script, data-use or listing change. Joins the combined submission, which now uploads 1.13.1. | Not submitted (the combined submission, uploaded at 1.13.1) |
 | 1.13.0 | 2026-11-02 | 1.12.0 plus **keyword data on Google, into the account** (#68; the last of the four releases that finish the results page; **the combined submission**, owner 2026-11-02: B and C go up as one upload of 1.13.0). **The strip** above the results (under the search box and any top ads, never moving them; above the panel when that is at the top): DataForSEO's monthly searches, difficulty, cost per click, competition and 12-month trend for the search, on a click (the default) or with the page, by setting. **Related searches and People Also Ask questions** get their volume in the same request (50 keywords at most, the search first): a label beside each on Google's page and a list in the strip; questions opened later are asked for on a click. **Add to my keywords** puts the search or any related search or question in the rank tracker (`POST /api/v1/keywords`): added, already tracked, which tracker (several), or a link to making one (none). **Rank history:** a search the tracker already tracks shows the tracked site's position history on its bar. **Limits:** the plan and the day's allowance; at the limit or paused it says so and offers the upgrade where it helps; a key from before the `keywords` scope says Reconnect; nothing else stops. **Exports** gain the keyword data (results CSV columns, a keywords CSV); **settings** gain keyword data on or off, on a click or with the page; the **popup** gains a keyword data block. Two scripts join the Google content-script entry (`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`); no permission, host or match. **Install warning:** unchanged, measured (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4: the same four warnings for 1.12.0's and 1.13.0's manifests; a control with `www.example.com` added to the content script turns the first into "Read and change your data on a number of websites"). **Data use: new** — the search's words, its related searches and People Also Ask questions, the Google's country and language, and a search added to the rank tracker, only with an account connected and after keyword data's own yes (its first-use disclosure on the results page, a real click only, or its card in Options; the consent module's `keywordData`, Firefox's `searchTerms`); Web history and Website content's texts, the Google results justification, the single purpose (998 of 1,000) and the description change: "To paste with the combined submission (1.13.0)". | Not submitted (the combined submission, uploaded at 1.13.0) |

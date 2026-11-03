@@ -293,6 +293,34 @@ describe('with keyword data', () => {
     expect(sent.some((m) => m.action === 'serpKeywordAdd')).toBe(false);
   });
 
+  it('"Add to my keywords" from a click on a button that outlived the strip (keyword data turned off) adds nothing, even for the person\'s own click', async () => {
+    const changed = [];
+    const clicks = new Map();
+    const realAdd = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (type, fn, options) {
+      if (type === 'click') clicks.set(this, (clicks.get(this) || []).concat(fn));
+      return realAdd.call(this, type, fn, options);
+    };
+    try {
+      freshDom('q=best+crm+for+nonprofits&gl=us&hl=en', ['alpha.example', 'example.org']);
+      window.chrome.storage.onChanged = { addListener: (fn) => changed.push(fn) };
+      await load();
+      ask();
+      await vi.advanceTimersByTimeAsync(30);
+      const add = buttonNamed('Add to my keywords');
+      expect(clicks.get(add)).toHaveLength(1);
+      changed.forEach((fn) => fn({ serpSettings: { newValue: { keywordsOn: false } } }, 'local'));
+      expect(strip()).toBeNull();
+      // jsdom's click() is untrusted; a person's click is this event.
+      clicks.get(add)[0]({ isTrusted: true, type: 'click', target: add });
+      await vi.advanceTimersByTimeAsync(30);
+      expect(sent.some((m) => m.action === 'serpKeywordAdd')).toBe(false);
+      expect(strip()).toBeNull();
+    } finally {
+      EventTarget.prototype.addEventListener = realAdd;
+    }
+  });
+
   it('the exports carry the keyword data: the results CSV\'s columns, and a keywords CSV', async () => {
     await shown();
     let csv;

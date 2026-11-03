@@ -199,7 +199,9 @@
   // account's own and whose allowance is the account's plan.
   // 1.13.0: and the keyword data, whose rank history is the account's own
   // tracker's (src/lib/serp-keywords-service.js).
-  const ACCOUNT_SESSION_KEYS = ['sbwProgress', 'serpFiguresStatus', 'serpFiguresHold', 'serpKeywordsStatus', 'serpKeywordsHold'];
+  // 1.13.3: and the AI Overview study's list for today and the tabs it
+  // opened (src/lib/aio-study.js), which are the account's own.
+  const ACCOUNT_SESSION_KEYS = ['sbwProgress', 'serpFiguresStatus', 'serpFiguresHold', 'serpKeywordsStatus', 'serpKeywordsHold', 'aioStudyToday', 'aioStudyTabs'];
   const ACCOUNT_SESSION_PREFIXES = ['dh:', 'serpFig:', 'kw:', 'kwTracked:'];
 
   async function clearAccountCaches() {
@@ -290,6 +292,35 @@
   async function addKeyword(body) {
     if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/v1/keywords', { method: 'POST', body });
+  }
+
+  // 1.13.3: the AI Overview study (scope `study`; a key minted before it
+  // answers 403 'insufficient_scope', which sbwFetch reports as 'forbidden').
+  // The study answers an error as { error: '<code>' } in `data`, and its
+  // statuses mean more than sbwFetch's `code` says (409 already sent, 413
+  // too large, 422 not assigned), so SBWAioStudy's todayState, sendOutcome
+  // and stopOutcome (src/lib/aio-study.js) read `status` and `data.error`
+  // themselves. The caller has already asked the consent module (flow
+  // `aioStudy`).
+
+  // Today's terms for this account (GET /api/v1/aio-study/today).
+  async function aioStudyToday() {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/v1/aio-study/today');
+  }
+
+  // One results page as CSV for one of today's terms (POST
+  // /api/v1/aio-study/captures with { term_id, csv }). A 201 is `ok`.
+  async function aioStudySend({ term_id, csv } = {}) {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/v1/aio-study/captures', { method: 'POST', body: { term_id, csv } });
+  }
+
+  // "No AI Overview, stop for today" (POST /api/v1/aio-study/stop): the site
+  // moves the rest of today's terms to tomorrow.
+  async function aioStudyStop() {
+    if (!(await hasApiKey())) return noKeyResult();
+    return sbwFetch('/v1/aio-study/stop', { method: 'POST', body: {} });
   }
 
   // 1.11.0: every send asks the consent module first (src/lib/consent.js),
@@ -662,6 +693,9 @@
     serpMetrics,
     keywordMetrics,
     addKeyword,
+    aioStudyToday,
+    aioStudySend,
+    aioStudyStop,
     sendAllowed,
     syncCapture,
     drainPendingCaptures,

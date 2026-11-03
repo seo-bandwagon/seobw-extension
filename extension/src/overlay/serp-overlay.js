@@ -33,6 +33,12 @@
 // rank history on the tracked site's bar and puts its figures in the exports
 // (globalThis.SBWSerpKeywordsView).
 //
+// 1.13.3, the AI Overview study: a tab the study opened (the worker knows it,
+// 'aioStudyTab') gets a "Send to study" group in the panel. It sends that
+// page's export without figures or keyword data, and nothing in that tab asks
+// for figures or keyword data (src/lib/aio-study.js holds the words). Bars
+// still draw at once; figures wait for the worker's answer.
+//
 // Analyze (1.10.2, owner 2026-11-01: "Stay on Google") hands the result to
 // the worker, which opens it in a background tab, analyzes that tab and
 // sends the outcome back here: one line under the result with the page's
@@ -116,6 +122,78 @@
       cb && cb(undefined, true); // extension reloaded under this page
       return false;
     }
+  }
+
+  // ---------- study mode (1.13.3) ----------
+  //
+  // The worker keeps a record of each tab it opened for a study term and
+  // answers 'aioStudyTab' about this one, once, at load. Until it answers,
+  // nothing is asked for that leaves the browser (figures wait; the keyword
+  // strip awaits SBWSerpStudy.ready, set here, before this script's init, so
+  // src/overlay/serp-keywords.js, which loads after it, finds it). No answer
+  // or an error reads as an ordinary tab. In a study tab no figures and no
+  // keyword data are asked for (the worker refuses them there too).
+  const A = globalThis.SBWAioStudy;
+  let studyInfo = null;      // the normalized answer for a study tab, else null
+  let studyKnown = false;    // the worker's answer is in
+  let studyBusy = false;     // a send or stop is on its way
+  let studySent = false;     // this page went to the study
+  let studyStopped = false;  // "Google stopped me" was recorded
+  let studyOutcome = null;   // the last send or stop answer's state
+  let studyTimer = null;
+  let studyStopTimer = null; // set while "Google stopped me" waits for its second click
+
+  const STUDY_STATUSES = ['open', 'late', 'sent'];
+
+  // A worker that says `study: true` is believed even if the rest is
+  // malformed: such a tab asks for nothing, and can't be sent.
+  function readStudyAnswer(reply) {
+    if (!reply || reply.study !== true) return null;
+    const page = reply.page && typeof reply.page === 'object' ? reply.page : null;
+    return {
+      study: true,
+      termId: typeof reply.termId === 'string' ? reply.termId : '',
+      keyword: typeof reply.keyword === 'string' ? reply.keyword : '',
+      accepted: reply.accepted === true,
+      status: STUDY_STATUSES.includes(reply.status) ? reply.status : null,
+      // The list's state; with no status, it tells a term that isn't on the
+      // list from a list the worker couldn't get.
+      today: typeof reply.today === 'string' ? reply.today : null,
+      page: page && page.ok === true ? { ok: true } : { ok: false, reason: (page && page.reason) || 'error' }
+    };
+  }
+
+  const studyReady = new Promise((resolve) => {
+    send({ action: 'aioStudyTab' }, (reply) => {
+      studyInfo = readStudyAnswer(reply);
+      studyKnown = true;
+      resolve(studyInfo || { study: false });
+    });
+  });
+  globalThis.SBWSerpStudy = { ready: studyReady };
+  studyReady.then(() => onStudyKnown());
+
+  // Runs `fn` once the worker has answered, and not at all in a study tab.
+  function unlessStudy(fn) {
+    if (studyKnown) { if (!studyInfo) fn(); return; }
+    studyReady.then(() => { if (!studyInfo) fn(); });
+  }
+
+  // A click the person made. A page script's click is not trusted, and
+  // sends nothing.
+  function trusted(e) {
+    return !!(e && e.isTrusted === true);
+  }
+
+  function words(code) {
+    return A ? A.message(code) : String(code);
+  }
+
+  // The bars and the panel show when "Show on Google results" is on, and
+  // always in a study tab: a tester who turned them off still has Send to
+  // study. (Figures and keyword data stay off there either way.)
+  function overlayOn() {
+    return settings.overlay || !!studyInfo;
   }
 
   // ---------- look ----------
@@ -264,7 +342,7 @@
     if (source) source.hidden = true;
     box.textContent = '';
     box.removeAttribute('data-state');
-    if (!settings.figuresOn || row.siteUnknown) return;
+    if (!settings.figuresOn || row.siteUnknown || studyInfo || figState.state === 'study_tab') return;
 
     const figures = figuresByKey.get(row._key);
     if (figures) {
@@ -347,6 +425,10 @@
   // `force`: a click on "Load figures" or "Show figures".
   function loadFigures(force) {
     if (force) figuresWanted = true;
+    // 1.13.3: not before the worker has said whether this is a study tab,
+    // and never in one.
+    if (!studyKnown) { unlessStudy(() => loadFigures(false)); return; }
+    if (studyInfo) return;
     if (!settings.overlay || !settings.figuresOn) return;
     if (settings.load === 'click' && !figuresWanted) { renderAllFigures(); return; }
     if (force) askedKeys.clear();
@@ -609,7 +691,7 @@
   }
 
   function processResults() {
-    if (!settings.overlay) return;
+    if (!overlayOn()) return;
     const rows = S.parseResults(document);
     warnIfUnparsed(rows.length);
 
@@ -628,6 +710,7 @@
       renderToolbar();
       updateToolbarCounts(rows.length);
       showUnreadNotice(rows.length);
+      renderStudy(rows.length);
     }
     if (settings.figuresOn && (settings.load === 'auto' || figuresWanted)) loadFigures(false);
   }
@@ -1089,7 +1172,9 @@
     actions.textContent = '';
     box.removeAttribute('data-kind');
     let short = '';
-    if (!settings.figuresOn) {
+    if (studyInfo || figState.state === 'study_tab') {
+      box.textContent = 'Figures are off in a study search.';
+    } else if (!settings.figuresOn) {
       box.textContent = 'Figures are off. Turn them on in Settings.';
     } else if (figState.state === 'ok') {
       const notice = figState.notice;
@@ -1116,6 +1201,170 @@
       actions.appendChild(actionButton('Load figures', 'load'));
     }
     if (summary) summary.textContent = short;
+  }
+
+  // ---------- the AI Overview study's group (1.13.3) ----------
+
+  const AI_LINES = {
+    loaded: 'AI Overview: loaded',
+    none: 'AI Overview: none on this page',
+    empty: "AI Overview: hasn't loaded yet. Wait for it, or send the page as it is."
+  };
+
+  function studyButton(role, label, onClick) {
+    const b = el('button', 'sbw-btn', label);
+    b.type = 'button';
+    b.setAttribute('data-role', role);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function studyLine(role) {
+    const p = el('p', 'sbw-study-line');
+    p.setAttribute('data-role', role);
+    return p;
+  }
+
+  // The group is the first in the panel, built once the worker has said
+  // this is a study tab and the panel exists.
+  function ensureStudyGroup() {
+    if (!studyInfo || !toolbarEl) return;
+    if (toolbarEl.querySelector('[data-group="study"]')) { renderStudy(); return; }
+    const body = toolbarEl.querySelector('[data-role="body"]');
+    if (!body) return;
+    const status = studyLine('study-status');
+    status.classList.add('sbw-study-status');
+    status.setAttribute('role', 'status');
+    const sendBtn = studyButton('study-send', 'Send to study', studySend);
+    sendBtn.classList.add('sbw-study-send');
+    const g = group('study', 'AI Overview study',
+      studyLine('study-term'), studyLine('study-ai'),
+      sendBtn, studyButton('study-stop', A.STOP_LABEL, studyStop), status);
+    body.insertBefore(g, body.querySelector('[data-group="figures"]') || body.firstChild);
+    renderStudy();
+  }
+
+  // The worker answered that the list can't be had for now (the site's limit
+  // on requests, or the site itself), so the term's status is unknown: not
+  // the same as a term that isn't on the list. Send to study stays on, and
+  // the worker checks the list again when it is clicked.
+  function studyListLate() {
+    return studyInfo.status === null && (studyInfo.today === 'rate_limited' || studyInfo.today === 'unavailable');
+  }
+
+  // Why the page can't be sent now, as a code `words` knows, or null.
+  function studyBlocked(rowCount) {
+    if (!studyInfo.termId) return 'not_study_tab';
+    if (!studyInfo.accepted) return 'not_accepted';
+    if (!studyInfo.page.ok) return studyInfo.page.reason;
+    if (studyInfo.status === 'sent') return 'already_sent';
+    if (studyInfo.status === null && !studyListLate()) return 'not_on_list';
+    if (!rowCount) return 'empty';
+    return null;
+  }
+
+  // `rowCount`: how many results the scan just read, where it is known.
+  function renderStudy(rowCount) {
+    if (!studyInfo || !toolbarEl) return;
+    const g = toolbarEl.querySelector('[data-group="study"]');
+    if (!g) return;
+    const text = (role, value) => {
+      const n = g.querySelector(`[data-role="${role}"]`);
+      if (n && n.textContent !== value) n.textContent = value;
+    };
+    text('study-term', 'Term: ' + studyInfo.keyword);
+    text('study-ai', AI_LINES[S.aiOverviewState(document)] || AI_LINES.none);
+
+    const sendBtn = g.querySelector('[data-role="study-send"]');
+    const stopBtn = g.querySelector('[data-role="study-stop"]');
+    const blocked = studyBlocked(rowCount === undefined ? S.parseResults(document).length : rowCount);
+    let status = '';
+    if (studyOutcome) status = words(studyOutcome.state);
+    else if (blocked) status = words(blocked);
+    else if (studyListLate()) status = words(studyInfo.today);
+    text('study-status', status);
+    if (sendBtn) {
+      sendBtn.textContent = studySent ? 'Sent' : 'Send to study';
+      sendBtn.disabled = studySent || studyBusy || !!blocked;
+    }
+    if (stopBtn) {
+      stopBtn.textContent = studyStopTimer !== null ? A.STOP_CONFIRM_LABEL : A.STOP_LABEL;
+      stopBtn.disabled = studyBusy || studyStopped;
+    }
+  }
+
+  // The page as the study takes it: this page's results and search context
+  // only, with none of the figures, keyword data or "your site" marks that
+  // Export CSV adds (the account's and settings' own).
+  function studyCsv(rows) {
+    return S.resultsToCsv(
+      rows.map((r) => Object.assign({}, r, { figures: undefined, ownSite: false, trackedPosition: null })),
+      S.searchContext(window.location, document)
+    );
+  }
+
+  function studySend(e) {
+    if (!trusted(e) || !studyInfo || studyBusy || studySent) return;
+    const rows = S.parseResults(document);
+    if (studyBlocked(rows.length)) { renderStudy(); return; }
+    const csv = studyCsv(rows);
+    studyBusy = true;
+    studyOutcome = null;
+    renderStudy();
+    send({ action: 'aioStudySend', termId: studyInfo.termId, csv }, (reply, failed) => {
+      studyBusy = false;
+      const state = failed || !reply || typeof reply.state !== 'string' ? 'error' : reply.state;
+      studyOutcome = { state };
+      if (state === 'sent' || state === 'already_sent') studySent = true;
+      renderStudy();
+    });
+  }
+
+  // A stop moves the day's other terms to tomorrow, so the first click only
+  // asks (the button says so for a few seconds) and the second records it.
+  function studyStop(e) {
+    if (!trusted(e) || !studyInfo || studyBusy || studyStopped) return;
+    if (studyStopTimer === null) {
+      studyStopTimer = setTimeout(() => { studyStopTimer = null; renderStudy(); }, A.STOP_CONFIRM_MS);
+      renderStudy();
+      return;
+    }
+    clearTimeout(studyStopTimer);
+    studyStopTimer = null;
+    studyBusy = true;
+    studyOutcome = null;
+    renderStudy();
+    send({ action: 'aioStudyStop' }, (reply, failed) => {
+      studyBusy = false;
+      const state = failed || !reply || typeof reply.state !== 'string' ? 'error' : reply.state;
+      studyOutcome = { state };
+      if (state === 'stopped') studyStopped = true;
+      renderStudy();
+    });
+  }
+
+  // The worker said this is a study tab: no figures on the bars, the figures
+  // line says so, and the panel gets its group. Nothing was asked before.
+  function onStudyKnown() {
+    if (!studyInfo) return;
+    renderAllFigures();
+    // The bars and the panel, even with "Show on Google results" off: the
+    // scan that init ran when it read that setting stood down.
+    if (!settings.overlay) processResults();
+    // At the top, and open, whatever the person set or left in another tab:
+    // the group with Send to study is in it. A click on Hide still folds it.
+    placePanel();
+    if (toolbarEl) setCollapsed(false);
+    ensureStudyGroup();
+    // The AI Overview often arrives after the results, and may sit outside
+    // the results container the rescan watches: watch the page for it.
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+      new MutationObserver((records) => {
+        if (records.every(isOwnMutation)) return;
+        if (studyTimer) clearTimeout(studyTimer);
+        studyTimer = setTimeout(() => renderStudy(), DEBOUNCE_MS);
+      }).observe(document.body, { childList: true, subtree: true });
+    }
   }
 
   // ---------- Analyze top 10, the table, AI Overview sources (1.12.0) ----------
@@ -1284,6 +1533,10 @@
   // Figures for addresses that aren't results (a pinned page, the AI
   // Overview's sources), on the person's click. Same route, same consent.
   function loadExtraFigures(items, done) {
+    // 1.13.3: not before the worker has said whether this is a study tab,
+    // and never in one.
+    if (!studyKnown) { unlessStudy(() => loadExtraFigures(items, done)); return; }
+    if (studyInfo) return;
     // The same cleaning as the results': no fragment, no part of the search.
     const list = items.filter((i) => i.domain).map((i) => {
       const url = F.cleanAddress(i.url, i.domain, currentQuery());
@@ -1356,11 +1609,14 @@
     if (!toolbarEl) return;
     const container = resultsContainer();
     if (!container || !container.parentNode) return;
-    toolbarEl.setAttribute('data-placement', settings.placement);
+    // A study tab has it at the top whatever the setting, so Send to study
+    // is in view without scrolling past the results.
+    const placement = studyInfo ? 'top' : settings.placement;
+    toolbarEl.setAttribute('data-placement', placement);
     // At the top the panel goes above the results and pushes them down;
     // at the bottom, after them, as the toolbar always was. Never over them.
-    const where = settings.placement === 'top' ? 'beforebegin' : 'afterend';
-    const sibling = settings.placement === 'top' ? container.previousElementSibling : container.nextElementSibling;
+    const where = placement === 'top' ? 'beforebegin' : 'afterend';
+    const sibling = placement === 'top' ? container.previousElementSibling : container.nextElementSibling;
     if (sibling !== toolbarEl) container.insertAdjacentElement(where, toolbarEl);
   }
 
@@ -1463,6 +1719,7 @@
     loadSources.type = 'button';
     loadSources.title = 'Asks SEO Bandwagon for the figures of the pages the AI Overview cites; with new figures, it counts as one search of your day\u2019s allowance.';
     loadSources.addEventListener('click', () => {
+      if (studyInfo) { flashLabel(loadSources, 'Off in a study search'); return; }
       if (!settings.figuresOn) { flashLabel(loadSources, 'Figures are off'); return; }
       loadExtraFigures(sourceRows().map((r) => ({ key: r._key, url: r.url, domain: r.domain })));
     });
@@ -1543,9 +1800,10 @@
     toolbarEl.appendChild(body);
 
     placePanel();
-    setCollapsed(settings.collapsed);
+    setCollapsed(studyInfo ? false : settings.collapsed);
     renderFiguresLine();
     renderAnalyzeLine();
+    ensureStudyGroup();
     scheduleTable();
   }
 
@@ -1567,12 +1825,12 @@
     // Only a change to what is asked for asks again; folding the panel,
     // moving it or changing its look never re-sends anything.
     if (before.overlay !== next.overlay || before.figuresOn !== next.figuresOn || before.load !== next.load) askedKeys.clear();
-    if (!settings.overlay) {
+    if (!overlayOn()) {
       document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools').forEach((n) => n.remove());
       toolbarEl = null;
       return;
     }
-    if (!before.overlay) {
+    if (!before.overlay && !studyInfo) {
       // Turned back on: every result gets its bar again.
       processResultsFresh();
       return;
@@ -1589,7 +1847,8 @@
       }
     });
     placePanel();
-    setCollapsed(settings.collapsed);
+    // A study tab's panel stays open, as renderToolbar leaves it.
+    setCollapsed(studyInfo ? false : settings.collapsed);
     renderAllFigures();
     scheduleTable();
     if (settings.figuresOn && settings.load === 'auto') loadFigures(false);
@@ -1712,8 +1971,11 @@
         features: S.detectFeatures(document),
         aiCitations: S.aiOverviewCitations(document).length,
         ownSites: rows.filter((r) => !r.siteUnknown && Settings.isOwnSite(r.domain, settings.ownSites)).map((r) => r.position),
+        // 1.13.3: a tab the AI Overview study opened (the popup says figures
+        // and keyword data are off there, and offers no Load figures).
+        study: !!studyInfo,
         figures: {
-          state: figState.state,
+          state: studyInfo ? 'study_tab' : figState.state,
           code: figState.code || null,
           loaded: rows.filter((r) => figuresByKey.has(r._key)).length,
           plan: figState.plan || null,

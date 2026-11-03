@@ -220,6 +220,37 @@ if (PREVIEW_STATE.startsWith('lb-')) {
   if (themeParam === 'light' || themeParam === 'dark') store.bwThemeMode = themeParam;
 }
 
+// 1.13.3: `?state=study` shows the popup's STUDY tab, as for a person who said
+// yes to study sends (src/popup/study-panel.js shows its button only then).
+// `&study=<state>` picks what the worker answers for the day: the default
+// `ready`, or one of `not_enrolled`, `reconnect`, `no_key`, `paused`,
+// `rate_limited`, `unavailable`, `not_accepted`; `&incognito=off` makes a
+// Search click refuse the way a browser without Allow in Incognito does.
+const STUDY_QUERY = new URLSearchParams(location.search);
+if (PREVIEW_STATE === 'study') {
+  store.sbwConsent = { aioStudy: { acceptedAt: Date.now(), version: 1 } };
+}
+function studyReply(msg) {
+  const day = STUDY_QUERY.get('study') || 'ready';
+  switch (msg.action) {
+    case 'aioStudyToday':
+      return day === 'ready'
+        ? {
+          state: 'ready', week: 3, date: new Date().toISOString().slice(0, 10),
+          terms: [
+            { term_id: 't1', keyword: 'best running shoes for flat feet', status: 'open' },
+            { term_id: 't2', keyword: 'how to tie a tie', status: 'late' },
+            { term_id: 't3', keyword: 'what is seo', status: 'sent' }
+          ]
+        }
+        : { state: day };
+    case 'aioStudyOpen':
+      return STUDY_QUERY.get('incognito') === 'off' ? { ok: false, reason: 'incognito_off' } : { ok: true, tabId: 1 };
+    case 'aioStudyStop':
+      return { state: 'stopped', carried: 2 };
+  }
+}
+
 if (PREVIEW_STATE === 'review-strip') {
   store.sbwReview = { analyses: 5, prompted: false, installedAt: Date.now() };
 }
@@ -700,6 +731,21 @@ function serpKeywordsReply(msg) {
 function handleMessage(msg) {
   switch (msg.action) {
     case 'serpFigures': return serpFiguresReply(msg);
+    case 'aioStudyToday':
+    case 'aioStudyOpen':
+    case 'aioStudyStop': return studyReply(msg);
+    // 1.13.3: `serp.html?state=study-tab` is a tab the study opened (the
+    // panel's AI Overview study group, no figures, no keyword strip);
+    // `&sent=1` one whose term was sent already. Any other state is an
+    // ordinary tab.
+    case 'aioStudyTab':
+      return PREVIEW_STATE === 'study-tab'
+        ? {
+          study: true, termId: 't1', keyword: 'best running shoes for flat feet', accepted: true,
+          status: STUDY_QUERY.get('sent') === '1' ? 'sent' : 'open', today: 'ready', page: { ok: true }
+        }
+        : { study: false };
+    case 'aioStudySend': return { state: 'sent' };
     case 'serpKeywordsReady': return { hasKey: true, accepted: true };
     case 'serpKeywords': return serpKeywordsReply(msg);
     case 'captureScreenshot': return { ok: true, dataUrl: SHOT };

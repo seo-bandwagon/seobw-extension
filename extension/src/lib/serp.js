@@ -881,8 +881,17 @@
     const out = [];
     for (const [key, label, selector] of FEATURES) {
       let found = [];
-      roots.forEach((r) => { found = found.concat(Array.from(r.querySelectorAll(selector))); });
-      found = topMost(found).filter((el) => !el.closest('[class^="sbw-"], [class*=" sbw-"]') && isShown(el));
+      if (key === 'ai_overview') {
+        // 1.13.3, for the AI Overview study: the same boxes the export's text,
+        // state and sources read, wherever they sit. Signed out, Google puts
+        // the AI Overview in a block outside #search and #center_col, which
+        // the roots below don't cover, so `Search features` missed it while
+        // `AI Overview state` said "loaded".
+        found = aiOverviewBoxes(doc);
+      } else {
+        roots.forEach((r) => { found = found.concat(Array.from(r.querySelectorAll(selector))); });
+        found = topMost(found).filter((el) => !el.closest('[class^="sbw-"], [class*=" sbw-"]') && isShown(el));
+      }
       if (key === 'people_also_ask' && !found.length && parsePaa(doc).length) found = [doc];
       if (key === 'ads') found = found.filter((el) => showsSomething(el));
       if (!found.length) continue;
@@ -892,9 +901,6 @@
     return out;
   }
 
-  // The pages an AI Overview cites, in its order, each once:
-  // `{ url, domain, title }`. Google's own links inside it (search,
-  // "Show more") are left out.
   function featureLabels(features) {
     return (features || []).map((f) => (f.count ? `${f.label} (${f.count})` : f.label)).join(' | ');
   }
@@ -918,34 +924,17 @@
   const AI_OVERVIEW_TEXT_MAX = 20000;
   const AI_OVERVIEW_REDIRECT_PATH_RE = /^\/(goto|url)$/;
 
-  function aiOverviewCitations(doc) {
-    if (!doc || !doc.querySelectorAll) return [];
-    const out = [];
-    const seen = new Set();
-    doc.querySelectorAll(AI_OVERVIEW_SELECTOR).forEach((box) => {
-      box.querySelectorAll('a[href^="http"]').forEach((a) => {
-        const domain = bareDomain(a.href);
-        if (!domain || a.closest(SBW_OWN_UI_SELECTOR)) return;
-        let url = a.href;
-        try { const u = new URL(a.href); u.hash = ''; url = u.href; } catch (e) { /* keep as is */ }
-        if (seen.has(url)) return;
-        seen.add(url);
-        const title = (a.getAttribute('aria-label') || a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
-        out.push({ url, domain, title });
-      });
-    });
-    return out;
-  }
-
-  // The AI Overview boxes the page shows, outermost only. The same filter
-  // detectFeatures applies to its AI Overview matches (not this extension's
-  // own UI, and shown), so a hidden stale box is no overview here either and
-  // `Search features` and `AI Overview state` agree. At the box level only:
-  // the collapsed half of a real answer is aria-hidden inside the box.
+  // The AI Overview boxes the page shows, outermost only: not this
+  // extension's own UI, and shown, so a hidden stale box is no overview here
+  // and `Search features` (detectFeatures reads this list) and `AI Overview
+  // state` agree. At the box level only: the collapsed half of a real answer
+  // is aria-hidden inside the box. 1.13.3: a People also ask answer can hold
+  // its own box; it answers that question, not the search, so it is not read
+  // (its text, links and sources stay out of the export).
   function aiOverviewBoxes(doc) {
     if (!doc || !doc.querySelectorAll) return [];
     return topMost(doc.querySelectorAll(AI_OVERVIEW_SELECTOR))
-      .filter((box) => !box.closest(SBW_OWN_UI_SELECTOR) && isShown(box));
+      .filter((box) => !box.closest(SBW_OWN_UI_SELECTOR) && !box.closest(PAA_CONTAINER_SELECTOR) && isShown(box));
   }
 
   // The text directly inside the element, not its children's.
@@ -998,13 +987,232 @@
     }
   }
 
+  // ============================================
+  // The AI Overview's sources (1.13.3)
+  // ============================================
+  //
+  // For the AI Overview inclusion study: the pages the overview cites, read
+  // where Google puts them. Signed in, they are plain links. Signed out,
+  // Google sends every link through an opaque /goto?url= redirect and the
+  // pages' real addresses are only in its hidden source records (HTML
+  // comments that begin `TgQPHd|`, one beside each source chip); a source
+  // whose record holds no address is only a card in the side panel, whose
+  // site is all that can be read. Each source says which it was (`read`), so
+  // a file never presents a site as a page. All three are read inside
+  // aiOverviewBoxes only, so a People also ask answer's sources stay out.
+  const AI_SOURCE_TITLE_MAX = 200;
+  // Google's own image and asset hosts, and the addresses of a picture,
+  // a style sheet or a script: such an address is an asset, not a cited
+  // page. (A record also holds a video's thumbnail on ytimg.com and a
+  // profile picture on ggpht.com.)
+  const AI_ASSET_HOST_RE = /(^|\.)(gstatic|googleusercontent|ytimg|ggpht)\.com$/i;
+  const AI_ASSET_PATH_RE = /\.(jpe?g|png|gif|webp|svg|ico|css|js)$/i;
+
+  // The JSON of one hidden source record, or undefined when the comment is no
+  // record or its JSON doesn't parse. A record reads `TgQPHd|`, two header
+  // fields between pipes (often empty, never JSON) and the JSON after the
+  // third pipe. The DOM keeps the HTML entities Google wrote inside the
+  // comment (`&quot;` for every quote), so they are decoded here, `&amp;`
+  // last so that `&amp;quot;` stays text. The JSON's own escapes (an "=" or
+  // "&" in an address is written \u003d or \u0026) are JSON.parse's to decode.
+  function aiRecordValue(data) {
+    if (typeof data !== 'string' || data.indexOf('TgQPHd|') !== 0) return undefined;
+    let at = -1;
+    for (let k = 0; k < 3; k++) {
+      at = data.indexOf('|', at + 1);
+      if (at < 0) return undefined;
+    }
+    try {
+      return JSON.parse(data.slice(at + 1)
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  // Every value inside a parsed record, parents before children, in the
+  // order the record writes them. Walks with a list of its own: a page can
+  // nest arrays as deep as JSON.parse accepts.
+  function jsonValues(root) {
+    const out = [];
+    const todo = [root];
+    while (todo.length) {
+      const v = todo.pop();
+      out.push(v);
+      const kids = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : [];
+      for (let i = kids.length - 1; i >= 0; i--) todo.push(kids[i]);
+    }
+    return out;
+  }
+
+  // The records inside one box: `{ node, values }`, the comment and what its
+  // JSON holds.
+  function aiOverviewRecords(box) {
+    const out = [];
+    const walker = box.ownerDocument.createTreeWalker(box, 128); // comments only
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const value = aiRecordValue(node.data);
+      if (value !== undefined) out.push({ node, values: jsonValues(value) });
+    }
+    return out;
+  }
+
+  // `{ url, domain }` when a record string is a cited page: a whole absolute
+  // address, not on a Google asset host or ending in a picture, style sheet
+  // or script, not Google's own pages, and not a bare origin (a record names
+  // the site as well as the page, and the site alone is no page); the
+  // fragment is dropped. null otherwise.
+  function aiRecordPage(value) {
+    if (typeof value !== 'string' || !/^https?:\/\/\S+$/i.test(value)) return null;
+    let u;
+    try { u = new URL(value); } catch (e) { return null; }
+    const domain = bareDomain(u.href);
+    if (!domain || AI_ASSET_HOST_RE.test(u.hostname) || AI_ASSET_PATH_RE.test(u.pathname)) return null;
+    if (u.pathname === '/' && !u.search) return null;
+    u.hash = '';
+    return { url: u.href, domain };
+  }
+
+  // The site a favicon address stands for (`…/faviconV2?url=<site>&…`), as an
+  // origin; '' for anything else, a site that is Google's own included.
+  function aiFaviconSite(value) {
+    if (typeof value !== 'string' || value.indexOf('faviconV2') < 0) return '';
+    try {
+      const u = new URL(value);
+      if (!/\/faviconV2$/.test(u.pathname)) return '';
+      const origin = new URL(u.searchParams.get('url')).origin;
+      return bareDomain(origin) ? origin : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  // The site of a side-panel source card, first found: in the card's image
+  // (`src`, then `data-src`; some saved pages lose it), in the card's own
+  // records, and in a record elsewhere in the box that lists the card's
+  // title first, in an array with the favicon address beside it. '' when
+  // none names it.
+  function aiCardSite(card, titles, records) {
+    for (const img of card.querySelectorAll('img')) {
+      for (const attr of ['src', 'data-src']) {
+        const site = aiFaviconSite(img.getAttribute(attr));
+        if (site) return site;
+      }
+    }
+    for (const rec of records) {
+      if (!card.contains(rec.node)) continue;
+      for (const v of rec.values) {
+        const site = aiFaviconSite(v);
+        if (site) return site;
+      }
+    }
+    if (!titles[0]) return '';
+    for (const rec of records) {
+      for (const v of rec.values) {
+        if (!Array.isArray(v) || typeof v[0] !== 'string' || !titles.includes(v[0])) continue;
+        for (const next of v) {
+          const site = aiFaviconSite(next);
+          if (site) return site;
+        }
+      }
+    }
+    return '';
+  }
+
+  function oneLine(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // `cards` false stops after the pages themselves (a link or a record).
+  function readAiOverviewSources(doc, cards) {
+    const boxes = aiOverviewBoxes(doc);
+    const out = [];
+    const seen = new Map(); // address -> its place in `out`
+    const add = (url, domain, title, read) => {
+      if (seen.has(url)) {
+        // A page named by its record before its link is read from the link
+        // (its title), in the place the record gave it.
+        const first = out[seen.get(url)];
+        if (read === 'link' && first.read === 'record') { first.title = title; first.read = 'link'; }
+        return;
+      }
+      seen.set(url, out.length);
+      out.push({ url, domain, title, read });
+    };
+    const records = boxes.map(aiOverviewRecords);
+    // 1. A link to the page itself, and 2. a page named in a hidden record
+    // (the record has no title to give): one walk over each box, so they come
+    // in the overview's own order, a source chip's link and its record side
+    // by side. Elements and comments are visited together, in document order.
+    boxes.forEach((box, b) => {
+      const recordAt = new Map(records[b].map((rec) => [rec.node, rec]));
+      const walker = box.ownerDocument.createTreeWalker(box, 1 | 128); // elements and comments
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.nodeType === 8) {
+          const rec = recordAt.get(node);
+          if (!rec) continue;
+          rec.values.forEach((v) => {
+            const page = aiRecordPage(v);
+            if (page) add(page.url, page.domain, '', 'record');
+          });
+          continue;
+        }
+        if (!node.matches('a[href^="http"]')) continue;
+        const domain = bareDomain(node.href);
+        if (!domain || node.closest(SBW_OWN_UI_SELECTOR)) continue;
+        let url = node.href;
+        try { const u = new URL(node.href); u.hash = ''; url = u.href; } catch (e) { /* keep as is */ }
+        add(url, domain, oneLine(node.getAttribute('aria-label') || node.textContent).slice(0, AI_SOURCE_TITLE_MAX), 'link');
+      }
+    });
+    if (!cards) return out;
+    // 3. A card in the side panel whose page no link or record names: only
+    // its site is known. A card for a site already read above is that
+    // source again, so it is dropped; two cards of one site with different
+    // titles are two sources.
+    const known = new Set(out.map((s) => s.domain));
+    const kept = new Set();
+    boxes.forEach((box, b) => {
+      box.querySelectorAll('[data-ignore-copy] a[aria-label]').forEach((a) => {
+        if (a.closest(SBW_OWN_UI_SELECTOR) || !isGoogleRedirect(a.getAttribute('href') || '')) return;
+        const card = a.closest('li') || a.parentElement;
+        if (!card) return;
+        const label = oneLine(a.getAttribute('aria-label'));
+        const title = label.slice(0, AI_SOURCE_TITLE_MAX);
+        const site = aiCardSite(card, [title, label], records[b]);
+        const domain = site && bareDomain(site);
+        if (!domain || known.has(domain) || kept.has(domain + '\n' + title)) return;
+        kept.add(domain + '\n' + title);
+        out.push({ url: site, domain, title, read: 'card site' });
+      });
+    });
+    return out;
+  }
+
+  // The sources of the AI Overview, in its order, each once:
+  // `{ url, domain, title, read }`, where `read` is 'link' (a link to the
+  // page), 'record' (the page's address from Google's hidden record, no
+  // title) or 'card site' (the cited page is not known, only its site, and
+  // `url` is that site's origin). Google's own links (search, "Show more")
+  // are left out.
+  function aiOverviewSources(doc) {
+    if (!doc || !doc.querySelectorAll) return [];
+    return readAiOverviewSources(doc, true);
+  }
+
+  // The pages the AI Overview cites, in its order, each once: the sources
+  // above without the 'card site' ones, whose page is not known.
+  function aiOverviewCitations(doc) {
+    if (!doc || !doc.querySelectorAll) return [];
+    return readAiOverviewSources(doc, false);
+  }
+
   // How many of the AI Overview's links go through a Google redirect
-  // (/goto?url=…, /url?q=…), each link once. aiOverviewCitations lists only
-  // the direct links, so this is the count of links it cannot name. A
-  // signed-out token is unique to its link, so one source linked twice can
-  // count twice. The
-  // attribute is read, not `a.href`: a relative href has no base to resolve
-  // against in a saved page.
+  // (/goto?url=…, /url?q=…), each link once: the links a 'link' source can't
+  // name. A signed-out token is unique to its link, so one source linked
+  // twice can count twice. The attribute is read, not `a.href`: a relative
+  // href has no base to resolve against in a saved page.
   function aiOverviewRedirectCount(doc) {
     const seen = new Set();
     aiOverviewBoxes(doc).forEach((box) => {
@@ -1092,7 +1300,13 @@
     // 1.11.0: what else the search shows, and the pages its AI Overview
     // cites, page-level like the two above.
     ctx.features = doc ? featureLabels(detectFeatures(doc)) : '';
-    ctx.aiCitations = doc ? aiOverviewCitations(doc).map((c) => c.url).join(' | ') : '';
+    // 1.13.3: every source, with how it was read and its title. A title is
+    // free text from anyone's page, so the titles go as one JSON array (the
+    // sources' own separator, ` | `, can appear in a title).
+    const sources = doc ? aiOverviewSources(doc) : [];
+    ctx.aiCitations = sources.map((c) => c.url).join(' | ');
+    ctx.aiCitationReads = sources.map((c) => c.read).join(' | ');
+    ctx.aiCitationTitles = sources.length ? JSON.stringify(sources.map((c) => c.title)) : '';
     // 1.13.2, for the AI Overview inclusion study, also page-level: whether
     // the page has an overview, what it says, how many of its sources link
     // through a Google redirect, and which version of the extension took the
@@ -1128,7 +1342,8 @@
   // column goes in this list, not into the overlay.
   const COLLECT_CONTEXT_KEYS = [
     'capturedAt', 'resultStats', 'relatedSearches', 'paa', 'features',
-    'aiCitations', 'aiState', 'aiText', 'aiRedirectCitations', 'extensionVersion'
+    'aiCitations', 'aiState', 'aiText', 'aiRedirectCitations', 'extensionVersion',
+    'aiCitationReads', 'aiCitationTitles'
   ];
 
   function collectContext(ctx) {
@@ -1235,7 +1450,13 @@
     ['AI Overview state', 'aiState'],
     ['AI Overview text', 'aiText'],
     ['AI Overview citations via Google redirect', 'aiRedirectCitations'],
-    ['Extension version', 'extensionVersion']
+    ['Extension version', 'extensionVersion'],
+    // 1.13.3, appended for the same reason: how each AI Overview citation was
+    // read (link, record or card site, in the order of the citations) and
+    // each one's title, a JSON array so a title with a comma, quote or " | "
+    // stays whole.
+    ['AI Overview citations read from', 'aiCitationReads'],
+    ['AI Overview citation titles (JSON)', 'aiCitationTitles']
   ];
 
   // A cell from the figures a row was given (row.figures: the route's answer
@@ -1527,6 +1748,7 @@
     detectFeatures,
     featureLabels,
     aiOverviewCitations,
+    aiOverviewSources,
     aiOverviewText,
     aiOverviewState,
     aiOverviewRedirectCount,

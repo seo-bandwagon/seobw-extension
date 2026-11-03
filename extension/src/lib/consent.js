@@ -6,7 +6,7 @@
 // Extension_Roadmap_To_2_0_Design, decision 5):
 //
 //   - Firefox: each flow names the data categories Firefox asks about
-//     (`data_collection_permissions` in the Firefox manifest, 1.13.4's build
+//     (`data_collection_permissions` in the Firefox manifest, 1.13.5's build
 //     target). A category is granted only when Firefox says so, and data
 //     collection starts off there.
 //   - Chrome and Edge have no such prompt, so a category reads the switch
@@ -24,6 +24,8 @@
 // too, through the worker; where the browser must ask itself (Firefox's
 // prompt needs the click of an extension page), that yes is refused and the
 // disclosure sends the person to Options.
+// 1.13.3: the AI Overview study has its own yes, in its own Options card; no
+// switch beside it, so on Chrome and Edge the yes alone decides.
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWConsent` when loaded as a classic <script> or via
@@ -57,13 +59,15 @@
     // where nothing on a results page was sent before.
     serpFigures: {
       title: 'Figures under Google results',
-      sends: 'The address of each result on a Google results page you open, up to 10 at a time, with its site, and of a page you pin to compare with them or of the pages an AI Overview cites, when you ask for their figures. Never your search terms, and never a request to Google.',
+      sends: 'The address of each result on a Google results page you open, up to 10 at a time, with its site, and of a page you pin to compare with them or of the pages an AI Overview cites, when you ask for their figures. Never your search terms with them, and never a request to Google.',
       why: 'So SEO Bandwagon can answer with each result’s link, traffic and domain-age figures and your own on-page checklist for it.',
       firefox: ['websiteContent', 'searchTerms'],
       chromeSwitch: { area: 'local', key: 'serpSettings', on: (v) => !(v && (v.overlay === false || v.figuresOn === false)) },
       acceptedBy: 'action',
       // Raise this when the words in `sends` change what is sent: everyone is
       // asked again. 2 (1.12.0): a pinned page and the AI Overview's sources.
+      // 1.13.3 reworded the last sentence to the Options card's own words; what
+      // is sent did not change, so the version stays 2.
       version: 2
     },
     // Keyword data on Google (1.13.0): the search itself, which nothing sent
@@ -75,6 +79,19 @@
       why: 'So SEO Bandwagon can answer with each one’s monthly searches, difficulty, cost per click, competition and 12-month trend from DataForSEO, and your own rank tracker’s history for the search.',
       firefox: ['searchTerms'],
       chromeSwitch: { area: 'local', key: 'serpSettings', on: (v) => !(v && (v.overlay === false || v.keywordsOn === false)) },
+      acceptedBy: 'action',
+      version: 1
+    },
+    // The AI Overview study (1.13.3): a results page the study itself opened,
+    // sent as its CSV export only when the person clicks Send to study. For
+    // invited testers; its own yes, in its own Options card. No chromeSwitch:
+    // on Chrome and Edge nothing else turns it on or off, so the yes alone
+    // decides (a flow with no switch counts its categories as granted).
+    aioStudy: {
+      title: 'AI Overview study',
+      sends: 'For people invited to SEO Bandwagon’s AI Overview study, and only when you click Send to study on a search the study opened for you: that results page as its CSV export, which is the search term, each result’s position, address, site, title, snippet, breadcrumb, date and rating, the page’s search features, related searches and People also ask questions, the result count, the AI Overview’s text and the pages it cites, Google’s country and language settings, the capture time and the extension version; and, when you click Google stopped me, that Google stopped you that day. Never any other search or page, never figures or keyword data, and the extension never sends a request to Google itself. It goes to the study, not into your account’s captures, history or keyword data.',
+      why: 'So the study can measure which pages Google’s AI Overviews cite, from searches people make by hand.',
+      firefox: ['searchTerms', 'browsingActivity', 'websiteContent'],
       acceptedBy: 'action',
       version: 1
     }

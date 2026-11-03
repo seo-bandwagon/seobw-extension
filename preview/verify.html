@@ -225,6 +225,13 @@ const CASES = [
     text: ['first-result.example', 'second-result.example'] },
   { q: 'serp.html',
     need: ['.sbw-serp-tools', '.sbw-serp-tools select'] },
+  // 1.13.3: a tab the AI Overview study opened (stub.js answers 'aioStudyTab'
+  // for this state): the panel's study group with Send to study, and neither
+  // figures on the bars nor the keyword strip.
+  { q: 'serp.html?state=study-tab',
+    need: ['.sbw-serp-tools [data-group="study"]', '[data-role="study-send"]', '[data-role="study-stop"]'],
+    no: ['.sbw-serp-keywords', '.sbw-fig'],
+    text: ['AI Overview study', 'Term: best running shoes for flat feet', 'Send to study', 'Google stopped me'] },
 
   // Task 7 (1.6.0 parity), item C: the "SEO Bandwagon tools" popup TOOLS
   // row (src/popup/tools.js, src/lib/tool-links.js) — 7 page-scoped kinds

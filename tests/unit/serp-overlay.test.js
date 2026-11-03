@@ -120,7 +120,9 @@ describe('the results page sends only what the figures need, and never the searc
     await loadOverlay();
     await vi.advanceTimersByTimeAsync(50);
     // serpCollect 'get' reads session storage in the worker; it sends nothing.
-    expect(sentMessages.map((m) => [m.action, m.op])).toEqual([['serpCollect', 'get'], ['serpFigures', undefined]]);
+    // 1.13.3: aioStudyTab asks the worker whether the AI Overview study opened
+    // this tab (it answers from its own record); the figures wait for it.
+    expect(sentMessages.map((m) => [m.action, m.op])).toEqual([['aioStudyTab', undefined], ['serpCollect', 'get'], ['serpFigures', undefined]]);
     expect(sentMessages.some((m) => m.action === 'serpStats')).toBe(false);
     const figures = sentMessages.find((m) => m.action === 'serpFigures');
     expect(figures.items.map(({ url, domain }) => ({ url, domain }))).toEqual([
@@ -1039,7 +1041,8 @@ describe('1.11.0: figures under each result', () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(document.querySelector('.sbw-serp-bar')).toBeNull();
     expect(document.querySelector('.sbw-serp-tools')).toBeNull();
-    expect(sentMessages).toEqual([]);
+    // Only 1.13.3's local question to the worker: is this an AI Overview study tab.
+    expect(sentMessages).toEqual([{ action: 'aioStudyTab' }]);
   });
 
   it('exports carry each result\'s figures, its type and the search\'s features', async () => {

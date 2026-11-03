@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.13.2** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.13.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -122,7 +122,7 @@ are bundled in `src/styles/fonts/` because MV3 blocks remote `font-src`.
 | `declarativeNetRequestWithHostAccess` | Rewrites the outgoing User-Agent header for exactly the tab you pick in the Rendering section's "View as" — only while a preset other than Default is selected, only for that one tab, and removed the instant you switch back to Default or close the tab. From 1.12.0, while Analyze on Google reads pages, it also blocks the extension's own requests to local and private addresses (redirect hops included) and removes those rules when done. Needs the same optional `<all_urls>` grant below to actually take effect on that tab's requests; no rule ships with the extension until you choose a preset |
 | `offscreen` | 1.12.0. Analyze on Google reads a result's HTML in an offscreen document (reason `DOM_PARSER`), since the service worker can't parse HTML: the popup's analyzer, on a page fetched on your click. No install warning (measured with `getPermissionWarningsByManifest`) |
 | `host_permissions: https://seobandwagon.com/*` | Talk to the SEO Bandwagon API |
-| `content_scripts` matches: `https://www.google.com/search*` and the same path on 29 other Google domains (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.co.in`, and from 1.11.0 `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, shows each one's position and, from 1.11.0, its figures, and copies results/PAA questions to your clipboard or a CSV only when you click. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the search) to `seobandwagon.com` for the figures; from 1.13.0, with an account connected and keyword data's own yes, the search's words, its related searches and People also ask questions, for keyword data, on a click unless you choose with the page (1.13.0's two content-script files left the install warning unchanged, measured with `getPermissionWarningsByManifest`); otherwise it sends nothing (1.10.2 sent nothing; until then, the bare domains of the results, for a per-site stat). The twenty domains added in 1.11.0 left the install warning unchanged (measured with `getPermissionWarningsByManifest`: Chrome names every `www.google.*` host as www.google.com). It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use. Its Analyze button reads the result in a background tab, which needs the optional `<all_urls>` permission below; the extension asks for it once, from its own window, when Analyze is first clicked. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` only redirects there, so the overlay never ran in India); the install warning is unchanged (measured with `getPermissionWarningsByManifest`) |
+| `content_scripts` matches: `https://www.google.com/search*` and the same path on 29 other Google domains (`.co.uk`, `.ca`, `.com.au`, `.de`, `.fr`, `.es`, `.it`, `.nl`, `.co.in`, and from 1.11.0 `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`) | Runs the SERP overlay on Google's own results pages: it reads the results already on screen, shows each one's position and, from 1.11.0, its figures, and copies results/PAA questions to your clipboard or a CSV only when you click. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the search) to `seobandwagon.com` for the figures; from 1.13.0, with an account connected and keyword data's own yes, the search's words, its related searches and People also ask questions, for keyword data, on a click unless you choose with the page (1.13.0's two content-script files left the install warning unchanged, measured with `getPermissionWarningsByManifest`); from 1.13.3, an invited tester of the AI Overview study who turned on study sends and clicks Send to study, in a private window the study opened, sends that search and its page's export to the study, and one who clicks Google stopped me sends a note that Google stopped them (the one script 1.13.3 adds to the entry, `src/lib/aio-study.js`, left the install warning unchanged, measured the same way); otherwise it sends nothing (1.10.2 sent nothing; until then, the bare domains of the results, for a per-site stat). The twenty domains added in 1.11.0 left the install warning unchanged (measured with `getPermissionWarningsByManifest`: Chrome names every `www.google.*` host as www.google.com). It injects additively — it never hides, moves, covers, or restyles an ad or any Google UI. This is a declared content-script match, not a `host_permissions` entry — it's granted at install like any other content script, not requested at first use. Its Analyze button reads the result in a background tab, which needs the optional `<all_urls>` permission below; the extension asks for it once, from its own window, when Analyze is first clicked. India's host is `www.google.co.in` from 1.10.2 (`www.google.in` only redirects there, so the overlay never ran in India); the install warning is unchanged (measured with `getPermissionWarningsByManifest`) |
 | `optional_host_permissions: http://localhost/*, http://127.0.0.1/*` | Only requested if you point the Advanced API URL setting at a local dev server; never requested otherwise |
 | `optional_host_permissions: <all_urls>` | Only requested when you click "Allow access to check other sites" in the Link Check, Indexability, Hreflang or Rendering section (never at install, never automatically). The consent text shown at request time, verbatim (`ALL_URLS_REASON` in `src/lib/perms.js`): *"To check links, hreflang alternates and redirects, and to compare a page's raw HTML with what your browser rendered, the extension has to look at pages on other sites from your browser: it fetches them without cookies, and when you ask it to trace a URL it opens that URL in a background tab like any normal visit. The "View as" option uses the same access to change the User-Agent header on requests from the current tab only, until you switch it off or close the tab. Nothing it sees on those sites is sent to SEO Bandwagon. You can revoke this at any time from the extensions page."* |
 
@@ -335,7 +335,22 @@ and ad labels are read in each Google's own language (1.11.0).
   also ask with volume**, and **Your rank tracker position** on the tracked
   site's row; and from 1.13.2, for the AI Overview inclusion study, **AI
   Overview state** (none, loaded or empty), **AI Overview text**, **AI
-  Overview citations via Google redirect** and **Extension version**.
+  Overview citations via Google redirect** and **Extension version**; and
+  from 1.13.3 two more after them, **AI Overview citations read from**
+  (`link`, `record` or `card site`, one per citation, joined by ` | `) and
+  **AI Overview citation titles (JSON)** (a JSON array of strings, empty
+  where there are none; a card's title can hold ` | `, so it is not joined).
+  From 1.13.3 **Search features** lists the AI Overview wherever it sits on
+  the page, an expanded People also ask answer that holds its own AI answer
+  is no longer read as the AI Overview, and **AI Overview citations** also
+  lists the pages Google names only in the overview's hidden source records
+  (a signed-out page links its sources through `/goto` redirects, and each
+  source chip, inline link and video card carries a hidden record with the
+  real address) and, for a side-panel source card whose page is hidden and
+  whose site has no page read, the card's site as its origin. The AI
+  Overview sources table and the popup's "cites N pages" count include the
+  record pages. The citations, text, state and redirect count read only the
+  AI Overview boxes that are shown.
 
 **What's sent (1.11.0):** with an account connected **and** the figures
 accepted in Options ("Send result addresses and show figures", a specific
@@ -350,7 +365,9 @@ sent (1.10.2 sent nothing; until then, with an account, the bare domain
 names went to `POST /api/domain/quick-batch`). An analysis from Analyze is
 saved and synced exactly as the popup's is (with an account connected and
 data collection on). Extracted results and PAA questions never leave the
-browser at all — Copy/Export only ever touch your clipboard or a local file
+browser at all, except the related searches and questions keyword data looks
+up (below) and a study search an invited tester sends with Send to study
+(1.13.3, below): Copy/Export only ever touch your clipboard or a local file
 download.
 
 **What's sent (1.13.0), keyword data:** with an account connected **and**
@@ -372,6 +389,57 @@ request, at most three times); a server error waits for a click, since it
 may have counted against the allowance. This is the first time the
 extension sends a search's words; the figures (above) still never do. Keyword data is kept for the
 browser session only (`src/lib/serp-keywords-service.js`).
+
+**What's sent (1.13.3), the AI Overview study:** for people invited to SEO
+Bandwagon's AI Overview study, with an account connected and the study's own
+yes ("Turn on study sends" on the card "For invited testers of the AI
+Overview study" under "AI Overview study" in Options; the consent module's
+`aioStudy` flow, Firefox's `searchTerms`, `browsingActivity` and
+`websiteContent`; "Turn off study sends" ends it). Nobody else's popup asks
+the study anything. After that yes the popup gains a **STUDY** tab, which
+reads the day's terms from `GET /api/v1/aio-study/today` (key scope
+`study`; To do, Carried over and Sent; the worker keeps the list for five
+minutes on the same UTC day, and a rate-limited or unavailable answer does not
+replace one it keeps, since the site limits an account to a few requests a
+minute), and **Search** opens a term in a private window
+(`chrome.windows.create` with `incognito: true`), at
+`https://www.google.com/search?q=<term>&hl=en&gl=us&pws=0`. It never opens a
+normal window: if SEO Bandwagon is not allowed in private windows, or the
+window comes back not private, it refuses (and closes such a window) and
+says how to switch on Allow in Incognito, with a button to the extension's
+Details page. The worker remembers which tab it opened (in
+`chrome.storage.session`, cleared on Connect and Disconnect and when the tab
+closes). In that tab the overlay's panel sits at the top, whatever the
+placement setting, and shows even if "Show on Google results" is off; its
+**AI Overview study** group shows the term, the AI Overview's state, **Send
+to study** and **Google stopped me**. Figures and keyword data never load or
+send there (the worker refuses for that tab whatever the settings), and the
+popup on that tab says so.
+
+**Send to study** (a real click only) posts `{ term_id, csv }` to
+`POST /api/v1/aio-study/captures`: the overlay's own CSV export of that page,
+with no figures, no keyword data and no "Your site" marks, so it is the
+search term, each result's position, address, site, title, snippet,
+breadcrumb, date and rating, the page's search features, related searches
+and People also ask questions, the result count, the AI Overview's text and
+the pages it cites, Google's country and language, the capture time and the
+extension version. It goes only from the tab the study opened, for a term on today's
+list that is not yet sent, while that tab still shows the study's search
+(the same words, page 1, `hl=en`, `gl=us`, `pws=0`, not another Google tab
+such as Videos or News, and none of `tbs`, `lr`, `cr`, `num`, `nfpr`,
+`filter`, `uule` or `near`, which change the results; `safe` is allowed),
+and at most 262,144 bytes. **Google stopped me**
+posts a stop record to `POST /api/v1/aio-study/stop` after a second click
+(the first changes the button to "Click again to end today's searches" for
+five seconds, because a stop moves the day's other terms to tomorrow; it is
+also in the STUDY tab, which shows it only while the day has a term, since
+Google's CAPTCHA page is not a page the overlay runs on). **The
+CSV goes to the study, kept apart from the account:** not into your
+captures, history or keyword data. Never any other search or page, and the
+extension never sends a request to Google itself. The exports you make yourself (Copy, Export CSV) still
+stay on the device. 1.13.3 adds no permission and no host (one script joins
+the Google content-script entry); the install warning is unchanged, measured
+with `getPermissionWarningsByManifest`.
 
 **Location simulator:** builds a Google search URL with location parameters
 (`uule`, `gl`, `hl`, optionally `pws=0` to turn off personalization) from a
@@ -457,7 +525,7 @@ it's marked as shown and never appears again (`chrome.storage.local`, key
 
 ## Privacy
 
-Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected.** With one, three things can be sent, each only on its own switch: your analyses while the data-collection toggle (Options / popup footer) is on; from 1.11.0, the addresses of the results on a Google results page after you accept the figures in Options; and from 1.13.0, the words of a Google search, with its related searches and People also ask questions, after you say yes to keyword data (see "SERP overlay" above). All three go through the consent module (`src/lib/consent.js`), which maps each to the data categories Firefox asks about and, on Chrome and Edge, reads those switches. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, page history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
+Page analysis runs entirely in your browser. **Nothing leaves your device unless an API key is connected.** With one, four things can be sent, each only on its own switch: your analyses while the data-collection toggle (Options / popup footer) is on; from 1.11.0, the addresses of the results on a Google results page after you accept the figures in Options; from 1.13.0, the words of a Google search, with its related searches and People also ask questions, after you say yes to keyword data; and from 1.13.3, for invited testers of the AI Overview study only, a study search and that results page's export, and a note when Google stopped them, after the study's own yes in Options and a click on Send to study or Google stopped me (see "SERP overlay" above). All four go through the consent module (`src/lib/consent.js`), which maps each to the data categories Firefox asks about and, on Chrome and Edge, reads those switches, except the study, whose own yes decides. Everything that does get sent goes only to `seobandwagon.com` over HTTPS. Enforced at the code level, not just by policy: every account-facing call in `src/lib/api.js` (captures, page history, citations, link building) checks for a stored key before it builds a request, and returns/throws a `no_key` result instead of ever calling `fetch` when one isn't there.
 
 **A synced capture sends the full analysis result** — this is more than a summary, so here it is broken out honestly rather than glossed over:
 
@@ -481,7 +549,7 @@ Apart from the fields listed above as stripped, nothing else is trimmed or summa
 
 **Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot, whether full page or visible area, is never part of that payload — it only ever saves to your device. From 1.7.8 a full-page proof is built in the extension's background worker, so closing the popup doesn't stop it, and the finished image (a JPEG) is kept in the extension's own browser storage (IndexedDB) for that tab until you dismiss it, take another, close the tab or restart the browser.
 
-**On Google search pages the extension sends each result's address and site for the figures, and only with an account connected and the figures accepted in Options (from 1.11.0; 1.10.2 sent nothing); never the search with them, and never a request to Google. From 1.13.0 it also sends the search's words, its related searches and People also ask questions (50 at most) and that Google's country and language for keyword data, and a search you add to your rank tracker, only with an account connected and keyword data's own yes; never a result's address with them. The results list and questions are copied only when you click, and Analyze checks a result in your own browser.** See "SERP overlay" above for the full breakdown and the location simulator's copy rules.
+**On Google search pages the extension sends each result's address and site for the figures, and only with an account connected and the figures accepted in Options (from 1.11.0; 1.10.2 sent nothing); never the search with them, and never a request to Google. From 1.13.0 it also sends the search's words, its related searches and People also ask questions (50 at most) and that Google's country and language for keyword data, and a search you add to your rank tracker, only with an account connected and keyword data's own yes; never a result's address with them. From 1.13.3 an invited tester of the AI Overview study can send a study search and that results page's export to the study, and a note when Google stopped them, only after the study's own yes and a click on Send to study (from a private window the study opened) or on Google stopped me. Otherwise the results list and questions are copied only when you click, and Analyze checks a result in your own browser.** See "SERP overlay" above for the full breakdown and the location simulator's copy rules.
 
 **Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per request (the HEAD and, when needed, a GET retry each get their own). This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. From 1.7.6 a check keeps running in the extension's background worker when the popup closes, and its progress and results are kept in the browser's session storage (`chrome.storage.session`) for that tab until the tab closes, the check is cancelled or re-run, or the browser restarts. Chrome Web Store links are never fetched (Chrome doesn't allow it) and show as "Can't check". Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
 
@@ -561,13 +629,17 @@ extension/               # the only folder that ships (load unpacked from here; 
                              # (a page's checks from its HTML), robots-ai.js, serp-table.js (the table),
                              # 1.13.0: serp-keywords.js (keyword data: request, market, words,
                              # exports), serp-keywords-service.js (the worker's keyword calls,
-                             # "Add to my keywords" and session cache)
+                             # "Add to my keywords" and session cache),
+                             # 1.13.3: aio-study.js (the AI Overview study's search address, gates
+                             # and words), aio-study-service.js (the worker's side: today's terms,
+                             # the private window, send and stop)
     offscreen/              # 1.12.0: the offscreen document Analyze on Google reads HTML in
     options/                # Settings page (API key, Advanced endpoint, dashboard links, Google results)
     overlay/                # SERP overlay content scripts (see "SERP overlay" above): serp-overlay.js,
                              # and serp-keywords.js (1.13.0: the keyword data strip)
     popup/                  # Popup UI: SEO Analysis tab + Citations tab + link-check.js (Link Check section);
                              # serp-panel.js (1.11.0: the popup on a Google results page)
+                             # + study-panel.js (1.13.3: the STUDY tab)
                              # + indexability.js (Indexability section — redirect chain, headers, trace-a-URL)
                              # + hreflang.js (Hreflang section — tag table, return-tag check)
                              # + render-check.js (Rendering section — raw-vs-rendered diff, UA switcher)

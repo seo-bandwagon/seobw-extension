@@ -110,7 +110,10 @@
     } else {
       lines.push(user && (user.email || user.name) ? `Connected as ${user.email || user.name}.` : 'Connected.');
     }
-    if (!record) {
+    if (fig.state === 'study_tab') {
+      // 1.13.3: a tab the AI Overview study opened: nothing asks for figures.
+      lines.push('Figures are off in a study search.');
+    } else if (!record) {
       lines.push('Figures are off: they send the address of each result to SEO Bandwagon, and are turned on in Settings.');
       buttons.push(['settings', 'Turn on figures in Settings']);
     } else if (fig.state === 'error' && fig.code === 'forbidden') {
@@ -259,7 +262,9 @@
     ]);
     const lines = [];
     const buttons = [];
-    if (kw && kw.on === false) {
+    if (status && status.study) {
+      lines.push('Keyword data is off in a study search.');
+    } else if (kw && kw.on === false) {
       lines.push('No keyword data for this search: it is off in settings, or the search uses an operator such as site:.');
     } else if (!apiKey) {
       lines.push('Monthly searches, difficulty, CPC, competition and trend for the search need a free account.');
