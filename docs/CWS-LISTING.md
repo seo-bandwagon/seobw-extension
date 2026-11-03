@@ -18,12 +18,12 @@ Dashboard field when submitting.
 
 1.13.3 (study mode for SEO Bandwagon's AI Overview study, invited testers
 only) follows the combined submission and is not part of it; outside testers
-start from the store on 2026-12-07. It adds a fourth flow: an invited
-tester's study search and that results page's export, sent only after the
-study's own yes and a click on Send to study (sections 3, 5 and 6; the
-description's PRIVACY paragraph). It adds no permission or host, and the
-install warning is unchanged (measured). The single-purpose text in section 4
-is unchanged.
+start from the store on 2026-12-07. It adds a third new data flow since
+1.5.0: an invited tester's study search and that results page's export, and a
+note when Google stopped them, sent only after the study's own yes and a click
+on Send to study or Google stopped me (sections 3, 5 and 6; the description's
+PRIVACY paragraph). It adds no permission or host, and the install warning is
+unchanged (measured). The single-purpose text in section 4 is unchanged.
 
 The detailed description is the text inside the fence in section 2 and
 nothing after it: the live description read on 2026-10-06 ran on past
@@ -137,7 +137,7 @@ Choose Night, Day or Auto, which follows your system setting. Two matching Chrom
 PRIVACY
 No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
 
-Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address. Study mode is for invited testers of SEO Bandwagon's AI Overview study and is off until you turn it on in Settings, which says what it sends first: the study's search and the export of its results, only when you click Send to study, to the study and not to your account.
+Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address. Study mode is for invited testers of SEO Bandwagon's AI Overview study and is off until you turn it on in Settings, which says what it sends first: the study's search and the export of its results when you click Send to study and, when you click its stop button, a note that you were stopped that day, to the study and not to your account.
 
 GETTING STARTED
 1. Add the extension and pin it to the toolbar.
@@ -259,13 +259,16 @@ and the same path on 29 other Google domains; India's is `www.google.co.in` from
 1.10.2, and 1.11.0 adds twenty: `.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`,
 `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`,
 `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`). The paste-ready text,
-1.13.3 (993 of the field's 1,000 characters; 1.11.0's said "never the
+1.13.3 (995 of the field's 1,000 characters; 1.11.0's said "never the
 search terms", which keyword data's own yes now changes, and "a background
 tab", which 1.12.0's Analyze no longer opens; 1.13.3 adds the AI Overview
-study's send, and to fit drops "like any content script", "restyles",
-"link, traffic, domain-age and keyword" and "from the user's browser"):
+study's send and its stop note, and to fit drops "like any content script",
+"granted at install", "restyles", "already", "link, traffic, domain-age and
+keyword", "and rank history", "from the user's browser", "on a click unless
+set otherwise" and "own" (the user's own checklist score), and says "It" for
+"The script"):
 
-> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): granted at install, not a host permission; the install warning is unchanged. The script reads the results already on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves or covers anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50); for the AI Overview study, after an invited tester's own yes, that search and its page's export, only when the tester clicks Send to study in a private window the study opened. seobandwagon.com answers with figures, the user's checklist score and rank history. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page without cookies.
+> Content scripts on Google's results pages (www.google.com/search and the same path on 29 other Google country domains): not a host permission, so the install warning is unchanged. It reads the results on the page and adds a bar under each, a keyword strip above them and one panel; it never hides, moves or covers anything, including ads. With an account connected it sends only what the user turned on: for figures, the address and site of each result (up to 10 at a time); for keyword data, after its own disclosure, the query and the related searches and questions shown (up to 50); for the AI Overview study, after an invited tester's own yes and only on a click, that search and its page's export (Send to study, in a private window the study opened) or a note that Google stopped them (Google stopped me). seobandwagon.com answers with figures and the user's checklist score. Otherwise it sends nothing. It never fetches Google pages. Analyze reads a clicked result's page without cookies.
 
 1.13.0 adds two files to the same content-script entry
 (`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`) and no match,
@@ -442,8 +445,8 @@ with the reasoning behind each:
   for how long, is the website's privacy policy (`/privacy`). From 1.13.3,
   for an invited tester of the AI Overview study who turned on study sends,
   on Send to study, that results page's export from a private window the
-  study opened: the results' addresses, sites, titles, snippets,
-  breadcrumbs, dates and ratings, the page's features, related searches and
+  study opened: the results' positions, addresses, sites, titles,
+  snippets, breadcrumbs, dates and ratings, the page's features, related searches and
   People also ask questions, the AI Overview's text and sources, Google's
   country and language, the capture time and the extension version, with no
   figures, no keyword data and no "Your site" marks. It goes to the study,
@@ -460,7 +463,7 @@ A user with the data-collection setting off sends no analyses; the result
 addresses go only with the figures accepted, a separate switch; the query and
 its related searches and questions only with keyword data's own yes, a third;
 the study's search and export only for an invited tester who said yes to the
-study, a fourth, and clicked Send to study.
+study, a fourth, and clicked Send to study (or Google stopped me, for its note).
 A signed-out user (no API key configured) sends nothing at all.
 
 **Certifications** — This data is not sold to third parties. It is not used
@@ -711,5 +714,5 @@ use only `activeTab` and `scripting`, which the features below also exercise.
   without figures or keyword data, to the study, and Google stopped me posts
   a stop record. Figures and keyword data are off in that tab.
 - An API key (free to create at seobandwagon.com) is only needed for the
-  figures and keyword data in the overlay and to sync captures/citations/
+  figures, keyword data and AI Overview study in the overlay and to sync captures/citations/
   link-building data — every other feature above works fully signed out.

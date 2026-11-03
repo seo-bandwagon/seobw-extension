@@ -48,7 +48,7 @@ describe('To paste with the combined submission (1.13.0)', () => {
   });
 
   it('says the AI Overview study sends only for an invited tester, after their own yes, on Send to study, apart from the account (1.13.3)', () => {
-    expect(googleScripts).toMatch(/for the AI Overview study, after an invited tester's own yes, that search and its page's export, only when the tester clicks Send to study in a private window the study opened/);
+    expect(googleScripts).toMatch(/for the AI Overview study, after an invited tester's own yes and only on a click, that search and its page's export \(Send to study, in a private window the study opened\) or a note that Google stopped them \(Google stopped me\)/);
     expect(webHistory).toMatch(/For invited testers of SEO Bandwagon's AI Overview study who turn on study sends, the search term the study gave them, sent when they click Send to study/);
     expect(webHistory).toMatch(/a record that Google stopped them that day, sent when they click Google stopped me/);
     expect(webHistory).toMatch(/kept apart from the account/);
@@ -57,7 +57,8 @@ describe('To paste with the combined submission (1.13.0)', () => {
     expect(websiteContent).toMatch(/kept apart from the account/);
     const privacy = paragraphs.find((b) => b.startsWith('PRIVACY'));
     expect(privacy).toMatch(/Study mode is for invited testers of SEO Bandwagon's AI Overview study and is off until you turn it on in Settings, which says what it sends first/);
-    expect(privacy).toMatch(/the study's search and the export of its results, only when you click Send to study, to the study and not to your account/);
+    expect(privacy).toMatch(/the study's search and the export of its results when you click Send to study and, when you click its stop button, a note that you were stopped that day, to the study and not to your account/);
+    expect(websiteContent).toMatch(/the results' positions, addresses, sites, titles/);
   });
 
   it('no longer promises that the exports never leave the device without naming the study\'s one send (1.13.3)', () => {

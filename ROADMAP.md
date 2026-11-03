@@ -340,11 +340,12 @@ until their own yes in Options; the export changes reach every results page.
   texts. README gains "What's sent (1.13.3), the AI Overview study".
 - **Data use: new.** For invited testers who turn on study sends, on Send to
   study, the study's search term and that results page's export (the results'
-  addresses, sites, titles, snippets, breadcrumbs, dates and ratings, the
-  page's features, related searches and People also ask questions, the AI
-  Overview's text and sources, Google's country and language, the capture
-  time, the extension version), to the study and apart from the account; and
-  a stop record on Google stopped me. The dashboard texts are in
+  positions, addresses, sites, titles, snippets, breadcrumbs, dates and
+  ratings, the page's features, related searches and People also ask
+  questions, the AI Overview's text and sources, Google's country and
+  language, the capture time, the extension version), to the study and apart
+  from the account; and a stop record on Google stopped me (a note that
+  Google stopped them that day). The dashboard texts are in
   `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"; the
   single purpose (998 of 1,000) is unchanged.
 - **No permission or host.** One script (`src/lib/aio-study.js`) joins the
