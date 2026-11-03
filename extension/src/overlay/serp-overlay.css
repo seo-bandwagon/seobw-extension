@@ -414,6 +414,21 @@
   border-color: var(--sbw-line-strong);
 }
 
+/* ---------- the AI Overview study's group (1.13.3) ---------- */
+
+.sbw-study-line {
+  margin: 0;
+  flex: 1 0 100%;
+}
+
+.sbw-study-status {
+  font-weight: 600;
+}
+
+.sbw-btn.sbw-study-send {
+  border-color: var(--sbw-accent);
+}
+
 .sbw-serp-bar :focus-visible,
 .sbw-serp-analysis :focus-visible,
 .sbw-serp-tools :focus-visible {

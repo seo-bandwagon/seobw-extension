@@ -24,6 +24,11 @@
 // first click here or with the button in Options (src/lib/consent.js,
 // `keywordData`). The worker sends; this script never calls a site itself.
 // A search with an operator (site:, inurl: and the rest) gets no strip.
+//
+// 1.13.3: a tab the AI Overview study opened gets none of it: no strip, no
+// labels, no request. The overlay asks the worker whether this is such a tab
+// (globalThis.SBWSerpStudy.ready, set when serp-overlay.js loads) and this
+// waits for the answer before it shows or asks anything.
 
 (function () {
   'use strict';
@@ -42,6 +47,10 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let settings = Settings.defaults();
+  // 1.13.3: the study answer is in (nothing without SBWSerpStudy to wait
+  // for), and this is a study tab.
+  let studyChecked = !globalThis.SBWSerpStudy;
+  let studyTab = false;
   let strip = null;
   // { hasKey, accepted } from the worker (read there, nothing sent), or null.
   let ready = null;
@@ -139,7 +148,7 @@
   // ---------- the strip ----------
 
   function enabled() {
-    return settings.overlay && settings.keywordsOn && !!asked.search;
+    return studyChecked && !studyTab && settings.overlay && settings.keywordsOn && !!asked.search;
   }
 
   // Above the results: before #search (#rso, #rcnt on pages without it),
@@ -782,6 +791,15 @@
   async function init() {
     try { settings = await Settings.load(chrome.storage.local); } catch (e) { settings = Settings.defaults(); }
     asked = currentRequest();
+    if (!studyChecked) {
+      try {
+        const study = await globalThis.SBWSerpStudy.ready;
+        studyTab = !!(study && study.study === true);
+      } catch (e) { studyTab = false; }
+      studyChecked = true;
+    }
+    // A study tab: no strip, no request, and no listener that could ask.
+    if (studyTab) return;
     if (enabled()) render();
     askReady(() => { if (enabled()) autoLoad(); });
     startObserver();
