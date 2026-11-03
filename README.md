@@ -398,8 +398,11 @@ Overview study" under "AI Overview study" in Options; the consent module's
 `websiteContent`; "Turn off study sends" ends it). Nobody else's popup asks
 the study anything. After that yes the popup gains a **STUDY** tab, which
 reads the day's terms from `GET /api/v1/aio-study/today` (key scope
-`study`; To do, Carried over and Sent), and **Search** opens a term in a
-private window (`chrome.windows.create` with `incognito: true`), at
+`study`; To do, Carried over and Sent; the worker keeps the list for five
+minutes on the same UTC day, and a rate-limited or unavailable answer does not
+replace one it keeps, since the site limits an account to a few requests a
+minute), and **Search** opens a term in a private window
+(`chrome.windows.create` with `incognito: true`), at
 `https://www.google.com/search?q=<term>&hl=en&gl=us&pws=0`. It never opens a
 normal window: if SEO Bandwagon is not allowed in private windows, or the
 window comes back not private, it refuses (and closes such a window) and
@@ -418,17 +421,22 @@ popup on that tab says so.
 with no figures, no keyword data and no "Your site" marks, so it is the
 search term, each result's position, address, site, title, snippet,
 breadcrumb, date and rating, the page's search features, related searches
-and People also ask questions, the AI Overview's text and the pages it
-cites, Google's country and language, the capture time and the extension
-version. It goes only from the tab the study opened, for a term on today's
+and People also ask questions, the result count, the AI Overview's text and
+the pages it cites, Google's country and language, the capture time and the
+extension version. It goes only from the tab the study opened, for a term on today's
 list that is not yet sent, while that tab still shows the study's search
 (the same words, page 1, `hl=en`, `gl=us`, `pws=0`, not another Google tab
-such as Videos or News), and at most 262,144 bytes. **Google stopped me**
-posts a stop record to `POST /api/v1/aio-study/stop` (also in the STUDY
-tab, since Google's CAPTCHA page is not a page the overlay runs on). **The
+such as Videos or News, and none of `tbs`, `lr`, `cr`, `num`, `nfpr`,
+`filter`, `uule` or `near`, which change the results; `safe` is allowed),
+and at most 262,144 bytes. **Google stopped me**
+posts a stop record to `POST /api/v1/aio-study/stop` after a second click
+(the first changes the button to "Click again to end today's searches" for
+five seconds, because a stop moves the day's other terms to tomorrow; it is
+also in the STUDY tab, which shows it only while the day has a term, since
+Google's CAPTCHA page is not a page the overlay runs on). **The
 CSV goes to the study, kept apart from the account:** not into your
-captures, history or keyword data. Never any other search or page, and never
-a request to Google. The exports you make yourself (Copy, Export CSV) still
+captures, history or keyword data. Never any other search or page, and the
+extension never sends a request to Google itself. The exports you make yourself (Copy, Export CSV) still
 stay on the device. 1.13.3 adds no permission and no host (one script joins
 the Google content-script entry); the install warning is unchanged, measured
 with `getPermissionWarningsByManifest`.
@@ -541,7 +549,7 @@ Apart from the fields listed above as stripped, nothing else is trimmed or summa
 
 **Citations** work differently and separately: checking a listing's NAP against your business record happens entirely in your browser and sends nothing. Only when you click "File Citation" does anything go out, and only the citation fields go — the directory name and URL, the name/address/phone/website found on that page, the NAP match score, the status you chose, and any notes. The screenshot, whether full page or visible area, is never part of that payload — it only ever saves to your device. From 1.7.8 a full-page proof is built in the extension's background worker, so closing the popup doesn't stop it, and the finished image (a JPEG) is kept in the extension's own browser storage (IndexedDB) for that tab until you dismiss it, take another, close the tab or restart the browser.
 
-**On Google search pages the extension sends each result's address and site for the figures, and only with an account connected and the figures accepted in Options (from 1.11.0; 1.10.2 sent nothing); never the search with them, and never a request to Google. From 1.13.0 it also sends the search's words, its related searches and People also ask questions (50 at most) and that Google's country and language for keyword data, and a search you add to your rank tracker, only with an account connected and keyword data's own yes; never a result's address with them. From 1.13.3 an invited tester of the AI Overview study can send a study search and that results page's export to the study, and a note when Google stopped them, only after the study's own yes and a click on Send to study or Google stopped me, from a private window the study opened. Otherwise the results list and questions are copied only when you click, and Analyze checks a result in your own browser.** See "SERP overlay" above for the full breakdown and the location simulator's copy rules.
+**On Google search pages the extension sends each result's address and site for the figures, and only with an account connected and the figures accepted in Options (from 1.11.0; 1.10.2 sent nothing); never the search with them, and never a request to Google. From 1.13.0 it also sends the search's words, its related searches and People also ask questions (50 at most) and that Google's country and language for keyword data, and a search you add to your rank tracker, only with an account connected and keyword data's own yes; never a result's address with them. From 1.13.3 an invited tester of the AI Overview study can send a study search and that results page's export to the study, and a note when Google stopped them, only after the study's own yes and a click on Send to study (from a private window the study opened) or on Google stopped me. Otherwise the results list and questions are copied only when you click, and Analyze checks a result in your own browser.** See "SERP overlay" above for the full breakdown and the location simulator's copy rules.
 
 **Link checks fetch third-party URLs directly from your browser** (Link Check section, 1.6.0+) — with credentials omitted (`credentials: 'omit'`, so no cookies go out), no caching (`cache: 'no-store'`), and a 10-second timeout per request (the HEAD and, when needed, a GET retry each get their own). This only runs after you click "Check N links" — it never runs on its own — and only after you've granted the optional `<all_urls>` permission. From 1.7.6 a check keeps running in the extension's background worker when the popup closes, and its progress and results are kept in the browser's session storage (`chrome.storage.session`) for that tab until the tab closes, the check is cancelled or re-run, or the browser restarts. Chrome Web Store links are never fetched (Chrome doesn't allow it) and show as "Can't check". Results (status codes, redirects, timings) stay on your device; nothing about them is sent to SEO Bandwagon unless you choose to export the CSV yourself.
 

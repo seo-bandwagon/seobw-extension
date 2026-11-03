@@ -176,15 +176,15 @@ For SEO Bandwagon's AI Overview inclusion study (pilot 2026-11-30; outside
 testers start from the store on 2026-12-07). Invited testers only. Follows the
 combined submission.
 - [x] Options: a section "AI Overview study" with the card "For invited testers of the AI Overview study" and its own yes (the consent module's `aioStudy`, Firefox's `searchTerms`, `browsingActivity` and `websiteContent`); nobody else's popup asks the study anything
-- [x] The popup's STUDY tab, shown only after that yes: the day's terms from `GET /api/v1/aio-study/today` (To do, Carried over, Sent), each with Search, and Google stopped me; states for not available yet, connect, reconnect, join on seobandwagon.com, paused this week and turn on study sends
+- [x] The popup's STUDY tab, shown only after that yes: the day's terms from `GET /api/v1/aio-study/today` (To do, Carried over, Sent; asked for once per opening of the tab, the worker keeping the list five minutes and never replacing it with a rate-limited or unavailable answer), each with Search, and Google stopped me (after a second click within five seconds); states for not available yet, connect, reconnect, join on seobandwagon.com, paused this week and turn on study sends
 - [x] Search opens a term in a private window and never in a normal one: without Allow in Incognito, or if the window comes back not private, it refuses and says how to switch it on
 - [x] In that tab the overlay's panel sits at the top with an "AI Overview study" group (the term, the AI Overview's state, Send to study, Google stopped me); figures and keyword data stay off there, and the worker refuses them for that tab
-- [x] Send to study posts that page's CSV export, with no figures, keyword data or "Your site" marks, to `POST /api/v1/aio-study/captures`, only from the tab the study opened, for a term on today's list not yet sent, while the tab still shows the study's search
+- [x] Send to study posts that page's CSV export, with no figures, keyword data or "Your site" marks, to `POST /api/v1/aio-study/captures`, only from the tab the study opened, for a term on today's list not yet sent, while the tab still shows the study's search (the study's parameters only: no `tbs`, `lr`, `cr`, `num`, `nfpr`, `filter`, `uule` or `near`)
 - [x] The export, on every results page: `Search features` lists the AI Overview wherever it sits; an expanded People also ask answer holding its own AI answer is no longer read as the AI Overview; `AI Overview citations` also lists pages read from Google's hidden source records and a source card's site; two columns appended, `AI Overview citations read from` and `AI Overview citation titles (JSON)`; a hidden stale box's links no longer listed
 - [x] The overlay's AI Overview sources table and the popup's "cites N pages" count include the record pages on a signed-out page
 - [x] Promises reworded to exclude the study: README, `CHROMEWEBSTORE.md` and `docs/CWS-LISTING.md`
 - [x] No permission or host; the install warning is unchanged (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4: the same four warnings for 1.13.2's and 1.13.3's manifests)
-- [x] Data use: a study search and that results page's export, for invited testers, on Send to study, to the study and apart from the account; the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"; the single purpose is unchanged
+- [x] Data use: a study search and that results page's export, for invited testers, on Send to study, and a stop record on Google stopped me (a note that Google stopped them that day), to the study and apart from the account; the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"; the single purpose is unchanged
 - [ ] Website: the study's three routes under the `study` scope and the join page `/dashboard/aio-study` (the website's PR 7; the extension is tested against stubs of its contract)
 - [ ] Owner: one live export's sources compared with the screen (`MANUAL_SMOKE_TEST.md` §8)
 
@@ -276,16 +276,33 @@ until their own yes in Options; the export changes reach every results page.
 - **Options:** a section "AI Overview study" with the card "For invited
   testers of the AI Overview study" (the consent module's `aioStudy`, Firefox's
   `searchTerms`, `browsingActivity` and `websiteContent`), accepted with "Turn
-  on study sends" and ended with "Turn off study sends". The figures flow's
+  on study sends" and ended with "Turn off study sends". Its words say the
+  export holds the result count, that the extension never sends a request to
+  Google itself, and that Google's personalization parameter is off
+  (`hl=en`, `gl=us`, `pws=0`). The figures flow's
   words now read "Never your search terms with them, and never a request to
   Google." (their version stays 2, so no one is asked again).
 - **The STUDY tab:** in the popup, only after that yes. It asks
   seobandwagon.com `GET /api/v1/aio-study/today` (key scope `study`) and lists
   the day's terms as To do, Carried over and Sent, each with a Search button,
-  and a "Google stopped me" button (`POST /api/v1/aio-study/stop`). Its states:
-  not available yet, connect, reconnect (a key without the study scope), join
-  on seobandwagon.com (`/dashboard/aio-study`), paused this week, and turn on
-  study sends.
+  and a "Google stopped me" button (`POST /api/v1/aio-study/stop`), shown while
+  the day has a term. It draws the day as UTC. Its states: not available yet,
+  connect (a Connect button), reconnect (a key without the study scope, a
+  Reconnect button), join on seobandwagon.com (`/dashboard/aio-study`),
+  paused this week, and turn on study sends. The site limits an account to a
+  few requests a minute (today, captures and stop share it), so the tab asks
+  for the list once per opening (clicking its pill while it shows draws
+  nothing), the worker keeps the list for five minutes on the same UTC day,
+  and asks afresh only after a refusal that says the list is stale or after a
+  stop. A rate-limited or unavailable answer is shown but never replaces a
+  list the worker keeps; a results page whose list could not be had says so
+  and keeps Send to study on, and the worker checks the list again when it is
+  clicked.
+- **Google stopped me asks for a second click**, in the panel and in the STUDY
+  tab, because a stop moves the day's other terms to tomorrow: the first
+  click changes the button to "Click again to end today's searches" for five
+  seconds, and a second within that time records the stop. In the panel only a
+  real click counts.
 - **Search** opens the term in a private window (`chrome.windows.create` with
   `incognito: true`) at `https://www.google.com/search?q=<term>&hl=en&gl=us&pws=0`.
   If the extension is not allowed in private windows, or the window comes
@@ -305,8 +322,13 @@ until their own yes in Options; the export changes reach every results page.
   no figures, no keyword data and no "Your site" marks. Only from the tab the
   study opened, only for a term on today's list not yet sent, only while the
   tab still shows the study's search (same words, page 1, `hl=en`, `gl=us`,
-  `pws=0`, not another Google tab such as Videos or News), at most 262,144
-  bytes. The answers: Sent to the study, Already sent today, not on your list,
+  `pws=0`, not another Google tab such as Videos or News, and none of `tbs`,
+  `lr`, `cr`, `num`, `nfpr`, `filter`, `uule` or `near`, which change the
+  results; `safe` is allowed, since a network can force SafeSearch), at most
+  262,144 bytes. A term the list names twice (one carried over by a stop and the
+  same term assigned that week) is opened and sent by its first entry not yet
+  sent, and marked sent one entry at a time, as the site fills the older one
+  first. The answers: Sent to the study, Already sent today, not on your list,
   open the term again, too large, couldn't be read, too many sends (wait a
   minute), reconnect, join, not available.
 - **The export, every results page:** `Search features` lists `AI Overview`
@@ -319,6 +341,11 @@ until their own yes in Options; the export changes reach every results page.
   redirects, and each source chip, inline link and video card carries a hidden
   record with the real address) and, for a side-panel source card whose page
   is hidden and whose site has no page read, the card's site as its origin.
+  The sources are read in one walk over the overview, so a source's link and
+  its record come side by side in the overview's own order, and an address on
+  `gstatic.com`, `googleusercontent.com`, `ytimg.com` or `ggpht.com`, or that
+  ends in a picture, style sheet or script (`.jpg`, `.jpeg`, `.png`, `.gif`,
+  `.webp`, `.svg`, `.ico`, `.css`, `.js`), is not read as a page.
 - **Two columns** are appended after `Extension version`: `AI Overview
   citations read from` (`link`, `record` or `card site`, joined by " | ", one
   per citation) and `AI Overview citation titles (JSON)` (a JSON array of
@@ -342,7 +369,7 @@ until their own yes in Options; the export changes reach every results page.
   study, the study's search term and that results page's export (the results'
   positions, addresses, sites, titles, snippets, breadcrumbs, dates and
   ratings, the page's features, related searches and People also ask
-  questions, the AI Overview's text and sources, Google's country and
+  questions, the result count, the AI Overview's text and sources, Google's country and
   language, the capture time, the extension version), to the study and apart
   from the account; and a stop record on Google stopped me (a note that
   Google stopped them that day). The dashboard texts are in

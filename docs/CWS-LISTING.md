@@ -447,7 +447,7 @@ with the reasoning behind each:
   on Send to study, that results page's export from a private window the
   study opened: the results' positions, addresses, sites, titles,
   snippets, breadcrumbs, dates and ratings, the page's features, related searches and
-  People also ask questions, the AI Overview's text and sources, Google's
+  People also ask questions, the result count, the AI Overview's text and sources, Google's
   country and language, the capture time and the extension version, with no
   figures, no keyword data and no "Your site" marks. It goes to the study,
   kept apart from the account: not into its captures, history or keyword
