@@ -158,6 +158,7 @@
 
   // POST /v1/aio-study/captures -> { state, retryAfter? }.
   function sendOutcome(res) {
+    if (res && res.code === 'no_key') return { state: 'no_key' };
     const status = res && res.status;
     if (status === 201) return { state: 'sent' };
     if (status === 409) return { state: 'already_sent' };
@@ -175,6 +176,7 @@
   // POST /v1/aio-study/stop -> { state, carried?, retryAfter? }. `carried`
   // is how many of the day's other terms move to tomorrow.
   function stopOutcome(res) {
+    if (res && res.code === 'no_key') return { state: 'no_key' };
     if (res && res.status === 200) {
       const carried = res.data && res.data.carried;
       return { state: 'stopped', carried: typeof carried === 'number' ? carried : 0 };

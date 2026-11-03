@@ -232,6 +232,10 @@ describe('sendOutcome', () => {
     expect(S.sendOutcome(res(429, null, { retryAfter: 45, code: 'rate_limited' }))).toEqual({ state: 'rate_limited', retryAfter: 45 });
   });
 
+  it('no key: no_key, before any status is read', () => {
+    expect(S.sendOutcome({ ok: false, status: 0, data: null, retryAfter: null, code: 'no_key' })).toEqual({ state: 'no_key' });
+  });
+
   it('503, 404 and a failed request: unavailable', () => {
     expect(S.sendOutcome(res(503, { error: 'study_unavailable' }))).toEqual({ state: 'unavailable' });
     expect(S.sendOutcome(res(404, null))).toEqual({ state: 'unavailable' });
@@ -255,6 +259,10 @@ describe('stopOutcome', () => {
     expect(S.stopOutcome(res(200, { ok: true }))).toEqual({ state: 'stopped', carried: 0 });
     expect(S.stopOutcome(res(200, { ok: true, carried: '3' }))).toEqual({ state: 'stopped', carried: 0 });
     expect(S.stopOutcome(res(200, null))).toEqual({ state: 'stopped', carried: 0 });
+  });
+
+  it('no key: no_key, before any status is read', () => {
+    expect(S.stopOutcome({ ok: false, status: 0, data: null, retryAfter: null, code: 'no_key' })).toEqual({ state: 'no_key' });
   });
 
   it('reads 401, 403, 429 and unavailable as a send does', () => {
