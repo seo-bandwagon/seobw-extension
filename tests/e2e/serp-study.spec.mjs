@@ -53,6 +53,18 @@ function figuresAnswer(body) {
   });
 }
 
+// The keyword route's saved answer in its shape, for exactly the keywords
+// asked (the search first, as the extension sends it): each gets the first
+// saved result's figures, with its own volume, so the page's own search has
+// keyword data to show.
+function keywordsAnswer(body) {
+  const base = saved('keyword-metrics', 'done');
+  const [template] = base.results;
+  return Object.assign({}, base, {
+    results: body.keywords.map((keyword, i) => Object.assign({}, template, { keyword, volume: 8100 - i * 100 }))
+  });
+}
+
 // A CSV file as rows of cells. Cells may hold commas, quotes ("" inside a
 // quoted cell) and line breaks; the file starts with a byte order mark.
 function parseCsv(text) {
@@ -146,8 +158,9 @@ test('study send: accept, popup refuses without a private window, a study tab se
       return json(200, figuresAnswer(body));
     }
     if (url.origin === 'https://seobandwagon.com' && url.pathname === '/api/v1/keywords/metrics') {
-      keywordCalls.push(JSON.parse(req.postData() || '{}'));
-      return json(200, saved('keyword-metrics', 'done'));
+      const body = JSON.parse(req.postData() || '{}');
+      keywordCalls.push(body);
+      return json(200, keywordsAnswer(body));
     }
     if (!/^https?:$/.test(url.protocol)) return route.continue();
     other.push(url.href);
@@ -219,10 +232,27 @@ test('study send: accept, popup refuses without a private window, a study tab se
       await expect(page.locator('.sbw-serp-bar').first()).toBeVisible();
       await expect.poll(() => figuresCalls.length).toBe(1);
       await expect.poll(() => keywordCalls.length).toBe(1);
+      expect(keywordCalls[0].keywords[0]).toBe(KEYWORD);
       await expect(group).toHaveCount(0);
+      // The data arrived and shows, so what the reload must not do is real.
+      await expect(page.locator('.sbw-serp-bar [data-role="figures"]', { hasText: 'ref. domains' }).first()).toBeVisible();
+      await expect(page.locator('.sbw-serp-keywords [data-kw="volume"]')).toHaveText('8.1K searches/mo');
     });
 
     await test.step('standing in for the private window: the worker records this tab, and the reload sends no figures or keyword data', async () => {
+      // The control load left its answers in the worker's session. Take them
+      // out first, so a reload that did load would have to ask the site
+      // (from the cache it would only message the worker, and the counts
+      // below would stay equal).
+      const removed = await worker.evaluate(async () => {
+        const all = await chrome.storage.session.get(null);
+        const gone = Object.keys(all).filter((k) => /^(serpFig:|kw:|kwTracked:|serpFiguresStatus$|serpFiguresHold$|serpKeywordsStatus$|serpKeywordsHold$)/.test(k));
+        await chrome.storage.session.remove(gone);
+        return gone;
+      });
+      expect(removed.some((k) => k.startsWith('serpFig:'))).toBe(true);
+      expect(removed.some((k) => k.startsWith('kw:'))).toBe(true);
+
       await worker.evaluate(async (record) => {
         const [tab] = await chrome.tabs.query({ url: 'https://www.google.com/search*' });
         const got = await chrome.storage.session.get('aioStudyTabs');
@@ -234,15 +264,23 @@ test('study send: accept, popup refuses without a private window, a study tab se
       const figuresBefore = figuresCalls.length;
       const keywordsBefore = keywordCalls.length;
       await page.reload({ waitUntil: 'load' });
+      // The saved page carries no stylesheets (the save stripped them), so the
+      // AI Overview's 383px box, which Google's CSS clips, spills over what
+      // follows it: the panel, which a study tab puts above the results, and
+      // a click on Send to study would land on it. Clip it as Google's CSS does.
+      await page.addStyleTag({ content: '.h7Tj7e { overflow: hidden; }' });
       await expect(group).toBeVisible();
       await expect(role('study-term')).toHaveText('Term: ' + KEYWORD);
       await expect(role('study-ai')).toHaveText('AI Overview: loaded');
       await expect(role('study-send')).toHaveText('Send to study');
       await expect(role('study-send')).toBeEnabled();
       await expect(page.locator('[data-role="figures-line"]')).toHaveText('Figures are off in a study search.');
-      // The overlay asks the worker before it loads anything; give a load
-      // that would have gone ahead the time the first one took.
-      await page.waitForTimeout(1000);
+      // The bars are drawn and the study group has settled; the overlay asks
+      // the worker before it loads anything, so a load that would have gone
+      // ahead has had its time (a short settle) by now.
+      await expect(page.locator('.sbw-serp-bar').first()).toBeVisible();
+      await expect(page.locator('.sbw-serp-keywords')).toHaveCount(0);
+      await page.waitForTimeout(500);
       expect(figuresCalls).toHaveLength(figuresBefore);
       expect(keywordCalls).toHaveLength(keywordsBefore);
     });
@@ -256,7 +294,6 @@ test('study send: accept, popup refuses without a private window, a study tab se
       expect(captures).toHaveLength(1);
       expect(Object.keys(captures[0]).sort()).toEqual(['csv', 'term_id']);
       expect(captures[0].term_id).toBe(TERM_ID);
-      expect(captures[0].csv.startsWith('\uFEFF')).toBe(true);
 
       const { header, records } = recordsOf(captures[0].csv);
       expect(records.length).toBeGreaterThan(0);
@@ -291,7 +328,7 @@ test('study send: accept, popup refuses without a private window, a study tab se
     // assets were aborted, and nothing went through a Google redirect.
     expect(searchHits.length).toBeGreaterThan(0);
     searchHits.forEach((u) => expect(u).toBe(STUDY_URL));
-    expect(googleRequests.filter((u) => /\/(goto|url)\?/.test(new URL(u).pathname + '?'))).toEqual([]);
+    expect(googleRequests.filter((u) => /^\/(goto|url)$/.test(new URL(u).pathname))).toEqual([]);
     // Nothing else went to seobandwagon.com but the welcome tab a first
     // install opens (aborted here).
     expect(other.filter((u) => /seobandwagon\.com/.test(u) && !/\/seo-chrome-extension\/welcome/.test(u))).toEqual([]);

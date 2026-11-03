@@ -448,6 +448,7 @@
   // From a click (`e`, trusted only) or from the yes it waited for.
   function addKeyword(item, trackerId, e) {
     if (e !== undefined && !trusted(e)) return;
+    if (!enabled()) return; // 1.13.3: never in a study tab, or with the strip off
     if (ready && !ready.accepted) { showDisclosure(() => addKeyword(item, trackerId), true); return; }
     const mine = epoch;
     adds.set(item.keyword, { state: 'working' });

@@ -104,6 +104,13 @@ function userClick(button) {
   fns.forEach((fn) => fn({ isTrusted: true, type: 'click', button: 0, target: button, preventDefault() {}, stopPropagation() {} }));
 }
 
+// The overlay's answer to the popup's 'serpStatus'.
+function serpStatus() {
+  let out;
+  listeners.forEach((fn) => fn({ action: 'serpStatus' }, {}, (reply) => { out = reply; }));
+  return out;
+}
+
 // A CSV as rows of cells, quotes and all.
 function parseCsv(text) {
   const rows = [];
@@ -169,6 +176,28 @@ describe('an ordinary tab', () => {
     await expect(globalThis.SBWSerpStudy.ready).resolves.toEqual({ study: false });
   });
 
+  it('keeps the panel where the setting puts it: below the results by default, and above them by setting', async () => {
+    await load(results());
+    expect(document.querySelector('#search').nextElementSibling).toBe(panel());
+    expect(panel().getAttribute('data-placement')).toBe('bottom');
+    useSettings({ placement: 'top' });
+    await load(results());
+    expect(document.querySelector('#search').previousElementSibling).toBe(panel());
+  });
+
+  it('says in serpStatus that it is not a study tab', async () => {
+    await load(results());
+    expect(serpStatus().study).toBe(false);
+    expect(serpStatus().figures.state).not.toBe('study_tab');
+  });
+
+  it('shows no bars and no panel with the overlay off, as before', async () => {
+    useSettings({ overlay: false });
+    await load(results());
+    expect(document.querySelectorAll('.sbw-serp-bar')).toHaveLength(0);
+    expect(panel()).toBeNull();
+  });
+
   it('keeps a panel left folded, folded', async () => {
     useSettings({ collapsed: true });
     await load(results());
@@ -212,6 +241,49 @@ describe('a study tab', () => {
     expect(sentActions('serpFigures')).toHaveLength(0);
     expect(role('study-send').disabled).toBe(true);
     expect(studyText('study-status')).toBe(study.message('not_study_tab'));
+  });
+
+  it('puts the panel above the results whatever the setting says, even though it was drawn first below them', async () => {
+    useSettings({ placement: 'bottom' });
+    await load(results());
+    expect(document.querySelector('#search').previousElementSibling).toBe(panel());
+    expect(document.querySelector('#search').nextElementSibling).not.toBe(panel());
+    expect(panel().getAttribute('data-placement')).toBe('top');
+  });
+
+  it('shows the bars and the panel with Send to study even with "Show on Google results" off, and sends', async () => {
+    useSettings({ overlay: false });
+    replies.aioStudySend = { state: 'sent' };
+    await load(results());
+    expect(document.querySelectorAll('.sbw-serp-bar')).toHaveLength(2);
+    expect(groupNames()[0]).toBe('study');
+    expect(role('study-send').disabled).toBe(false);
+    userClick(role('study-send'));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(sentActions('aioStudySend')).toHaveLength(1);
+    expect(studyText('study-status')).toBe('Sent to the study.');
+    ['serpFigures', 'serpKeywords', 'serpKeywordsReady'].forEach((a) => expect(sentActions(a)).toHaveLength(0));
+  });
+
+  it('keeps them when the overlay is turned off in Settings while the tab is open', async () => {
+    let changed;
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    await load(results());
+    expect(panel()).not.toBeNull();
+    changed({ serpSettings: { newValue: { overlay: false } } }, 'local');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(document.querySelectorAll('.sbw-serp-bar')).toHaveLength(2);
+    expect(panel()).not.toBeNull();
+    expect(role('study-send').disabled).toBe(false);
+    expect(sentActions('serpFigures')).toHaveLength(0);
+  });
+
+  it('tells the popup in serpStatus: a study tab, with figures "study_tab"', async () => {
+    await load(results());
+    const status = serpStatus();
+    expect(status.study).toBe(true);
+    expect(status.figures.state).toBe('study_tab');
+    expect(status.rows).toBe(2);
   });
 
   it('opens the panel, even if it was left folded in another tab', async () => {
@@ -411,7 +483,7 @@ describe('a study tab', () => {
       expect(sentActions('aioStudyStop')).toHaveLength(0);
     });
 
-    it('keeps its state when the panel is turned off and on again in Settings', async () => {
+    it('keeps its state, and its place above the results, when another setting changes', async () => {
       replies.aioStudySend = { state: 'sent' };
       let changed;
       window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
@@ -419,11 +491,10 @@ describe('a study tab', () => {
       userClick(role('study-send'));
       await vi.advanceTimersByTimeAsync(50);
       expect(role('study-send').textContent).toBe('Sent');
-      changed({ serpSettings: { newValue: { overlay: false } } }, 'local');
-      expect(panel()).toBeNull();
-      changed({ serpSettings: { newValue: { overlay: true } } }, 'local');
+      changed({ serpSettings: { newValue: { look: 'dark', placement: 'bottom' } } }, 'local');
       await vi.advanceTimersByTimeAsync(100);
       expect(groupNames()[0]).toBe('study');
+      expect(document.querySelector('#search').previousElementSibling).toBe(panel());
       expect(role('study-send').textContent).toBe('Sent');
       expect(role('study-send').disabled).toBe(true);
       expect(studyText('study-status')).toBe('Sent to the study.');

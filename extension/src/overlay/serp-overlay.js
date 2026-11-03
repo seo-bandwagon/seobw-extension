@@ -185,6 +185,13 @@
     return A ? A.message(code) : String(code);
   }
 
+  // The bars and the panel show when "Show on Google results" is on, and
+  // always in a study tab: a tester who turned them off still has Send to
+  // study. (Figures and keyword data stay off there either way.)
+  function overlayOn() {
+    return settings.overlay || !!studyInfo;
+  }
+
   // ---------- look ----------
 
   // Google's own page: dark when its background is. Read from the page
@@ -680,7 +687,7 @@
   }
 
   function processResults() {
-    if (!settings.overlay) return;
+    if (!overlayOn()) return;
     const rows = S.parseResults(document);
     warnIfUnparsed(rows.length);
 
@@ -1316,8 +1323,12 @@
   function onStudyKnown() {
     if (!studyInfo) return;
     renderAllFigures();
-    // Open, whatever the panel was last left at in another tab: the group
-    // with Send to study is in it. A click on Hide still folds it.
+    // The bars and the panel, even with "Show on Google results" off: the
+    // scan that init ran when it read that setting stood down.
+    if (!settings.overlay) processResults();
+    // At the top, and open, whatever the person set or left in another tab:
+    // the group with Send to study is in it. A click on Hide still folds it.
+    placePanel();
     if (toolbarEl) setCollapsed(false);
     ensureStudyGroup();
     // The AI Overview often arrives after the results, and may sit outside
@@ -1573,11 +1584,14 @@
     if (!toolbarEl) return;
     const container = resultsContainer();
     if (!container || !container.parentNode) return;
-    toolbarEl.setAttribute('data-placement', settings.placement);
+    // A study tab has it at the top whatever the setting, so Send to study
+    // is in view without scrolling past the results.
+    const placement = studyInfo ? 'top' : settings.placement;
+    toolbarEl.setAttribute('data-placement', placement);
     // At the top the panel goes above the results and pushes them down;
     // at the bottom, after them, as the toolbar always was. Never over them.
-    const where = settings.placement === 'top' ? 'beforebegin' : 'afterend';
-    const sibling = settings.placement === 'top' ? container.previousElementSibling : container.nextElementSibling;
+    const where = placement === 'top' ? 'beforebegin' : 'afterend';
+    const sibling = placement === 'top' ? container.previousElementSibling : container.nextElementSibling;
     if (sibling !== toolbarEl) container.insertAdjacentElement(where, toolbarEl);
   }
 
@@ -1786,12 +1800,12 @@
     // Only a change to what is asked for asks again; folding the panel,
     // moving it or changing its look never re-sends anything.
     if (before.overlay !== next.overlay || before.figuresOn !== next.figuresOn || before.load !== next.load) askedKeys.clear();
-    if (!settings.overlay) {
+    if (!overlayOn()) {
       document.querySelectorAll('.sbw-serp-bar, .sbw-serp-analysis, .sbw-serp-check, .sbw-serp-tools').forEach((n) => n.remove());
       toolbarEl = null;
       return;
     }
-    if (!before.overlay) {
+    if (!before.overlay && !studyInfo) {
       // Turned back on: every result gets its bar again.
       processResultsFresh();
       return;
@@ -1931,8 +1945,11 @@
         features: S.detectFeatures(document),
         aiCitations: S.aiOverviewCitations(document).length,
         ownSites: rows.filter((r) => !r.siteUnknown && Settings.isOwnSite(r.domain, settings.ownSites)).map((r) => r.position),
+        // 1.13.3: a tab the AI Overview study opened (the popup says figures
+        // and keyword data are off there, and offers no Load figures).
+        study: !!studyInfo,
         figures: {
-          state: figState.state,
+          state: studyInfo ? 'study_tab' : figState.state,
           code: figState.code || null,
           loaded: rows.filter((r) => figuresByKey.has(r._key)).length,
           plan: figState.plan || null,
