@@ -2391,3 +2391,25 @@ pre {
 }
 .page-options textarea:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(245, 55, 150, 0.25); }
 .page-options #google-results > label { margin-top: 14px; }
+
+/* ============================================================
+   AI OVERVIEW STUDY (1.13.3): the popup's STUDY tab
+   (src/popup/study-panel.js). Buttons, lines and the block rule are the
+   Google results panel's (.srp-*); only the term list is new.
+   ============================================================ */
+
+#tab-study .study-panel { padding: 12px 14px 14px; }
+#tab-study .study-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+#tab-study .study-week { font-family: var(--font-heading); font-size: 14px; letter-spacing: 0.1em; color: var(--accent-text); }
+#tab-study .study-date { font-family: var(--font-mono); font-size: 11px; color: var(--paper-70); }
+#tab-study .study-terms { list-style: none; margin: 0 0 6px; padding: 0; }
+#tab-study .study-term { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--hairline); }
+#tab-study .study-term:last-child { border-bottom: 1px solid var(--hairline); }
+#tab-study .study-keyword { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--text-strong); overflow-wrap: anywhere; }
+#tab-study .study-status { flex: none; font-size: 11px; color: var(--paper-70); }
+#tab-study .study-term[data-status='sent'] .study-keyword { font-weight: 400; color: var(--paper-70); }
+#tab-study .study-term[data-status='sent'] .study-status { color: var(--success); font-weight: 600; }
+#tab-study .study-term[data-status='late'] .study-status { color: var(--warning); }
+#tab-study .study-term .srp-btn { flex: none; }
+#tab-study .study-notice { margin-top: 8px; }
+#tab-study .study-stop { margin-top: 6px; }

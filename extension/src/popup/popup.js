@@ -100,7 +100,18 @@ document.querySelectorAll('.switcher button').forEach(btn => {
     if (btn.dataset.tab === 'citations' && typeof initCitationsTab === 'function') {
       initCitationsTab();
     }
+    if (btn.dataset.tab === 'study') {
+      globalThis.SBWStudyPanel?.render(document.getElementById('study-content'));
+    }
   });
+});
+
+// 1.13.3: the STUDY tab (src/popup/study-panel.js) is for people who said yes
+// to study sends in Options; until then its button stays hidden. Asked once
+// the page's scripts have all run: study-panel.js loads after this file.
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!(await globalThis.SBWStudyPanel?.shouldShow())) return;
+  document.querySelector('.switcher button[data-tab="study"]').hidden = false;
 });
 
 /* ---------- data collection toggle ---------- */

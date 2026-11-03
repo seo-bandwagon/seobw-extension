@@ -13,6 +13,7 @@
     <nav class="switcher">
       <button class="active" data-tab="seo">ANALYSIS</button>
       <button data-tab="citations">CITATIONS</button>
+      <button data-tab="study" hidden>STUDY</button>
     </nav>
   </header>
 
@@ -29,6 +30,10 @@
     <div id="cf-content">
       <div class="loading">Loading…</div>
     </div>
+  </div>
+
+  <div class="tab-panel" id="tab-study">
+    <div id="study-content"></div>
   </div>
 
   <footer class="footer">
@@ -93,5 +98,7 @@
   <script src="../lib/serp-table.js"></script>
   <script src="../lib/serp-settings-ui.js"></script>
   <script src="serp-panel.js"></script>
+  <script src="../lib/aio-study.js"></script>
+  <script src="study-panel.js"></script>
 </body>
 </html>
