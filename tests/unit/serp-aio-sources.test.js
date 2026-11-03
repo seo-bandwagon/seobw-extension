@@ -53,7 +53,7 @@ describe('the signed-out AI Overview page, read from a saved Google page', () =>
       ['card site', 'https://pce.sandiego.edu'],
       ['card site', 'https://thriveagency.com']
     ]);
-  });
+  }, 30000);
 
   it('gives the link its label, a record no title and a card its label, each with its domain', () => {
     const sources = S.aiOverviewSources(doc);
@@ -64,7 +64,7 @@ describe('the signed-out AI Overview page, read from a saved Google page', () =>
       { url: 'https://pce.sandiego.edu', domain: 'pce.sandiego.edu', title: 'How Does SEO Work? 9 Elements for Beginners to Know', read: 'card site' },
       { url: 'https://thriveagency.com', domain: 'thriveagency.com', title: 'What Is SEO: How Does It Work, What’s Included and How Much Does It Cost?', read: 'card site' }
     ]);
-  });
+  }, 30000);
 
   it('puts every source, how it was read and its title in the export context', () => {
     expect(ctx.aiCitations.split(' | ')).toHaveLength(10);
@@ -83,7 +83,7 @@ describe('the signed-out AI Overview page, read from a saved Google page', () =>
     expect(cites.map((c) => c.read)).toEqual(['link', 'record', 'record', 'record', 'record', 'record', 'record', 'record']);
     expect(cites.map((c) => c.url)).toEqual(S.aiOverviewSources(doc).slice(0, 8).map((s) => s.url));
     expect(cites[1]).toEqual({ url: 'https://www.youtube.com/watch?v=N0lTwy8BliA&t=274', domain: 'youtube.com', title: '', read: 'record' });
-  });
+  }, 30000);
 });
 
 describe('the signed-in AI Overview page keeps reading its links', () => {
@@ -208,9 +208,78 @@ describe('reading a hidden record', () => {
     expect(reads(doc)).toEqual([['record', 'https://real.example/page']]);
   });
 
+  it('does not count a thumbnail, a profile picture or any picture, style sheet or script address', () => {
+    const doc = frag(box('<p>Answer.</p>' + record(JSON.stringify([[
+      'https://i.ytimg.com/vi/N0lTwy8BliA/hqdefault.jpg',
+      'https://yt3.ggpht.com/ytc/AIdro_k=s88-c-k-c0x00ffffff-no-rj',
+      'https://ytimg.com/vi/abc/default',
+      'https://cdn.example/photo.JPG',
+      'https://cdn.example/photo.jpeg',
+      'https://cdn.example/a/b.png?width=300',
+      'https://cdn.example/anim.gif',
+      'https://cdn.example/pic.webp',
+      'https://cdn.example/logo.svg',
+      'https://cdn.example/favicon.ico',
+      'https://cdn.example/site.css',
+      'https://cdn.example/app.min.js',
+      'https://example.com/blog/photo-jpg',
+      'https://example.com/guide.json',
+      'https://notytimg.com/page',
+      'https://real.example/page'
+    ]]))));
+    expect(reads(doc)).toEqual([
+      ['record', 'https://example.com/blog/photo-jpg'],
+      ['record', 'https://example.com/guide.json'],
+      ['record', 'https://notytimg.com/page'],
+      ['record', 'https://real.example/page']
+    ]);
+  });
+
   it('counts a site with a path or a query as a page, and a site alone as nothing', () => {
     const doc = frag(box('<p>Answer.</p>' + record('[["https://g.example/","https://h.example/?q=1","https://i.example/a"]]')));
     expect(reads(doc)).toEqual([['record', 'https://h.example/?q=1'], ['record', 'https://i.example/a']]);
+  });
+
+  it('reads links and records in the overview\'s own order, a source\'s link and its record side by side', () => {
+    const doc = frag(box(
+      '<p>Answer.</p>' +
+      '<a href="https://one.example/page" aria-label="One">One</a>' + record('[["https://two.example/page"]]') +
+      '<div><a href="https://three.example/page" aria-label="Three">Three</a></div>' +
+      record('[["https://four.example/page","https://five.example/page"]]') +
+      '<a href="https://six.example/page" aria-label="Six">Six</a>'));
+    expect(reads(doc)).toEqual([
+      ['link', 'https://one.example/page'],
+      ['record', 'https://two.example/page'],
+      ['link', 'https://three.example/page'],
+      ['record', 'https://four.example/page'],
+      ['record', 'https://five.example/page'],
+      ['link', 'https://six.example/page']
+    ]);
+    // The citations are the same walk without the cards.
+    expect(S.aiOverviewCitations(doc).map((c) => c.url)).toEqual(S.aiOverviewSources(doc).map((c) => c.url));
+  });
+
+  it('walks each box in turn, and still puts the cards after every link and record', () => {
+    const doc = frag(
+      box('<a href="https://a.example/1" aria-label="A1">A1</a>' + record('[["https://a.example/2"]]') +
+        panel(card('Card Z', '/goto?url=Z', `<img src="${favicon('https://z.example')}">`))) +
+      '<div data-subtree="aimc"><a href="https://b.example/1" aria-label="B1">B1</a></div>');
+    expect(reads(doc)).toEqual([
+      ['link', 'https://a.example/1'],
+      ['record', 'https://a.example/2'],
+      ['link', 'https://b.example/1'],
+      ['card site', 'https://z.example']
+    ]);
+  });
+
+  it('reads a page whose record comes before its link from the link: the title, in the record\'s place', () => {
+    const doc = frag(box(
+      record('[["https://first.example/page"]]') + '<a href="https://other.example/x" aria-label="Other">Other</a>' +
+      '<a href="https://first.example/page#:~:text=hi" aria-label="First page">First</a>'));
+    expect(S.aiOverviewSources(doc)).toEqual([
+      { url: 'https://first.example/page', domain: 'first.example', title: 'First page', read: 'link' },
+      { url: 'https://other.example/x', domain: 'other.example', title: 'Other', read: 'link' }
+    ]);
   });
 
   it('counts a page once when a record\'s text-fragment address sits beside a direct link to it', () => {

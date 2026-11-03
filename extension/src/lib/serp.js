@@ -1001,9 +1001,12 @@
   // a file never presents a site as a page. All three are read inside
   // aiOverviewBoxes only, so a People also ask answer's sources stay out.
   const AI_SOURCE_TITLE_MAX = 200;
-  // Google's own image and asset hosts: an address on them is a picture, not
-  // a cited page.
-  const AI_ASSET_HOST_RE = /(^|\.)(gstatic|googleusercontent)\.com$/i;
+  // Google's own image and asset hosts, and the addresses of a picture,
+  // a style sheet or a script: such an address is an asset, not a cited
+  // page. (A record also holds a video's thumbnail on ytimg.com and a
+  // profile picture on ggpht.com.)
+  const AI_ASSET_HOST_RE = /(^|\.)(gstatic|googleusercontent|ytimg|ggpht)\.com$/i;
+  const AI_ASSET_PATH_RE = /\.(jpe?g|png|gif|webp|svg|ico|css|js)$/i;
 
   // The JSON of one hidden source record, or undefined when the comment is no
   // record or its JSON doesn't parse. A record reads `TgQPHd|`, two header
@@ -1056,15 +1059,16 @@
   }
 
   // `{ url, domain }` when a record string is a cited page: a whole absolute
-  // address, not on a Google asset host, not Google's own pages, and not a
-  // bare origin (a record names the site as well as the page, and the site
-  // alone is no page); the fragment is dropped. null otherwise.
+  // address, not on a Google asset host or ending in a picture, style sheet
+  // or script, not Google's own pages, and not a bare origin (a record names
+  // the site as well as the page, and the site alone is no page); the
+  // fragment is dropped. null otherwise.
   function aiRecordPage(value) {
     if (typeof value !== 'string' || !/^https?:\/\/\S+$/i.test(value)) return null;
     let u;
     try { u = new URL(value); } catch (e) { return null; }
     const domain = bareDomain(u.href);
-    if (!domain || AI_ASSET_HOST_RE.test(u.hostname)) return null;
+    if (!domain || AI_ASSET_HOST_RE.test(u.hostname) || AI_ASSET_PATH_RE.test(u.pathname)) return null;
     if (u.pathname === '/' && !u.search) return null;
     u.hash = '';
     return { url: u.href, domain };
@@ -1124,28 +1128,44 @@
   function readAiOverviewSources(doc, cards) {
     const boxes = aiOverviewBoxes(doc);
     const out = [];
-    const seen = new Set();
+    const seen = new Map(); // address -> its place in `out`
     const add = (url, domain, title, read) => {
-      if (seen.has(url)) return;
-      seen.add(url);
+      if (seen.has(url)) {
+        // A page named by its record before its link is read from the link
+        // (its title), in the place the record gave it.
+        const first = out[seen.get(url)];
+        if (read === 'link' && first.read === 'record') { first.title = title; first.read = 'link'; }
+        return;
+      }
+      seen.set(url, out.length);
       out.push({ url, domain, title, read });
     };
-    // 1. A link to the page itself.
-    boxes.forEach((box) => {
-      box.querySelectorAll('a[href^="http"]').forEach((a) => {
-        const domain = bareDomain(a.href);
-        if (!domain || a.closest(SBW_OWN_UI_SELECTOR)) return;
-        let url = a.href;
-        try { const u = new URL(a.href); u.hash = ''; url = u.href; } catch (e) { /* keep as is */ }
-        add(url, domain, oneLine(a.getAttribute('aria-label') || a.textContent).slice(0, AI_SOURCE_TITLE_MAX), 'link');
-      });
-    });
-    // 2. A page named in a hidden record; the record has no title to give.
     const records = boxes.map(aiOverviewRecords);
-    records.forEach((list) => list.forEach((rec) => rec.values.forEach((v) => {
-      const page = aiRecordPage(v);
-      if (page) add(page.url, page.domain, '', 'record');
-    })));
+    // 1. A link to the page itself, and 2. a page named in a hidden record
+    // (the record has no title to give): one walk over each box, so they come
+    // in the overview's own order, a source chip's link and its record side
+    // by side. Elements and comments are visited together, in document order.
+    boxes.forEach((box, b) => {
+      const recordAt = new Map(records[b].map((rec) => [rec.node, rec]));
+      const walker = box.ownerDocument.createTreeWalker(box, 1 | 128); // elements and comments
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.nodeType === 8) {
+          const rec = recordAt.get(node);
+          if (!rec) continue;
+          rec.values.forEach((v) => {
+            const page = aiRecordPage(v);
+            if (page) add(page.url, page.domain, '', 'record');
+          });
+          continue;
+        }
+        if (!node.matches('a[href^="http"]')) continue;
+        const domain = bareDomain(node.href);
+        if (!domain || node.closest(SBW_OWN_UI_SELECTOR)) continue;
+        let url = node.href;
+        try { const u = new URL(node.href); u.hash = ''; url = u.href; } catch (e) { /* keep as is */ }
+        add(url, domain, oneLine(node.getAttribute('aria-label') || node.textContent).slice(0, AI_SOURCE_TITLE_MAX), 'link');
+      }
+    });
     if (!cards) return out;
     // 3. A card in the side panel whose page no link or record names: only
     // its site is known. A card for a site already read above is that
