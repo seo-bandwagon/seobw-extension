@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
 
 // 1.12.0: Firefox's background page has a DOM parser and reads Analyze's
 // pages itself; Chrome's worker hands them to the offscreen document, which
@@ -533,7 +533,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // nothing without a key and the figures accepted in Options
   // (src/lib/serp-figures-service.js).
   if (request.action === 'serpFigures' && sender.tab) {
-    serpFigures.lookup(Array.isArray(request.items) ? request.items : [], { fresh: request.fresh === true })
+    unlessStudyTab(sender.tab.id, () => serpFigures.lookup(Array.isArray(request.items) ? request.items : [], { fresh: request.fresh === true }))
       .then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
     return true;
   }
@@ -551,13 +551,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // keyword data (src/lib/serp-keywords-service.js). Only from a Google
   // results page the overlay runs on.
   if (request.action === 'serpKeywords' && sender.tab && isOverlaySearchUrl(sender.url || sender.tab.url)) {
-    serpKeywords.lookup({
+    unlessStudyTab(sender.tab.id, () => serpKeywords.lookup({
       query: request.query,
       related: Array.isArray(request.related) ? request.related.slice(0, 100) : [],
       paa: Array.isArray(request.paa) ? request.paa.slice(0, 100) : [],
       gl: request.gl,
       hl: request.hl
-    }, { fresh: request.fresh === true }).then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
+    }, { fresh: request.fresh === true })).then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
     return true;
   }
 
@@ -569,7 +569,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'serpKeywordAdd' && sender.tab && isOverlaySearchUrl(sender.url || sender.tab.url)) {
-    serpKeywords.add({ keyword: request.keyword, gl: request.gl, hl: request.hl, trackerId: request.trackerId })
+    unlessStudyTab(sender.tab.id, () => serpKeywords.add({ keyword: request.keyword, gl: request.gl, hl: request.hl, trackerId: request.trackerId }))
       .then(sendResponse, () => sendResponse({ state: 'error', code: 'error' }));
     return true;
   }
@@ -595,7 +595,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     openSerpPage(request.page, sender.tab).then(sendResponse, () => sendResponse({ ok: false }));
     return true;
   }
+
+  // 1.13.3: the AI Overview study (src/lib/aio-study-service.js). The popup's
+  // STUDY tab asks for today's terms, opens one in a private window and
+  // records a stop; the results page asks about its own tab and sends its
+  // CSV. Each needs a key and the person's yes in Options, which the service
+  // asks for.
+  if (request.action === 'aioStudyToday') {
+    aioStudy.today({ fresh: request.fresh === true }).then(sendResponse, () => sendResponse({ state: 'unavailable' }));
+    return true;
+  }
+
+  if (request.action === 'aioStudyOpen') {
+    aioStudy.open(request.termId).then(sendResponse, () => sendResponse({ ok: false, reason: 'error' }));
+    return true;
+  }
+
+  // Only the tab asking: whether the worker opened it for a term, and if so
+  // what the page needs to show Send to study.
+  if (request.action === 'aioStudyTab' && sender.tab) {
+    aioStudy.tabStatus(sender.tab.id, sender.url || sender.tab.url).then(sendResponse, () => sendResponse({ study: false }));
+    return true;
+  }
+
+  // Only from the study tab itself, at the address that tab is on now.
+  if (request.action === 'aioStudySend' && sender.tab) {
+    aioStudy.send(sender.tab.id, sender.url || sender.tab.url, request.termId, request.csv)
+      .then(sendResponse, () => sendResponse({ state: 'error' }));
+    return true;
+  }
+
+  if (request.action === 'aioStudyStop') {
+    aioStudy.stop().then(sendResponse, () => sendResponse({ state: 'error' }));
+    return true;
+  }
 });
+
+// 1.13.3: a tab the study opened sends nothing else to SEO Bandwagon: no
+// figures, no keyword data, no keyword added. It is answered { state:
+// 'study_tab' } before anything is sent, and the overlay reads that as "off
+// here". If the study's records can't be read, the tab isn't assumed to be
+// an ordinary one: the handler's error answer goes back and nothing is sent.
+async function unlessStudyTab(tabId, lookup) {
+  if (await aioStudy.isStudyTab(tabId)) return { state: 'study_tab' };
+  return lookup();
+}
 
 // The pages a results-page link opens: Connect (a key, or one with the
 // `serp` or `keywords` scope), upgrading, the Google results section of
@@ -637,6 +681,32 @@ const serpKeywords = SBWSerpKeywordsService.createSerpKeywordsService({
   account: async () => (await SBW.getApiSettings()).apiKey || '',
   storage: chrome.storage.session
 });
+
+// 1.13.3: the study opens each term in a private window or not at all, and
+// remembers which tab it opened (chrome.storage.session, so a worker that
+// restarts keeps them). The promise forms of chrome.windows and
+// chrome.extension are used; every refusal is decided in the service.
+const aioStudy = SBWAioStudyService.create({
+  api: {
+    today: () => SBW.aioStudyToday(),
+    send: (body) => SBW.aioStudySend(body),
+    stop: () => SBW.aioStudyStop()
+  },
+  consentOk: async () => {
+    const consent = await SBWConsent.check('aioStudy');
+    return !!(consent && consent.ok);
+  },
+  session: chrome.storage.session,
+  windows: {
+    create: (opts) => chrome.windows.create(opts),
+    remove: (id) => chrome.windows.remove(id)
+  },
+  incognitoAllowed: () => chrome.extension.isAllowedIncognitoAccess(),
+  now: () => Date.now()
+});
+
+// A closed tab's study record goes with it.
+chrome.tabs.onRemoved.addListener((tabId) => { aioStudy.forget(tabId).catch(() => {}); });
 
 // --- Broken-link checker: one run per tab, outliving the popup (#47) ---
 //
