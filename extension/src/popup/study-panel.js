@@ -55,8 +55,9 @@
         return ["Open SEO Bandwagon's Details page", async () => deps.openUrl('chrome://extensions/?id=' + chrome.runtime.id)];
       case 'not_enrolled':
         return ['Join on seobandwagon.com', async () => deps.openUrl(await siteUrl(S.JOIN_PATH))];
-      case 'reconnect':
       case 'no_key':
+        return ['Connect', async () => deps.openUrl(await siteUrl(S.CONNECT_PATH))];
+      case 'reconnect':
         return ['Reconnect', async () => deps.openUrl(await siteUrl(S.CONNECT_PATH))];
       case 'not_accepted':
         return ['Open settings', async () => deps.openUrl(chrome.runtime.getURL('src/options/options.html#aio-study'))];
@@ -103,9 +104,10 @@
           return;
         }
         const reason = reply && typeof reply.reason === 'string' ? reply.reason : 'error';
-        // The list on screen is out of date: draw it again, with the words.
+        // The list on screen is out of date: ask for it again, and draw it
+        // with the words.
         if (reason === 'already_sent' || reason === 'not_on_list') {
-          await draw(container, deps, { code: reason, text: S.message(reason) });
+          await draw(container, deps, { code: reason, text: S.message(reason) }, true);
           return;
         }
         say(area, reason, S.message(reason), deps);
@@ -122,7 +124,7 @@
     const head = el('div', 'study-head');
     const week = S.weekLabel(today.week);
     if (week) head.appendChild(el('span', 'study-week', week));
-    head.appendChild(el('span', 'study-date', today.date));
+    head.appendChild(el('span', 'study-date', today.date + ' (UTC)'));
     body.appendChild(head);
     if (today.terms.length) {
       const list = el('ul', 'study-terms');
@@ -134,14 +136,28 @@
     return body;
   }
 
+  // A stop moves the rest of the day's terms to tomorrow, so the first click
+  // only asks: the button says so for a few seconds, and a second click in
+  // that time records the stop.
   function stopBlock(deps, container) {
     const S = globalThis.SBWAioStudy;
     const block = el('div', 'srp-block study-stop');
-    const stop = button('Google stopped me', async () => {
+    let asking = null;
+    const stop = button(S.STOP_LABEL, async () => {
+      if (asking === null) {
+        stop.textContent = S.STOP_CONFIRM_LABEL;
+        asking = setTimeout(() => {
+          asking = null;
+          stop.textContent = S.STOP_LABEL;
+        }, S.STOP_CONFIRM_MS);
+        return;
+      }
+      clearTimeout(asking);
+      asking = null;
       stop.disabled = true;
       const reply = await deps.askWorker({ action: 'aioStudyStop' });
       const state = reply && typeof reply.state === 'string' ? reply.state : 'error';
-      await draw(container, deps, { code: state, text: S.message(state) });
+      await draw(container, deps, { code: state, text: S.message(state) }, true);
     });
     block.appendChild(stop);
     return block;
@@ -149,11 +165,14 @@
 
   // Fills the tab: asks for the day's list, then draws it or the words for
   // why there isn't one. `notice` ({ code, text }) is the words of the click
-  // that made this drawing, shown with the list.
-  async function draw(container, deps, notice) {
+  // that made this drawing, shown with the list. The worker keeps the list a
+  // few minutes and the site limits requests for the whole account, so it is
+  // asked for afresh (`fresh`) only when what is on screen is known to be
+  // wrong: after a refusal that says so, and after a stop.
+  async function draw(container, deps, notice, fresh) {
     const S = globalThis.SBWAioStudy;
     container.replaceChildren(el('div', 'loading', 'Loading…'));
-    const today = await deps.askWorker({ action: 'aioStudyToday', fresh: true });
+    const today = await deps.askWorker(fresh ? { action: 'aioStudyToday', fresh: true } : { action: 'aioStudyToday' });
     let state = today && typeof today.state === 'string' ? today.state : 'unavailable';
     if (state === 'ready' && !Array.isArray(today.terms)) state = 'unavailable';
 
@@ -163,7 +182,8 @@
       panel.appendChild(readyBody(today, area, deps, container));
       panel.appendChild(area.line);
       panel.appendChild(area.actions);
-      panel.appendChild(stopBlock(deps, container));
+      // With no terms there is nothing for Google to have stopped.
+      if (today.terms.length) panel.appendChild(stopBlock(deps, container));
       if (notice) say(area, notice.code, notice.text, deps);
     } else {
       // Why there is no list comes first; a click's words follow, unless

@@ -141,6 +141,7 @@
   let studyStopped = false;  // "Google stopped me" was recorded
   let studyOutcome = null;   // the last send or stop answer's state
   let studyTimer = null;
+  let studyStopTimer = null; // set while "Google stopped me" waits for its second click
 
   const STUDY_STATUSES = ['open', 'late', 'sent'];
 
@@ -155,6 +156,9 @@
       keyword: typeof reply.keyword === 'string' ? reply.keyword : '',
       accepted: reply.accepted === true,
       status: STUDY_STATUSES.includes(reply.status) ? reply.status : null,
+      // The list's state; with no status, it tells a term that isn't on the
+      // list from a list the worker couldn't get.
+      today: typeof reply.today === 'string' ? reply.today : null,
       page: page && page.ok === true ? { ok: true } : { ok: false, reason: (page && page.reason) || 'error' }
     };
   }
@@ -1235,9 +1239,17 @@
     sendBtn.classList.add('sbw-study-send');
     const g = group('study', 'AI Overview study',
       studyLine('study-term'), studyLine('study-ai'),
-      sendBtn, studyButton('study-stop', 'Google stopped me', studyStop), status);
+      sendBtn, studyButton('study-stop', A.STOP_LABEL, studyStop), status);
     body.insertBefore(g, body.querySelector('[data-group="figures"]') || body.firstChild);
     renderStudy();
+  }
+
+  // The worker answered that the list can't be had for now (the site's limit
+  // on requests, or the site itself), so the term's status is unknown: not
+  // the same as a term that isn't on the list. Send to study stays on, and
+  // the worker checks the list again when it is clicked.
+  function studyListLate() {
+    return studyInfo.status === null && (studyInfo.today === 'rate_limited' || studyInfo.today === 'unavailable');
   }
 
   // Why the page can't be sent now, as a code `words` knows, or null.
@@ -1246,7 +1258,7 @@
     if (!studyInfo.accepted) return 'not_accepted';
     if (!studyInfo.page.ok) return studyInfo.page.reason;
     if (studyInfo.status === 'sent') return 'already_sent';
-    if (studyInfo.status === null) return 'not_on_list';
+    if (studyInfo.status === null && !studyListLate()) return 'not_on_list';
     if (!rowCount) return 'empty';
     return null;
   }
@@ -1269,12 +1281,16 @@
     let status = '';
     if (studyOutcome) status = words(studyOutcome.state);
     else if (blocked) status = words(blocked);
+    else if (studyListLate()) status = words(studyInfo.today);
     text('study-status', status);
     if (sendBtn) {
       sendBtn.textContent = studySent ? 'Sent' : 'Send to study';
       sendBtn.disabled = studySent || studyBusy || !!blocked;
     }
-    if (stopBtn) stopBtn.disabled = studyBusy || studyStopped;
+    if (stopBtn) {
+      stopBtn.textContent = studyStopTimer !== null ? A.STOP_CONFIRM_LABEL : A.STOP_LABEL;
+      stopBtn.disabled = studyBusy || studyStopped;
+    }
   }
 
   // The page as the study takes it: this page's results and search context
@@ -1304,8 +1320,17 @@
     });
   }
 
+  // A stop moves the day's other terms to tomorrow, so the first click only
+  // asks (the button says so for a few seconds) and the second records it.
   function studyStop(e) {
     if (!trusted(e) || !studyInfo || studyBusy || studyStopped) return;
+    if (studyStopTimer === null) {
+      studyStopTimer = setTimeout(() => { studyStopTimer = null; renderStudy(); }, A.STOP_CONFIRM_MS);
+      renderStudy();
+      return;
+    }
+    clearTimeout(studyStopTimer);
+    studyStopTimer = null;
     studyBusy = true;
     studyOutcome = null;
     renderStudy();
@@ -1822,7 +1847,8 @@
       }
     });
     placePanel();
-    setCollapsed(settings.collapsed);
+    // A study tab's panel stays open, as renderToolbar leaves it.
+    setCollapsed(studyInfo ? false : settings.collapsed);
     renderAllFigures();
     scheduleTable();
     if (settings.figuresOn && settings.load === 'auto') loadFigures(false);

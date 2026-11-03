@@ -32,6 +32,7 @@ const STUDY = Object.freeze({
   keyword: 'how does seo work',
   accepted: true,
   status: 'open',
+  today: 'ready',
   page: { ok: true }
 });
 
@@ -102,6 +103,12 @@ function userClick(button) {
   const fns = clickListeners.get(button) || [];
   expect(fns.length).toBeGreaterThan(0);
   fns.forEach((fn) => fn({ isTrusted: true, type: 'click', button: 0, target: button, preventDefault() {}, stopPropagation() {} }));
+}
+
+// "Google stopped me" takes two clicks: the first asks, the second records.
+function userStop() {
+  userClick(role('study-stop'));
+  userClick(role('study-stop'));
 }
 
 // The overlay's answer to the popup's 'serpStatus'.
@@ -276,6 +283,21 @@ describe('a study tab', () => {
     expect(panel()).not.toBeNull();
     expect(role('study-send').disabled).toBe(false);
     expect(sentActions('serpFigures')).toHaveLength(0);
+  });
+
+  it('keeps the panel open when a setting changes, even one left folded in Settings', async () => {
+    let changed;
+    window.chrome.storage.onChanged = { addListener: (fn) => { changed = fn; } };
+    useSettings({ collapsed: true });
+    await load(results());
+    expect(panel().getAttribute('data-collapsed')).toBe('false');
+    changed({ serpSettings: { newValue: { collapsed: true, look: 'dark' } } }, 'local');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(panel().getAttribute('data-collapsed')).toBe('false');
+    expect(role('body').hidden).toBe(false);
+    // A click on Hide still folds it.
+    userClick(document.querySelector('[data-role="toggle"]'));
+    expect(panel().getAttribute('data-collapsed')).toBe('true');
   });
 
   it('tells the popup in serpStatus: a study tab, with figures "study_tab"', async () => {
@@ -503,28 +525,123 @@ describe('a study tab', () => {
   });
 
   describe('Google stopped me', () => {
-    it('records it once and says what happens to the day\'s other terms', async () => {
+    it('asks for a second click first: the label changes, and nothing is recorded', async () => {
       replies.aioStudyStop = { state: 'stopped', carried: 2 };
       await load(results());
       userClick(role('study-stop'));
+      expect(role('study-stop').textContent).toBe("Click again to end today's searches");
+      expect(role('study-stop').disabled).toBe(false);
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(sentActions('aioStudyStop')).toHaveLength(0);
+      expect(role('study-stop').textContent).toBe("Click again to end today's searches");
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(role('study-stop').textContent).toBe('Google stopped me');
+      expect(sentActions('aioStudyStop')).toHaveLength(0);
+      // Too late for the second click: it is a first click again.
+      userClick(role('study-stop'));
+      expect(role('study-stop').textContent).toBe("Click again to end today's searches");
+      expect(sentActions('aioStudyStop')).toHaveLength(0);
+    });
+
+    it('records the stop on a second click within five seconds, once, and says what happens to the day\'s other terms', async () => {
+      replies.aioStudyStop = { state: 'stopped', carried: 2 };
+      await load(results());
+      userClick(role('study-stop'));
+      await vi.advanceTimersByTimeAsync(4900);
+      userClick(role('study-stop'));
       expect(role('study-stop').disabled).toBe(true);
+      expect(role('study-stop').textContent).toBe('Google stopped me');
       await vi.advanceTimersByTimeAsync(50);
       expect(sentActions('aioStudyStop')).toEqual([{ action: 'aioStudyStop' }]);
       expect(studyText('study-status')).toBe(study.message('stopped'));
       expect(role('study-stop').disabled).toBe(true);
-      userClick(role('study-stop'));
+      userStop();
       await vi.advanceTimersByTimeAsync(50);
       expect(sentActions('aioStudyStop')).toHaveLength(1);
       expect(sentActions('aioStudySend')).toHaveLength(0);
     });
 
+    it('counts only a person\'s clicks: a page script\'s click neither asks nor records', async () => {
+      await load(results());
+      role('study-stop').click();
+      role('study-stop').click();
+      userClick(role('study-stop'));
+      role('study-stop').click();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(role('study-stop').textContent).toBe("Click again to end today's searches");
+      expect(sentActions('aioStudyStop')).toHaveLength(0);
+    });
+
+    it('keeps the asking label through a redraw of the group, and a stopped timer does not fire late', async () => {
+      replies.aioStudyStop = { state: 'stopped', carried: 2 };
+      await load(results());
+      userClick(role('study-stop'));
+      document.querySelector('#rso').insertAdjacentHTML('beforeend', '<div class="g"><a href="https://gamma.example/p"><h3>Result 2</h3></a></div>');
+      await vi.advanceTimersByTimeAsync(700);
+      expect(role('study-stop').textContent).toBe("Click again to end today's searches");
+      userClick(role('study-stop'));
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(sentActions('aioStudyStop')).toHaveLength(1);
+      expect(role('study-stop').textContent).toBe('Google stopped me');
+      expect(role('study-stop').disabled).toBe(true);
+    });
+
     it('says why, and can be tried again, when the study could not record it', async () => {
       replies.aioStudyStop = { state: 'rate_limited' };
       await load(results());
-      userClick(role('study-stop'));
+      userStop();
       await vi.advanceTimersByTimeAsync(50);
       expect(studyText('study-status')).toBe(study.message('rate_limited'));
       expect(role('study-stop').disabled).toBe(false);
+      expect(role('study-stop').textContent).toBe('Google stopped me');
+      userStop();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(sentActions('aioStudyStop')).toHaveLength(2);
+    });
+  });
+
+  describe('a list the worker could not get', () => {
+    it.each(['rate_limited', 'unavailable'])('%s: says so, and Send to study stays on and sends', async (state) => {
+      replies.aioStudyTab = Object.assign({}, STUDY, { status: null, today: state });
+      replies.aioStudySend = { state: 'sent' };
+      await load(results());
+      expect(studyText('study-status')).toBe(study.message(state));
+      expect(role('study-send').disabled).toBe(false);
+      userClick(role('study-send'));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(sentActions('aioStudySend')).toHaveLength(1);
+      expect(studyText('study-status')).toBe('Sent to the study.');
+    });
+
+    it('and says what the worker answers when it checks the list again and still cannot', async () => {
+      replies.aioStudyTab = Object.assign({}, STUDY, { status: null, today: 'rate_limited' });
+      replies.aioStudySend = { state: 'rate_limited' };
+      await load(results());
+      userClick(role('study-send'));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(studyText('study-status')).toBe(study.message('rate_limited'));
+      expect(role('study-send').disabled).toBe(false);
+    });
+
+    it.each(['paused', 'not_enrolled', 'reconnect', 'no_key', 'not_accepted', 'ready', null])('%s: a missing status still reads as a term not on the list', async (state) => {
+      replies.aioStudyTab = Object.assign({}, STUDY, { status: null, today: state });
+      await load(results());
+      expect(studyText('study-status')).toBe(study.message('not_on_list'));
+      expect(role('study-send').disabled).toBe(true);
+    });
+
+    it('with a status, the list state says nothing', async () => {
+      replies.aioStudyTab = Object.assign({}, STUDY, { status: 'open', today: 'rate_limited' });
+      await load(results());
+      expect(studyText('study-status')).toBe('');
+      expect(role('study-send').disabled).toBe(false);
+    });
+
+    it('still keeps Send off when the page has no result or has moved on', async () => {
+      replies.aioStudyTab = Object.assign({}, STUDY, { status: null, today: 'unavailable', page: { ok: false, reason: 'other_search' } });
+      await load(results());
+      expect(role('study-send').disabled).toBe(true);
+      expect(studyText('study-status')).toBe(study.message('other_search'));
     });
   });
 });

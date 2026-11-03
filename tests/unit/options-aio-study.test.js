@@ -39,7 +39,7 @@ describe.each(PAGES)('%s (%s): the AI Overview study card', (file) => {
   it('then says how a term opens, what Chrome must allow, and where to join and leave', () => {
     const second = section.querySelectorAll('.consent-card .consent-text')[1].textContent.trim();
     expect(second).toBe(
-      'Each term opens in a private window with Google set to the US and English and personalization off (hl=en, gl=us, pws=0). ' +
+      'Each term opens in a private window with Google set to the US and English and Google’s personalization parameter off (hl=en, gl=us, pws=0). ' +
       'Chrome must allow SEO Bandwagon in private windows: Allow in Incognito, on the extension’s Details page. ' +
       'Join or leave the study on seobandwagon.com; turn sends off here at any time.'
     );

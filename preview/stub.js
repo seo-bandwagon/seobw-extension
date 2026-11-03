@@ -742,7 +742,7 @@ function handleMessage(msg) {
       return PREVIEW_STATE === 'study-tab'
         ? {
           study: true, termId: 't1', keyword: 'best running shoes for flat feet', accepted: true,
-          status: STUDY_QUERY.get('sent') === '1' ? 'sent' : 'open', page: { ok: true }
+          status: STUDY_QUERY.get('sent') === '1' ? 'sent' : 'open', today: 'ready', page: { ok: true }
         }
         : { study: false };
     case 'aioStudySend': return { state: 'sent' };

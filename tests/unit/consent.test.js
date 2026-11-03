@@ -161,6 +161,10 @@ describe('the AI Overview study (1.13.3): its own yes, and nothing else turns it
     expect(sends).toMatch(/Never any other search or page/);
     expect(sends).toMatch(/not into your account/);
     expect(sends).toMatch(/SEO Bandwagon’s AI Overview study/);
+    // The export's Result stats column is the result count; the extension itself asks Google for nothing.
+    expect(sends).toMatch(/related searches and People also ask questions, the result count, the AI Overview’s text/);
+    expect(sends).toMatch(/and the extension never sends a request to Google itself\./);
+    expect(sends).not.toMatch(/never a request to Google/i);
     expect(why).toMatch(/Google’s AI Overviews cite/);
     expect(`${sends} ${why}`).not.toMatch(/—/);
   });

@@ -129,12 +129,12 @@
       } catch (e) { /* session storage full or gone: the answer still stands */ }
     }
 
+    // The list's entry for a term (the first not yet sent when it is listed
+    // twice: SBWAioStudy.termEntryIndex).
     function termOf(today, termId) {
       const terms = today && today.state === 'ready' && Array.isArray(today.terms) ? today.terms : [];
-      for (let i = 0; i < terms.length; i++) {
-        if (terms[i] && terms[i].term_id === termId) return terms[i];
-      }
-      return null;
+      const at = study().termEntryIndex(terms, termId);
+      return at < 0 ? null : terms[at];
     }
 
     /**
@@ -142,6 +142,9 @@
      * ('no_key', 'not_enrolled', 'paused', 'reconnect', 'rate_limited',
      * 'unavailable', or 'not_accepted' without the yes: nothing is read or
      * asked). Kept five minutes, for the same UTC day; `fresh` asks again.
+     * The site's limit is a few requests a minute for the whole account, so
+     * an answer of 'rate_limited' or 'unavailable' is given to the caller but
+     * does not replace a ready list kept from the same UTC day.
      */
     async function today(opts) {
       const S = study();
@@ -155,6 +158,10 @@
         }
       }
       const state = S.todayState(await call(() => deps.api.today()));
+      if (state.state === 'rate_limited' || state.state === 'unavailable') {
+        const kept = await readCachedToday();
+        if (kept && kept.state === 'ready' && kept.date === S.utcDate(now())) return state;
+      }
       await writeToday(state);
       return state;
     }
@@ -215,8 +222,10 @@
     /**
      * What the results page needs to know about its own tab:
      * { study: false }, or { study: true, termId, keyword, accepted, status,
-     * page } (`status` the term's on today's list, `open`, `sent` or `late`,
-     * or null; `page` the check that the tab still shows the study's search).
+     * today, page } (`status` the term's on today's list, `open`, `sent` or
+     * `late`, or null; `today` the list's state, 'ready' or why there is no
+     * list, so a status of null can be told from a list that couldn't be
+     * asked for; `page` the check that the tab still shows the study's search).
      */
     async function tabStatus(tabId, url) {
       const S = study();
@@ -231,6 +240,7 @@
         keyword: record.keyword,
         accepted,
         status: term ? term.status : null,
+        today: list && typeof list.state === 'string' ? list.state : 'not_accepted',
         page: S.checkStudyPage(url, record.keyword)
       };
     }
@@ -257,14 +267,17 @@
     }
 
     // The kept list shows the term as sent without asking again; the list's
-    // age is left as it was.
+    // age is left as it was. A term listed twice has one entry marked, the
+    // one the send filled (the first not yet sent).
     async function markSent(termId) {
       try {
         await exclusive(async () => {
           const got = await deps.session.get(TODAY_KEY);
           const cached = got && got[TODAY_KEY];
           if (!cached || cached.state !== 'ready' || !Array.isArray(cached.terms)) return;
-          const terms = cached.terms.map((t) => (t && t.term_id === termId ? Object.assign({}, t, { status: 'sent' }) : t));
+          const at = study().termEntryIndex(cached.terms, termId);
+          if (at < 0) return;
+          const terms = cached.terms.map((t, i) => (i === at ? Object.assign({}, t, { status: 'sent' }) : t));
           await deps.session.set({ [TODAY_KEY]: Object.assign({}, cached, { terms }) });
         });
       } catch (e) { /* the next list asked for says it */ }
@@ -279,7 +292,12 @@
       const S = study();
       if (!(await yes())) return { state: 'not_accepted' };
       const outcome = S.stopOutcome(await call(() => deps.api.stop()));
-      if (outcome.state === 'stopped') await today({ fresh: true });
+      if (outcome.state === 'stopped') {
+        // The kept list is wrong now (the day's other terms moved to
+        // tomorrow), so a refresh that fails must not leave it standing.
+        try { await exclusive(() => deps.session.set({ [TODAY_KEY]: null })); } catch (e) { /* the list is asked for below */ }
+        await today({ fresh: true });
+      }
       return outcome;
     }
 

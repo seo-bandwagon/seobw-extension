@@ -92,6 +92,7 @@ globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => 
 
 document.querySelectorAll('.switcher button').forEach(btn => {
   btn.addEventListener('click', () => {
+    const wasActive = btn.classList.contains('active');
     document.querySelectorAll('.switcher button').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
@@ -100,7 +101,9 @@ document.querySelectorAll('.switcher button').forEach(btn => {
     if (btn.dataset.tab === 'citations' && typeof initCitationsTab === 'function') {
       initCitationsTab();
     }
-    if (btn.dataset.tab === 'study') {
+    // The STUDY tab asks the site for its list, which is limited: a click on
+    // the tab that is already showing draws nothing again.
+    if (btn.dataset.tab === 'study' && !wasActive) {
       globalThis.SBWStudyPanel?.render(document.getElementById('study-content'));
     }
   });

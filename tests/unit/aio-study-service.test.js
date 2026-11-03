@@ -132,6 +132,46 @@ describe('today', () => {
     expect(api.today).toHaveBeenCalledTimes(1);
   });
 
+  it('a rate-limited or unavailable answer does not replace a ready list kept from the same UTC day', async () => {
+    await svc.today();
+    const kept = { ...session.data[TODAY_KEY] };
+    session.set.mockClear();
+
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 20 }));
+    expect(await svc.today({ fresh: true })).toEqual({ state: 'rate_limited', retryAfter: 20 });
+    api.today.mockResolvedValue(res(503, { error: 'study_unavailable' }));
+    expect(await svc.today({ fresh: true })).toEqual({ state: 'unavailable' });
+    api.today.mockRejectedValue(new Error('offline'));
+    expect(await svc.today({ fresh: true })).toEqual({ state: 'unavailable' });
+
+    expect(session.set).not.toHaveBeenCalled();
+    expect(session.data[TODAY_KEY]).toEqual(kept);
+    // Aged out, it is asked for again; the failure is the answer, the list stays kept.
+    clock.t = NOW + 600000;
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 5 }));
+    expect(await svc.today()).toEqual({ state: 'rate_limited', retryAfter: 5 });
+    expect(session.data[TODAY_KEY]).toEqual(kept);
+    // And when the site answers again, the new list replaces it.
+    api.today.mockResolvedValue(res(200, todayBody({ terms: [] })));
+    expect(await svc.today()).toMatchObject({ state: 'ready', terms: [] });
+    expect(session.data[TODAY_KEY].terms).toEqual([]);
+  });
+
+  it('a failure replaces a kept list that is not from today, and any other state replaces a ready one', async () => {
+    await svc.today();
+    clock.t = Date.UTC(2026, 10, 4, 0, 1, 0);
+    api.today.mockResolvedValue(res(503, { error: 'study_unavailable' }));
+    expect(await svc.today({ fresh: true })).toEqual({ state: 'unavailable' });
+    expect(session.data[TODAY_KEY]).toMatchObject({ state: 'unavailable' });
+
+    clock.t = NOW;
+    api.today.mockResolvedValue(res(200, todayBody()));
+    await svc.today({ fresh: true });
+    api.today.mockResolvedValue(res(403, { error: 'insufficient_scope' }));
+    expect(await svc.today({ fresh: true })).toEqual({ state: 'reconnect' });
+    expect(session.data[TODAY_KEY]).toMatchObject({ state: 'reconnect' });
+  });
+
   it('reads a failed request as unavailable', async () => {
     api.today.mockRejectedValue(new Error('offline'));
     expect(await svc.today({ fresh: true })).toEqual({ state: 'unavailable' });
@@ -303,6 +343,7 @@ describe('tabStatus', () => {
       keyword: 'how does seo work',
       accepted: true,
       status: 'open',
+      today: 'ready',
       page: { ok: true }
     });
   });
@@ -330,15 +371,40 @@ describe('tabStatus', () => {
     consentOk.mockResolvedValue(false);
     api.today.mockClear();
     const out = await svc.tabStatus(tabId, T1_URL);
-    expect(out).toMatchObject({ study: true, accepted: false, status: null });
+    expect(out).toMatchObject({ study: true, accepted: false, status: null, today: 'not_accepted' });
     expect(api.today).not.toHaveBeenCalled();
   });
 
-  it('keeps the status null while the list is unavailable', async () => {
+  it('with no list kept and none to be had: the status is null and `today` says why', async () => {
     const tabId = await openT1();
+    delete session.data[TODAY_KEY];
     api.today.mockResolvedValue(res(503, { error: 'study_unavailable' }));
+    expect(await svc.tabStatus(tabId, T1_URL)).toMatchObject({ status: null, today: 'unavailable' });
+    delete session.data[TODAY_KEY];
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 30 }));
+    expect(await svc.tabStatus(tabId, T1_URL)).toMatchObject({ status: null, today: 'rate_limited' });
+    delete session.data[TODAY_KEY];
+    api.today.mockResolvedValue(res(200, { enrolled: true, paused: true }));
+    expect(await svc.tabStatus(tabId, T1_URL)).toMatchObject({ status: null, today: 'paused' });
+  });
+
+  it('keeps the term\'s status while a refresh of the list is rate limited or unavailable', async () => {
+    const tabId = await openT1();
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 30 }));
     await svc.today({ fresh: true });
-    expect((await svc.tabStatus(tabId, T1_URL)).status).toBeNull();
+    expect(await svc.tabStatus(tabId, T1_URL)).toMatchObject({ status: 'open', today: 'ready' });
+    clock.t = NOW + 600000;
+    expect(await svc.tabStatus(tabId, T1_URL)).toMatchObject({ status: null, today: 'rate_limited' });
+    expect(session.data[TODAY_KEY]).toMatchObject({ state: 'ready' });
+  });
+
+  it('a term listed twice reads by its first entry not yet sent', async () => {
+    const tabId = await openT1();
+    const kw = 'how does seo work';
+    api.today.mockResolvedValue(res(200, todayBody({ terms: [
+      { term_id: 't1', keyword: kw, status: 'sent' }, { term_id: 't1', keyword: kw, status: 'late' }] })));
+    await svc.today({ fresh: true });
+    expect((await svc.tabStatus(tabId, T1_URL)).status).toBe('late');
   });
 });
 
@@ -466,10 +532,70 @@ describe('send', () => {
   });
 
   it('with the list unavailable: its state, nothing posted', async () => {
+    delete session.data[TODAY_KEY];
     api.today.mockResolvedValue(res(503, { error: 'study_unavailable' }));
-    await svc.today({ fresh: true });
     expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'unavailable' });
     expect(api.send).not.toHaveBeenCalled();
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 9 }));
+    expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'rate_limited' });
+    expect(api.send).not.toHaveBeenCalled();
+  });
+
+  it('with the list kept and its refresh rate limited: the send waits for a list it can check', async () => {
+    await svc.today({ fresh: true });
+    clock.t = NOW + 600000;
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 9 }));
+    expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'rate_limited' });
+    expect(api.send).not.toHaveBeenCalled();
+    api.today.mockResolvedValue(res(200, todayBody()));
+    expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'sent' });
+  });
+
+  describe('a term the list names twice', () => {
+    const kw = 'how does seo work';
+    const entry = (status) => ({ term_id: 't1', keyword: kw, status });
+    const listed = async (...statuses) => {
+      api.today.mockResolvedValue(res(200, todayBody({ terms: statuses.map(entry) })));
+      await svc.today({ fresh: true });
+      api.today.mockClear();
+    };
+
+    it('[sent, late] sends, and both read sent after', async () => {
+      await listed('sent', 'late');
+      expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'sent' });
+      expect(session.data[TODAY_KEY].terms.map((t) => t.status)).toEqual(['sent', 'sent']);
+      api.send.mockClear();
+      expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'already_sent' });
+      expect(api.send).not.toHaveBeenCalled();
+    });
+
+    it('[late, open] marks only the first after a send, and the second still sends', async () => {
+      await listed('late', 'open');
+      expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'sent' });
+      expect(session.data[TODAY_KEY].terms.map((t) => t.status)).toEqual(['sent', 'open']);
+      expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'sent' });
+      expect(session.data[TODAY_KEY].terms.map((t) => t.status)).toEqual(['sent', 'sent']);
+    });
+
+    it('a 409 marks one entry too', async () => {
+      await listed('late', 'open');
+      api.send.mockResolvedValue(res(409, { error: 'already_sent' }));
+      expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'already_sent' });
+      expect(session.data[TODAY_KEY].terms.map((t) => t.status)).toEqual(['sent', 'open']);
+    });
+
+    it('[sent, sent]: already_sent, nothing posted', async () => {
+      await listed('sent', 'sent');
+      expect(await svc.send(tabId, T1_URL, 't1', 'a,b\n')).toEqual({ state: 'already_sent' });
+      expect(api.send).not.toHaveBeenCalled();
+    });
+
+    it('opens from [sent, late], and refuses [sent, sent]', async () => {
+      await listed('sent', 'late');
+      expect(await svc.open('t1')).toMatchObject({ ok: true });
+      await listed('sent', 'sent');
+      expect(await svc.open('t1')).toEqual({ ok: false, reason: 'already_sent' });
+    });
   });
 
   it('reads the day\'s list from what it kept, and asks only when that has aged out', async () => {
@@ -521,6 +647,14 @@ describe('stop', () => {
     expect(api.today).toHaveBeenCalledTimes(1);
     expect(api.stop.mock.invocationCallOrder[0]).toBeLessThan(api.today.mock.invocationCallOrder[0]);
     expect(session.data[TODAY_KEY].terms).toEqual([{ term_id: 't1', keyword: 'how does seo work', status: 'late' }]);
+  });
+
+  it('a refresh after the stop that fails leaves no list of the day it replaced', async () => {
+    await svc.today();
+    api.today.mockResolvedValue(res(429, { error: 'rate_limited' }, { retryAfter: 20 }));
+    expect(await svc.stop()).toEqual({ state: 'stopped', carried: 2 });
+    expect(await svc.today()).toEqual({ state: 'rate_limited', retryAfter: 20 });
+    expect(session.data[TODAY_KEY]).toMatchObject({ state: 'rate_limited' });
   });
 
   it('answers the site\'s refusals', async () => {

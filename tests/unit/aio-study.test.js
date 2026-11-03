@@ -34,6 +34,9 @@ describe('constants', () => {
     expect(S.JOIN_PATH).toBe('/dashboard/aio-study');
     expect(S.CONNECT_PATH).toBe('/dashboard/api-keys');
     expect(S.TODAY_MAX_AGE_MS).toBe(300000);
+    expect(S.STOP_LABEL).toBe('Google stopped me');
+    expect(S.STOP_CONFIRM_LABEL).toBe("Click again to end today's searches");
+    expect(S.STOP_CONFIRM_MS).toBe(5000);
   });
 
   it('attaches to the global scope', () => {
@@ -125,6 +128,17 @@ describe('checkStudyPage', () => {
     // After the page-one check, so a later page of another tab still says why.
     expect(S.checkStudyPage(good + '&tbm=isch&start=10', kw)).toEqual({ ok: false, reason: 'not_page_one' });
     // The plain study address is still ok.
+    expect(S.checkStudyPage(good, kw)).toEqual({ ok: true });
+  });
+
+  it('params_changed: a parameter that changes which results the page shows', () => {
+    ['tbs=qdr:d', 'lr=lang_fr', 'cr=countryFR', 'num=100', 'nfpr=1', 'filter=0', 'uule=w+CAIQICIGUGFyaXM', 'near=Paris'].forEach((extra) => {
+      expect(S.checkStudyPage(good + '&' + extra, kw), extra).toEqual({ ok: false, reason: 'params_changed' });
+    });
+    // After the page-one check, as with the tabs above.
+    expect(S.checkStudyPage(good + '&tbs=qdr:d&start=10', kw)).toEqual({ ok: false, reason: 'not_page_one' });
+    // SafeSearch is the network's to force, not the tester's to change.
+    expect(S.checkStudyPage(good + '&safe=active', kw)).toEqual({ ok: true });
     expect(S.checkStudyPage(good, kw)).toEqual({ ok: true });
   });
 
@@ -336,6 +350,15 @@ describe('openGate', () => {
   it('then private windows are not allowed', () => {
     expect(S.openGate({ ...base, incognitoAllowed: false })).toEqual({ ok: false, reason: 'incognito_off' });
   });
+
+  it('a term listed twice opens by its first entry not yet sent, else its first', () => {
+    const twice = (a, b) => ({ state: 'ready', week: 1, date: '2026-11-03',
+      terms: [{ term_id: 'x', keyword: 'kw', status: a }, { term_id: 'x', keyword: 'kw', status: b }] });
+    expect(S.openGate({ ...base, termId: 'x', today: twice('sent', 'late') }))
+      .toEqual({ ok: true, term: { term_id: 'x', keyword: 'kw', status: 'late' } });
+    expect(S.openGate({ ...base, termId: 'x', today: twice('late', 'open') }).term.status).toBe('late');
+    expect(S.openGate({ ...base, termId: 'x', today: twice('sent', 'sent') })).toEqual({ ok: false, reason: 'already_sent' });
+  });
 });
 
 describe('sendGate', () => {
@@ -388,6 +411,15 @@ describe('sendGate', () => {
     expect(S.sendGate({ ...base, url: base.url.replace('&pws=0', '') })).toEqual({ ok: false, reason: 'params_changed' });
   });
 
+  it('a term listed twice sends by its first entry not yet sent, else says it was sent', () => {
+    const twice = (a, b) => ({ state: 'ready', week: 1, date: '2026-11-03',
+      terms: [{ term_id: 'x', keyword: kw, status: a }, { term_id: 'x', keyword: kw, status: b }] });
+    const input = { ...base, record: { termId: 'x', keyword: kw }, termId: 'x' };
+    expect(S.sendGate({ ...input, today: twice('sent', 'late') })).toEqual({ ok: true });
+    expect(S.sendGate({ ...input, today: twice('late', 'open') })).toEqual({ ok: true });
+    expect(S.sendGate({ ...input, today: twice('sent', 'sent') })).toEqual({ ok: false, reason: 'already_sent' });
+  });
+
   it('then there is nothing to send', () => {
     expect(S.sendGate({ ...base, csvBytes: 0 })).toEqual({ ok: false, reason: 'empty' });
     expect(S.sendGate({ ...base, csvBytes: undefined })).toEqual({ ok: false, reason: 'empty' });
@@ -395,6 +427,19 @@ describe('sendGate', () => {
 
   it('then it is too large', () => {
     expect(S.sendGate({ ...base, csvBytes: S.MAX_CSV_BYTES + 1 })).toEqual({ ok: false, reason: 'too_large' });
+  });
+});
+
+describe('termEntryIndex', () => {
+  const list = (...statuses) => statuses.map((status) => ({ term_id: 'x', keyword: 'kw', status }));
+
+  it('is the first entry not yet sent, else the first, else -1', () => {
+    expect(S.termEntryIndex(list('sent', 'late'), 'x')).toBe(1);
+    expect(S.termEntryIndex(list('late', 'open'), 'x')).toBe(0);
+    expect(S.termEntryIndex(list('sent', 'sent'), 'x')).toBe(0);
+    expect(S.termEntryIndex(list('open'), 'y')).toBe(-1);
+    expect(S.termEntryIndex([], 'x')).toBe(-1);
+    expect(S.termEntryIndex([null, ...list('open')], 'x')).toBe(1);
   });
 });
 

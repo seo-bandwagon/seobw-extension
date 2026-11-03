@@ -32,6 +32,10 @@
   // Every study search is the same market and the same page: English, the
   // US, personalization off, so the pages sent can be compared.
   const STUDY_PARAMS = Object.freeze({ hl: 'en', gl: 'us', pws: '0' });
+  // Parameters that, added to the study's search, change which results the
+  // page shows: a page with one is not the study's search.
+  const RESULT_CHANGING_PARAMS = Object.freeze(
+    ['tbm', 'udm', 'tbs', 'lr', 'cr', 'num', 'nfpr', 'filter', 'uule', 'near']);
   // The most CSV a send carries (the site answers 413 above it).
   const MAX_CSV_BYTES = 262144;
   // Pages on seobandwagon.com: where a person joins the study, and where
@@ -42,6 +46,14 @@
   const TODAY_MAX_AGE_MS = 300000;
 
   const TERM_STATUSES = ['open', 'sent', 'late'];
+
+  // "Google stopped me" moves the day's other terms to tomorrow, so one click
+  // only asks: the button then reads STOP_CONFIRM_LABEL for STOP_CONFIRM_MS,
+  // and a second click in that time records the stop. The popup and the
+  // results page use the same words and time.
+  const STOP_LABEL = 'Google stopped me';
+  const STOP_CONFIRM_LABEL = "Click again to end today's searches";
+  const STOP_CONFIRM_MS = 5000;
 
   // ============================================
   // The search
@@ -93,9 +105,15 @@
       return { ok: false, reason: 'not_page_one' };
     }
     // Google's other tabs (Images, Videos, News, Web...) keep q, hl, gl and
-    // pws and add one of these, so they would pass the parameters below.
-    if (u.searchParams.has('tbm') || u.searchParams.has('udm')) {
-      return { ok: false, reason: 'params_changed' };
+    // pws and add tbm or udm, so they would pass the parameters below; the
+    // rest change which results the page shows (a date range, a language or
+    // country restriction, the count, no auto-correct, a filter, a place).
+    // `safe` is not here: a network can force SafeSearch, and the tester
+    // can't change it.
+    for (let i = 0; i < RESULT_CHANGING_PARAMS.length; i++) {
+      if (u.searchParams.has(RESULT_CHANGING_PARAMS[i])) {
+        return { ok: false, reason: 'params_changed' };
+      }
     }
     const names = Object.keys(STUDY_PARAMS);
     for (let i = 0; i < names.length; i++) {
@@ -193,12 +211,24 @@
   // The gates
   // ============================================
 
+  // The day's list can name one term twice (a term carried over by a stop,
+  // and the same term assigned that week), and the site fills the older
+  // one first. So the entry for a term is the first not yet sent, or the
+  // first when all are. `termEntryIndex` is its place in `terms`, -1 if none.
+  function termEntryIndex(terms, termId) {
+    let first = -1;
+    for (let i = 0; i < terms.length; i++) {
+      if (!terms[i] || terms[i].term_id !== termId) continue;
+      if (terms[i].status !== 'sent') return i;
+      if (first < 0) first = i;
+    }
+    return first;
+  }
+
   function findTerm(today, termId) {
     const terms = today && Array.isArray(today.terms) ? today.terms : [];
-    for (let i = 0; i < terms.length; i++) {
-      if (terms[i] && terms[i].term_id === termId) return terms[i];
-    }
-    return null;
+    const at = termEntryIndex(terms, termId);
+    return at < 0 ? null : terms[at];
   }
 
   // Clicking a term in the study panel: the person said yes to study sends,
@@ -294,6 +324,9 @@
     JOIN_PATH,
     CONNECT_PATH,
     TODAY_MAX_AGE_MS,
+    STOP_LABEL,
+    STOP_CONFIRM_LABEL,
+    STOP_CONFIRM_MS,
     studySearchUrl,
     queryKey,
     checkStudyPage,
@@ -301,6 +334,7 @@
     todayState,
     sendOutcome,
     stopOutcome,
+    termEntryIndex,
     openGate,
     sendGate,
     weekLabel,

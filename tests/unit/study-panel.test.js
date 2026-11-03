@@ -5,6 +5,8 @@
 // deps.openUrl, so nothing here needs a browser.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Same order as popup.html: sync-state before api, the study's pure module,
 // then the panel.
@@ -103,11 +105,11 @@ describe('shouldShow', () => {
 });
 
 describe('a ready day', () => {
-  it('asks for a fresh list, and shows the week and the date', async () => {
+  it('asks for the list the worker keeps, not a fresh one, and shows the week and the date (UTC)', async () => {
     const askWorker = await show({ aioStudyToday: READY });
-    expect(askWorker.asked[0]).toEqual({ action: 'aioStudyToday', fresh: true });
+    expect(askWorker.asked).toEqual([{ action: 'aioStudyToday' }]);
     expect(container.querySelector('.study-week').textContent).toBe('Week 3');
-    expect(container.querySelector('.study-date').textContent).toBe('2026-11-03');
+    expect(container.querySelector('.study-date').textContent).toBe('2026-11-03 (UTC)');
   });
 
   it('calls week 0 the pilot week', async () => {
@@ -149,10 +151,17 @@ describe('a ready day', () => {
     expect(container.querySelector('.study-keyword').textContent).toBe(keyword);
   });
 
-  it('says so when the day has no terms', async () => {
+  it('says so when the day has no terms, and then has no Google stopped me', async () => {
     await show({ aioStudyToday: Object.assign({}, READY, { terms: [] }) });
     expect(container.querySelectorAll('.study-term')).toHaveLength(0);
     expect(container.textContent).toContain('No terms for today.');
+    expect(buttonLabeled('Google stopped me')).toBeNull();
+    expect(buttons()).toHaveLength(0);
+  });
+
+  it('keeps Google stopped me for a day whose terms are all sent', async () => {
+    await show({ aioStudyToday: Object.assign({}, READY, { terms: [TERMS[2]] }) });
+    expect(buttonLabeled('Google stopped me')).not.toBeNull();
   });
 });
 
@@ -194,6 +203,28 @@ describe('a Search click', () => {
     await vi.waitFor(() => expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday')).toHaveLength(2));
     await vi.waitFor(() => expect(rowFor('best running shoes').querySelector('button')).toBeNull());
     expect(container.textContent).toContain(S.message('already_sent'));
+    // The first drawing took the worker's kept list; only the refusal asked afresh.
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday'))
+      .toEqual([{ action: 'aioStudyToday' }, { action: 'aioStudyToday', fresh: true }]);
+  });
+
+  it('asks afresh too when the term is not on the list any more', async () => {
+    let list = 0;
+    const askWorker = await show({
+      aioStudyToday: () => (list++ === 0 ? READY : Object.assign({}, READY, { terms: [TERMS[2]] })),
+      aioStudyOpen: { ok: false, reason: 'not_on_list' }
+    });
+    rowFor('best running shoes').querySelector('button').click();
+    await vi.waitFor(() => expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday')).toHaveLength(2));
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday')[1]).toEqual({ action: 'aioStudyToday', fresh: true });
+    await vi.waitFor(() => expect(container.textContent).toContain(S.message('not_on_list')));
+  });
+
+  it('does not ask again for the list after a refusal that says nothing about it', async () => {
+    const askWorker = await show({ aioStudyToday: READY, aioStudyOpen: { ok: false, reason: 'incognito_off' } });
+    rowFor('best running shoes').querySelector('button').click();
+    await vi.waitFor(() => expect(container.textContent).toContain(S.message('incognito_off')));
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday')).toHaveLength(1);
   });
 
   it('with no answer from the worker, says it couldn\'t', async () => {
@@ -218,11 +249,12 @@ describe('a day that is not ready', () => {
     expect(url.searchParams.get('utm_campaign')).toBe('popup');
   });
 
-  it.each(['reconnect', 'no_key'])('%s: says so, and Reconnect opens the API keys page', async (state) => {
+  it.each([['reconnect', 'Reconnect', 'Connect'], ['no_key', 'Connect', 'Reconnect']])('%s: says so, and %s opens the API keys page', async (state, label, other) => {
     await show({ aioStudyToday: { state } });
     expect(container.textContent).toContain(S.message(state));
     expect(buttonLabeled('Join on seobandwagon.com')).toBeNull();
-    const reconnect = buttonLabeled('Reconnect');
+    expect(buttonLabeled(other)).toBeNull();
+    const reconnect = buttonLabeled(label);
     expect(reconnect).not.toBeNull();
     reconnect.click();
     await vi.waitFor(() => expect(openUrl).toHaveBeenCalledTimes(1));
@@ -254,25 +286,114 @@ describe('a day that is not ready', () => {
 });
 
 describe('Google stopped me', () => {
-  it('asks the worker to stop, shows the stopped words, and lists the day again', async () => {
+  // The first click only asks; the second, within five seconds, records the stop.
+  const stopTwice = () => {
+    buttonLabeled('Google stopped me').click();
+    buttonLabeled("Click again to end today's searches").click();
+  };
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('asks once more first: one click records nothing, and the button says what a second does', async () => {
     const askWorker = await show({ aioStudyToday: READY, aioStudyStop: { state: 'stopped', carried: 2 } });
     buttonLabeled('Google stopped me').click();
+    expect(buttonLabeled('Google stopped me')).toBeNull();
+    const again = buttonLabeled("Click again to end today's searches");
+    expect(again).not.toBeNull();
+    expect(again.disabled).toBe(false);
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyStop')).toHaveLength(0);
+  });
+
+  it('goes back to Google stopped me after five seconds, and a click after that asks again', async () => {
+    vi.useFakeTimers();
+    const askWorker = await show({ aioStudyToday: READY, aioStudyStop: { state: 'stopped', carried: 2 } });
+    buttonLabeled('Google stopped me').click();
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(buttonLabeled("Click again to end today's searches")).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(buttonLabeled("Click again to end today's searches")).toBeNull();
+    expect(buttonLabeled('Google stopped me')).not.toBeNull();
+    buttonLabeled('Google stopped me').click();
+    expect(buttonLabeled("Click again to end today's searches")).not.toBeNull();
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyStop')).toHaveLength(0);
+  });
+
+  it('a second click within the time asks the worker to stop, shows the stopped words, and asks for the list afresh', async () => {
+    const askWorker = await show({ aioStudyToday: READY, aioStudyStop: { state: 'stopped', carried: 2 } });
+    stopTwice();
     await vi.waitFor(() => expect(askWorker.asked).toContainEqual({ action: 'aioStudyStop' }));
     await vi.waitFor(() => expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday')).toHaveLength(2));
     await vi.waitFor(() => expect(container.querySelectorAll('.study-term')).toHaveLength(3));
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyStop')).toHaveLength(1);
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyToday')[1]).toEqual({ action: 'aioStudyToday', fresh: true });
     expect(container.textContent).toContain(S.message('stopped'));
+  });
+
+  it('a click on the confirming button after the time has gone asks again instead of stopping', async () => {
+    vi.useFakeTimers();
+    const askWorker = await show({ aioStudyToday: READY, aioStudyStop: { state: 'stopped', carried: 2 } });
+    const stop = buttonLabeled('Google stopped me');
+    stop.click();
+    await vi.advanceTimersByTimeAsync(5000);
+    stop.click();
+    expect(stop.textContent).toBe("Click again to end today's searches");
+    expect(askWorker.asked.filter((m) => m.action === 'aioStudyStop')).toHaveLength(0);
   });
 
   it('shows a failure in the study\'s words, with the button that helps', async () => {
     await show({ aioStudyToday: READY, aioStudyStop: { state: 'reconnect' } });
-    buttonLabeled('Google stopped me').click();
+    stopTwice();
     await vi.waitFor(() => expect(container.textContent).toContain(S.message('reconnect')));
     expect(buttonLabeled('Reconnect')).not.toBeNull();
   });
 
   it('with no answer from the worker, says it couldn\'t', async () => {
     await show({ aioStudyToday: READY, aioStudyStop: undefined });
-    buttonLabeled('Google stopped me').click();
+    stopTwice();
     await vi.waitFor(() => expect(container.textContent).toContain(S.message('error')));
+  });
+});
+
+describe('the popup\'s STUDY pill', () => {
+  // popup.js is a page script, not a module: its tab-switching block is run
+  // here over the pills and panels it works on.
+  const source = readFileSync(resolve(__dirname, '../../extension/src/popup/popup.js'), 'utf8');
+  const start = source.indexOf('/* ---------- tab switching ---------- */');
+  const end = source.indexOf('// 1.13.3: the STUDY tab (src/popup/study-panel.js)');
+  const block = source.slice(start, end);
+
+  let render;
+  beforeEach(() => {
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    document.body.innerHTML = `
+      <div class="switcher"><button class="active" data-tab="seo">SEO</button><button data-tab="citations">Citations</button><button data-tab="study">STUDY</button></div>
+      <div class="tab-panel active" id="tab-seo"></div><div class="tab-panel" id="tab-citations"></div>
+      <div class="tab-panel" id="tab-study"><div id="study-content"></div></div>`;
+    render = vi.fn();
+    globalThis.SBWStudyPanel = { render };
+    new Function(block)();
+  });
+  afterEach(() => { globalThis.SBWStudyPanel = Panel; });
+
+  const pill = (tab) => document.querySelector(`.switcher button[data-tab="${tab}"]`);
+
+  it('draws the tab when it is opened, and not again on a click while it is showing', () => {
+    pill('study').click();
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(render).toHaveBeenCalledWith(document.getElementById('study-content'));
+    expect(document.getElementById('tab-study').classList.contains('active')).toBe(true);
+    pill('study').click();
+    pill('study').click();
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(pill('study').classList.contains('active')).toBe(true);
+    expect(document.getElementById('tab-study').classList.contains('active')).toBe(true);
+  });
+
+  it('draws it again when the person comes back from another tab', () => {
+    pill('study').click();
+    pill('seo').click();
+    pill('study').click();
+    expect(render).toHaveBeenCalledTimes(2);
   });
 });

@@ -21,7 +21,7 @@
 //   4. Send to study: one POST to /aio-study/captures with { term_id, csv };
 //      the CSV is the saved page's export with no figure or keyword column
 //      filled; the status reads "Sent to the study."
-//   5. Google stopped me: one POST to /aio-study/stop.
+//   5. Google stopped me: asks for a second click, then one POST to /aio-study/stop.
 
 import { test, expect, chromium } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -318,7 +318,10 @@ test('study send: accept, popup refuses without a private window, a study tab se
       });
     });
 
-    await test.step('Google stopped me: one POST to /aio-study/stop', async () => {
+    await test.step('Google stopped me: the first click only asks, the second within five seconds is one POST to /aio-study/stop', async () => {
+      expect(stops).toHaveLength(0);
+      await role('study-stop').click();
+      await expect(role('study-stop')).toHaveText("Click again to end today's searches");
       expect(stops).toHaveLength(0);
       await role('study-stop').click();
       await expect(role('study-status')).toHaveText('Recorded. Stop searching for today; your other terms move to tomorrow.', ROUND_TRIP);
