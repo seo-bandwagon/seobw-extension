@@ -73,7 +73,7 @@
   }
 
   // Whether a tab still shows the study's search for `keyword`, page one,
-  // with the study's parameters. The first thing wrong is the reason.
+  // the all-results tab, with the study's parameters. The first thing wrong is the reason.
   function checkStudyPage(url, keyword) {
     let u;
     try {
@@ -91,6 +91,11 @@
     const start = u.searchParams.get('start');
     if (start !== null && start !== '0') {
       return { ok: false, reason: 'not_page_one' };
+    }
+    // Google's other tabs (Images, Videos, News, Web...) keep q, hl, gl and
+    // pws and add one of these, so they would pass the parameters below.
+    if (u.searchParams.has('tbm') || u.searchParams.has('udm')) {
+      return { ok: false, reason: 'params_changed' };
     }
     const names = Object.keys(STUDY_PARAMS);
     for (let i = 0; i < names.length; i++) {

@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 
 await import('../../extension/src/lib/aio-study.js');
 const S = globalThis.SBWAioStudy;
@@ -35,11 +36,19 @@ describe('constants', () => {
     expect(S.TODAY_MAX_AGE_MS).toBe(300000);
   });
 
-  it('attaches to the global scope and never reads a window or a document', () => {
+  it('attaches to the global scope', () => {
     expect(globalThis.SBWAioStudy).toBe(S);
-    const src = readFileSync(path.resolve(__dirname, '../../extension/src/lib/aio-study.js'), 'utf8')
-      .replace(/^\s*\/\/.*$/gm, '');
-    expect(src).not.toMatch(/\b(window|document|chrome)\b\s*[.[]/);
+  });
+
+  it('loads where a service worker would: a scope with only URL, URLSearchParams, Date and String', () => {
+    const src = readFileSync(path.resolve(__dirname, '../../extension/src/lib/aio-study.js'), 'utf8');
+    const scope = { URL, URLSearchParams, Date, String };
+    scope.globalThis = scope;
+    vm.runInNewContext(src, scope);
+    expect(typeof scope.SBWAioStudy.studySearchUrl).toBe('function');
+    expect(scope.SBWAioStudy.studySearchUrl('how does seo work'))
+      .toBe('https://www.google.com/search?q=how+does+seo+work&hl=en&gl=us&pws=0');
+    expect(scope.SBWAioStudy.checkStudyPage(scope.SBWAioStudy.studySearchUrl('a b'), 'a b').ok).toBe(true);
   });
 });
 
@@ -105,6 +114,18 @@ describe('checkStudyPage', () => {
 
   it('not_page_one: start other than 0', () => {
     expect(S.checkStudyPage(good + '&start=10', kw)).toEqual({ ok: false, reason: 'not_page_one' });
+  });
+
+  it('params_changed: another Google tab (Images, Videos, News, Web), which adds tbm or udm', () => {
+    expect(S.checkStudyPage(good + '&udm=7', kw)).toEqual({ ok: false, reason: 'params_changed' });
+    expect(S.checkStudyPage(good + '&udm=2', kw)).toEqual({ ok: false, reason: 'params_changed' });
+    expect(S.checkStudyPage(good + '&udm=14', kw)).toEqual({ ok: false, reason: 'params_changed' });
+    expect(S.checkStudyPage(good + '&tbm=vid', kw)).toEqual({ ok: false, reason: 'params_changed' });
+    expect(S.checkStudyPage(good + '&tbm=nws', kw)).toEqual({ ok: false, reason: 'params_changed' });
+    // After the page-one check, so a later page of another tab still says why.
+    expect(S.checkStudyPage(good + '&tbm=isch&start=10', kw)).toEqual({ ok: false, reason: 'not_page_one' });
+    // The plain study address is still ok.
+    expect(S.checkStudyPage(good, kw)).toEqual({ ok: true });
   });
 
   it('params_changed: one of hl, gl, pws missing or changed', () => {
