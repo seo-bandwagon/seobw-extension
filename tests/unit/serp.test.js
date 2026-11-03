@@ -573,19 +573,23 @@ describe('searchContext + export completeness', () => {
       expect(withChrome({ runtime: { getManifest: () => ({}) } }, version)).toBe('');
     });
 
-    it('appends the four AIO study columns last, in order', () => {
+    // 1.13.3 appended two more after the version (how each citation was read,
+    // and each one's title); the first four are still in the order 1.13.2 wrote.
+    it('appends the AIO study columns last, in order', () => {
       const csv = SBWSerp.resultsToCsv(oneRow, { query: 'q', page: 1, capturedAt: 'Z' });
       const header = csv.replace(/^﻿/, '').split('\r\n')[0].split(',');
-      expect(header.slice(-4)).toEqual(['AI Overview state', 'AI Overview text',
-        'AI Overview citations via Google redirect', 'Extension version']);
+      expect(header.slice(-6)).toEqual(['AI Overview state', 'AI Overview text',
+        'AI Overview citations via Google redirect', 'Extension version',
+        'AI Overview citations read from', 'AI Overview citation titles (JSON)']);
     });
 
-    it('writes the four values on the row, in the CSV and in the pasted text', () => {
-      const ctx = { query: 'q', page: 1, capturedAt: 'Z', aiState: 'loaded', aiText: 'An answer.', aiRedirectCitations: 3, extensionVersion: '1.13.2' };
+    it('writes the values on the row, in the CSV and in the pasted text', () => {
+      const ctx = { query: 'q', page: 1, capturedAt: 'Z', aiState: 'loaded', aiText: 'An answer.', aiRedirectCitations: 3,
+        extensionVersion: '1.13.3', aiCitationReads: 'link | record', aiCitationTitles: '["A","B"]' };
       const csv = SBWSerp.resultsToCsv(oneRow, ctx);
-      expect(csv.replace(/^﻿/, '').trim().split('\r\n')[1].endsWith(',loaded,An answer.,3,1.13.2')).toBe(true);
+      expect(csv.replace(/^﻿/, '').trim().split('\r\n')[1].endsWith(',loaded,An answer.,3,1.13.3,link | record,"[""A"",""B""]"')).toBe(true);
       const tsv = SBWSerp.resultsToTsv(oneRow, ctx);
-      expect(tsv.split('\n')[1].endsWith('\tloaded\tAn answer.\t3\t1.13.2')).toBe(true);
+      expect(tsv.split('\n')[1].endsWith('\tloaded\tAn answer.\t3\t1.13.3\tlink | record\t["A","B"]')).toBe(true);
     });
 
     it('keeps AI Overview text with commas and quotes in one cell, and guards a leading =', () => {
@@ -598,16 +602,18 @@ describe('searchContext + export completeness', () => {
 
     it('Collect pages keeps every page-level field, the AIO study ones included', () => {
       const ctx = { capturedAt: 'Z', resultStats: 's', relatedSearches: 'r', paa: 'p', features: 'f',
-        aiCitations: 'c', aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9',
-        query: 'q', page: 2 };
-      expect(Object.keys(SBWSerp.collectContext(ctx)).sort()).toEqual(['aiCitations', 'aiRedirectCitations',
-        'aiState', 'aiText', 'capturedAt', 'extensionVersion', 'features', 'paa', 'relatedSearches', 'resultStats']);
-      expect(SBWSerp.collectContext(ctx)).toMatchObject({ aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9' });
+        aiCitations: 'c', aiCitationReads: 'link', aiCitationTitles: '["t"]', aiState: 'loaded', aiText: 't', aiRedirectCitations: 0,
+        extensionVersion: '9.9.9', query: 'q', page: 2 };
+      expect(Object.keys(SBWSerp.collectContext(ctx)).sort()).toEqual(['aiCitationReads', 'aiCitationTitles', 'aiCitations',
+        'aiRedirectCitations', 'aiState', 'aiText', 'capturedAt', 'extensionVersion', 'features', 'paa', 'relatedSearches', 'resultStats']);
+      expect(SBWSerp.collectContext(ctx)).toMatchObject({ aiState: 'loaded', aiText: 't', aiRedirectCitations: 0, extensionVersion: '9.9.9',
+        aiCitationReads: 'link', aiCitationTitles: '["t"]' });
     });
 
     it('collectContext gives an empty string for a field the context lacks, so a row never falls through to another page', () => {
       expect(SBWSerp.collectContext({ query: 'q' })).toEqual({ capturedAt: '', resultStats: '', relatedSearches: '', paa: '',
-        features: '', aiCitations: '', aiState: '', aiText: '', aiRedirectCitations: '', extensionVersion: '' });
+        features: '', aiCitations: '', aiState: '', aiText: '', aiRedirectCitations: '', extensionVersion: '',
+        aiCitationReads: '', aiCitationTitles: '' });
       expect(SBWSerp.collectContext(null).aiState).toBe('');
     });
   });
