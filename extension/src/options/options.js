@@ -188,6 +188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireLink('linkLinkBuilding', () => openDashboardPath('/dashboard/link-building'));
   initNewTab();
   initGoogleResults();
+  initAioStudyConsent();
 });
 
 /* Google results (1.11.0): the results-page settings, the figures' consent
@@ -275,6 +276,39 @@ function initKeywordConsent() {
     paint();
   });
   paint();
+}
+
+/* AI Overview study (1.13.3): invited testers send a study search only after
+   this yes, and only by clicking Send to study on that search. Its own flow,
+   so nothing else (figures, keyword data, the Google results settings) turns
+   it on or off. A link into the card lands on #aio-study. */
+function initAioStudyConsent() {
+  const section = document.getElementById('aio-study');
+  const status = document.getElementById('aioStudyStatus');
+  const accept = document.getElementById('aioStudyAccept');
+  const withdraw = document.getElementById('aioStudyWithdraw');
+  if (!section || !status || !accept || !withdraw) return;
+  async function paint() {
+    const record = await SBWConsent.acceptance('aioStudy');
+    accept.hidden = !!record;
+    withdraw.hidden = !record;
+    if (record) {
+      const when = record.acceptedAt ? new Date(record.acceptedAt).toLocaleDateString() : '';
+      status.textContent = `On since ${when}: a study search is sent only when you click Send to study.`;
+    } else {
+      status.textContent = 'Not turned on: nothing is sent to the study.';
+    }
+  }
+  accept.addEventListener('click', async () => {
+    await SBWConsent.accept('aioStudy');
+    paint();
+  });
+  withdraw.addEventListener('click', async () => {
+    await SBWConsent.withdraw('aioStudy');
+    paint();
+  });
+  paint();
+  if (location.hash === '#aio-study') section.scrollIntoView();
 }
 
 /* New tab (1.9.5): which page a new tab opens, saved on change. */

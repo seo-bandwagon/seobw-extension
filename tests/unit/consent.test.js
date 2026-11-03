@@ -35,7 +35,9 @@ describe('the flows', () => {
 
   it('says what each flow sends, and the figures never send the search terms or ask Google', () => {
     expect(C.FLOWS.serpFigures.sends).toMatch(/address of each result/);
-    expect(C.FLOWS.serpFigures.sends).toMatch(/Never your search terms, and never a request to Google/);
+    expect(C.FLOWS.serpFigures.sends).toMatch(/Never your search terms with them, and never a request to Google/);
+    // 1.13.3: the words changed, what figures send did not, so no one is asked again.
+    expect(C.FLOWS.serpFigures.version).toBe(2);
   });
 });
 
@@ -141,5 +143,60 @@ describe('keyword data (1.13.0): the search itself, only after its own yes', () 
     expect(await C.accept('keywordData')).toBe(false);
     expect(request).toHaveBeenCalledWith({ data_collection: ['searchTerms'] });
     expect(local[C.STORAGE_KEY]).toBeUndefined();
+  });
+});
+
+describe('the AI Overview study (1.13.3): its own yes, and nothing else turns it on', () => {
+  it('is Firefox\'s search terms, browsing activity and website content, accepted by an action', () => {
+    expect(C.FLOWS.aioStudy.firefox).toEqual(['searchTerms', 'browsingActivity', 'websiteContent']);
+    C.FLOWS.aioStudy.firefox.forEach((c) => expect(C.FIREFOX_CATEGORIES).toContain(c));
+    expect(C.FLOWS.aioStudy.acceptedBy).toBe('action');
+    expect(C.FLOWS.aioStudy.version).toBe(1);
+    expect(C.FLOWS.aioStudy.chromeSwitch).toBeUndefined();
+  });
+
+  it('says what it sends: only a search the study opened, only on Send to study, never anything else', () => {
+    const { sends, why } = C.FLOWS.aioStudy;
+    expect(sends).toMatch(/only when you click Send to study/);
+    expect(sends).toMatch(/Never any other search or page/);
+    expect(sends).toMatch(/not into your account/);
+    expect(sends).toMatch(/SEO Bandwagon’s AI Overview study/);
+    expect(why).toMatch(/Google’s AI Overviews cite/);
+    expect(`${sends} ${why}`).not.toMatch(/—/);
+  });
+
+  it('nothing until the person says yes, then ok, then nothing again once withdrawn', async () => {
+    expect(await C.check('aioStudy')).toEqual({ ok: false, reason: 'not_accepted' });
+    expect(await C.accept('aioStudy', Date.UTC(2026, 10, 3))).toBe(true);
+    expect(local[C.STORAGE_KEY].aioStudy).toEqual({ acceptedAt: '2026-11-03T00:00:00.000Z', version: 1 });
+    expect(await C.check('aioStudy')).toEqual({ ok: true });
+    expect(await C.acceptance('aioStudy')).toMatchObject({ version: 1 });
+    await C.withdraw('aioStudy');
+    expect(await C.check('aioStudy')).toEqual({ ok: false, reason: 'not_accepted' });
+    expect(await C.acceptance('aioStudy')).toBeNull();
+  });
+
+  it('on Chrome and Edge the yes alone decides: no Google results setting turns it on or off', async () => {
+    await C.accept('aioStudy');
+    local.serpSettings = { overlay: false, figuresOn: false, keywordsOn: false };
+    expect(await C.check('aioStudy')).toEqual({ ok: true });
+  });
+
+  it('its yes is its own: figures and keyword data are not the study, and the study is not theirs', async () => {
+    await C.accept('serpFigures');
+    await C.accept('keywordData');
+    expect(await C.check('aioStudy')).toEqual({ ok: false, reason: 'not_accepted' });
+    await C.accept('aioStudy');
+    await C.withdraw('aioStudy');
+    expect(await C.check('serpFigures')).toEqual({ ok: true });
+    expect(await C.check('keywordData')).toEqual({ ok: true });
+  });
+
+  it('on Firefox, the yes asks the browser for its three categories', async () => {
+    const request = vi.fn(async () => true);
+    globalThis.browser = { runtime: { getBrowserInfo: () => {} }, permissions: { contains: async () => true, request } };
+    expect(await C.accept('aioStudy')).toBe(true);
+    expect(request).toHaveBeenCalledWith({ data_collection: ['searchTerms', 'browsingActivity', 'websiteContent'] });
+    expect(await C.check('aioStudy')).toEqual({ ok: true });
   });
 });
