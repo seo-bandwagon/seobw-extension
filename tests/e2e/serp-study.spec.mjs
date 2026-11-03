@@ -40,6 +40,9 @@ const STUDY_URL = 'https://www.google.com/search?q=how+does+seo+work&hl=en&gl=us
 const CITED = 'https://digitalmarketinginstitute.com/blog/what-is-seo';
 const INCOGNITO_OFF = "SEO Bandwagon isn't allowed in private windows";
 const TODAY = new Date().toISOString().slice(0, 10); // the site's day is UTC
+// What waits on the worker and a stubbed answer gets longer than Playwright's
+// 10 s on a loaded machine (several browsers at once).
+const ROUND_TRIP = { timeout: 30_000 };
 
 const saved = (dir, name) => JSON.parse(readFileSync(resolve(FIXTURES, dir, name + '.json'), 'utf8'));
 
@@ -230,13 +233,13 @@ test('study send: accept, popup refuses without a private window, a study tab se
     await test.step('in a normal tab the study address sends figures and keyword data (the settings are live)', async () => {
       await page.goto(STUDY_URL, { waitUntil: 'load' });
       await expect(page.locator('.sbw-serp-bar').first()).toBeVisible();
-      await expect.poll(() => figuresCalls.length).toBe(1);
-      await expect.poll(() => keywordCalls.length).toBe(1);
+      await expect.poll(() => figuresCalls.length, ROUND_TRIP).toBe(1);
+      await expect.poll(() => keywordCalls.length, ROUND_TRIP).toBe(1);
       expect(keywordCalls[0].keywords[0]).toBe(KEYWORD);
       await expect(group).toHaveCount(0);
       // The data arrived and shows, so what the reload must not do is real.
-      await expect(page.locator('.sbw-serp-bar [data-role="figures"]', { hasText: 'ref. domains' }).first()).toBeVisible();
-      await expect(page.locator('.sbw-serp-keywords [data-kw="volume"]')).toHaveText('8.1K searches/mo');
+      await expect(page.locator('.sbw-serp-bar [data-role="figures"]', { hasText: 'ref. domains' }).first()).toBeVisible(ROUND_TRIP);
+      await expect(page.locator('.sbw-serp-keywords [data-kw="volume"]')).toHaveText('8.1K searches/mo', ROUND_TRIP);
     });
 
     await test.step('standing in for the private window: the worker records this tab, and the reload sends no figures or keyword data', async () => {
@@ -269,7 +272,7 @@ test('study send: accept, popup refuses without a private window, a study tab se
       // follows it: the panel, which a study tab puts above the results, and
       // a click on Send to study would land on it. Clip it as Google's CSS does.
       await page.addStyleTag({ content: '.h7Tj7e { overflow: hidden; }' });
-      await expect(group).toBeVisible();
+      await expect(group).toBeVisible(ROUND_TRIP);
       await expect(role('study-term')).toHaveText('Term: ' + KEYWORD);
       await expect(role('study-ai')).toHaveText('AI Overview: loaded');
       await expect(role('study-send')).toHaveText('Send to study');
@@ -287,7 +290,7 @@ test('study send: accept, popup refuses without a private window, a study tab se
 
     await test.step('Send to study: one POST of { term_id, csv }; the CSV is the page alone, no figure or keyword column filled', async () => {
       await role('study-send').click();
-      await expect(role('study-status')).toHaveText('Sent to the study.');
+      await expect(role('study-status')).toHaveText('Sent to the study.', ROUND_TRIP);
       await expect(role('study-send')).toHaveText('Sent');
       await expect(role('study-send')).toBeDisabled();
 
@@ -318,7 +321,7 @@ test('study send: accept, popup refuses without a private window, a study tab se
     await test.step('Google stopped me: one POST to /aio-study/stop', async () => {
       expect(stops).toHaveLength(0);
       await role('study-stop').click();
-      await expect(role('study-status')).toHaveText('Recorded. Stop searching for today; your other terms move to tomorrow.');
+      await expect(role('study-status')).toHaveText('Recorded. Stop searching for today; your other terms move to tomorrow.', ROUND_TRIP);
       expect(stops).toHaveLength(1);
       expect(captures).toHaveLength(1);
     });
