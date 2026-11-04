@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.3** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -68,7 +68,7 @@ probably finish up a few more versions quickly"; until then B was
 gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds and lints the Chrome, Edge and Firefox packages
-from 1.13.5 on. Every release also updates `CHROMEWEBSTORE.md`,
+from 1.13.6 on. Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -188,7 +188,12 @@ combined submission.
 - [ ] Website: the study's three routes under the `study` scope and the join page `/dashboard/aio-study` (the website's PR 7; the extension is tested against stubs of its contract)
 - [ ] Owner: one live export's sources compared with the screen (`MANUAL_SMOKE_TEST.md` §8)
 
-### 1.13.4: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2, then 1.13.3)
+### 1.13.4: keyword data's allowance by the month (patch)
+Free counts keyword data by the calendar month (UTC) since the owner's ruling of 2026-11-04: 20 searches a month (10, plus 10 for installing the extension); Pro stays at 100 a day (website change `93f3b985`).
+- [x] An allowance the site counts by the month reads "left this month (UTC)", and at the limit "This month's 20 searches with new keyword data are used"; the day and the week read as before
+- [x] The first-use note on Google, the Options card and the "With the page" setting say "your plan's allowance" (no "daily"); so does the description's KEYWORD DATA paragraph (`docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.0)")
+
+### 1.13.5: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2, then 1.13.3, then 1.13.4)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -198,7 +203,7 @@ combined submission.
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
 
-### 1.13.5: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2, then 1.13.3, then 1.13.4)
+### 1.13.6: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5)
 Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0).
 - [ ] `npm run zip -- --target chrome|edge|firefox`: each manifest is the shared one plus a per-target overlay under `scripts/`, so a change for one store never forces a bump; `check:zip` reads the packaged manifest
 - [ ] Edge and Firefox overlays leave out the new-tab override and `management` (the Neon themes are Chrome Web Store items); Firefox adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain
@@ -206,7 +211,7 @@ Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0)
 - [ ] `utm_source` per browser: `chrome_extension`, `edge_extension`, `firefox_extension`
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
 
-### 1.13.6: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3, then 1.13.4, then 1.13.5)
+### 1.13.7: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3, then 1.13.4, then 1.13.5, then 1.13.6)
 The consent module moved to 1.11.0.
 - [ ] The Connect bridge: a content script on seobandwagon.com's api-keys and welcome paths, top frame only, origin and `event.source` checked, replies on a `MessageChannel` port; `externally_connectable` stays for Chrome and Edge
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
@@ -264,6 +269,35 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.4 (2026-11-04)
+
+Keyword data's allowance reads right when the site counts it by the month.
+The owner ruled on 2026-11-04 that free keyword data is 20 searches a month
+(10, plus 10 for installing the extension), and the website now counts it by
+the calendar month in UTC and answers `allowance.period: "month"` (website
+change `93f3b985`); Pro stays at 100 a day. 1.13.3 read only `day` and
+`week`, so a free user would have read "20 left today (UTC)".
+
+- **The allowance line** under the keyword strip and in the popup: "Free
+  plan: 16 of 20 searches with new keyword data left this month (UTC)." A
+  daily allowance still reads "left today (UTC)", a weekly one "left this
+  week (UTC)"; a period the extension doesn't know reads as the day.
+- **At the limit:** "This month's 20 searches with new keyword data are
+  used. Keyword data already looked up still shows, and everything else
+  works.", with the upgrade on Free as before.
+- **"Your plan's allowance", not "daily":** the first-use note on Google,
+  the Options card "Keyword data for your searches" and the "With the page
+  (each search with new keyword data counts against your plan's allowance)"
+  setting. The consent words (`keywordData`, version 1) are unchanged: what
+  is sent did not change.
+- **Store text:** the description's KEYWORD DATA paragraph now ends "and your
+  plan's allowance applies, with what is left shown under the strip"
+  (`docs/CWS-LISTING.md` §2; text 8 of "To paste with the combined
+  submission (1.13.0)" in `CHROMEWEBSTORE.md`).
+- **No permission, host, content-script or data-use change.**
+- **Planned releases moved up one:** the checks panels are 1.13.5, build
+  targets 1.13.6 and the Connect bridge 1.13.7.
 
 ## Changelog — v1.13.3 (2026-11-03)
 

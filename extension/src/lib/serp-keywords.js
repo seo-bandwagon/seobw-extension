@@ -222,17 +222,23 @@
   // DataForSEO has no keyword data for.
   const LOOKUPS = ['not_needed', 'done', 'failed', 'limit_reached', 'paused', 'unavailable', 'unsupported_market'];
 
+  // The allowance's `period` when it isn't the UTC day: Free counts keyword
+  // data by the calendar month (UTC), owner ruling 2026-11-04 (website change
+  // 93f3b985), Pro by the day; 'week' stays readable should the site count by
+  // the week. Any other period reads as the day.
+  const PERIODS = ['week', 'month'];
+
   /**
    * The answer's `{ plan, allowance, lookups }`, each checked (the figures'
-   * standing, plus `unsupported_market`, and the allowance's `period`, 'day'
-   * or 'week', should the site count keyword data by the week).
+   * standing, plus `unsupported_market`, and the allowance's `period` when
+   * it is the week or the month).
    */
   function standing(data) {
     const F = figuresLib();
     const s = F ? F.standing(data) : { plan: null, allowance: null, lookups: null };
     const l = data && data.lookups;
     const period = data && data.allowance && data.allowance.period;
-    const allowance = s.allowance && period === 'week' ? Object.assign({}, s.allowance, { period: 'week' }) : s.allowance;
+    const allowance = s.allowance && PERIODS.includes(period) ? Object.assign({}, s.allowance, { period }) : s.allowance;
     return Object.assign({}, s, { allowance, lookups: LOOKUPS.includes(l) ? l : null });
   }
 
@@ -420,14 +426,23 @@
     };
   }
 
-  // The day's allowance and what stopped new keyword data: the figures
+  // An allowance's window in words: the day unless the answer named the week
+  // or the month.
+  function periodWords(allowance) {
+    const period = allowance && allowance.period;
+    if (period === 'month') return { left: 'this month', used: 'This month’s' };
+    if (period === 'week') return { left: 'this week', used: 'This week’s' };
+    return { left: 'today', used: 'Today’s' };
+  }
+
+  // The plan's allowance and what stopped new keyword data: the figures
   // route's words, for keyword data.
   function allowanceLine(s) {
     if (!s || !s.allowance) return '';
     const F = figuresLib();
     const plan = F ? F.planName(s.plan) : '';
-    const { limit, remaining, period } = s.allowance;
-    return `${plan ? plan + ' plan: ' : ''}${remaining} of ${limit} searches with new keyword data left ${period === 'week' ? 'this week' : 'today'} (UTC).`;
+    const { limit, remaining } = s.allowance;
+    return `${plan ? plan + ' plan: ' : ''}${remaining} of ${limit} searches with new keyword data left ${periodWords(s.allowance).left} (UTC).`;
   }
 
   function lookupNotice(s) {
@@ -436,7 +451,7 @@
     if (lookups === 'limit_reached') {
       return {
         kind: 'limit_reached',
-        text: `${s.allowance && s.allowance.period === 'week' ? 'This week’s' : 'Today’s'} ${s.allowance ? s.allowance.limit + ' ' : ''}searches with new keyword data are used. Keyword data already looked up still shows, and everything else works.`,
+        text: `${periodWords(s.allowance).used} ${s.allowance ? s.allowance.limit + ' ' : ''}searches with new keyword data are used. Keyword data already looked up still shows, and everything else works.`,
         upgrade: plan !== 'pro' && plan !== 'enterprise'
       };
     }

@@ -83,7 +83,7 @@
     root.appendChild(check(doc, prefix + 'KeywordsOn', 'Keyword data for the search: volume, difficulty, CPC, competition, trend, and volumes for related searches and People also ask', 'keywordsOn'));
     root.appendChild(radios(doc, 'keywordsLoad', 'Keyword data loads', [
       ['click', 'When I click Show keyword data'],
-      ['auto', 'With the page (each search with new keyword data counts against the day’s allowance)']
+      ['auto', 'With the page (each search with new keyword data counts against your plan’s allowance)']
     ], prefix));
 
     const list = h(doc, 'div', { class: 'sr-figures' });

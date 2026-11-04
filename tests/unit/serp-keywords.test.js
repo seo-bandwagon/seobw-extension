@@ -136,6 +136,19 @@ describe('the answer', () => {
     expect(K.lookupNotice(s).text).toMatch(/^This week’s 50 searches with new keyword data are used/);
     expect(K.standing({ allowance: { limit: 10, used: 1, remaining: 9, period: 'day' } }).allowance).toEqual({ limit: 10, used: 1, remaining: 9 });
   });
+
+  it('says "this month (UTC)" when the site counts keyword data by the calendar month (Free: 20 a month, owner ruling 2026-11-04)', () => {
+    const s = K.standing({ plan: 'free', allowance: { limit: 20, used: 4, remaining: 16, period: 'month' }, lookups: 'done' });
+    expect(s.allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+    expect(K.allowanceLine(s)).toBe('Free plan: 16 of 20 searches with new keyword data left this month (UTC).');
+    const used = K.standing({ plan: 'free', allowance: { limit: 20, used: 20, remaining: 0, period: 'month' }, lookups: 'limit_reached' });
+    expect(K.lookupNotice(used)).toMatchObject({ kind: 'limit_reached', upgrade: true });
+    expect(K.lookupNotice(used).text).toBe('This month’s 20 searches with new keyword data are used. Keyword data already looked up still shows, and everything else works.');
+    // Pro stays by the UTC day; a period the extension doesn't know reads as the day.
+    const pro = K.standing({ plan: 'pro', allowance: { limit: 100, used: 7, remaining: 93, period: 'day' }, lookups: 'done' });
+    expect(K.allowanceLine(pro)).toBe('Pro plan: 93 of 100 searches with new keyword data left today (UTC).');
+    expect(K.standing({ allowance: { limit: 20, used: 0, remaining: 20, period: 'year' } }).allowance).toEqual({ limit: 20, used: 0, remaining: 20 });
+  });
 });
 
 describe('"Add to my keywords": the route\'s four answers', () => {

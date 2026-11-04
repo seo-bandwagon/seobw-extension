@@ -197,6 +197,9 @@ describe('the first-use disclosure', () => {
     const disclosure = strip().querySelector('[data-role="kw-disclosure"]');
     expect(disclosure.textContent).toContain('Keyword data sends SEO Bandwagon the words of this search');
     expect(disclosure.textContent).toContain('Never a result’s address with them, and never a request to Google');
+    // Free counts keyword data by the month, Pro by the day: no "daily".
+    expect(disclosure.textContent).toContain('Each search with new keyword data counts against your plan’s allowance.');
+    expect(disclosure.textContent).not.toMatch(/daily/);
     // jsdom's click() is untrusted, as a page script's would be.
     strip().querySelector('[data-role="kw-yes"]').click();
     await vi.advanceTimersByTimeAsync(20);
