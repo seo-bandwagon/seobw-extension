@@ -25,8 +25,8 @@
 //   keywordsOn  (1.13.0) keyword data under the search box (needs its own
 //               yes: it sends the search)
 //   keywordsLoad (1.13.0) 'click': only after "Show keyword data" (the
-//               default: each search with new data counts against the day's
-//               allowance); 'auto': with the page
+//               default: each search with new data counts against the
+//               plan's allowance); 'auto': with the page
 //
 // Dual-export pattern (see src/lib/sync-state.js): attaches to
 // `globalThis.SBWSerpSettings` when loaded as a classic <script>, content

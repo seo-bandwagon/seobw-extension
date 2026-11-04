@@ -326,7 +326,7 @@
     d.setAttribute('data-role', 'kw-disclosure');
     d.appendChild(el('p', 'sbw-kw-disclosure-title', 'Send your searches for keyword data?'));
     d.appendChild(el('p', null, 'Keyword data sends SEO Bandwagon the words of this search, with its related searches and People also ask questions (up to 50), and this Google’s country and language. Each search after this sends the same when you click Show keyword data, or with the page if you choose that in Settings; “Add to my keywords” sends the one you add. Never a result’s address with them, and never a request to Google.'));
-    d.appendChild(el('p', null, 'SEO Bandwagon answers with DataForSEO’s monthly searches, difficulty, cost per click, competition and 12-month trend, and your own rank tracker’s history for the search. Each search with new keyword data counts against your plan’s daily allowance. You can stop it in Settings at any time.'));
+    d.appendChild(el('p', null, 'SEO Bandwagon answers with DataForSEO’s monthly searches, difficulty, cost per click, competition and 12-month trend, and your own rank tracker’s history for the search. Each search with new keyword data counts against your plan’s allowance. You can stop it in Settings at any time.'));
     const row = el('div', 'sbw-kw-actions');
     const yes = button('Yes, send my searches for keyword data', 'sbw-btn sbw-kw-yes', onYes);
     yes.setAttribute('data-role', 'kw-yes');

@@ -139,6 +139,14 @@ describe('one request a search', () => {
     expect(again.allowance).toEqual({ limit: 10, used: 4, remaining: 6 });
   });
 
+  it('keeps a monthly allowance\'s period for the page and the popup', async () => {
+    post.mockResolvedValue(okRes(Object.assign(answer('done'), { allowance: { limit: 20, used: 4, remaining: 16, period: 'month' } })));
+    const out = await svc.lookup(REQ);
+    expect(out.allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+    expect(storage.data[STATUS_KEY].allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+    expect((await svc.lookup(REQ)).allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+  });
+
   it('a new question asks for it alone, with the search first as the route reads it', async () => {
     await svc.lookup(REQ);
     await svc.lookup(Object.assign({}, REQ, { paa: REQ.paa.concat('Is Salesforce free for nonprofits?') }));
