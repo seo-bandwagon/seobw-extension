@@ -122,7 +122,7 @@ English
 | Screenshot 1 — popup, Analysis tab with score, Page history and issues | 1280×800 | ✅ Ready 2026-11-05 (1.13.5) | `store-assets/1.13.5/screenshot-1-analysis-1280x800.png` |
 | Screenshot 2 — Link Check results grouped by outcome, with "Can't check" | 1280×800 | ✅ Ready 2026-11-05 (1.13.5) | `store-assets/1.13.5/screenshot-2-link-check-1280x800.png` |
 | Screenshot 3 — Indexability panel with redirect chain | 1280×800 | ✅ Ready 2026-11-05 (1.13.5) | `store-assets/1.13.5/screenshot-3-indexability-1280x800.png` |
-| Screenshot 4 — Google results: figures under each result, the keyword strip, Collect pages | 1280×800 | ⏳ Not shot: needs a key with the `serp` and `keywords` scopes in the capture profile. The live one (1.9.4) shows bars 1.10.2 removed | `store-assets/1.13.5/screenshot-4-serp-1280x800.png` |
+| Screenshot 4 — Google results: the keyword strip above, figures under each result | 1280×800 | ✅ Ready 2026-11-05 (1.13.5) | `store-assets/1.13.5/screenshot-4-serp-1280x800.png` |
 | Screenshot 5 — the new tab page in Night and Day, signed in: rank drops first, in search-volume order (1.10.1) | 1280×800 | ✅ Live 2026-10-28 (shot 2026-10-27 from 1.10.1) | `store-assets/1.10.1/screenshot-5-new-tab-1280x800.png` |
 | Small Promo Tile | 440×280 | ✅ Ready 2026-11-05 (text unchanged since 1.9.4) | `store-assets/1.13.5/promo-tile-440x280.png` |
 | Marquee Promo Tile | 1400×560 | ✅ Ready 2026-11-05 (screens 1 and 2 from 1.13.5) | `store-assets/1.13.5/promo-marquee-1400x560.png` |
@@ -171,8 +171,18 @@ Screen 2 shows two 403s now (LinkedIn and x.com refuse bots; 1.9.4 had one).
 Screen 1 has a 17-pixel empty band under the header: the popup's theme strip,
 hidden after "Not now" or with a Neon theme installed, keeps its height,
 because `.theme-strip`'s `display: flex` overrides `hidden` (since 1.9.5, so
-the live 1.10.2 has it too). Screen 5 stays the 1.10.1 shot. Upload screens 1
-to 3, the tiles and, once shot, screen 4, replacing the listing's.
+the live 1.10.2 has it too). Screen 4 (2026-11-05) is the saved "best crm for
+nonprofits" results page served at a google.com/search address (no request to
+Google), with figures and keyword data from production on the owner's account:
+the keyword strip (320 searches a month, difficulty 18, CPC $86.30) above, and
+Double the Donation's and Givebutter's listings with their figures bars. As in
+1.9.4, Salesforce's checklist score (37, a headless read) stays out of frame.
+Its caption: "Figures on Google's own results. Links, traffic and domain age
+under each result, and your search's volume, CPC and difficulty above them.
+Free with an account." It needed one Connect in the capture profile (owner's
+yes, 2026-11-05), since that profile's October key lacked the `serp` and
+`keywords` scopes. Screen 5 stays the 1.10.1 shot. Upload screens 1 to 4 and
+the tiles, replacing the listing's.
 
 ## Permissions Justification
 
@@ -451,12 +461,11 @@ Analyze reads a listing from your browser without your cookies, and nothing it r
 four lines (1.12.0's and 1.11.0's if the field takes them), and 1.13.3's, first
 in that section, where the ten lines leave room.
 
-**Not text, but due with this upload:** the 1.13.5 screenshots and tiles
-(Graphics & Assets). Screen 4 is not shot yet: the live one shows the 1.9.4
-bars ("Score 90 · 1 capture") and toolbar, which 1.10.2 removed and 1.11.0
-redrew. It goes in `store-assets/1.13.5/` with figures under the results and
-the keyword strip in view, which needs a key with the `serp` and `keywords`
-scopes in the capture profile.
+**Not text, but due with this upload:** the 1.13.5 screenshots 1 to 4 and both
+tiles (Graphics & Assets), all in `store-assets/1.13.5/`. The live screenshot 4
+shows the 1.9.4 bars ("Score 90 · 1 capture") and toolbar, which 1.10.2 removed
+and 1.11.0 redrew; the new one shows figures under the results and the keyword
+strip.
 
 ## Privacy Policy
 
