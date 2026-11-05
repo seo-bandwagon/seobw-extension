@@ -2,7 +2,7 @@
 //
 // Pure logic shared by the overlay (what a bar says), the worker (what it
 // asks POST /api/v1/serp/metrics for, and keeps for the session) and the
-// popup (the plan and today's allowance). No chrome.*, no fetch.
+// popup (the plan and its allowance). No chrome.*, no fetch.
 //
 // The route (website change 66d2083f): up to 10 `{ url, domain }` a call,
 // under the key's `serp` scope; a result Google hid from a signed-out user
@@ -10,8 +10,10 @@
 // DataForSEO's figures for the page and the site (referring domains,
 // backlinks, rank on its 0 to 100 scale, estimated organic traffic `etv`,
 // ranking keywords), RDAP's registration of the site, the caller's own
-// on-page checklist for that exact page, the plan, the day's allowance and
-// what became of the paid lookups (`lookups`).
+// on-page checklist for that exact page, the plan, its allowance and what
+// became of the paid lookups (`lookups`). The allowance's `period` is 'day'
+// or, since website change 337eaf4d, 'month': Free counts figures by the
+// calendar month (UTC), Pro and Enterprise by the day.
 //
 // Copy rules (vault Extension_Roadmap_To_2_0_Design, 1.11.0): link and
 // traffic figures are labeled as DataForSEO's, on its 0 to 100 rank scale;
@@ -170,13 +172,22 @@
     };
   }
 
-  /** The answer's account part: `{ plan, allowance, lookups }`, each checked. */
+  /**
+   * The answer's account part: `{ plan, allowance, lookups }`, each checked.
+   * The allowance's `period` is 'month' when the answer says so, otherwise
+   * 'day' (an answer from before 337eaf4d carries none).
+   */
   function standing(data) {
     const d = data && typeof data === 'object' ? data : {};
     const a = d.allowance && typeof d.allowance === 'object' ? d.allowance : null;
     return {
       plan: typeof d.plan === 'string' ? d.plan : null,
-      allowance: a && num(a.limit) !== null ? { limit: num(a.limit), used: num(a.used) || 0, remaining: num(a.remaining) || 0 } : null,
+      allowance: a && num(a.limit) !== null ? {
+        limit: num(a.limit),
+        used: num(a.used) || 0,
+        remaining: num(a.remaining) || 0,
+        period: a.period === 'month' ? 'month' : 'day'
+      } : null,
       lookups: LOOKUPS.includes(d.lookups) ? d.lookups : null
     };
   }
@@ -292,15 +303,22 @@
     return !items || (!items.page.length && !items.site.length && !items.age && !items.checklist);
   }
 
+  // The allowance's words by its period: the UTC day unless it is the month.
+  function periodWords(allowance) {
+    if (allowance && allowance.period === 'month') return { left: 'this month', used: 'This month’s' };
+    return { left: 'today', used: 'Today’s' };
+  }
+
   /**
-   * The plan and today's allowance, in one line, or '' without them:
-   * "Free plan: 17 of 20 searches with new figures left today."
+   * The plan and what is left of its allowance, in one line, or '' without
+   * them: "Free plan: 16 of 20 searches with new figures left this month
+   * (UTC)." by the month, "Pro plan: 243 of 250 … left today (UTC)." by the day.
    */
   function allowanceLine(s) {
     if (!s || !s.allowance) return '';
     const { limit, remaining } = s.allowance;
     const plan = planName(s.plan);
-    return `${plan ? plan + ' plan: ' : ''}${remaining} of ${limit} searches with new figures left today (UTC).`;
+    return `${plan ? plan + ' plan: ' : ''}${remaining} of ${limit} searches with new figures left ${periodWords(s.allowance).left} (UTC).`;
   }
 
   /**
@@ -313,7 +331,7 @@
     if (lookups === 'limit_reached') {
       return {
         kind: 'limit_reached',
-        text: `Today’s ${s.allowance ? s.allowance.limit + ' ' : ''}searches with new figures are used. Figures already looked up still show, and everything else works.`,
+        text: `${periodWords(s.allowance).used} ${s.allowance ? s.allowance.limit + ' ' : ''}searches with new figures are used. Figures already looked up still show, and everything else works.`,
         upgrade: plan !== 'pro' && plan !== 'enterprise'
       };
     }

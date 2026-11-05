@@ -968,6 +968,42 @@ describe('1.11.0: figures under each result', () => {
     expect(sentMessages.at(-1)).toEqual({ action: 'serpOpen', page: 'upgrade' });
   });
 
+  // Free's figures by the calendar month (website change 337eaf4d).
+  const monthly = (name, allowance) => (msg) => {
+    const r = okReply(name, msg);
+    r.allowance = Object.assign({}, r.allowance, allowance, { period: 'month' });
+    r.notice = F.lookupNotice(r);
+    return r;
+  };
+
+  it('a monthly allowance: the panel and its folded line say what is left this month', async () => {
+    figuresReply(monthly('done', { used: 4, remaining: 16 }));
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector('[data-role="figures-line"]').textContent).toMatch(/^Free plan: 16 of 20 searches with new figures left this month \(UTC\)\./);
+    expect(document.querySelector('[data-role="summary"]').textContent).toBe('Free plan: 16 of 20 left this month');
+  });
+
+  it('a monthly allowance reached: the bar and the panel say this month\'s, and offer Pro', async () => {
+    figuresReply(monthly('limit-reached', {}));
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(figuresText('alpha.example')).toBe('No figures: this month’s limit is reachedUpgrade');
+    expect(barFor('alpha.example').querySelector('[data-role="figures"] button').title).toBe('More searches with figures on Pro.');
+    expect(document.querySelector('[data-role="figures-line"]').textContent).toMatch(/^This month’s 20 searches with new figures are used\./);
+  });
+
+  it('"Load figures for sources" counts against the allowance, not a day\'s', async () => {
+    figuresReply((msg) => okReply('done', msg));
+    freshDom(['alpha.example']);
+    await loadOverlay();
+    await vi.advanceTimersByTimeAsync(50);
+    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Load figures for sources');
+    expect(btn.title).toBe('Asks SEO Bandwagon for the figures of the pages the AI Overview cites; with new figures, it counts as one search of your allowance.');
+  });
+
   it('paused at the monthly ceiling: says so, with no upgrade', async () => {
     figuresReply((msg) => okReply('paused', msg));
     freshDom(['alpha.example']);

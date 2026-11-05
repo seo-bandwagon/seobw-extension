@@ -8,8 +8,8 @@
 //   - the exports, made by the overlay with the same columns as its own
 //     buttons (figures, features, AI Overview sources, result type);
 //   - the account: connected or not, the figures accepted or not, the plan
-//     and what is left of today's allowance, the limit or the monthly pause,
-//     each with the one link that helps;
+//     and what is left of its allowance (today's, or this month's on Free),
+//     the limit or the monthly pause, each with the one link that helps;
 //   - (1.13.0) keyword data for the search: on or off, said yes to or not,
 //     the search's volume, its own allowance and limits, "Show keyword
 //     data" on the page, and the keywords CSV;

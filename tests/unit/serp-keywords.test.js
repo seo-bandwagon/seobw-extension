@@ -124,7 +124,7 @@ describe('the answer', () => {
   });
 
   it('reads the plan, the allowance and `lookups`, keyword data\'s unsupported_market among them', () => {
-    expect(K.standing(answer('done'))).toEqual({ plan: 'free', allowance: { limit: 10, used: 4, remaining: 6 }, lookups: 'done' });
+    expect(K.standing(answer('done'))).toEqual({ plan: 'free', allowance: { limit: 10, used: 4, remaining: 6, period: 'day' }, lookups: 'done' });
     expect(K.standing(answer('unsupported-market')).lookups).toBe('unsupported_market');
     expect(K.lookupNotice(K.standing(answer('unsupported-market')))).toMatchObject({ kind: 'unsupported_market', upgrade: false });
     expect(K.standing({ lookups: 'bogus' }).lookups).toBeNull();
@@ -134,7 +134,7 @@ describe('the answer', () => {
     const s = K.standing({ plan: 'free', allowance: { limit: 50, used: 50, remaining: 0, period: 'week' }, lookups: 'limit_reached' });
     expect(K.allowanceLine(s)).toBe('Free plan: 0 of 50 searches with new keyword data left this week (UTC).');
     expect(K.lookupNotice(s).text).toMatch(/^This week’s 50 searches with new keyword data are used/);
-    expect(K.standing({ allowance: { limit: 10, used: 1, remaining: 9, period: 'day' } }).allowance).toEqual({ limit: 10, used: 1, remaining: 9 });
+    expect(K.standing({ allowance: { limit: 10, used: 1, remaining: 9, period: 'day' } }).allowance).toEqual({ limit: 10, used: 1, remaining: 9, period: 'day' });
   });
 
   it('says "this month (UTC)" when the site counts keyword data by the calendar month (Free: 20 a month, owner ruling 2026-11-04)', () => {
@@ -147,7 +147,7 @@ describe('the answer', () => {
     // Pro stays by the UTC day; a period the extension doesn't know reads as the day.
     const pro = K.standing({ plan: 'pro', allowance: { limit: 100, used: 7, remaining: 93, period: 'day' }, lookups: 'done' });
     expect(K.allowanceLine(pro)).toBe('Pro plan: 93 of 100 searches with new keyword data left today (UTC).');
-    expect(K.standing({ allowance: { limit: 20, used: 0, remaining: 20, period: 'year' } }).allowance).toEqual({ limit: 20, used: 0, remaining: 20 });
+    expect(K.standing({ allowance: { limit: 20, used: 0, remaining: 20, period: 'year' } }).allowance).toEqual({ limit: 20, used: 0, remaining: 20, period: 'day' });
   });
 });
 

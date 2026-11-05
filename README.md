@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.13.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.13.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -234,7 +234,7 @@ and ad labels are read in each Google's own language (1.11.0).
   its figures (its address goes to SEO Bandwagon for them on that click).
 - **AI Overview sources** (1.12.0): the pages an AI Overview cites, in a
   table of their own, with "Load figures for sources" (one search of the
-  day's allowance), "Analyze sources" and their own CSV.
+  allowance), "Analyze sources" and their own CSV.
 - **Figures** (1.11.0, the owner's "metrics on the SERP page"): the bar's
   second row, with the figures chosen in settings: the **page**'s referring
   domains, backlinks, rank, estimated traffic and ranking keywords; the
@@ -252,8 +252,10 @@ and ad labels are read in each Google's own language (1.11.0).
   bar shows position and Analyze and "Connect free to see figures". A key
   made before the scope says Reconnect; too many requests in a minute, the
   site being busy and offline each have their own words. The panel shows the
-  plan and what is left of the day's allowance (free 20 searches with new
-  figures a day, Pro 250); at the limit, or with new figures paused at the
+  plan and what is left of its allowance (free 20 searches with new
+  figures a calendar month in UTC since the website's change `337eaf4d`,
+  read "left this month (UTC)" since 1.13.5; Pro 250 a day, "left today
+  (UTC)"); at the limit, or with new figures paused at the
   site-wide monthly ceiling, the bars and the panel say so and offer the
   upgrade where it helps, and nothing else stops working.
 - **Keyword data** (1.13.0, #68; `src/overlay/serp-keywords.js`,

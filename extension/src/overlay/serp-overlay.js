@@ -375,9 +375,10 @@
       if (F.isEmpty(items) && !items.notes.length) {
         const notice = figState.notice;
         if (notice && (notice.kind === 'limit_reached' || notice.kind === 'paused')) {
+          const monthly = figState.allowance && figState.allowance.period === 'month';
           box.appendChild(el('span', 'sbw-fig-note', notice.kind === 'limit_reached'
-            ? 'No figures: today’s limit is reached' : 'New figures paused until next month'));
-          if (notice.upgrade) box.appendChild(actionButton('Upgrade', 'upgrade', 'More searches with figures a day on Pro.'));
+            ? `No figures: ${monthly ? 'this month’s' : 'today’s'} limit is reached` : 'New figures paused until next month'));
+          if (notice.upgrade) box.appendChild(actionButton('Upgrade', 'upgrade', 'More searches with figures on Pro.'));
         } else {
           box.appendChild(el('span', 'sbw-fig-note', 'No figures for this result yet'));
         }
@@ -1160,8 +1161,9 @@
     return g;
   }
 
-  // The panel's figures line: the plan and today's allowance from the last
-  // answer, what stopped new figures, or how to get them.
+  // The panel's figures line: the plan and what is left of its allowance
+  // (today's, or this month's on Free) from the last answer, what stopped
+  // new figures, or how to get them.
   function renderFiguresLine() {
     if (!toolbarEl) return;
     const box = toolbarEl.querySelector('[data-role="figures-line"]');
@@ -1186,7 +1188,7 @@
       } else {
         box.textContent = (line || 'Figures loaded.') + ' Figures already looked up cost nothing.';
       }
-      short = line ? line.replace(/ searches with new figures left today \(UTC\)\./, ' left today') : '';
+      short = line ? line.replace(/ searches with new figures left (today|this month) \(UTC\)\./, ' left $1') : '';
     } else if (figState.state === 'loading') {
       box.textContent = 'Loading figures…';
     } else if (figState.state === 'no_key' || figState.state === 'needs_consent' || figState.state === 'error') {
@@ -1717,7 +1719,7 @@
 
     const loadSources = el('button', 'sbw-btn', 'Load figures for sources');
     loadSources.type = 'button';
-    loadSources.title = 'Asks SEO Bandwagon for the figures of the pages the AI Overview cites; with new figures, it counts as one search of your day\u2019s allowance.';
+    loadSources.title = 'Asks SEO Bandwagon for the figures of the pages the AI Overview cites; with new figures, it counts as one search of your allowance.';
     loadSources.addEventListener('click', () => {
       if (studyInfo) { flashLabel(loadSources, 'Off in a study search'); return; }
       if (!settings.figuresOn) { flashLabel(loadSources, 'Figures are off'); return; }

@@ -230,8 +230,8 @@
 
   /**
    * The answer's `{ plan, allowance, lookups }`, each checked (the figures'
-   * standing, plus `unsupported_market`, and the allowance's `period` when
-   * it is the week or the month).
+   * standing, plus `unsupported_market`, and the allowance's `period`: the
+   * week or the month when the answer says so, otherwise the day).
    */
   function standing(data) {
     const F = figuresLib();
