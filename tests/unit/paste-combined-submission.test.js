@@ -1,6 +1,6 @@
-// CHROMEWEBSTORE.md → "To paste with the combined submission (1.13.0)": the
-// dashboard texts of the one upload that carries 1.10.3 to 1.13.0 (owner,
-// 2026-11-02: submissions B and C become one). Each must fit its field, and
+// CHROMEWEBSTORE.md → "To paste with the combined submission (1.13.5)": the
+// dashboard texts of the one upload that carries 1.10.3 to 1.13.5 (owner,
+// 2026-11-02: submissions B and C become one; 2026-11-05: of 1.13.5). Each must fit its field, and
 // the justification, the single purpose and the description paragraphs must
 // be the very text of docs/CWS-LISTING.md, so the two can't drift before
 // they are pasted. Was paste-submission-b.test.js (1.11.0). 1.13.3 adds the
@@ -16,12 +16,12 @@ const REPO = path.resolve(__dirname, '../..');
 const store = readFileSync(path.join(REPO, 'CHROMEWEBSTORE.md'), 'utf8');
 const listing = readFileSync(path.join(REPO, 'docs/CWS-LISTING.md'), 'utf8');
 const readme = readFileSync(path.join(REPO, 'README.md'), 'utf8');
-const section = store.split('## To paste with the combined submission (1.13.0)')[1].split('\n## ')[0];
+const section = store.split('## To paste with the combined submission (1.13.5)')[1].split('\n## ')[0];
 const blocks = section.split('```').filter((_, i) => i % 2 === 1).map((b) => b.trim());
 const description = listing.split('## 2. Detailed description')[1].split('```')[1];
 const [googleScripts, allSites, offscreen, dnr, webHistory, websiteContent, singlePurpose, ...paragraphs] = blocks;
 
-describe('To paste with the combined submission (1.13.0)', () => {
+describe('To paste with the combined submission (1.13.5)', () => {
   it('replaces submissions B and C: neither has a section of its own any more', () => {
     expect(store).not.toMatch(/^## To paste with submission [BC]/m);
   });
