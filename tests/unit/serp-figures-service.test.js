@@ -77,7 +77,15 @@ describe('figures', () => {
     expect(post).toHaveBeenCalledTimes(1);
     expect(again.state).toBe('ok');
     expect(again.results.a.page.rank).toBe(38);
-    expect(again.allowance).toEqual({ limit: 20, used: 3, remaining: 17 });
+    expect(again.allowance).toEqual({ limit: 20, used: 3, remaining: 17, period: 'day' });
+  });
+
+  it('keeps a monthly allowance\'s period for the page and the popup', async () => {
+    post.mockResolvedValue({ ok: true, status: 200, data: Object.assign(answer('done'), { allowance: { limit: 20, used: 4, remaining: 16, period: 'month' } }), code: 'ok' });
+    const out = await svc.lookup(ITEMS);
+    expect(out.allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+    expect(storage.data[STATUS_KEY].allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+    expect((await svc.lookup(ITEMS)).allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
   });
 
   it('asks 10 results a call', async () => {

@@ -120,6 +120,32 @@ describe('the plan, the allowance, the limit and the monthly pause', () => {
     expect(F.allowanceLine(F.standing(answer('done')))).toBe('Free plan: 17 of 20 searches with new figures left today (UTC).');
   });
 
+  it('says "this month (UTC)" when the site counts figures by the calendar month (Free: 20 a month, website change 337eaf4d)', () => {
+    const s = F.standing(Object.assign(answer('done'), { allowance: { limit: 20, used: 4, remaining: 16, period: 'month' } }));
+    expect(s.allowance).toEqual({ limit: 20, used: 4, remaining: 16, period: 'month' });
+    expect(F.allowanceLine(s)).toBe('Free plan: 16 of 20 searches with new figures left this month (UTC).');
+    const limit = F.standing(Object.assign(answer('limit-reached'), { allowance: { limit: 20, used: 20, remaining: 0, period: 'month' } }));
+    expect(F.lookupNotice(limit)).toEqual({
+      kind: 'limit_reached',
+      text: 'This month’s 20 searches with new figures are used. Figures already looked up still show, and everything else works.',
+      upgrade: true
+    });
+  });
+
+  it('reads the day when the answer says "day", says no period (as before 2026-11-05) or one it does not know', () => {
+    const pro = F.standing({ plan: 'pro', allowance: { limit: 250, used: 7, remaining: 243, period: 'day' }, lookups: 'done' });
+    expect(pro.allowance).toEqual({ limit: 250, used: 7, remaining: 243, period: 'day' });
+    expect(F.allowanceLine(pro)).toBe('Pro plan: 243 of 250 searches with new figures left today (UTC).');
+    expect(F.standing(answer('done')).allowance).toEqual({ limit: 20, used: 3, remaining: 17, period: 'day' });
+    expect(F.lookupNotice(F.standing(answer('limit-reached'))).text)
+      .toBe('Today’s 20 searches with new figures are used. Figures already looked up still show, and everything else works.');
+    ['year', 7, null].forEach((period) => {
+      const s = F.standing({ plan: 'free', allowance: { limit: 20, used: 5, remaining: 15, period }, lookups: 'done' });
+      expect(s.allowance.period).toBe('day');
+      expect(F.allowanceLine(s)).toBe('Free plan: 15 of 20 searches with new figures left today (UTC).');
+    });
+  });
+
   it('at the limit: says so, keeps the cached figures, and links to upgrading', () => {
     const notice = F.lookupNotice(F.standing(answer('limit-reached')));
     expect(notice).toMatchObject({ kind: 'limit_reached', upgrade: true });

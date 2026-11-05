@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.4** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -68,7 +68,7 @@ probably finish up a few more versions quickly"; until then B was
 gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds and lints the Chrome, Edge and Firefox packages
-from 1.13.6 on. Every release also updates `CHROMEWEBSTORE.md`,
+from 1.13.7 on. Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -193,7 +193,13 @@ Free counts keyword data by the calendar month (UTC) since the owner's ruling of
 - [x] An allowance the site counts by the month reads "left this month (UTC)", and at the limit "This month's 20 searches with new keyword data are used"; the day and the week read as before
 - [x] The first-use note on Google, the Options card and the "With the page" setting say "your plan's allowance" (no "daily"); so does the description's KEYWORD DATA paragraph (`docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.0)")
 
-### 1.13.5: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2, then 1.13.3, then 1.13.4)
+### 1.13.5: figures' allowance by the month (patch)
+Free counts the figures under Google results by the calendar month (UTC) from the website's change `337eaf4d`: 20 searches a month; Pro and Enterprise stay at 250 a day. The route answers `allowance.period` `"day"` or `"month"`; an answer without it reads as the day.
+- [x] An allowance the site counts by the month reads "left this month (UTC)", and at the limit "This month's 20 searches with new figures are used"; the day reads as before, and so does an answer with no period or one the extension doesn't know
+- [x] The bar at the limit says "this month's limit" by the month, the panel's folded line "left this month"; the bar's Upgrade says "More searches with figures on Pro" (no "a day"); "Load figures for sources" counts "one search of your allowance"
+- [x] The Options card "Figures under Google results" says "20 searches a month, Pro for 250 a day"; so does the description's results-page paragraph ("a monthly allowance of figures": `docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.0)")
+
+### 1.13.6: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -203,7 +209,7 @@ Free counts keyword data by the calendar month (UTC) since the owner's ruling of
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
 
-### 1.13.6: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5)
+### 1.13.7: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5, then 1.13.6)
 Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0).
 - [ ] `npm run zip -- --target chrome|edge|firefox`: each manifest is the shared one plus a per-target overlay under `scripts/`, so a change for one store never forces a bump; `check:zip` reads the packaged manifest
 - [ ] Edge and Firefox overlays leave out the new-tab override and `management` (the Neon themes are Chrome Web Store items); Firefox adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain
@@ -211,7 +217,7 @@ Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0)
 - [ ] `utm_source` per browser: `chrome_extension`, `edge_extension`, `firefox_extension`
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
 
-### 1.13.7: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3, then 1.13.4, then 1.13.5, then 1.13.6)
+### 1.13.8: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3, then 1.13.4, then 1.13.5, then 1.13.6, then 1.13.7)
 The consent module moved to 1.11.0.
 - [ ] The Connect bridge: a content script on seobandwagon.com's api-keys and welcome paths, top frame only, origin and `event.source` checked, replies on a `MessageChannel` port; `externally_connectable` stays for Chrome and Edge
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
@@ -269,6 +275,36 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.5 (2026-11-04)
+
+The figures under Google results read right when the site counts them by
+the month. From the website's change `337eaf4d`, a free account gets figures
+for 20 searches a calendar month (UTC), not 20 a day; Pro and Enterprise stay
+at 250 a day. The route's answer carries `allowance.period`, `"day"` or
+`"month"`, the same field keyword data's route gives; it goes live with the
+production deploy of 2026-11-05, and an answer from before then, with no
+period, reads as the day.
+
+- **The allowance line** in the panel and the popup: "Free plan: 16 of 20
+  searches with new figures left this month (UTC)."; the panel folded,
+  "Free plan: 16 of 20 left this month". Pro still reads "left today (UTC)".
+- **At the limit:** "This month's 20 searches with new figures are used.
+  Figures already looked up still show, and everything else works."; a bar
+  with no figures, "No figures: this month's limit is reached", and its
+  Upgrade says "More searches with figures on Pro." (was "a day on Pro").
+- **No "day's allowance":** "Load figures for sources" counts "one search of
+  your allowance".
+- **The Options card** "Figures under Google results": "Free accounts get
+  figures for 20 searches a month, Pro for 250 a day." The consent words
+  (`serpFigures`, version 2) are unchanged: what is sent did not change.
+- **Store text:** the description's results-page paragraph says "A free
+  account gets a monthly allowance of figures" (was "a daily allowance"):
+  `docs/CWS-LISTING.md` §2; text 8 of "To paste with the combined submission
+  (1.13.0)" in `CHROMEWEBSTORE.md`.
+- **No permission, host, content-script or data-use change.**
+- **Planned releases moved up one:** the checks panels are 1.13.6, build
+  targets 1.13.7 and the Connect bridge 1.13.8.
 
 ## Changelog — v1.13.4 (2026-11-04)
 

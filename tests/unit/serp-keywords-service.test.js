@@ -136,7 +136,7 @@ describe('one request a search', () => {
     expect(post).toHaveBeenCalledTimes(1);
     expect(again.state).toBe('ok');
     expect(again.results['best crm for nonprofits reddit'].volume).toBe(170);
-    expect(again.allowance).toEqual({ limit: 10, used: 4, remaining: 6 });
+    expect(again.allowance).toEqual({ limit: 10, used: 4, remaining: 6, period: 'day' });
   });
 
   it('keeps a monthly allowance\'s period for the page and the popup', async () => {
