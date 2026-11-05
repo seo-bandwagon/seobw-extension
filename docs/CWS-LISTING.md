@@ -1,11 +1,12 @@
-# Chrome Web Store listing text — next submission: v1.13.0 (the combined submission)
+# Chrome Web Store listing text — next submission: v1.13.5 (the combined submission)
 
 The listing text for the next store submission, kept current with `main`.
 The store serves 1.10.2 (published 2026-11-01, store submission A). 1.10.3
-to 1.13.0 were built and not submitted: the owner ruled on 2026-11-02 that
-submissions B and C become one upload, of 1.13.0. What changes in the
+to 1.13.5 were built and not submitted: the owner ruled on 2026-11-02 that
+submissions B and C become one upload, and on 2026-11-05 that it is of
+1.13.5. What changes in the
 dashboard with it is listed, paste-ready, in `CHROMEWEBSTORE.md` under "To
-paste with the combined submission (1.13.0)"; the sections below are where
+paste with the combined submission (1.13.5)"; the sections below are where
 each text lives. 1.11.0 adds twenty Google domains to the results-page
 content script (the install warning measured unchanged) and its first new
 data flow since 1.5.0: the addresses of the results on a Google results page,

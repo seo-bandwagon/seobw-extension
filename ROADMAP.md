@@ -158,7 +158,7 @@ grant; the coverage report (#74).
 - [x] "Add to my keywords": to the rank tracker (a content keyword list does not exist on the site yet); one tracker, several (which one), none (a link to making one)
 - [x] If the rank tracker already tracks the search, your result shows its position history
 - [ ] Website: keyword metrics and keyword write routes under the `keywords` scope, added to `EXTENSION_SCOPES` (older keys get a 403 and show Reconnect) (built in parallel by the website session to the contract of 2026-11-02; the extension is tested against stubs of it)
-- [x] Data use: sends the search text; its own first-use disclosure (the consent module's `keywordData`, Firefox's `searchTerms`); the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"
+- [x] Data use: sends the search text; its own first-use disclosure (the consent module's `keywordData`, Firefox's `searchTerms`); the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.5)"
 
 ### 1.13.1: American English (patch)
 Owner ruling 2026-11-02: every word the extension shows is American English.
@@ -184,20 +184,20 @@ combined submission.
 - [x] The overlay's AI Overview sources table and the popup's "cites N pages" count include the record pages on a signed-out page
 - [x] Promises reworded to exclude the study: README, `CHROMEWEBSTORE.md` and `docs/CWS-LISTING.md`
 - [x] No permission or host; the install warning is unchanged (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4: the same four warnings for 1.13.2's and 1.13.3's manifests)
-- [x] Data use: a study search and that results page's export, for invited testers, on Send to study, and a stop record on Google stopped me (a note that Google stopped them that day), to the study and apart from the account; the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"; the single purpose is unchanged
+- [x] Data use: a study search and that results page's export, for invited testers, on Send to study, and a stop record on Google stopped me (a note that Google stopped them that day), to the study and apart from the account; the store answers in `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.5)"; the single purpose is unchanged
 - [ ] Website: the study's three routes under the `study` scope and the join page `/dashboard/aio-study` (the website's PR 7; the extension is tested against stubs of its contract)
 - [ ] Owner: one live export's sources compared with the screen (`MANUAL_SMOKE_TEST.md` §8)
 
 ### 1.13.4: keyword data's allowance by the month (patch)
 Free counts keyword data by the calendar month (UTC) since the owner's ruling of 2026-11-04: 20 searches a month (10, plus 10 for installing the extension); Pro stays at 100 a day (website change `93f3b985`).
 - [x] An allowance the site counts by the month reads "left this month (UTC)", and at the limit "This month's 20 searches with new keyword data are used"; the day and the week read as before
-- [x] The first-use note on Google, the Options card and the "With the page" setting say "your plan's allowance" (no "daily"); so does the description's KEYWORD DATA paragraph (`docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.0)")
+- [x] The first-use note on Google, the Options card and the "With the page" setting say "your plan's allowance" (no "daily"); so does the description's KEYWORD DATA paragraph (`docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.5)")
 
 ### 1.13.5: figures' allowance by the month (patch)
 Free counts the figures under Google results by the calendar month (UTC) from the website's change `337eaf4d`: 20 searches a month; Pro and Enterprise stay at 250 a day. The route answers `allowance.period` `"day"` or `"month"`; an answer without it reads as the day.
 - [x] An allowance the site counts by the month reads "left this month (UTC)", and at the limit "This month's 20 searches with new figures are used"; the day reads as before, and so does an answer with no period or one the extension doesn't know
 - [x] The bar at the limit says "this month's limit" by the month, the panel's folded line "left this month"; the bar's Upgrade says "More searches with figures on Pro" (no "a day"); "Load figures for sources" counts "one search of your allowance"
-- [x] The Options card "Figures under Google results" says "20 searches a month, Pro for 250 a day"; so does the description's results-page paragraph ("a monthly allowance of figures": `docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.0)")
+- [x] The Options card "Figures under Google results" says "20 searches a month, Pro for 250 a day"; so does the description's results-page paragraph ("a monthly allowance of figures": `docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.5)")
 
 ### 1.13.6: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
@@ -301,7 +301,7 @@ period, reads as the day.
 - **Store text:** the description's results-page paragraph says "A free
   account gets a monthly allowance of figures" (was "a daily allowance"):
   `docs/CWS-LISTING.md` §2; text 8 of "To paste with the combined submission
-  (1.13.0)" in `CHROMEWEBSTORE.md`.
+  (1.13.5)" in `CHROMEWEBSTORE.md`.
 - **No permission, host, content-script or data-use change.**
 - **Planned releases moved up one:** the checks panels are 1.13.6, build
   targets 1.13.7 and the Connect bridge 1.13.8.
@@ -330,7 +330,7 @@ change `93f3b985`); Pro stays at 100 a day. 1.13.3 read only `day` and
 - **Store text:** the description's KEYWORD DATA paragraph now ends "and your
   plan's allowance applies, with what is left shown under the strip"
   (`docs/CWS-LISTING.md` §2; text 8 of "To paste with the combined
-  submission (1.13.0)" in `CHROMEWEBSTORE.md`).
+  submission (1.13.5)" in `CHROMEWEBSTORE.md`).
 - **No permission, host, content-script or data-use change.**
 - **Planned releases moved up one:** the checks panels are 1.13.5, build
   targets 1.13.6 and the Connect bridge 1.13.7.
@@ -443,7 +443,7 @@ until their own yes in Options; the export changes reach every results page.
   language, the capture time, the extension version), to the study and apart
   from the account; and a stop record on Google stopped me (a note that
   Google stopped them that day). The dashboard texts are in
-  `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.0)"; the
+  `CHROMEWEBSTORE.md`, "To paste with the combined submission (1.13.5)"; the
   single purpose (998 of 1,000) is unchanged.
 - **No permission or host.** One script (`src/lib/aio-study.js`) joins the
   Google content-script entry. The install warning is unchanged:
@@ -583,7 +583,7 @@ Everywhere charges credits for the volume itself. Uploaded with 1.10.3 to
   People Also Ask questions, and a search added to the rank tracker; Web
   history and Website content's texts, the Google results justification,
   the single purpose and the description change (`CHROMEWEBSTORE.md`, "To
-  paste with the combined submission (1.13.0)"). seobandwagon.com/privacy
+  paste with the combined submission (1.13.5)"). seobandwagon.com/privacy
   must say so before the upload (the website's).
 - **Not in 1.13.0:** "Add to my content keywords" (no such list on the site
   yet); the website routes themselves (built in parallel against the
