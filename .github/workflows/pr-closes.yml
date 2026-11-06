@@ -1,0 +1,46 @@
+name: Issues closed
+
+# A PR that checks off a ROADMAP.md item carrying an open issue's number must
+# say "Closes #N" for it, so the issue closes when the PR merges (owner,
+# 2026-11-06: "Release PRs close them"). scripts/check-pr-closes.mjs has the
+# rule. Its own workflow, so editing the description reruns only this check,
+# not the tests.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: pr-closes-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  closes:
+    name: Checked-off roadmap items close their issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The check diffs ROADMAP.md against the base branch.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Check the description closes what the roadmap checks off
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN_ISSUES="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '[.[].number]')"
+          export OPEN_ISSUES
+          node scripts/check-pr-closes.mjs "origin/$BASE_REF"

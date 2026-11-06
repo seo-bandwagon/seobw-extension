@@ -95,7 +95,7 @@ version is `STAGED` or in review (the store refuses it with HTTP 400); saved rea
 Google pages for every layout (featured snippet, local pack, shopping, top
 stories, forums, `udm=web`, signed-out AI Overview, a non-English Google,
 mobile) and real Search Console pages; an e2e Copy check without a clipboard
-grant; the coverage report (#74).
+grant. The coverage report (#74) is in 1.13.7 (owner, 2026-11-06).
 
 ### 1.10.2: the Google results page shows the right numbers, and Analyze stays on Google (patch)
 - [x] The pooled "Score N · M captures" dropped (an average grade for the whole host across every account, "No score yet · 0 captures" for nearly every site); the bar below the whole result, with the organic position on it and the position counting everything in its tooltip, matching the exports
@@ -221,6 +221,7 @@ Moved up on 2026-11-06 so the Edge package can go to Microsoft Edge Add-ons now.
 - [ ] Tools: one list everywhere; Search Console link for Domain properties; Count words from the selection; stray tooltip gone
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
+- [ ] CI: a test coverage report on every PR, its summary in the job summary and the HTML report kept 7 days; the baseline recorded, no threshold yet (#74)
 
 ### 1.13.8: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.7; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.8)
 - [ ] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key)
@@ -2411,7 +2412,6 @@ candidates, still open" below.
 - [ ] Refresh the real-SERP fixtures when Google's markup moves; the
       overlay's console warning (#44) is the signal. 1.9.3 added a signed-in
       fixture (`serp-google-social-profiles.html`).
-- [ ] #74 a test coverage report in CI.
 
 ## Maintenance lane (patch bumps)
 

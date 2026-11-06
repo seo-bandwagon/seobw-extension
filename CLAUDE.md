@@ -88,6 +88,15 @@ changelog section. Full rules: ROADMAP.md → "Versioning policy", README.md →
   `tests/unit/build-targets.test.js` fails on another browser's name anywhere
   in the Edge package, comments esbuild keeps included.
 
+## Issues
+
+GitHub issues close only when a merged PR says `Closes #N`; owner, 2026-11-06:
+"Release PRs close them". A ROADMAP item that has an issue carries its number,
+and the PR that checks the item off says `Closes #N` for it, one line per
+issue. `.github/workflows/pr-closes.yml` (`scripts/check-pr-closes.mjs`) fails
+a PR that checks off an open issue's item without closing it, and reruns when
+the description is edited. A release brief lists the issues its version closes.
+
 ## Findings
 
 SEO Bandwagon findings, decisions and measurements go to the Obsidian vault
