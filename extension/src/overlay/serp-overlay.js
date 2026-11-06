@@ -493,7 +493,9 @@
     unreadable: "Couldn't read this page's HTML.",
     invalid_url: 'This address isn\u2019t one Analyze reads: a local or private address, or a Google page.',
     blocked_redirect: 'This page redirected to a local or private address, so it wasn\u2019t read.',
-    unprotected: 'Chrome didn\u2019t accept the rule that keeps Analyze off local addresses, so the page wasn\u2019t read. Reload this page to try again.',
+    // The worker names its browser with each page check (src/lib/browser.js,
+    // which this content script doesn't load).
+    unprotected: (browser) => `${browser || 'The browser'} didn\u2019t accept the rule that keeps Analyze off local addresses, so the page wasn\u2019t read. Reload this page to try again.`,
     unavailable: 'SEO Bandwagon was updated or reloaded. Reload this page to analyze.',
     failed: "Couldn't check this page."
   };
@@ -600,7 +602,8 @@
     } else if (msg.state === 'done' && msg.row) {
       renderCheckRow(line, head, msg.row, row, close);
     } else {
-      text(CHECK_ERRORS[msg.code] || CHECK_ERRORS.failed);
+      const words = CHECK_ERRORS[msg.code] || CHECK_ERRORS.failed;
+      text(typeof words === 'function' ? words(msg.browser) : words);
       head.appendChild(close);
     }
   }
@@ -1945,7 +1948,7 @@
   if (chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg && msg.action === 'serpPageChecked' && typeof msg.key === 'string') {
-        setCheck(msg.key, { state: msg.state, row: msg.row, code: msg.code });
+        setCheck(msg.key, { state: msg.state, row: msg.row, code: msg.code, browser: msg.browser });
         return;
       }
       if (msg && msg.action === 'serpExport') {

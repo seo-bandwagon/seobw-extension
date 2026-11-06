@@ -130,7 +130,11 @@ function stampVersion(el) {
 stampVersion(document.getElementById('versionTag'));
 // "Rate us" opens the store's reviews page, the same URL the one-time review
 // prompt uses (src/lib/review-prompt.js), so there is one place to change it.
-document.querySelectorAll('[data-review-link]').forEach(a => { a.href = SBWReview.REVIEW_URL; });
+// A build with no reviews page yet (Edge, 1.13.6) shows no link.
+document.querySelectorAll('[data-review-link]').forEach(a => {
+  if (SBWReview.REVIEW_URL) a.href = SBWReview.REVIEW_URL;
+  else a.hidden = true;
+});
 
 async function initDataToggle() {
   const toggle = document.getElementById('dataToggle');
@@ -285,7 +289,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       });
       document.querySelector('#content .empty').append(btn);
     } else {
-      showCantAnalyze("CAN'T READ THIS PAGE", 'Chrome blocks analysis on internal pages. Try refreshing, then click again.');
+      showCantAnalyze("CAN'T READ THIS PAGE", `${SBWBrowser.name} blocks analysis on internal pages. Try refreshing, then click again.`);
     }
     // Never gated on this run's outcome (ruling, Task 7 item E) — an error
     // page still shows the strip if a prior analysis already qualified.
@@ -584,7 +588,7 @@ function renderWebVitals(wv) {
   else state = badge('GOOD', 'b-ok');
 
   const notes = [];
-  if (wv.loadedHidden) notes.push('This page loaded in a background tab, where Chrome measures no LCP. Reload it in front to measure it.');
+  if (wv.loadedHidden) notes.push(`This page loaded in a background tab, where ${SBWBrowser.name} measures no LCP. Reload it in front to measure it.`);
   if (!has(wv.inp)) notes.push('INP needs an interaction: none was measured on this visit.');
   notes.push('Measured on this visit, in your browser: not Google\'s field data.');
 
@@ -1014,7 +1018,8 @@ async function renderThemeStrip() {
   const gate = globalThis.SBWNewTabGate;
   const theme = globalThis.SBWTheme;
   const el = document.getElementById('themeStrip');
-  if (!gate || !theme || !el) return;
+  // A build without the new tab (Edge, 1.13.6) has nothing to offer a theme for.
+  if (!gate || !theme || !el || !SBWBrowser.newTab) return;
   const [mode, stored] = await Promise.all([
     gate.installedThemeMode(theme.THEME_IDS),
     chrome.storage.local.get([gate.SETTING_KEY, gate.PROMPT_DISMISSED_KEY]),

@@ -339,7 +339,7 @@ function renderTheme(mode) {
   if (!url) { a.hidden = true; return; }
   const name = 'Neon ' + (shown === 'dark' ? 'Night' : 'Day');
   a.href = url;
-  a.textContent = (themeOn ? 'Also available: ' : 'Matching Chrome theme: ') + name + ' →';
+  a.textContent = (themeOn ? 'Also available: ' : `Matching ${globalThis.SBWBrowser.name} theme: `) + name + ' →';
   a.hidden = false;
 }
 
@@ -394,7 +394,7 @@ async function gate() {
 const SCAN_NOTES = {
   invalid_url: 'Type a site address, like example.com.',
   not_analyzable: 'That is a Google results page. Open a result instead.',
-  tab_open_failed: 'Chrome did not open that page. Try again.',
+  get tab_open_failed() { return `${globalThis.SBWBrowser.name} did not open that page. Try again.`; },
 };
 
 async function onScan(e) {

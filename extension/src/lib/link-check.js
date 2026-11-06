@@ -95,17 +95,10 @@
   // #46: Chrome never lets an extension fetch the Chrome Web Store (old and
   // new hosts), so a probe there always failed and read as a broken
   // NETWORK link, including our own "Install free extension" link. The
-  // worker skips these and records `error: 'uncheckable'`.
+  // worker skips these and records `error: 'uncheckable'`. 1.13.6: the
+  // build's own browser's store (src/lib/browser.js), Edge's in the Edge build.
   function isUncheckable(url) {
-    let u;
-    try {
-      u = new URL(url);
-    } catch (e) {
-      return false;
-    }
-    const host = u.hostname.toLowerCase();
-    if (host === 'chromewebstore.google.com') return true;
-    return host === 'chrome.google.com' && /^\/webstore(\/|$)/.test(u.pathname);
+    return globalThis.SBWBrowser.isStorePage(url);
   }
 
   // 2xx/3xx/4xx/5xx by status; a status of 0 (fetch threw/aborted) reads

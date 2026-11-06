@@ -4,7 +4,7 @@
 // the visit; and the install handler opens the welcome page on a first
 // install only, never on an update.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -82,6 +82,60 @@ describe('installActions', () => {
       // without it get it too.
       expect(actions.uninstallUrl).toBe(SBWSiteLinks.uninstallUrl('1.7.4'));
     }
+  });
+});
+
+// 1.13.6: the Edge build's own values (src/lib/browser.js via
+// scripts/targets/edge.mjs): its utm_source, and no welcome tab or survey,
+// since both pages on the site say "Chrome extension".
+describe('in the Edge build', () => {
+  let saved;
+  beforeEach(async () => {
+    const { default: edge } = await import('../../scripts/targets/edge.mjs');
+    saved = globalThis.SBWBrowser;
+    globalThis.SBWBrowser = saved.withValues(edge.browser);
+  });
+  afterEach(() => { globalThis.SBWBrowser = saved; });
+
+  it('tags links utm_source=edge_extension', () => {
+    expect(SBWSiteLinks.siteUrl('https://seobandwagon.com', '/dashboard/api-keys', 'options'))
+      .toBe('https://seobandwagon.com/dashboard/api-keys?utm_source=edge_extension&utm_medium=extension&utm_campaign=options');
+  });
+
+  it('opens no welcome tab and sets no uninstall survey', () => {
+    for (const reason of ['install', 'update']) {
+      expect(SBWSiteLinks.installActions(reason, '1.13.6')).toEqual({ welcomeUrl: null, uninstallUrl: null });
+    }
+  });
+});
+
+// The Connect bridge (1.13.6): the worker takes a siteBridge message only from
+// this extension's content script, in the top frame of a seobandwagon.com page.
+describe('isBridgeSender', () => {
+  const ID = 'dphmaddiedhkejfhabkfdenfphjljioj';
+  const ok = { id: ID, frameId: 0, url: 'https://seobandwagon.com/dashboard/api-keys/', tab: { id: 7 } };
+
+  it('takes the bridge on either page', () => {
+    expect(SBWSiteLinks.isBridgeSender(ok, ID)).toBe(true);
+    expect(SBWSiteLinks.isBridgeSender({ ...ok, url: 'https://seobandwagon.com/seo-chrome-extension/welcome/?ref=install' }, ID)).toBe(true);
+  });
+
+  it.each([
+    ['a subframe', { ...ok, frameId: 3 }],
+    ['no frame', { ...ok, frameId: undefined }],
+    ['another extension', { ...ok, id: 'abcdefghijklmnopabcdefghijklmnop' }],
+    ['another site', { ...ok, url: 'https://evil.example/dashboard/api-keys/' }],
+    ['a look-alike host', { ...ok, url: 'https://seobandwagon.com.evil.example/' }],
+    ['the www host', { ...ok, url: 'https://www.seobandwagon.com/dashboard/api-keys/' }],
+    ['plain http', { ...ok, url: 'http://seobandwagon.com/dashboard/api-keys/' }],
+    ['no url', { ...ok, url: undefined }],
+    ['no sender', null]
+  ])('refuses %s', (_, sender) => {
+    expect(SBWSiteLinks.isBridgeSender(sender, ID)).toBe(false);
+  });
+
+  it('refuses everything when the extension has no id to compare', () => {
+    expect(SBWSiteLinks.isBridgeSender(ok, undefined)).toBe(false);
   });
 });
 

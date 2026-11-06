@@ -32,7 +32,9 @@
 })(function () {
 
   const STORE_PREFIX = 'proof::';
-  const INTERRUPTED = 'The capture stopped when Chrome paused the extension. Try again.';
+  // The build's browser (src/lib/browser.js), read when the words are.
+  const browserName = () => globalThis.SBWBrowser.name;
+  const interrupted = () => `The capture stopped when ${browserName()} paused the extension. Try again.`;
 
   function storeKey(tabId) {
     return STORE_PREFIX + tabId;
@@ -165,7 +167,7 @@
         run.status = 'error';
         run.phase = null;
         run.controller = null;
-        run.error = { code: (e && e.code) || 'capture-failed', message: (e && e.message) || 'Chrome blocked the capture on this page.' };
+        run.error = { code: (e && e.code) || 'capture-failed', message: (e && e.message) || `${browserName()} blocked the capture on this page.` };
         await persist(run);
         emit(run, { type: 'error', run: snapshot(run) });
       }
@@ -209,7 +211,7 @@
           if (run.status === 'running') {
             // Chrome stopped the worker mid-capture; nothing is running now.
             run.status = 'error';
-            run.error = { code: 'capture-failed', message: INTERRUPTED };
+            run.error = { code: 'capture-failed', message: interrupted() };
           }
           runs.set(tabId, run);
           if (saved.status === 'running') persist(run);
@@ -252,5 +254,5 @@
     return { start, attach, detach, cancel, markDownloaded, tabRemoved, _runs: runs };
   }
 
-  return { createRunner, storeKey, sameUrl, INTERRUPTED };
+  return { createRunner, storeKey, sameUrl, get INTERRUPTED() { return interrupted(); } };
 });

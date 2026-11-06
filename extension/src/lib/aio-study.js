@@ -287,6 +287,9 @@
   const NOT_ON_LIST = "This term isn't on your list for today.";
   const UNREADABLE = "This page's results couldn't be read, so nothing was sent.";
 
+  // incognito_off names the build's browser's switch (src/lib/browser.js),
+  // read when the words are; a content script, which doesn't load it, says
+  // the setting for private windows.
   const MESSAGES = {
     unavailable: "The study isn't available yet. Try again later.",
     no_key: 'Connect the extension to your seobandwagon.com account to take part.',
@@ -295,7 +298,11 @@
     paused: 'The study is paused this week.',
     rate_limited: 'Too many sends at once. Wait a minute, then try again.',
     not_accepted: "Turn on study sends in the extension's settings first.",
-    incognito_off: "SEO Bandwagon isn't allowed in private windows, and the study only searches in one. On the extension's Details page, switch on Allow in Incognito, then click the term again.",
+    get incognito_off() {
+      const B = globalThis.SBWBrowser;
+      return "SEO Bandwagon isn't allowed in private windows, and the study only searches in one. On the extension's Details page, switch on " +
+        (B ? `Allow in ${B.privateWindow}` : 'the setting for private windows') + ', then click the term again.';
+    },
     not_study_tab: 'Only a search opened from the study panel can be sent.',
     not_on_list: NOT_ON_LIST,
     not_assigned: NOT_ON_LIST,

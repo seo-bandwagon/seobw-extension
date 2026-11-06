@@ -93,13 +93,15 @@
     const el = containerEl();
     if (!el || typeof globalThis.SBWReview === 'undefined') return;
 
-    if (!globalThis.SBWReview.shouldPrompt(state)) {
+    // No reviews page for this build (SBWReview.REVIEW_URL null): no prompt.
+    // Not outcome gating: it says nothing about the analysis.
+    if (!globalThis.SBWReview.REVIEW_URL || !globalThis.SBWReview.shouldPrompt(state)) {
       el.innerHTML = '';
       return;
     }
 
     el.innerHTML = `<div class="review-strip">
-      <span class="review-strip-copy">Finding this useful? A short review on the Chrome Web Store helps others find it.</span>
+      <span class="review-strip-copy">Finding this useful? A short review on the ${esc(globalThis.SBWBrowser.storeName)} helps others find it.</span>
       <span class="review-strip-actions">
         <button type="button" class="review-strip-btn review-strip-leave" id="reviewLeaveBtn">Leave a review</button>
         <button type="button" class="review-strip-btn review-strip-dismiss" id="reviewNoBtn">No thanks</button>

@@ -21,7 +21,7 @@
   const CLASS_ORDER = ['ok', 'redirect', 'client', 'server', 'timeout', 'network', 'uncheckable'];
   // #46: Chrome won't let an extension fetch these hosts (the Chrome Web
   // Store); the row says so rather than looking broken.
-  const CLASS_NOTES = { uncheckable: 'Chrome doesn\'t let extensions open these pages, so they can\'t be checked. They are not counted as broken.' };
+  const CLASS_NOTES = { uncheckable: `${SBWBrowser.name} doesn't let extensions open these pages, so they can't be checked. They are not counted as broken.` };
   const BROKEN_CLASSES = ['client', 'server', 'timeout', 'network'];
   const ATTACH_TIMEOUT_MS = 3000;
 

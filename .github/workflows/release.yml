@@ -1,8 +1,11 @@
 name: Release
 
-# Tests and builds the store zip and attaches it to a GitHub release. It
-# touches nothing in the Chrome Web Store: submitting is a separate run that
-# the owner starts on purpose (store-submit.yml), which is the approval step.
+# Tests and builds the store zips and attaches them to a GitHub release: the
+# Chrome Web Store's, seo-bw-extension-X.Y.Z.zip (the name store-submit.yml
+# downloads), and Microsoft Edge Add-ons', seo-bw-extension-edge-X.Y.Z.zip
+# (from 1.13.6; uploaded by hand in Partner Center for now). It touches
+# nothing in either store: submitting is a separate run that the owner starts
+# on purpose (store-submit.yml), which is the approval step.
 # Nothing here runs on its own; it starts only from "Run workflow".
 # See docs/RELEASING.md.
 
@@ -55,11 +58,13 @@ jobs:
             exit 1
           fi
 
-      - name: Zip
+      - name: Zips
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          npm run zip
-          mv seo-bw-extension.zip "seo-bw-extension-${{ steps.version.outputs.version }}.zip"
-          node scripts/release-notes.mjs "seo-bw-extension-${{ steps.version.outputs.version }}.zip" > release-notes.md
+          npm run zip -- --target chrome "seo-bw-extension-$VERSION.zip"
+          npm run zip -- --target edge "seo-bw-extension-edge-$VERSION.zip"
+          node scripts/release-notes.mjs "seo-bw-extension-$VERSION.zip" "seo-bw-extension-edge-$VERSION.zip" > release-notes.md
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -67,6 +72,7 @@ jobs:
           name: release
           path: |
             seo-bw-extension-${{ steps.version.outputs.version }}.zip
+            seo-bw-extension-edge-${{ steps.version.outputs.version }}.zip
             release-notes.md
           if-no-files-found: error
 
@@ -87,6 +93,6 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
           SHA: ${{ needs.build.outputs.sha }}
         run: |
-          gh release create "v$VERSION" "seo-bw-extension-$VERSION.zip" \
+          gh release create "v$VERSION" "seo-bw-extension-$VERSION.zip" "seo-bw-extension-edge-$VERSION.zip" \
             --repo "$GITHUB_REPOSITORY" --target "$SHA" --title "v$VERSION" \
             --notes-file release-notes.md --generate-notes

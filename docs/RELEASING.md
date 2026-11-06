@@ -3,8 +3,10 @@
 A release passes a person three times:
 
 1. **Release** (Actions → *Release* → Run workflow, on `main`). It runs the tests and
-   `check:zip`, builds `seo-bw-extension-X.Y.Z.zip` from the commit you name (default
-   `main`), and creates the GitHub release `vX.Y.Z` with the zip, its SHA-256, the
+   `check:zip`, builds `seo-bw-extension-X.Y.Z.zip` (Chrome) and, from 1.13.6,
+   `seo-bw-extension-edge-X.Y.Z.zip` (Microsoft Edge Add-ons, uploaded by hand in Partner
+   Center; `CHROMEWEBSTORE.md` → "Microsoft Edge Add-ons (Partner Center)") from the commit
+   you name (default `main`), and creates the GitHub release `vX.Y.Z` with both zips, their SHA-256s, the
    "What's new" block from `docs/CWS-LISTING.md` §6 and GitHub's list of merged pull
    requests. It stops if `vX.Y.Z` already exists. It doesn't touch the store.
 2. **Submit to Chrome Web Store** (Actions → *Submit to Chrome Web Store* → Run
@@ -100,6 +102,7 @@ seobw-store-submit …`) or remove the service account in the Developer Dashboar
 
 ```bash
 npm run zip        # manifest.json lib/ src/ (from inside extension/) → seo-bw-extension.zip
-npm run check:zip  # same, plus: every file the manifest and pages reference is in it
+npm run zip -- --target edge   # the Microsoft Edge package → seo-bw-extension-edge.zip
+npm run check:zip  # both packages, plus: every file each manifest and page references is in it
 npm run bump -- patch   # or minor / x.y.z — see ROADMAP.md's versioning policy
 ```

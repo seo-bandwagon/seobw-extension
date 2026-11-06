@@ -100,4 +100,9 @@ describe('release notes', () => {
     expect(n).toContain('`seo-bw-extension-1.8.0.zip`');
     expect(n).toContain('SHA-256: `' + 'ab'.repeat(32) + '`');
   });
+
+  it('lists every package of the release (1.13.6: the Chrome zip and the Edge zip)', () => {
+    const n = notes(listing, 'seo-bw-extension-1.13.6.zip', 'ab'.repeat(32), [{ name: 'seo-bw-extension-edge-1.13.6.zip', sha256: 'cd'.repeat(32) }]);
+    expect(n).toContain('## Packages\n\n`seo-bw-extension-1.13.6.zip`\nSHA-256: `' + 'ab'.repeat(32) + '`\n\n`seo-bw-extension-edge-1.13.6.zip`\nSHA-256: `' + 'cd'.repeat(32) + '`');
+  });
 });

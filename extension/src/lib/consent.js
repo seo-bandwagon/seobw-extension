@@ -6,7 +6,7 @@
 // Extension_Roadmap_To_2_0_Design, decision 5):
 //
 //   - Firefox: each flow names the data categories Firefox asks about
-//     (`data_collection_permissions` in the Firefox manifest, 1.13.7's build
+//     (`data_collection_permissions` in the Firefox manifest, 1.13.8's build
 //     target). A category is granted only when Firefox says so, and data
 //     collection starts off there.
 //   - Chrome and Edge have no such prompt, so a category reads the switch
@@ -51,7 +51,7 @@
       sends: 'The page address and the analysis of each page you analyze, the extension version and your browser’s user-agent string.',
       why: 'So your captures show in your SEO Bandwagon account.',
       firefox: ['browsingActivity', 'websiteContent', 'technicalAndInteraction'],
-      // Chrome and Edge: the "Send analyses to SEO Bandwagon" switch.
+      // Without the browser's own data prompt: the "Send analyses to SEO Bandwagon" switch.
       chromeSwitch: { area: 'local', key: 'dataCollection', on: (v) => v !== false },
       acceptedBy: 'connect'
     },
@@ -85,7 +85,7 @@
     // The AI Overview study (1.13.3): a results page the study itself opened,
     // sent as its CSV export only when the person clicks Send to study. For
     // invited testers; its own yes, in its own Options card. No chromeSwitch:
-    // on Chrome and Edge nothing else turns it on or off, so the yes alone
+    // without the browser's own data prompt nothing else turns it on or off, so the yes alone
     // decides (a flow with no switch counts its categories as granted).
     aioStudy: {
       title: 'AI Overview study',

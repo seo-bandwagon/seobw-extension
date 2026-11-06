@@ -311,9 +311,14 @@ function initAioStudyConsent() {
   if (location.hash === '#aio-study') section.scrollIntoView();
 }
 
-/* New tab (1.9.5): which page a new tab opens, saved on change. */
+/* New tab (1.9.5): which page a new tab opens, saved on change. A build
+   without the new tab (Edge, 1.13.6: src/lib/browser.js) hides the section. */
 async function initNewTab() {
   const gate = globalThis.SBWNewTabGate;
+  if (!SBWBrowser.newTab) {
+    document.getElementById('newTabSection').hidden = true;
+    return;
+  }
   if (!gate) return;
   const ids = (globalThis.SBWTheme && SBWTheme.THEME_IDS) || {};
   const [mode, stored] = await Promise.all([
@@ -323,7 +328,7 @@ async function initNewTab() {
   const status = document.getElementById('ntThemeStatus');
   status.textContent = mode
     ? `Neon ${mode === 'dark' ? 'Night' : 'Day'} is installed, so new tabs can show your dashboard.`
-    : 'Neither Neon Night nor Neon Day is installed, so new tabs stay Chrome\'s own unless you choose Always. Install a theme with the links above.';
+    : `Neither Neon Night nor Neon Day is installed, so new tabs stay ${SBWBrowser.name}'s own unless you choose Always. Install a theme with the links above.`;
 
   const setting = gate.settingOf(stored[gate.SETTING_KEY]);
   for (const radio of document.querySelectorAll('input[name="newTab"]')) {
@@ -383,5 +388,9 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 });
 
 // "Rate it on the Chrome Web Store" uses the review prompt's URL
-// (src/lib/review-prompt.js), the one place it is defined.
-document.querySelectorAll('[data-review-link]').forEach(a => { a.href = SBWReview.REVIEW_URL; });
+// (src/lib/review-prompt.js), the one place it is defined. A build with no
+// reviews page yet (Edge, 1.13.6) hides the line.
+document.querySelectorAll('[data-review-link]').forEach(a => {
+  if (SBWReview.REVIEW_URL) a.href = SBWReview.REVIEW_URL;
+  else (a.closest('.rate-hint') || a).hidden = true;
+});
