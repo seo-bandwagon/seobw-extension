@@ -119,3 +119,48 @@ describe('store listing copy', () => {
     expect([...keywordCounts('page '.repeat(MAX_OTHER_WORD + 1))].some(([, n]) => n > MAX_OTHER_WORD)).toBe(true);
   });
 });
+
+// Microsoft Edge Add-ons (1.13.6): the description in CHROMEWEBSTORE.md →
+// "Microsoft Edge Add-ons (Partner Center)". Microsoft's rules (read
+// 2026-11-05): 250 to 10,000 characters; developer policy 1.1.2, no other
+// browser named; 1.8.2, the paid features and their prices said; 1.2.3, a
+// dependency on another service said. The Chrome description's keyword rules
+// hold too.
+describe('Microsoft Edge Add-ons listing copy', () => {
+  const store = readFileSync(path.join(REPO, 'CHROMEWEBSTORE.md'), 'utf8');
+  const edge = store.split('### Edge description')[1].split('```')[1].trim();
+  const notes = store.split('### Notes for certification')[1].split('```')[1];
+  const terms = store.split('**Search terms**')[1].split('\n')[0];
+
+  it('found the description, within 250 to 10,000 characters', () => {
+    expect(edge.length).toBeGreaterThanOrEqual(250);
+    expect(edge.length).toBeLessThanOrEqual(10000);
+  });
+
+  it('names no other browser or its store, and neither do the reviewer notes', () => {
+    for (const text of [edge, notes]) {
+      expect(text).not.toMatch(/Chrome|Firefox|Safari|Brave|Opera|Incognito|chromewebstore/i);
+    }
+  });
+
+  it('says what is free, what the paid plans cost, and what it depends on', () => {
+    expect(edge).toMatch(/free and need no account/);
+    expect(edge).toMatch(/Pro plan, 99 US dollars a month/);
+    expect(edge).toMatch(/depend on SEO Bandwagon's service at seobandwagon\.com/);
+  });
+
+  it('keeps the keyword rules', () => {
+    expect([...searchKeywordCounts(edge)].filter(([, n]) => n > MAX_KEYWORD)).toEqual([]);
+    expect([...keywordCounts(edge)].filter(([, n]) => n > MAX_OTHER_WORD)).toEqual([]);
+    expect(longestList(edge)).toBeLessThan(5);
+    expect(edge).not.toMatch(/\bfix(es)?\b/i);
+  });
+
+  it('has at most seven search terms of 30 characters, 21 words in all', () => {
+    const list = [...terms.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.length).toBeLessThanOrEqual(7);
+    for (const t of list) expect(t.length).toBeLessThanOrEqual(30);
+    expect(list.join(' ').split(/\s+/).length).toBeLessThanOrEqual(21);
+  });
+});

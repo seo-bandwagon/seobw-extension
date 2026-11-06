@@ -32,9 +32,11 @@
   // never answers; without a limit the capture would wait forever.
   const MESSAGE_TIMEOUT_MS = 6000;
 
+  // 'capture-failed' names the build's browser (src/lib/browser.js), read
+  // when the words are.
   const MESSAGES = {
     'tab-changed': 'You switched tabs, so the capture stopped.',
-    'capture-failed': 'Chrome blocked the capture on this page.',
+    get ['capture-failed']() { return `${globalThis.SBWBrowser.name} blocked the capture on this page.`; },
     'canvas-failed': 'This page is too large to stitch into one image in this browser.',
     'cancelled': 'Capture canceled.',
     'no-response': 'The page stopped responding. Reload it and try again.'

@@ -40,8 +40,9 @@ for working in the repo.
 ```bash
 npm test                 # vitest, all unit + integration
 npm run test:e2e         # Playwright, both e2e specs, needs a display
-npm run zip              # the store zip, comments left out (scripts/build-zip.mjs)
-npm run check:zip        # builds the store zip and checks every referenced file is in it
+npm run zip              # the Chrome store zip, comments left out (scripts/build-zip.mjs)
+npm run zip -- --target edge   # the Microsoft Edge Add-ons zip (scripts/targets/edge.mjs)
+npm run check:zip        # builds both zips and checks every referenced file is in each
 npm run bump -- patch    # or minor / x.y.z
 ```
 
@@ -78,6 +79,14 @@ changelog section. Full rules: ROADMAP.md → "Versioning policy", README.md →
   `ANALYZER_FILES` in `lib/sbw-data.js`. Change all four together.
 - `extension/src/styles/popup.css` is one sheet shared by every page (popup,
   options, both side panels, history).
+- Two packages from one source (1.13.6): a user-facing string never names
+  Chrome, Incognito or the Chrome Web Store directly; it reads
+  `SBWBrowser` (`src/lib/browser.js`), or in HTML sits in a
+  `<span data-browser="…">` the build fills. A page that reads it loads
+  `browser.js` first; content scripts on Google and Search Console don't load
+  it, so their words come with the worker's answer.
+  `tests/unit/build-targets.test.js` fails on another browser's name anywhere
+  in the Edge package, comments esbuild keeps included.
 
 ## Findings
 

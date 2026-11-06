@@ -28,7 +28,10 @@
 
   const ANALYSES_THRESHOLD = 5;
 
-  const REVIEW_URL = 'https://chromewebstore.google.com/detail/seo-bandwagon/dphmaddiedhkejfhabkfdenfphjljioj/reviews';
+  // The store's reviews page for this build (src/lib/browser.js). null where
+  // the listing doesn't exist yet (the Edge build until the owner creates the
+  // product in Partner Center): the prompt and the "Rate us" links stay off.
+  const reviewUrl = () => (globalThis.SBWBrowser && globalThis.SBWBrowser.reviewUrl) || null;
 
   function defaultState() {
     return { analyses: 0, prompted: false, installedAt: null };
@@ -59,7 +62,7 @@
   }
 
   return {
-    REVIEW_URL,
+    get REVIEW_URL() { return reviewUrl(); },
     shouldPrompt,
     nextState
   };

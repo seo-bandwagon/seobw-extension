@@ -126,9 +126,13 @@
     return (await storedMode()) || 'auto';
   }
 
+  // The theme's store listing, or null: a placeholder id, or a build whose
+  // store doesn't carry the themes (src/lib/browser.js themeStoreUrl null,
+  // the Edge build), which hides every theme link.
   function listingUrl(mode) {
     const id = THEME_IDS[mode === 'light' ? 'light' : 'dark'];
-    return ID_RE.test(id) ? 'https://chromewebstore.google.com/detail/' + id : null;
+    const base = globalThis.SBWBrowser && globalThis.SBWBrowser.themeStoreUrl;
+    return base && ID_RE.test(id) ? base + id : null;
   }
 
   // Wire a group of buttons with data-mode="auto|dark|light" and aria-pressed.

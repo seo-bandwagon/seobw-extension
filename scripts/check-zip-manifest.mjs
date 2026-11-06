@@ -1,36 +1,41 @@
 #!/usr/bin/env node
-// SEO Bandwagon — release check: does the built zip actually contain every
-// local file the shipped extension can reach?
+// SEO Bandwagon — release check: does a built store package actually contain
+// every local file the shipped extension can reach, and is its manifest the
+// target's?
 //
 // Scope (deliberately narrow — see task-8-brief.md section A): every local
-// path referenced by manifest.json itself, plus every local <script src>/
-// <link href> in the six HTML entry points (popup, options, history,
-// sidepanel, panel, access), plus the relative `import ... from` graph of any ES
-// module those pages load (panel.js imports theme-sync.js). This does NOT walk chrome.scripting.executeScript file lists
-// inside service-worker.js/popup.js (e.g. lib/content-analysis.js,
+// path referenced by the packaged manifest.json itself, plus every local
+// <script src>/<link href> in the six HTML entry points (popup, options,
+// history, sidepanel, panel, access), plus the relative `import ... from`
+// graph of any ES module those pages load (panel.js imports theme-sync.js).
+// This does NOT walk chrome.scripting.executeScript file lists inside
+// service-worker.js/popup.js (e.g. lib/content-analysis.js,
 // lib/dom-extraction.js, src/content/analyzer.js) — those are a separate,
 // already-covered injection path, not something a browser loads from the
 // manifest or an HTML shell.
 //
-// Usage: node scripts/check-zip-manifest.mjs [zipfile]
-// Expects the zip to already exist (built by `npm run zip`). Exits non-zero
-// and prints every missing path if the zip is short of anything referenced.
+// 1.13.6: everything is read from the package, not from extension/, since a
+// target's manifest and pages differ from the source (scripts/targets/).
+//
+// Usage: node scripts/check-zip-manifest.mjs
+//          builds every target (scripts/build-zip.mjs) into a temporary
+//          folder and checks each; what `npm run check:zip` runs.
+//        node scripts/check-zip-manifest.mjs <zipfile> [--target chrome|edge]
+//          checks a zip that already exists (default target chrome).
+// Exits non-zero and prints every problem if a package falls short.
 //
 // Dual-purpose by design, not dual-export — this is a standalone Node CLI
 // script, never loaded by the extension itself, so no globalThis/module
 // export dance is needed here (contrast src/lib/*.js).
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { TARGETS, targetOf, buildZip } from './build-zip.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// The shippable extension lives in extension/; the zip is built from inside
-// that folder, so entries are relative to it. The zip file itself lands at
-// the repo root.
-const ROOT = path.join(REPO, 'extension');
-const ZIP = path.resolve(REPO, process.argv[2] || 'seo-bw-extension.zip');
 
 const HTML_ENTRY_POINTS = [
   'src/popup/popup.html',
@@ -50,18 +55,8 @@ function isLocal(ref) {
   return true;
 }
 
-// Resolve a reference found inside `fromFile` to a path relative to ROOT,
-// matching how the zip (built with `zip -r ... manifest.json lib/ src/ ...`
-// from inside extension/) stores entries.
-function resolveRef(fromFile, ref) {
-  const abs = path.resolve(path.dirname(fromFile), ref);
-  return path.relative(ROOT, abs);
-}
-
-function collectFromManifest(manifestPath) {
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+function collectFromManifest(manifest) {
   const refs = new Set();
-
   const addIfLocal = (v) => { if (typeof v === 'string' && isLocal(v)) refs.add(v); };
 
   Object.values(manifest.icons || {}).forEach(addIfLocal);
@@ -72,6 +67,7 @@ function collectFromManifest(manifestPath) {
   addIfLocal(manifest.options_page);
   if (manifest.background) addIfLocal(manifest.background.service_worker);
   if (manifest.side_panel) addIfLocal(manifest.side_panel.default_path);
+  Object.values(manifest.chrome_url_overrides || {}).forEach(addIfLocal);
 
   (manifest.content_scripts || []).forEach((cs) => {
     (cs.js || []).forEach(addIfLocal);
@@ -102,70 +98,101 @@ function collectImports(absJsPath, seen = new Set()) {
   return seen;
 }
 
-function collectFromHtml(relHtmlPath) {
-  const absHtmlPath = path.join(ROOT, relHtmlPath);
+// Every local reference of one page, relative to the package root. A page
+// the package lacks adds nothing here; it is reported missing on its own.
+function collectFromHtml(root, relHtmlPath) {
+  const absHtmlPath = path.join(root, relHtmlPath);
+  if (!existsSync(absHtmlPath)) return [];
   const html = readFileSync(absHtmlPath, 'utf8');
   const refs = new Set();
   const attrRe = /\b(?:src|href)\s*=\s*"([^"]+)"/g;
   let m;
   while ((m = attrRe.exec(html))) {
-    const ref = m[1];
-    if (isLocal(ref)) refs.add(resolveRef(absHtmlPath, ref));
+    if (isLocal(m[1])) refs.add(path.relative(root, path.resolve(path.dirname(absHtmlPath), m[1])));
   }
   const moduleRe = /<script\b[^>]*\btype\s*=\s*"module"[^>]*\bsrc\s*=\s*"([^"]+)"/g;
   while ((m = moduleRe.exec(html))) {
     if (!isLocal(m[1])) continue;
     for (const abs of collectImports(path.resolve(path.dirname(absHtmlPath), m[1]))) {
-      refs.add(path.relative(ROOT, abs));
+      refs.add(path.relative(root, abs));
     }
   }
   return [...refs];
 }
 
-function zipListing(zipPath) {
-  // -Z1: name-only "zipinfo" listing, one entry per line — no fixed-width
-  // column parsing to get wrong.
-  const out = execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf8' });
-  return new Set(out.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => path.normalize(l)));
+// The problems with one package, as lines; empty when it passes.
+export function checkPackage(zipPath, targetName = 'chrome') {
+  const target = targetOf(targetName);
+  const root = mkdtempSync(path.join(os.tmpdir(), 'sbw-check-'));
+  try {
+    execFileSync('unzip', ['-q', zipPath, '-d', root]);
+    const listing = new Set(
+      execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf8' })
+        .split('\n').map((l) => l.trim()).filter((l) => l && !l.endsWith('/')).map((l) => path.normalize(l))
+    );
+    const manifest = JSON.parse(readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+    const required = new Set([
+      'manifest.json',
+      ...HTML_ENTRY_POINTS.map((p) => path.normalize(p)),
+      ...collectFromManifest(manifest),
+      ...HTML_ENTRY_POINTS.flatMap((p) => collectFromHtml(root, p))
+    ]);
+    const problems = [...required].filter((r) => !listing.has(r)).sort()
+      .map((r) => `missing from the package: ${r}`);
+
+    // The store assigns the item's ID and reportedly rejects an upload whose
+    // manifest carries "key" (scripts/build-zip.mjs's packageManifest drops it).
+    if ('key' in manifest) problems.push('the packaged manifest.json carries "key"; a store package must not');
+    // The target's overlay took: what it removes is gone.
+    for (const [k, v] of Object.entries(target.manifest || {})) {
+      if (v === null && k in manifest) problems.push(`the ${targetName} manifest still has "${k}"`);
+    }
+    for (const p of target.dropPermissions || []) {
+      if ([...(manifest.permissions || []), ...(manifest.optional_permissions || [])].includes(p)) {
+        problems.push(`the ${targetName} manifest still asks for "${p}"`);
+      }
+    }
+    return { files: listing.size, checked: required.size, problems };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
-function main() {
-  if (!existsSync(ZIP)) {
-    console.error(`check-zip-manifest: ${path.relative(ROOT, ZIP)} does not exist — run \`npm run zip\` first.`);
-    process.exit(1);
-  }
-
-  const manifestRefs = collectFromManifest(path.join(ROOT, 'manifest.json'));
-  const htmlRefs = HTML_ENTRY_POINTS.flatMap(collectFromHtml);
-  // manifest.json + the five HTML entry points must themselves be in the
-  // zip, same as anything they reference.
-  const required = new Set([
-    'manifest.json',
-    ...HTML_ENTRY_POINTS.map((p) => path.normalize(p)),
-    ...manifestRefs,
-    ...htmlRefs
-  ]);
-
-  const listing = zipListing(ZIP);
-  const missing = [...required].filter((r) => !listing.has(r)).sort();
-
-  console.log(`check-zip-manifest: ${listing.size} files in ${path.relative(ROOT, ZIP)}, ${required.size} referenced paths checked`);
-
-  if (missing.length) {
-    console.error(`check-zip-manifest: FAIL — ${missing.length} referenced file(s) missing from the zip:`);
-    missing.forEach((m) => console.error(`  - ${m}`));
-    process.exit(1);
-  }
-
-  // The store assigns the item's ID and reportedly rejects an upload whose
-  // manifest carries "key" (scripts/build-zip.mjs's packageManifest drops it).
-  const packaged = JSON.parse(execFileSync('unzip', ['-p', ZIP, 'manifest.json'], { encoding: 'utf8' }));
-  if ('key' in packaged) {
-    console.error('check-zip-manifest: FAIL — the packaged manifest.json carries "key"; the store package must not.');
-    process.exit(1);
-  }
-
-  console.log('check-zip-manifest: OK — every referenced file is present, and the manifest carries no "key".');
+function report(label, { files, checked, problems }) {
+  console.log(`check-zip-manifest: ${label}: ${files} files, ${checked} referenced paths checked`);
+  problems.forEach((p) => console.error(`check-zip-manifest: FAIL (${label}) — ${p}`));
+  return problems.length === 0;
 }
 
-main();
+function main(argv) {
+  const ti = argv.indexOf('--target');
+  const targetName = ti >= 0 ? argv[ti + 1] : 'chrome';
+  const zipArg = argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--target');
+
+  if (zipArg) {
+    const zip = path.resolve(REPO, zipArg);
+    if (!existsSync(zip)) {
+      console.error(`check-zip-manifest: ${path.relative(REPO, zip)} does not exist — run \`npm run zip\` first.`);
+      return 1;
+    }
+    return report(`${path.relative(REPO, zip)} (${targetName})`, checkPackage(zip, targetName)) ? 0 : 1;
+  }
+
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'sbw-zips-'));
+  try {
+    let ok = true;
+    for (const name of Object.keys(TARGETS)) {
+      const zip = path.join(dir, `${name}.zip`);
+      buildZip(zip, { target: name });
+      ok = report(name, checkPackage(zip, name)) && ok;
+    }
+    if (ok) console.log('check-zip-manifest: OK — in every target, every referenced file is present, the manifest carries no "key", and the overlay took.');
+    return ok ? 0 : 1;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  process.exit(main(process.argv.slice(2)));
+}

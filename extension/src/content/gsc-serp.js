@@ -40,9 +40,11 @@
       chrome.runtime.sendMessage({ action: 'openIncognitoSearch', query, gl: inject.propertyCountry(location) }, (res) => {
         if (chrome.runtime.lastError) return;
         if (res && res.ok && res.incognito === false) {
+          // The switch's name comes with the worker's answer (src/lib/browser.js,
+          // which this content script doesn't load).
           hint(
             'Opened in a normal window: this browser does not let SEO Bandwagon open private windows. ' +
-              'Enable "Allow in Private" (Brave) or "Allow in Incognito" (Chrome) for the extension on the extensions page.',
+              `Enable ${res.privateSwitches || 'private windows'} for the extension on the extensions page.`,
           );
         }
       });

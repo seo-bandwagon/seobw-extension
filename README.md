@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.13.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.13.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -695,14 +695,17 @@ Before every Chrome Web Store submission, also walk through [MANUAL_SMOKE_TEST.m
 ```bash
 npm run zip        # manifest.json lib/ src/ (from inside extension/) → seo-bw-extension.zip,
                     # with comments left out (scripts/build-zip.mjs; KEEP_COMMENTS=1 keeps them)
-npm run check:zip  # same, plus: fails if any file manifest.json or one of the five pages
-                    # (popup, options, history, both side panels, with their module imports)
-                    # references is missing from the zip; deletes the zip afterward
-                    # (scripts/check-zip-manifest.mjs). CI runs it on every pull request.
+npm run zip -- --target edge   # the Microsoft Edge package → seo-bw-extension-edge.zip (1.13.6):
+                    # the overlay scripts/targets/edge.mjs and Edge's words in src/lib/browser.js
+npm run check:zip  # builds both packages in a temporary folder and fails if any file a packaged
+                    # manifest or one of the six pages (popup, options, history, both side
+                    # panels, access, with their module imports) references is missing, or a
+                    # target's overlay didn't take (scripts/check-zip-manifest.mjs). CI runs it
+                    # on every pull request.
 npm run bump -- patch   # or minor / x.y.z — see ROADMAP.md's versioning policy
 ```
 
-Releases go through two hand-started workflows: **Release** (tests, zip, GitHub release) and **Submit to Chrome Web Store** (upload and a staged submission, which waits for someone to press Publish after review). Steps and the one-time Google setup: [`docs/RELEASING.md`](docs/RELEASING.md).
+Releases go through two hand-started workflows: **Release** (tests, both zips, GitHub release) and **Submit to Chrome Web Store** (upload and a staged submission, which waits for someone to press Publish after review). Steps and the one-time Google setup: [`docs/RELEASING.md`](docs/RELEASING.md).
 
 Bump the version first with `npm run bump` (see `ROADMAP.md`'s versioning policy); CI fails a pull request that changes `extension/` without a bump. Unzip and inspect the package before uploading to the Chrome Web Store — it should contain `manifest.json`, `lib/` and `src/` and nothing else (no `preview/`, `tests/`, `node_modules/`, docs or README). Listing text for the submission is in `docs/CWS-LISTING.md`; store-facing metadata in `CHROMEWEBSTORE.md`.
 

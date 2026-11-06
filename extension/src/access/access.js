@@ -34,9 +34,9 @@
     // Straight from the click: permissions.request needs the gesture.
     SBWPerms.requestAllUrls().then((granted) => {
       if (granted) answer(true);
-      else status.textContent = 'Chrome did not give access. Click Allow access to ask again, or Not now to stay as you are.';
+      else status.textContent = `${SBWBrowser.name} did not give access. Click Allow access to ask again, or Not now to stay as you are.`;
     }, () => {
-      status.textContent = 'Chrome could not ask for access here. Allow it from the popup on the result\'s tab instead.';
+      status.textContent = `${SBWBrowser.name} could not ask for access here. Allow it from the popup on the result's tab instead.`;
     });
   });
 

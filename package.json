@@ -1,6 +1,6 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.13.5",
+  "version": "1.13.6",
   "engines": {
     "node": "^22.22.2 || ^24.15.0"
   },
@@ -11,7 +11,7 @@
     "bump": "node scripts/bump-version.mjs",
     "check:version-bump": "node scripts/check-version-bump.mjs",
     "zip": "node scripts/build-zip.mjs",
-    "check:zip": "npm run zip && (node scripts/check-zip-manifest.mjs; rc=$?; rm -f seo-bw-extension.zip; exit $rc)",
+    "check:zip": "node scripts/check-zip-manifest.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",

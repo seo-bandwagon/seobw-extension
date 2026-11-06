@@ -550,7 +550,7 @@ async function onProofMessage(msg) {
   if (run.status === 'error') {
     cfResult = {
       kind: 'alert', tone: 'error', title: 'CAPTURE FAILED', fromRun: true,
-      body: (run.error && run.error.message) || 'Chrome blocked the capture on this page.',
+      body: (run.error && run.error.message) || `${SBWBrowser.name} blocked the capture on this page.`,
       retryVisible: !!run.error && (run.error.code === 'canvas-failed' || run.error.code === 'capture-failed')
     };
     renderResult();
@@ -601,7 +601,7 @@ async function runVisibleShot() {
 
   const res = await send({ action: 'captureScreenshot' });
   if (!res || !res.ok) {
-    cfResult = { kind: 'alert', tone: 'error', title: 'CAPTURE FAILED', body: res?.error || 'Chrome blocked the capture on this page.' };
+    cfResult = { kind: 'alert', tone: 'error', title: 'CAPTURE FAILED', body: res?.error || `${SBWBrowser.name} blocked the capture on this page.` };
     renderResult();
     return;
   }

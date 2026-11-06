@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.5** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -67,8 +67,11 @@ probably finish up a few more versions quickly"; until then B was
 1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** 1.13.3–1.15.0 (with the Firefox
 gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
-1.11.0. Every release builds and lints the Chrome, Edge and Firefox packages
-from 1.13.7 on. Every release also updates `CHROMEWEBSTORE.md`,
+1.11.0. Every release builds the Chrome and Edge packages from 1.13.6 on, and
+the Firefox one, linted, from 1.13.8 on. **Edge is listed before 2.0.0**
+(owner, 2026-11-06): its first upload is 1.13.6's Edge package, because Edge
+Add-ons certification takes up to seven business days ("None of the upcoming
+features are that critical and we can have 2.0.0 launched on all"). Every release also updates `CHROMEWEBSTORE.md`,
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
@@ -199,7 +202,17 @@ Free counts the figures under Google results by the calendar month (UTC) from th
 - [x] The bar at the limit says "this month's limit" by the month, the panel's folded line "left this month"; the bar's Upgrade says "More searches with figures on Pro" (no "a day"); "Load figures for sources" counts "one search of your allowance"
 - [x] The Options card "Figures under Google results" says "20 searches a month, Pro for 250 a day"; so does the description's results-page paragraph ("a monthly allowance of figures": `docs/CWS-LISTING.md` §2, text 8 of "To paste with the combined submission (1.13.5)")
 
-### 1.13.6: the checks panels are right (patch, was 1.10.5, then 1.13.1, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5)
+### 1.13.6: a package for Chrome and one for Edge, and the Connect bridge (patch; the build targets were 1.10.6, then 1.13.2 to 1.13.7; the bridge was 1.10.7, then 1.13.3 to 1.13.8)
+Moved up on 2026-11-06 so the Edge package can go to Microsoft Edge Add-ons now. Nothing changes for a Chrome user; Firefox's package moves to 1.13.8.
+- [x] `npm run zip -- --target chrome|edge` (Chrome by default, so Release and `check:zip` work as before): each manifest is the shared one plus a per-target overlay, `scripts/targets/<target>.mjs`; `check:zip` builds both and reads each packaged manifest and page
+- [x] The Edge overlay leaves out the new-tab override and `management` (the Neon themes are Chrome Web Store items), has no `key`, and suggests Alt+Shift+S (Control+Shift+S on a Mac), since Ctrl+Shift+S is Edge's Web capture
+- [x] `src/lib/browser.js`, written per target by the build: browser name, store and review URLs, private-window name and switch, the store hosts no extension may read, the default shortcut, `utm_source` (`chrome_extension`, `edge_extension`), and which Chrome-only parts ship. Counted in the 1.13.5 package: 30 user-facing lines named Chrome (two in capitals) and one named Incognito alone; 4 places held a Chrome Web Store address (the reviews page, the themes' listings, and the two store hosts), behind 8 links a user can click. All read from it now (Edge policy 1.1.2), and a test scans the built Edge package for any other browser's name
+- [x] On Edge: no new-tab settings, no Neon theme prompt or links, no review prompt or "Rate us" until the listing exists, and no welcome tab or uninstall survey (the site's pages say "Chrome extension")
+- [x] The Connect bridge (vault design, decision 4): a content script on `/dashboard/api-keys*` and `/seo-chrome-extension/welcome*`, top frame, `document_start`; it marks the page `data-sbw-bridge="1"`, takes a window message only from this window and `https://seobandwagon.com` with `sbwBridge: 1` and exactly one port, and answers on the port; the worker answers it with the function that answers `externally_connectable`, which stays in both builds
+- [x] Release attaches both zips: `seo-bw-extension-<version>.zip` (Chrome, the name `store-submit.yml` downloads) and `seo-bw-extension-edge-<version>.zip`
+- [ ] Website (its own session): the messaging tries the bridge first, then `sendMessage(EXTENSION_ID)` (`src/lib/extension/browser-messaging.ts`); the API keys page's button and the welcome and uninstall pages name no browser
+
+### 1.13.7: the checks panels are right (patch, was 1.10.5, then 1.13.1 to 1.13.6)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -209,19 +222,10 @@ Free counts the figures under Google results by the calendar month (UTC) from th
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
 
-### 1.13.7: build targets for Chrome, Edge and Firefox (patch, was 1.10.6, then 1.13.2, then 1.13.3, then 1.13.4, then 1.13.5, then 1.13.6)
-Nothing changes for a Chrome user (owner, 2026-10-31: Edge and Firefox at 2.0.0).
-- [ ] `npm run zip -- --target chrome|edge|firefox`: each manifest is the shared one plus a per-target overlay under `scripts/`, so a change for one store never forces a bump; `check:zip` reads the packaged manifest
-- [ ] Edge and Firefox overlays leave out the new-tab override and `management` (the Neon themes are Chrome Web Store items); Firefox adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain
-- [ ] `src/lib/browser.js`: browser name, store and review URLs, private-mode name, unreadable store hosts, default shortcut (Ctrl+Shift+S is Firefox's screenshot key); the strings that name Chrome read from it (Edge policy 1.1.2)
-- [ ] `utm_source` per browser: `chrome_extension`, `edge_extension`, `firefox_extension`
+### 1.13.8: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.7; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.8)
+- [ ] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key)
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
-
-### 1.13.8: Connect bridge and one panel opener (patch, was 1.10.7, then 1.13.3, then 1.13.4, then 1.13.5, then 1.13.6, then 1.13.7)
-The consent module moved to 1.11.0.
-- [ ] The Connect bridge: a content script on seobandwagon.com's api-keys and welcome paths, top frame only, origin and `event.source` checked, replies on a `MessageChannel` port; `externally_connectable` stays for Chrome and Edge
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
-- [ ] Website: the messaging tries the bridge first, then `sendMessage(EXTENSION_ID)`
 
 ### 1.14.0: onboarding after feature releases
 The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
@@ -268,13 +272,83 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 - [ ] The full check: every feature signed out and in, Night and Day, fresh profile, saved real pages; `MANUAL_SMOKE_TEST.md` rewritten
 - [ ] Store listing, screenshots, tiles and video; every data-use answer; the website's extension pages true
 - [ ] `lib/` under `src/lib/`
-- [ ] **Edge and Firefox launch** (owner, 2026-10-31): Firefox wiring (`sidebar_action` with one sidebar page that follows the active tab, the consent prompts); `scripts/edge-publish.mjs` (upload only; the owner presses Publish) and `web-ext sign` for AMO; first listings on Edge Add-ons and AMO; the full check on all three; the API key in `storage.local`
+- [ ] **Edge and Firefox launch** (owner, 2026-10-31): Firefox wiring (`sidebar_action` with one sidebar page that follows the active tab, the consent prompts); `scripts/edge-publish.mjs` (upload only, Edge Add-ons API v1.1 with a Client ID and API key; the owner presses Publish) and `web-ext sign` for AMO; the first AMO listing (Edge's is 1.13.6's, owner 2026-11-06); the full check on all three; the API key in `storage.local`
 - [ ] Firefox gate, held at submission D with a `web-ext run` smoke test on every surface: if the sidebar or consent gating can't pass, Firefox follows 2.0.0 instead of holding it, and no copy mentions Firefox until it is live
 
 **Not in 2.0.0:** the extension's own interface in other languages; the crowdsourced rank-checker extension; writing content on the
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.6 (2026-11-06)
+
+One package per store, Chrome and Microsoft Edge, and the Connect bridge, so
+the Edge package can go to Microsoft Edge Add-ons now (owner, 2026-11-06).
+Nothing changes for a Chrome user, and Chrome needs no new submission: 1.13.5
+is in review.
+
+- **Build targets.** `npm run zip -- --target chrome|edge`, Chrome by
+  default. Each manifest is the shared one plus `scripts/targets/<target>.mjs`
+  (a JSON merge patch, permissions to drop, files to leave out, the browser's
+  values). `check:zip` builds both and reads each packaged manifest and page.
+  Release attaches `seo-bw-extension-X.Y.Z.zip` (Chrome, the name
+  `store-submit.yml` downloads) and `seo-bw-extension-edge-X.Y.Z.zip`, and its
+  notes give both SHA-256s.
+- **The Edge package** has no `key`, no new-tab override and no `management`,
+  `topSites` or `search` (the four serve only the Neon new tab; policy 1.6),
+  leaves `src/newtab/` out, and suggests Alt+Shift+S for Analyze (Control+Shift+S
+  on a Mac): Ctrl+Shift+S is Edge's Web capture, and both are on neither of
+  Microsoft's shortcut lists. Its install warnings are two: "Read and change
+  your data on search.google.com, seobandwagon.com, and www.google.com" and
+  "Read your browsing history".
+- **`src/lib/browser.js`**, written per target by the build (the source holds
+  Chrome's values): the browser's name, its store, listing and reviews page,
+  the private window's name and switch, the store pages no extension may read
+  (Microsoft Edge Add-ons on Edge), the shortcut, `utm_source`
+  (`edge_extension`), the site's Connect button, and whether the new tab and
+  the site's welcome and uninstall pages ship. Counted in the 1.13.5 package:
+  30 user-facing lines named Chrome (two in capitals) and one named Incognito
+  alone; 4 places held a Chrome Web Store address, behind 8 links. They all
+  read from it now. HTML words sit in `<span data-browser="…">`, which the
+  build fills. Content scripts on Google and Search Console don't load it (the
+  Chrome manifest's lists stay as they were): the worker's answers carry the
+  two words they need. `tests/unit/build-targets.test.js` scans every text file
+  of the built Edge package for another browser's name.
+- **On Edge:** no new-tab settings, Neon theme links or theme prompt; no review
+  prompt or "Rate us" until the listing exists (`reviewUrl` null); no welcome
+  tab and no uninstall survey, because both pages on the site say "Chrome
+  extension"; Settings point to the site's button as "Connect extension".
+- **The Connect bridge** (vault design, decision 4),
+  `src/content/site-bridge.js`: on `/dashboard/api-keys*` and
+  `/seo-chrome-extension/welcome*`, top frame, `document_start`. It sets
+  `data-sbw-bridge="1"` on the root element; takes a window message only when
+  `event.source === window`, `event.origin === 'https://seobandwagon.com'`,
+  `event.data.sbwBridge === 1` and exactly one port is transferred; sends
+  `{ action: 'siteBridge', message }` to the worker; and posts `{ response }`
+  or `{ error }` on the port. The worker takes `siteBridge` only from this
+  extension's content script in frame 0 of a seobandwagon.com page
+  (`SBWSiteLinks.isBridgeSender`) and answers it with `answerSiteMessage()`,
+  the function that now answers `externally_connectable` too, which stays in
+  both builds. `status` still answers `{ ok: false }`, so the site falls back
+  to `ping`. The bridge adds no install warning: the Chrome package's four
+  are the same with and without it (Chromium 156.0.8078.4).
+- **Fixed on the way:** the popup's "add Neon Night or Neon Day" strip showed
+  as an empty bar (its padding and rule) whenever it had nothing to offer,
+  because its `display: flex` beat `hidden`.
+- **Tests:** `browser.test.js` (values, pages load `browser.js` first, the
+  build's block), `build-targets.test.js` (the Edge package: no other browser,
+  its manifest, files and links), `site-bridge.test.js`, `edge-words.test.js`,
+  site-links' bridge sender and Edge cases, the Edge listing's rules in
+  `listing-copy.test.js`, and the e2e `edge-bridge.spec.mjs`: the Edge package
+  loaded unpacked in Chromium, its pages, its warnings, and ping, status and
+  connect through the bridge against a page served at seobandwagon.com by
+  Playwright routing.
+- **Store text:** `CHROMEWEBSTORE.md` gains the Edge column of "Other stores",
+  a paste-ready Partner Center listing with its notes for certification, the
+  bridge's content-script justification for submission D, and why Chrome needs
+  no 1.13.6 submission.
+- **Planned releases renumbered:** the checks panels are 1.13.7; Firefox's
+  package, `web-ext lint` and `openPanel()` are 1.13.8.
 
 ## Changelog — v1.13.5 (2026-11-04)
 

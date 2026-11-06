@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — SEO Bandwagon
 
-> Last Updated: 2026-11-05
+> Last Updated: 2026-11-06
 
 Single source of truth for the Chrome Web Store dashboard fields. Lives at the
 repo root, outside `extension/`, so `npm run zip` never ships it. Update it on
@@ -13,12 +13,27 @@ reviewer test steps) is in `docs/CWS-LISTING.md`; the two Chrome theme
 items have their own listing text in the seobw-themes repo's `store/LISTING.md`. This file
 summarises both and says where to paste what.
 
+**2026-11-06: 1.13.5 is in review, and 1.13.6 needs no Chrome Web Store
+submission.** Submit to Chrome Web Store uploaded 1.13.5 (run `42131474530`,
+2026-11-05 23:43 UTC, upload only) and it was submitted from the dashboard;
+the check run `42137938252` (2026-11-06 00:35 UTC) read "Published now:
+PUBLISHED (1.10.2)" and "Submitted: PENDING_REVIEW (1.13.5)". 1.13.6 adds
+nothing a Chrome user sees: its Chrome package's manifest differs from
+1.13.5's only in `version`, `version_name` and the Connect bridge's
+content-script entry (measured), the install warnings are the same four, and
+the bridge does nothing until seobandwagon.com uses it. Uploading it would
+replace 1.13.5 in the queue (`cws-publish.mjs` refuses while one is in
+review), and the owner ruled on 2026-11-06 that screenshots and video are not
+redone each release. It reaches Chrome users with the next submission (D),
+with the bridge's justification row below. Its Edge package is the first
+Microsoft Edge Add-ons upload: "Microsoft Edge Add-ons (Partner Center)" below.
+
 Store item: `dphmaddiedhkejfhabkfdenfphjljioj`. Read 2026-11-05 21:40 UTC: Google's
 update server (what Chrome installs from) returns **1.10.2**. Check the update server,
 not only the listing page:
 `https://clients2.google.com/service/update2/crx?response=updatecheck&prodversion=140.0&acceptformat=crx3&x=id%3Ddphmaddiedhkejfhabkfdenfphjljioj%26uc`
-**1.10.2 published 2026-11-01; nothing in review.** 1.10.3 to 1.13.5 are
-built and not submitted. The owner ruled on 2026-11-02 that submissions B
+**1.10.2 published 2026-11-01.** (Until 2026-11-06 nothing was in review and
+1.10.3 to 1.13.5 were built and not submitted; see the paragraph above.) The owner ruled on 2026-11-02 that submissions B
 (1.10.3 to 1.11.0) and C (1.12.0 and 1.13.0) become one: "I think we might
 skip publishing that because these versions are too close together. We could
 probably finish up a few more versions quickly." They go to the store as one
@@ -209,6 +224,7 @@ per-permission fields.
 | `https://www.google.com/search*` + 29 other Google domains | content_scripts | Results overlay: appends a bar under each result (its position, figures and Analyze), a keyword strip above the results (1.13.0) and one panel below or above them, never hides or moves anything including ads. From 1.11.0, with an account connected and the figures accepted in Options, it sends each result's address and site (never the query) for the figures under it; from 1.13.0, with keyword data's own yes, the query with its related searches and People also ask questions, for keyword data; from 1.13.3, for an invited tester of the AI Overview study who turned on study sends, that search and its results page's export on a click on Send to study, in a private window the study opened, and a note that Google stopped them on a click on Google stopped me; otherwise nothing (1.10.2 sent nothing; until then, bare result domains). 1.13.0 adds two scripts to the entry (`src/lib/serp-keywords.js`, `src/overlay/serp-keywords.js`) and no match: the install warning measured unchanged (Version History). 1.11.0 adds twenty Google domains (`.com.br`, `.com.mx`, `.co.jp`, `.pl`, `.se`, `.no`, `.dk`, `.fi`, `.be`, `.at`, `.ch`, `.ie`, `.co.nz`, `.co.za`, `.pt`, `.com.tr`, `.com.sg`, `.com.ph`, `.com.ar`, `.co.id`): `getPermissionWarningsByManifest` (Chrome for Testing 156) gives the same four warnings before and after. Dashboard text: "To paste with the combined submission (1.13.5)". The CSV and clipboard exports a person makes stay entirely on the device and carry each result's own snippet plus the search context read from the URL — none of it is transmitted; the one send of a results page's export is 1.13.3's Send to study, by an invited tester, described above. 1.13.3 adds one script to the entry (`src/lib/aio-study.js`) and no match, host or permission: the install warning measured unchanged (Version History). India's host is `www.google.co.in` from 1.10.2 (`www.google.in` redirects); install warning measured unchanged. |
 | `offscreen` | permissions | 1.12.0. Analyze on Google reads a result's HTML in an offscreen document (reason `DOM_PARSER`), because the service worker has no DOM parser: the same analyzer the popup runs, on HTML the extension fetched on the user's click. Nothing is shown and nothing it reads is sent anywhere. `getPermissionWarningsByManifest` (Chrome for Testing 156): no warning, the same four before and after. Dashboard text: "To paste with the combined submission (1.13.5)". |
 | `externally_connectable` → `https://seobandwagon.com/*` | manifest key | Lets the dashboard's "Connect Chrome extension" button hand over a freshly minted API key. No other origin can message the extension. |
+| `https://seobandwagon.com/dashboard/api-keys*`, `https://seobandwagon.com/seo-chrome-extension/welcome*` | content_scripts | 1.13.6, the Connect bridge; paste with submission D: "On these two pages of SEO Bandwagon's own site only, in the top frame, the script marks the page so the site can tell the extension is installed, and passes the site's connect, ping and status messages to the extension and the extension's answer back, on a private message port. It accepts a message only from that page itself and from https://seobandwagon.com. It reads nothing else on the page and sends nothing anywhere. It lets the site's Connect button hand the user's new API key to the extension without knowing the extension's item ID." Same host as the host permission: `getPermissionWarningsByManifest` (Chromium 156.0.8078.4) gives the same four warnings with and without it. |
 | `chrome_url_overrides.newtab` → `src/newtab/newtab.html` | manifest key | 1.9.0. The new tab page lists the user's recent analyses with score changes and the first issue found, all read from `chrome.storage.local`; signed out it sends no request on open, and with an account connected it reads the account's rank tracking summary and derived tasks (`GET /api/extension/progress`) at most every 10 minutes. It has no web search box. Its scan box opens a typed site in that tab and the popup analyzes it. Owner ruling 2026-10-18, reversing the 2026-09-07 one. From 1.9.5 it shows only with Neon Night or Neon Day installed (or the Always setting); otherwise it hands the tab to Chrome's own new tab before drawing anything. |
 | `management` | permissions | 1.9.5. `chrome.management.getAll()` tells the new tab, popup and settings whether SEO Bandwagon's Neon Night or Neon Day theme is installed and on; the dashboard shows only then. Nothing it reads leaves the browser; it never enables, disables or removes anything. Owner ruling 2026-10-26, reversing the 2026-09-07 one. |
 | `topSites`, `search` | optional_permissions | 1.9.5. Asked only from the settings checkbox that adds a search box (the user's own default engine, `chrome.search.query`) and the most-visited sites (`chrome.topSites.get`) below the dashboard. Neither is sent anywhere. |
@@ -483,21 +499,217 @@ and when. Keep it in step with the table above.
 **Visibility**: Public
 **Regions**: All regions
 
-## Other stores from 2.0.0
+## Other stores
 
 Owner, 2026-10-31: "When we launch 2.0.0 I want to have Edge and Firefox
-versions." Plan in ROADMAP.md → "The road to 2.0.0" (1.13.7, 1.13.8, 2.0.0);
-reasoning in the SEO Bandwagon vault, `03_Wiki/Extension_Roadmap_To_2_0_Design.md`.
-Nothing is listed in either store yet; this section gets each store's fields
-when its listing is written, as the sections above do for Chrome.
+versions." Owner, 2026-11-06: Edge now, because its review takes time ("None
+of the upcoming features are that critical and we can have 2.0.0 launched on
+all"; "We are obviously going to follow the guidelines and upload a forked
+version"). Plan in ROADMAP.md → "The road to 2.0.0" (1.13.6 for Chrome and
+Edge, 1.13.8 for Firefox, 2.0.0); reasoning in the SEO Bandwagon vault,
+`03_Wiki/Extension_Roadmap_To_2_0_Design.md`. Edge's fields are below
+("Microsoft Edge Add-ons (Partner Center)"); AMO's are written with its
+listing.
 
 | | Microsoft Edge Add-ons | Firefox Add-ons (AMO) |
 |---|---|---|
-| Package | `npm run zip -- --target edge` (from 1.13.7): the Chrome manifest without `key`, the new-tab override and `management` | `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
-| Listing rules | Policy 1.1.2: the extension and listing name no other browser; reviewer test account (1.3.1); certification up to seven business days | Data consent: `required: ["none"]`; the optional categories follow the data-use table above (see the vault design's consent map); every send is gated on the user's choice |
-| Item ID | Assigned at the first upload; the site's Connect uses a bridge, so it doesn't need it | Ours, in `gecko.id` |
-| Publishing | `scripts/edge-publish.mjs` (Edge Add-ons API v1.1) uploads; the owner presses Publish in Partner Center (the API has no staged publish). The product and its first listing are created by hand | `web-ext sign --channel=listed`; listed versions go live after the automated check |
-| Account | Microsoft Partner Center developer account (owner) | Mozilla add-on developer account with two-factor sign-in (owner) |
+| Package | From 1.13.6: `npm run zip -- --target edge`, and Release attaches `seo-bw-extension-edge-X.Y.Z.zip` beside the Chrome zip. The overlay `scripts/targets/edge.mjs`: the Chrome manifest without `key`, the new-tab override, `management` and the optional `topSites` and `search` (all four serve only the Neon new tab), with Alt+Shift+S (Control+Shift+S on a Mac) for Analyze, since Ctrl+Shift+S is Edge's Web capture; `src/lib/browser.js` with Edge's words; `src/newtab/` left out | From 1.13.8: `npm run zip -- --target firefox`: `background.scripts`, `sidebar_action`, `browser_specific_settings.gecko` (id, `strict_min_version`, `data_collection_permissions`), no `externally_connectable`, comments kept so no source upload is needed |
+| Listing rules | Microsoft's developer policies, read 2026-11-05: 1.1.2 the extension and its listing name no other browser (`tests/unit/build-targets.test.js` scans the built package; the listing text below names none); 1.1.4 at most seven search terms; 1.2.3 a dependency on our service said in the description; 1.3.1 a test account, or why there is none, in Notes for certification; 1.5.2 the privacy policy refers to Microsoft Edge, not other browsers; 1.6 only permissions the build uses; 1.8.2 paid features and their prices in the listing. Certification takes up to seven business days | Data consent: `required: ["none"]`; the optional categories follow the data-use table above (see the vault design's consent map); every send is gated on the user's choice |
+| Item ID | Assigned at the first upload. The site's Connect reaches the Edge copy through the bridge (1.13.6), so it needs no ID. When Partner Center shows the ID and the listing's address, record them here and set `storeUrl` and `reviewUrl` in `scripts/targets/edge.mjs`: that turns the review prompt and "Rate us" on in the next Edge package | Ours, in `gecko.id` |
+| Publishing | The first version by hand: the owner creates the product in Partner Center (the Edge Add-ons API can't) and uploads the zip. Later versions: `scripts/edge-publish.mjs` on the Edge Add-ons API v1.1 (a Client ID and an API key from Partner Center's Publish API page; upload only, the owner presses Publish), on the road at 2.0.0 | `web-ext sign --channel=listed`; listed versions go live after the automated check |
+| Account | Microsoft Partner Center, Edge program, under the owner's personal Microsoft account (signed in 2026-11-06) | Mozilla add-on developer account with two-factor sign-in (owner) |
+
+## Microsoft Edge Add-ons (Partner Center)
+
+The first submission is **1.13.6's Edge package**, `seo-bw-extension-edge-1.13.6.zip`
+from GitHub release `v1.13.6` (Release attaches it once 1.13.6 is merged and
+released), or `npm run zip -- --target edge` from that commit. Fields as
+Microsoft's "Publish a Microsoft Edge extension" lists them (read 2026-11-05);
+paste each block as it stands.
+
+**Before uploading, on seobandwagon.com** (the website's to change; each is a
+policy point a reviewer can check):
+
+1. **The privacy policy names Chrome.** seobandwagon.com/privacy, read
+   2026-11-05: "The SEO Bandwagon Chrome extension analyzes pages in your
+   browser" and "Our Chrome extension also has its own one-page site". Policy
+   1.5.2: the privacy policy "should primarily refer to the Microsoft Edge
+   browser and not other browsers". Say "browser extension" there.
+2. **The pages a reviewer connects on name Chrome.** The API keys page's
+   button reads "Connect Chrome extension" and the welcome page is "Welcome to
+   the Chrome Extension". The Edge build's Settings now tell the user to click
+   "Connect extension" there, so that is the name to give the button.
+3. **Connect on Edge needs the site's bridge-first messaging**
+   (`src/lib/extension/browser-messaging.ts`, the website session's work).
+   Until it is live, the site's one-click Connect can't find the Edge copy
+   (its ID isn't the Chrome one) and falls back to a key to paste, which the
+   notes below cover.
+
+**Package summary** (1.13.6, as packaged; checked by `npm run check:zip` and
+`tests/unit/build-targets.test.js`):
+
+- `name` "SEO Bandwagon", `version` 1.13.6, `version_name` "1.13.6 — One package per store, and Connect through a bridge on seobandwagon.com"; the `description` below (Partner Center shows it as the short description)
+- `permissions`: `activeTab`, `storage`, `contextMenus`, `scripting`, `sidePanel`, `tabs`, `alarms`, `webRequest`, `webNavigation`, `declarativeNetRequestWithHostAccess`, `offscreen`; no `management`, no optional permissions
+- `host_permissions` `https://seobandwagon.com/*`; `optional_host_permissions` localhost, 127.0.0.1 and `<all_urls>`
+- content scripts: Search Console; 30 Google search hosts; the Connect bridge on `/dashboard/api-keys*` and `/seo-chrome-extension/welcome*`
+- `externally_connectable` `https://seobandwagon.com/*`; `commands` Analyze on Alt+Shift+S, Control+Shift+S on a Mac
+- no `key`, no `chrome_url_overrides`, no `src/newtab/`
+- Install warnings (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4): "Read and change your data on search.google.com, seobandwagon.com, and www.google.com" and "Read your browsing history" (Chrome's four, less the new tab's and `management`'s)
+
+### Availability
+
+- **Visibility:** Public
+- **Markets:** all markets (the default)
+
+### Properties
+
+- **Category:** Developer tools, as on Chrome (Productivity if Partner Center's list lacks it)
+- **Website:** `https://seobandwagon.com/` (the extension's own page, `/seo-chrome-extension`, is titled "SEO Chrome Extension…" and its address names Chrome)
+- **Support contact detail:** `https://seobandwagon.com/contact`
+- **Mature content:** not ticked
+
+### Privacy
+
+**Single Purpose Description**
+
+```
+SEO Bandwagon analyzes the on-page SEO of the web page the user is viewing, to show what the page gets right and what it misses. In one click it scores the page and lists what it found in the title and description, headings, links, images, structured data, canonical and hreflang tags, indexability and redirects, and compares the raw HTML with the rendered page. On Google results pages it numbers each result, shows its link, traffic and domain-age figures and the query's keyword data, and analyzes any of them in one click. With an account connected, it saves those analyses and chosen keywords to the user's own SEO Bandwagon account, checks the user's local business citations against their business record, and lists their link-building prospects and placements. Findings export as files the user saves.
+```
+
+**Permission justification** (one box per permission Partner Center lists;
+the Chrome rows under "Permissions Justification" above carry the long form):
+
+| Permission | Justification |
+|---|---|
+| `activeTab` | Reads the current tab's address and title only when the user clicks the toolbar icon or presses the shortcut, and captures that tab when the user asks for a listing proof screenshot. |
+| `storage` | Keeps the user's analyses, cached answers, settings and their SEO Bandwagon API key on their device. |
+| `contextMenus` | The right-click menu: Analyze this page, Analyze linked page, Count words and the SEO tools submenu. Nothing runs without a menu choice. |
+| `scripting` | Injects the analysis into the active tab on the user's request, the name, address and phone reader for Check NAP, and the scroll helper for a full-page proof screenshot. |
+| `sidePanel` | The page-checks, citations and link-building side panels. |
+| `tabs` | Opens the user's dashboard pages and finds a finished page load among known business directories to mark it, by a local comparison of host names. |
+| `alarms` | Retries, every 15 minutes, an analysis that failed to reach the user's account. Idle without an account. |
+| `webRequest` | Observes, without blocking or changing anything, a tab's status codes, redirects and headers for the Indexability check. Only after the user grants access to all sites. |
+| `webNavigation` | Notices script redirects and reloads for the Indexability check. Observe only. |
+| `declarativeNetRequestWithHostAccess` | View as: one session rule that changes the User-Agent for the current tab only, removed on Default or when the tab closes; and, while Analyze reads result pages, session rules that stop the extension's own requests to local and private addresses. No static rules. |
+| `offscreen` | Analyze on a Google results page reads the result's HTML in an offscreen document, because the service worker has no DOM parser. Nothing is shown and nothing it reads is sent. |
+| `https://seobandwagon.com/*` | The only server the extension talks to: the user's own account, analyses, citations and link building, and the Connect bridge on two of its pages. |
+| `<all_urls>` (optional) | Asked for on first use of Link Check, Indexability, Hreflang, Rendering or Analyze, with the reason shown first, and can be declined. Pages are fetched from the user's browser without cookies; nothing read is sent to SEO Bandwagon. |
+| `http://localhost/*`, `http://127.0.0.1/*` (optional) | Asked for only when the user points Advanced settings at a local development server. |
+| Content scripts on Google and Search Console | A bar under each Google result with its position and, with an account and the user's yes, its figures; a keyword strip above the results after keyword data's own yes; two buttons per Search Console query. Nothing is hidden or moved. |
+
+**Are you using remote code?** No, I am not using remote code.
+
+**Data usage**: the same answers as the Chrome Web Store's (table under
+"Privacy & Data Use" above): authentication information (the user's own API
+key, sent only to seobandwagon.com), web history (pages the user chose to
+analyze; with keyword data's yes, the query of a Google search) and website
+content (metadata of analyzed pages; with the figures' yes, the result
+addresses on a Google results page). Nothing else, nothing sold or shared,
+and signed out nothing leaves the device. Tick the certifications only if
+they match `docs/CWS-LISTING.md` §5.
+
+**Privacy Policy URL:** `https://seobandwagon.com/privacy`, once it names no
+other browser (item 1 above).
+
+### Store listing, English (United States)
+
+- **Extension name** and **Short description**: from the manifest, read-only in Partner Center.
+- **Description** (7,914 of 10,000 characters; at least 250): below. It names no other browser, says what is free and what the paid plans cost (policy 1.8.2), and that the account features depend on seobandwagon.com (policy 1.2.3). `tests/unit/listing-copy.test.js` holds it to those and to the Chrome description's keyword rules.
+- **Extension logo** (1:1, 300 × 300 recommended, 128 × 128 at least): `extension/src/icons/icon128.png` meets the minimum; a 300 × 300 export of the same mark is better.
+- **Small promotional tile** (440 × 280): `store-assets/1.13.5/promo-tile-440x280.png`, which names no browser.
+- **Large promotional tile** (1400 × 560): none yet. The 1.13.5 marquee can't go: its Link Check screen shows "Chrome doesn't let extensions open these pages" and a Chrome Web Store address.
+- **Screenshots** (up to 6; 640 × 480 or 1280 × 800; optional): none yet. Every 1.13.5 screenshot carries a "FREE CHROME EXTENSION" badge, and its popup shows RATE US. An Edge set comes from the Edge package with a badge that names no browser.
+- **YouTube video URL:** none (the 2.0.0 video).
+- **Search terms** (at most 7, 30 characters each, 21 words in all): `seo checker`, `on-page seo`, `seo audit`, `broken link checker`, `meta tags`, `structured data`, `keyword volume` (15 words).
+
+### Edge description
+
+```
+SEO Bandwagon reviews the on-page SEO of the site you have open, right in your browser. Click the toolbar icon and the findings open in a popup, with no account and no setup. It is built for people who look after websites: owners checking their own pages, freelancers and agencies auditing a client before a call, developers confirming a release did not break anything, and local businesses keeping their directory listings straight.
+
+The analysis runs in the tab in front of you. The checks that need to look at other websites ask for that access the first time you use them, and you can say no.
+
+ON-PAGE ANALYSIS
+Open the popup anywhere for a score from 0 to 100, a letter grade and four sub-scores covering meta tags, content, links and technical setup. The score is a checklist: it starts at 100 and each issue takes off its own points. Beneath it is the list of issues it found, such as a missing H1 or a title that runs too long, each with what to change and the points it costs, so you know what to look at first.
+
+You also get a preview of how the listing could look in results, with the title and meta description measured in pixels. The heading outline shows every H1 to H6 in order and flags a skipped level or an empty heading. Links are split into internal and external and marked when they carry nofollow, sponsored or user-generated attributes. Images without alt text are counted apart from decorative ones. The content view gives the word count in any language, the reading level of English text and the phrases used most often. A technical view shows where the canonical tag points, reads the robots directives, catches a title or canonical repeated in the head, and flags insecure resources on a secure page. Loading and layout speed are reported as your own browser measured them on this visit, using the Core Web Vitals that Google publishes. The extension also names the technology behind the site, such as the content management system or the analytics in use.
+
+BROKEN LINK CHECK
+On request, the extension tests every link on the page, up to 300, and groups them by what happened to each request, so working links, redirects and each kind of failure are kept apart. Broken ones can be highlighted where they appear, and the list exports to a spreadsheet file. A check keeps running if the popup closes. Each address is requested without your cookies. Links to the add-ons store, which no extension may open, are marked as such instead of being counted as broken.
+
+INDEXABILITY
+Shows how the address you are on was reached: every redirect hop, its status code and whether a script moved you along. Response headers that matter for crawling, such as X-Robots-Tag, sit next to the robots meta tag and canonical on the page, and together they give a plain yes or no on whether it may be indexed. You can trace a different address too.
+
+HREFLANG
+For multilingual sites, every language and region annotation on the page is checked: whether each code is written correctly, whether two tags claim the same language, whether the page points to itself and whether an x-default exists. On request it fetches the alternate versions, up to 50, and confirms each one links back.
+
+RENDERING
+Compares the HTML the server sent with what your browser displayed after scripts ran, field by field. The View as option reloads the current tab with the user agent of a crawler or a phone, for testing your own sites, and switches off when you choose Default or close the tab.
+
+STRUCTURED DATA
+Reads the JSON-LD, Microdata and RDFa on the page, including nested items, and compares each item with the properties its type requires and recommends, with the exact field to add when one is missing.
+
+RESULTS PAGE OVERLAY
+On Google's results pages, a bar under each organic listing shows its position and, with a free account, figures for that listing: referring domains, backlinks, link rank and estimated traffic of the listing and of its site, the domain's age, and your own checklist score where you analyzed it. Link and traffic figures come from DataForSEO and the domain dates from the registries' public records, and each figure says where it came from. Signed out, the bars show positions and nothing is sent. A panel below the results copies the listings to your clipboard or exports them to a spreadsheet, and results pages can be collected one at a time into one list. Analyze checks a listing right under it, read from its HTML in your browser without your cookies, with no new tab, and a table lines the listings up against each other or against your own page.
+
+KEYWORD DATA
+Above the listings, a strip shows figures for the query you typed: monthly volume, difficulty, cost per click, competition and a twelve-month trend, with the related queries and People Also Ask questions beside it. Add to my keywords puts a query in your rank tracker on seobandwagon.com. This needs a free account and its own yes: the first time, a note says what is sent before anything is.
+
+SEARCH CONSOLE HELPERS
+Inside Search Console's performance report, each query gets two small buttons: open it in a search, or open it in a private window. When you compare two date ranges, the percent change is placed beside each number.
+
+LOCAL CITATIONS AND LINK BUILDING
+With a free account, the Citations tab recognizes 40 common directories, reads the name, address and phone number on the listing you have open, and scores how closely they match your own business record. It can save a screenshot of the whole listing as proof, kept on your computer. A side panel lists your link building prospects, pitches and placements.
+
+SIDE PANELS, EXPORTS AND SHORTCUTS
+A side panel keeps the page checks open while you work. Headings, links, images and each check's results export as spreadsheet files, and the whole analysis as one JSON file. A right-click menu opens the current address in tools you already use and counts the words in any text you select. Alt+Shift+S (Control+Shift+S on a Mac) analyzes the page in front of you. Night, Day or Auto, which follows your system setting.
+
+FREE AND PAID
+The analysis, the checks, the exports and the overlay's positions are free and need no account. A free account on seobandwagon.com adds figures under results for 20 searches a month, keyword data for 20 searches a month, saved analyses, citations and link building. The Pro plan, 99 US dollars a month, raises figures to 250 searches a day and keyword data to 100 a day; Enterprise starts at 499 US dollars a month. Plans are bought on seobandwagon.com, never inside the extension, month to month. The account features depend on SEO Bandwagon's service at seobandwagon.com.
+
+PRIVACY
+No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Keyword data is off until you say yes to its own note: the words of your query with the related queries and questions shown with it, never a listing's address. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots stay on your computer. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com. Study mode is for invited testers of our AI Overview study and is off until you turn it on in Settings, which says what it sends first.
+
+GETTING STARTED
+1. Add the extension and show it in the toolbar.
+2. Open any page and click the icon.
+3. Expand a section for detail, or run a check from it.
+Connecting an account is optional and takes one click from your dashboard.
+```
+
+### Notes for certification
+
+Paste into "Notes for certification" on the Submit page. The bracketed line
+goes in only if the owner makes a reviewer account (below), with the key
+typed into Partner Center, never into this file.
+
+```
+SEO Bandwagon analyzes the on-page SEO of the page in the active tab. Its core features need no account and send nothing.
+
+WITHOUT AN ACCOUNT
+1. Open any web page, for example https://en.wikipedia.org/wiki/Search_engine_optimization, and click the toolbar icon (or press Alt+Shift+S; Control+Shift+S on a Mac). The popup shows a 0 to 100 score, the issues found and sections such as Page Meta, Indexability, Rendering and Structured Data.
+2. In the popup, open Link Check and click "Check N links". The first time, it asks for access to all sites; this can be declined.
+3. Right-click the page: "SEO Bandwagon tools" opens the page in a chosen tool. Select text and right-click: "Count words & characters".
+4. Open https://www.google.com/search?q=local+seo. A bar under each result shows its position. Analyze on a bar reads that result's page from the browser, after asking once for access to all sites. The panel below the results copies or exports them.
+Signed out, the extension sends nothing to any server.
+
+WITH A FREE ACCOUNT (figures under results, keyword data, saved analyses, citations, link building)
+1. Sign in at https://seobandwagon.com/auth/signin. Sign-in is with Google; no payment is asked.
+2. Open https://seobandwagon.com/dashboard/api-keys, create a key and copy it. In the extension's Settings (right-click the toolbar icon, Extension options), paste it under API Key and click Verify. Settings then shows the account's email. The page's Connect button does the same in one click.
+[Or skip steps 1 and 2: paste this reviewer key in Settings and click Verify: (key)]
+3. In Settings, under Google results, click "Send result addresses and show figures", then search on Google: each result's bar shows link and traffic figures. Click "Show keyword data" above the results and accept its note to see keyword data.
+
+Paid plans are bought on seobandwagon.com, never inside the extension. Nothing in the extension needs a paid plan to test.
+
+No remote code. Privacy policy: https://seobandwagon.com/privacy
+```
+
+**Test account (policy 1.3.1).** Sign-in is with Google only, so a shared
+login would mean a Google account for reviewers. The simplest choice for the
+owner: make a free SEO Bandwagon account kept for reviewers, mint an API key on
+it, and type the key into the bracketed line in Partner Center (revoke it after
+certification). Without it, the notes' self-serve route stands as the reason
+no credentials are given.
 
 ## Developer Info
 
@@ -554,6 +766,7 @@ not a fault in the package. Both theme descriptions now say so.
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.13.6 | 2026-11-06 | 1.13.5 plus **one package per store, Chrome and Microsoft Edge**, and **the Connect bridge**. `npm run zip -- --target chrome\|edge` (Chrome by default): each manifest is the shared one plus `scripts/targets/<target>.mjs`, and Release attaches `seo-bw-extension-X.Y.Z.zip` (Chrome, the name Submit downloads) and `seo-bw-extension-edge-X.Y.Z.zip`. **Edge:** no `key`, no new-tab override, no `management`, `topSites` or `search` (all serve the Neon new tab only), Analyze on Alt+Shift+S (Control+Shift+S on a Mac; Ctrl+Shift+S is Edge's Web capture), `src/newtab/` left out; no new-tab settings, theme links or theme prompt; no review prompt or "Rate us" until the listing exists; no welcome tab or uninstall survey (the site's pages say "Chrome extension"). **`src/lib/browser.js`**, written per target, holds the browser's name, store, private-window words, unreadable store hosts, shortcut and `utm_source`; the 30 user-facing lines that named Chrome, the one that named Incognito alone and the 4 places holding a Chrome Web Store address read from it, and a test scans the built Edge package for any other browser's name. **The bridge** (`src/content/site-bridge.js`): on `/dashboard/api-keys*` and `/seo-chrome-extension/welcome*`, top frame, `document_start`, it sets `data-sbw-bridge="1"`, takes a window message only from that window and `https://seobandwagon.com` with `sbwBridge: 1` and exactly one port, and answers `{ response }` or `{ error }` on the port; the worker answers `siteBridge` only from frame 0 of a seobandwagon.com page, with the same function as `externally_connectable` (which stays). **Also:** the popup's theme strip no longer shows as an empty bar when it has nothing to offer (`hidden` lost to its `display: flex`). Chrome manifest: only `version`, `version_name` and the bridge's content-script entry differ from 1.13.5; install warnings the same four (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4); Edge's are two. | Chrome: not submitted, none needed (1.13.5 in review; goes with D). Edge: the first Partner Center upload, by the owner |
 | 1.13.5 | 2026-11-04 | 1.13.4 plus **the figures' allowance read by the month**. From the website's change `337eaf4d` (live with the production deploy of 2026-11-05), a free account gets figures under Google results for 20 searches a calendar month (UTC), not 20 a day; Pro and Enterprise stay at 250 a day. `POST /api/v1/serp/metrics` answers `allowance.period`, `"day"` or `"month"`, the field keyword data's route gives; an answer without it reads as the day. 1.13.4 read every figures allowance as the day, so a free user would have read "left today (UTC)". **The allowance line** in the panel and the popup reads "Free plan: 16 of 20 searches with new figures left this month (UTC).", the panel folded "Free plan: 16 of 20 left this month"; at the limit, "This month's 20 searches with new figures are used. Figures already looked up still show, and everything else works.", and a bar with no figures "No figures: this month's limit is reached" with an Upgrade that says "More searches with figures on Pro." (was "a day on Pro"). Pro reads "left today (UTC)" and "Today's" as before. **No "day's allowance":** "Load figures for sources" counts "one search of your allowance". **The Options card** "Figures under Google results": "Free accounts get figures for 20 searches a month, Pro for 250 a day."; the consent words (`serpFigures`, version 2) are unchanged. **Store text:** the description's RESULTS PAGE OVERLAY paragraph says "A free account gets a monthly allowance of figures" (was "a daily allowance of figures"): `docs/CWS-LISTING.md` §2 and text 8 of "To paste with the combined submission (1.13.5)". No permission, host, content-script or data-use change: the manifest changes only its `version` and `version_name`, so the install warning is unchanged. The planned patches move up one (checks panels 1.13.6, build targets 1.13.7, Connect bridge 1.13.8). | Not submitted (the combined submission, uploaded at 1.13.5; owner 2026-11-05) |
 | 1.13.4 | 2026-11-04 | 1.13.3 plus **keyword data's allowance read by the month**. The owner ruled on 2026-11-04 that free keyword data is 20 searches a month (10, plus 10 for installing the extension); the website counts it by the calendar month in UTC and answers `allowance.period: "month"` (website change `93f3b985`), Pro staying at 100 a day. 1.13.3 kept only `week`, so a free user would have read "left today (UTC)". **The allowance line** under the keyword strip and in the popup reads "Free plan: 16 of 20 searches with new keyword data left this month (UTC)."; at the limit, "This month's 20 searches with new keyword data are used. Keyword data already looked up still shows, and everything else works." A daily allowance still reads "left today (UTC)" and "Today's", a weekly one "this week"; a period the extension doesn't know reads as the day. **No "daily":** the first-use note on Google, the Options card "Keyword data for your searches" and the "With the page" setting say "your plan's allowance"; the consent words (`keywordData`, version 1) are unchanged. **Store text:** the description's KEYWORD DATA paragraph ends "and your plan's allowance applies, with what is left shown under the strip" (was "a daily allowance applies"): `docs/CWS-LISTING.md` §2 and text 8 of "To paste with the combined submission (1.13.5)". No permission, host, content-script or data-use change: the manifest changes only its `version` and `version_name`, so the install warning is unchanged. The planned patches move up one (checks panels 1.13.5, build targets 1.13.6, Connect bridge 1.13.7). | Not submitted (the combined submission, uploaded at 1.13.5; owner 2026-11-05) |
 | 1.13.3 | 2026-11-03 | 1.13.2 plus **study mode for SEO Bandwagon's AI Overview inclusion study** (invited testers only; the study's pilot is 2026-11-30) and **the AI Overview's sources read on a signed-out page**. **Study mode:** Options gains a section "AI Overview study" with the card "For invited testers of the AI Overview study" (the consent module's `aioStudy` flow, Firefox's `searchTerms`, `browsingActivity` and `websiteContent`; accepted with "Turn on study sends", ended with "Turn off study sends"; its words say the export holds the result count, that the extension never sends a request to Google itself, and that Google's personalization parameter is off (`hl=en`, `gl=us`, `pws=0`); the figures flow's words now read "Never your search terms with them, and never a request to Google.", its version staying 2). Only after that yes does the popup show a **STUDY** tab: `GET /api/v1/aio-study/today` (key scope `study`) lists the day's terms (To do, Carried over, Sent; the date is shown as UTC), each with Search; the worker keeps the list five minutes on the same UTC day, the tab draws it once per opening and asks afresh only after a refusal that says it is stale or a stop, and a rate-limited or unavailable answer never replaces a list it keeps (the site limits an account to a few requests a minute); its states are not available yet, connect, reconnect (a key without the study scope), join on seobandwagon.com, paused this week and turn on study sends. **Search** opens the term in a private window (`chrome.windows.create({ incognito: true })`, `https://www.google.com/search?q=<term>&hl=en&gl=us&pws=0`) and never in a normal one: if the extension is not allowed in private windows, or the window comes back not private, it refuses (closing such a window) and says how to switch on Allow in Incognito, with a button to the extension's Details page. The worker remembers the tab it opened (`chrome.storage.session`, cleared on Connect and Disconnect and when the tab closes). In that tab the overlay's panel sits at the top whatever the placement setting, shows even with "Show on Google results" off, and has an "AI Overview study" group: the term, the AI Overview's state, **Send to study** and **Google stopped me** (`POST /api/v1/aio-study/stop`) asks for a second click, because a stop moves the day's other terms to tomorrow: the first changes the button to "Click again to end today's searches" for five seconds; it is in the STUDY tab too (shown while the day has a term), since Google's CAPTCHA page is not a page the overlay runs on. Figures and keyword data never load or send in a study tab (the overlay never asks and the worker refuses for that tab whatever the settings). **Send to study** (a real click only) posts `{ term_id, csv }` to `POST /api/v1/aio-study/captures`: the overlay's own CSV export of that page, with no figures, no keyword data and no "Your site" marks, only from the tab the study opened, for a term on today's list not yet sent, while the tab still shows the study's search (same words, page 1, `hl=en`, `gl=us`, `pws=0`, not another Google tab such as Videos or News, and none of `tbs`, `lr`, `cr`, `num`, `nfpr`, `filter`, `uule` or `near`, which change the results), at most 262,144 bytes; a term the list names twice is filled oldest first. **The export, every results page:** `Search features` lists the AI Overview wherever it sits (1.13.2 missed it outside `#search` and `#center_col`); an expanded People also ask answer that holds its own AI answer is no longer read as the AI Overview; `AI Overview citations` also lists the pages read from Google's hidden source records (signed out, the overview's links are `/goto` redirects and each source carries a record with the real address) and a side-panel source card's site when its page is hidden; two columns follow `Extension version`: `AI Overview citations read from` (`link`, `record` or `card site`) and `AI Overview citation titles (JSON)`; the citations, text, state and redirect count read only the AI Overview boxes that are shown (1.13.2's known gap, a hidden stale box's links, is closed). The sources are read in the overview's own order (a source chip's link and its record side by side), and addresses of pictures, style sheets and scripts (including `ytimg.com` and `ggpht.com`) are not read as pages. The overlay's AI Overview sources table and the popup's count include the record pages. Measured on the three saved private-window pages (2026-11-03): 27 sources, 23 with page addresses, 4 card sites. **Install warning:** unchanged, measured (`getPermissionWarningsByManifest`, Chromium 156.0.8078.4: the same four warnings for 1.13.2's and 1.13.3's manifests: "Read and change your data on search.google.com, seobandwagon.com, and www.google.com", "Replace the page you see when opening a new tab", "Read your browsing history" and "Manage your apps, extensions, and themes"). No permission or host; one script (`src/lib/aio-study.js`) joins the Google content-script entry. **Data use: new**, for invited testers who turn on study sends, on Send to study, the study's search term and that results page's export (the results' positions, addresses, sites, titles, snippets, breadcrumbs, dates and ratings, the page's features, related searches and People also ask questions, the result count, the AI Overview's text and sources, Google's country and language, the capture time, the extension version), to the study, kept apart from the account; and a stop record on Google stopped me (`POST /api/v1/aio-study/stop`, a note that Google stopped them that day). The Web history and Website content texts and the Google results justification change, and the description's PRIVACY paragraph gains a sentence: "To paste with the combined submission (1.13.5)" (texts 1, 5, 6 and 8). The single purpose (998 of 1,000) is unchanged. | Not submitted (the combined submission, uploaded at 1.13.5; owner 2026-11-05) |

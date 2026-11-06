@@ -130,7 +130,7 @@
     '^https?://(22[4-9]|2[3-5][0-9])\\.[0-9]+\\.[0-9]+\\.[0-9]+' + PORT_AND_REST,
     // The local names with a trailing dot, which a domain list may not
     // match; without one they go by `requestDomains` below. Two small
-    // patterns: one with all the names compiles past Chrome's limit.
+    // patterns: one with all the names compiles past the browser's limit.
     '^https?://[^/?#]*\\.(localhost|local|internal|intranet|lan|home|corp|arpa)\\.(:[0-9]+)?([/?#]|$)',
     '^https?://[^/?#]*\\.(nip\\.io|sslip\\.io|xip\\.io|localtest\\.me|lvh\\.me)\\.(:[0-9]+)?([/?#]|$)',
     '^https?://\\[(::1?|::ffff:[^\\]]*|f[cd][0-9a-f]*:[^\\]]*|fe[89ab][0-9a-f]*:[^\\]]*)\\]',

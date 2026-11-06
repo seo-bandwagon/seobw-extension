@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
 
 // 1.12.0: Firefox's background page has a DOM parser and reads Analyze's
 // pages itself; Chrome's worker hands them to the offscreen document, which
@@ -328,13 +328,17 @@ chrome.runtime.onInstalled.addListener(() => {
 // Onboarding: the welcome page opens on a first install only, never on an
 // update; the uninstall survey URL is set on every install and update, so
 // people updating from a version without it get it too (Chrome keeps it).
-// Both URLs come from SBWSiteLinks.installActions (src/lib/site-links.js).
+// Both URLs come from SBWSiteLinks.installActions (src/lib/site-links.js),
+// which gives neither in a build whose browser those pages don't name
+// (SBWBrowser.sitePages: the Edge build, 1.13.6).
 chrome.runtime.onInstalled.addListener(async (details) => {
   const actions = SBWSiteLinks.installActions(details.reason, chrome.runtime.getManifest().version);
-  try {
-    await chrome.runtime.setUninstallURL(actions.uninstallUrl);
-  } catch (e) {
-    console.warn('setUninstallURL failed:', e);
+  if (actions.uninstallUrl) {
+    try {
+      await chrome.runtime.setUninstallURL(actions.uninstallUrl);
+    } catch (e) {
+      console.warn('setUninstallURL failed:', e);
+    }
   }
   if (actions.welcomeUrl) {
     try {
@@ -370,8 +374,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const searchUrl = gscSearchUrl(query, request.gl);
     chrome.windows.create({ url: searchUrl, incognito: true }, () => {
       if (chrome.runtime.lastError) {
+        // The words for the switch that allows private windows, from
+        // src/lib/browser.js, which Search Console's content script can't
+        // load itself.
         chrome.windows.create({ url: searchUrl }, () => {
-          sendResponse({ ok: true, incognito: false });
+          sendResponse({ ok: true, incognito: false, privateSwitches: SBWBrowser.privateSwitches });
         });
       } else {
         sendResponse({ ok: true, incognito: true });
@@ -979,7 +986,9 @@ async function pageRowFromHtml(html, fetchInfo, site) {
 
 // While pages are read, `guard` keeps a session rule in place that stops
 // the extension's own requests to a local or private address, redirect hops
-// included (SBWSerpPageCheck.localBlockRules).
+// included (SBWSerpPageCheck.localBlockRules). `notify` adds `browser`, the
+// build's browser's name for the overlay's error words, as the results page's
+// content script doesn't load src/lib/browser.js (1.13.6).
 const pageCheck = SBWSerpPageCheck.createSerpPageCheck({
   fetchText: SBWSerpPageCheck.fetchText,
   analyze: pageRowFromHtml,
@@ -992,7 +1001,7 @@ const pageCheck = SBWSerpPageCheck.createSerpPageCheck({
     addRules: on ? SBWSerpPageCheck.localBlockRules() : []
   }),
   notify: (req, msg) => {
-    chrome.tabs.sendMessage(req.serpTabId, Object.assign({ action: 'serpPageChecked', key: req.key }, msg), { frameId: req.frameId })
+    chrome.tabs.sendMessage(req.serpTabId, Object.assign({ action: 'serpPageChecked', key: req.key, browser: SBWBrowser.name }, msg), { frameId: req.frameId })
       .catch(() => {}); // the results page was closed or left
   }
 });
@@ -1752,11 +1761,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// --- External connect handler (Chrome extension "connect" flow from the
-// seobandwagon.com dashboard) — inert until the manifest declares
-// externally_connectable (Task 7). ---
-chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  if (sender.origin !== 'https://seobandwagon.com') {
+// --- seobandwagon.com's messages: the dashboard's "connect" flow and the
+// welcome page's checks. They arrive two ways, both answered by
+// answerSiteMessage(), so the answers can't drift apart:
+//   - by ID over externally_connectable (chrome.runtime.sendMessage with the
+//     Chrome Web Store item's ID), as since 1.5.0;
+//   - through the Connect bridge (src/content/site-bridge.js, 1.13.6), which
+//     needs no ID, so it also works in the Edge build, whose ID Microsoft
+//     assigns.
+// `message` is { type: 'ping' | 'connect' | 'status', apiKey? }. 'status' is
+// not answered yet ({ ok: false }), and the site falls back to 'ping'.
+function answerSiteMessage(message, sendResponse) {
+  if (!message || typeof message !== 'object') {
     sendResponse({ ok: false });
     return false;
   }
@@ -1806,4 +1822,23 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 
   sendResponse({ ok: false });
   return false;
+}
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (sender.origin !== SBWSiteLinks.SITE_ORIGIN) {
+    sendResponse({ ok: false });
+    return false;
+  }
+  return answerSiteMessage(message, sendResponse);
+});
+
+// The bridge's half in the worker: only this extension's own content script,
+// in the top frame of a seobandwagon.com page (SBWSiteLinks.isBridgeSender).
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!request || request.action !== 'siteBridge') return;
+  if (!SBWSiteLinks.isBridgeSender(sender, chrome.runtime.id)) {
+    sendResponse({ ok: false });
+    return false;
+  }
+  return answerSiteMessage(request.message, sendResponse);
 });

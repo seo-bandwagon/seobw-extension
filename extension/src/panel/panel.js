@@ -157,7 +157,7 @@ async function paint(tab, { scan = false } = {}) {
       });
       return;
     }
-    renderEmpty('Chrome blocked analysis on this page. Reload it, then scan again.');
+    renderEmpty(`${globalThis.SBWBrowser.name} blocked analysis on this page. Reload it, then scan again.`);
   }
 }
 

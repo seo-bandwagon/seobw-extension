@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>SEO Bandwagon Settings</title>
   <link rel="stylesheet" href="../extension/src/styles/fonts.css">
+  <script src="../extension/src/lib/browser.js"></script>
   <script src="../extension/src/lib/theme-mode.js"></script>
   <link rel="stylesheet" href="../extension/src/styles/popup.css">
   <script src="stub.js"></script>
@@ -21,7 +22,7 @@
 
       <label for="apiKey">API Key</label>
       <input type="password" id="apiKey" placeholder="Enter your API key">
-      <p class="help-text">Create a key at <a href="https://seobandwagon.com/dashboard/api-keys?utm_source=chrome_extension&amp;utm_medium=extension&amp;utm_campaign=options" target="_blank" rel="noopener">seobandwagon.com/dashboard/api-keys</a> (or click <em>Connect Chrome extension</em> there to do it in one click).</p>
+      <p class="help-text">Create a key at <a href="https://seobandwagon.com/dashboard/api-keys?utm_source=chrome_extension&amp;utm_medium=extension&amp;utm_campaign=options" target="_blank" rel="noopener">seobandwagon.com/dashboard/api-keys</a> (or click <em><span data-browser="connectButton">Connect Chrome extension</span></em> there to do it in one click).</p>
 
       <div class="btn-row">
         <button type="button" id="verifyBtn" class="secondary">Verify</button>
@@ -80,7 +81,7 @@
       <div class="consent-card" aria-labelledby="aioStudyTitle">
         <div class="consent-title" id="aioStudyTitle">For invited testers of the AI Overview study</div>
         <p class="consent-text">For people invited to SEO Bandwagon&rsquo;s AI Overview study, and only when you click Send to study on a search the study opened for you: that results page as its CSV export, which is the search term, each result&rsquo;s position, address, site, title, snippet, breadcrumb, date and rating, the page&rsquo;s search features, related searches and People also ask questions, the result count, the AI Overview&rsquo;s text and the pages it cites, Google&rsquo;s country and language settings, the capture time and the extension version; and, when you click Google stopped me, that Google stopped you that day. Never any other search or page, never figures or keyword data, and the extension never sends a request to Google itself. It goes to the study, not into your account&rsquo;s captures, history or keyword data.</p>
-        <p class="consent-text">Each term opens in a private window with Google set to the US and English and Google&rsquo;s personalization parameter off (hl=en, gl=us, pws=0). Chrome must allow SEO Bandwagon in private windows: Allow in Incognito, on the extension&rsquo;s Details page. Join or leave the study on seobandwagon.com; turn sends off here at any time.</p>
+        <p class="consent-text">Each term opens in a private window with Google set to the US and English and Google&rsquo;s personalization parameter off (hl=en, gl=us, pws=0). <span data-browser="name">Chrome</span> must allow SEO Bandwagon in private windows: Allow in <span data-browser="privateWindow">Incognito</span>, on the extension&rsquo;s Details page. Join or leave the study on seobandwagon.com; turn sends off here at any time.</p>
         <p class="consent-status" id="aioStudyStatus" role="status">Not turned on: nothing is sent to the study.</p>
         <div class="btn-row">
           <button type="button" id="aioStudyAccept">Turn on study sends</button>
@@ -98,10 +99,10 @@
         <button type="button" data-mode="light" aria-pressed="false">Day</button>
       </div>
       <ul class="links" id="themeLinks" hidden>
-        <li><a href="#" id="linkThemeNight" target="_blank" rel="noopener">Chrome theme: SEO Bandwagon — Neon Night</a></li>
-        <li><a href="#" id="linkThemeDay" target="_blank" rel="noopener">Chrome theme: SEO Bandwagon — Neon Day</a></li>
+        <li><a href="#" id="linkThemeNight" target="_blank" rel="noopener"><span data-browser="name">Chrome</span> theme: SEO Bandwagon — Neon Night</a></li>
+        <li><a href="#" id="linkThemeDay" target="_blank" rel="noopener"><span data-browser="name">Chrome</span> theme: SEO Bandwagon — Neon Day</a></li>
       </ul>
-      <p class="hint rate-hint">Enjoying SEO Bandwagon? <a href="#" data-review-link target="_blank" rel="noopener">Rate it on the Chrome Web Store</a>.</p>
+      <p class="hint rate-hint">Enjoying SEO Bandwagon? <a href="#" data-review-link target="_blank" rel="noopener">Rate it on the <span data-browser="storeName">Chrome Web Store</span></a>.</p>
     </div>
 
     <div class="section">

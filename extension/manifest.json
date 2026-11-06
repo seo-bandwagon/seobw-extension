@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SEO Bandwagon",
-  "version": "1.13.5",
-  "version_name": "1.13.5 — Figures' allowance under Google results: this month's on Free, today's on Pro",
+  "version": "1.13.6",
+  "version_name": "1.13.6 — One package per store, and Connect through a bridge on seobandwagon.com",
   "description": "Check the on-page SEO of any page in one click: a score and the issues it finds, link and indexability checks, and more.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtZAOayFSIT1ebcFQjdmZB8rKiW3kl64OevZCBgQv/JUA0ZJf9O6zTzp7OhFkZmDJ19bvluKLAw6nFt7BHsymh6Z+Ldg5u2gu30HGjH3FTWV0VLSiIx/vtaotfUEARGlIkYjSJQ+VUqGrqjjlVFJyZVwz20TtSIxU/P5m3gQDGbZrgH48qTss1YiBQ7n9jCtKMVhTNz3yv/g2KHFoBV+cSZ29RK3pNB8GTINSQddBiLaEcuLIPxyv9WyTZhWYI4JNDFsM+isLH5VuEg9oWKy+//MDE7RiojrkPfSXh2Q3qlGLYs9La82w4pTZjhGg2fTrIsj1R92Hu20tF3qME4bF5QIDAQAB",
   "permissions": [
@@ -116,6 +116,17 @@
         "src/overlay/serp-overlay.css"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://seobandwagon.com/dashboard/api-keys*",
+        "https://seobandwagon.com/seo-chrome-extension/welcome*"
+      ],
+      "js": [
+        "src/content/site-bridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
     }
   ],
   "commands": {
