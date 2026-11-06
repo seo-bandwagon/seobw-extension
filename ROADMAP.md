@@ -221,6 +221,7 @@ Moved up on 2026-11-06 so the Edge package can go to Microsoft Edge Add-ons now.
 - [ ] Tools: one list everywhere; Search Console link for Domain properties; Count words from the selection; stray tooltip gone
 - [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
 - [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
+- [ ] Search Console: the Queries tab's row icons show without a reload, whatever page Search Console was opened on and after an install or update (#158)
 - [ ] CI: a test coverage report on every PR, its summary in the job summary and the HTML report kept 7 days; the baseline recorded, no threshold yet (#74)
 
 ### 1.13.8: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.7; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.8)
