@@ -1920,12 +1920,14 @@
         chrome.storage.onChanged.addListener((changes, area) => {
           if (area === 'local' && changes[Settings.STORAGE_KEY]) {
             applySettings(Settings.normalize(changes[Settings.STORAGE_KEY].newValue));
-          } else if ((area === 'local' && changes.sbwConsent) || (area === 'sync' && changes.apiKey)) {
+          } else if (area === 'local' && (changes.sbwConsent || changes.sbwAccountEpoch)) {
+            // 1.13.7: an account change arrives as sbwAccountEpoch (src/lib/api.js),
+            // written by the worker; content scripts can't see storage.sync.
             // Figures accepted or withdrawn in Options, or an account
             // connected: the open page asks again, without a reload. A new
             // account never shows the old one's figures (its checklist).
             askedKeys.clear();
-            if (area === 'sync') figuresByKey.clear();
+            if (changes.sbwAccountEpoch) figuresByKey.clear();
             retries = 0;
             figState = { state: 'idle' };
             if (settings.overlay && settings.figuresOn && (settings.load === 'auto' || figuresWanted)) loadFigures(false);

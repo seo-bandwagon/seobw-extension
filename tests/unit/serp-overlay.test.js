@@ -1287,7 +1287,9 @@ describe('1.11.0 review: retries, cosmetic settings, a new account', () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(barFor('alpha.example').textContent).toContain('your checklist 92/100');
     account = 'new';
-    changed({ apiKey: { newValue: 'sbw_new' } }, 'sync');
+    // 1.13.7: the worker's account marker, not the key (storage.sync is
+    // closed to content scripts).
+    changed({ sbwAccountEpoch: { newValue: 1 } }, 'local');
     await vi.advanceTimersByTimeAsync(50);
     expect(barFor('alpha.example').textContent).not.toContain('your checklist');
     delete window.chrome.storage.onChanged;

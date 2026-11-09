@@ -92,21 +92,121 @@ describe('SBW namespace', () => {
 
 describe('getApiSettings — apiUrl normalization', () => {
   it('appends /api when missing', async () => {
-    globalThis.chrome = mockChrome({ apiUrl: 'https://x.com' });
+    globalThis.chrome = mockChrome({ apiUrl: 'https://cf.seobandwagon.com' });
     const settings = await SBW.getApiSettings();
-    expect(settings.apiUrl).toBe('https://x.com/api');
+    expect(settings.apiUrl).toBe('https://cf.seobandwagon.com/api');
   });
 
   it('strips a trailing slash after /api', async () => {
-    globalThis.chrome = mockChrome({ apiUrl: 'https://x.com/api/' });
+    globalThis.chrome = mockChrome({ apiUrl: 'https://cf.seobandwagon.com/api/' });
     const settings = await SBW.getApiSettings();
-    expect(settings.apiUrl).toBe('https://x.com/api');
+    expect(settings.apiUrl).toBe('https://cf.seobandwagon.com/api');
   });
 
   it('leaves an already-correct apiUrl untouched', async () => {
-    globalThis.chrome = mockChrome({ apiUrl: 'https://x.com/api' });
+    globalThis.chrome = mockChrome({ apiUrl: 'https://cf.seobandwagon.com/api' });
     const settings = await SBW.getApiSettings();
-    expect(settings.apiUrl).toBe('https://x.com/api');
+    expect(settings.apiUrl).toBe('https://cf.seobandwagon.com/api');
+  });
+
+  it('keeps a local dev server', async () => {
+    globalThis.chrome = mockChrome({ apiUrl: 'http://localhost:3000' });
+    expect((await SBW.getApiSettings()).apiUrl).toBe('http://localhost:3000/api');
+  });
+});
+
+// 1.13.7: a value saved under an older, looser rule stays in storage.sync, so
+// the rule is applied again at every send, not only when Options saves.
+describe('getApiSettings — 1.13.7: a stored apiUrl outside the rule is not used', () => {
+  const OLD = [
+    'https://api.seobandwagon.dev',                    // 1.0.0 to 1.1.0 wrote it
+    'https://deploy-preview-12--seobandwagon.netlify.app/api', // 1.5.0 to 1.10.2 took these
+    'https://x.com',                                   // 1.2.0 saved any typed URL
+    'http://seobandwagon.com/api',                     // plain http to a real host
+    'https://seobandwagon.com.evil.example/api',
+    'https://seobandwagon.com@evil.example/api',
+    'not a url'
+  ];
+
+  for (const apiUrl of OLD) {
+    it(`falls back to the default for ${apiUrl}`, async () => {
+      globalThis.chrome = mockChrome({ apiKey: 'sbw_k', apiUrl });
+      expect(await SBW.getApiSettings()).toEqual({ apiKey: 'sbw_k', apiUrl: 'https://seobandwagon.com/api' });
+    });
+  }
+
+  it('sends the key only to the default, never to the stored host', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_secret', apiUrl: 'https://deploy-preview-12--seobandwagon.netlify.app' });
+    globalThis.fetch.mockResolvedValue(mockResponse(200, { email: 'a@example.com' }));
+    await SBW.sbwFetch('/v1/me');
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe('https://seobandwagon.com/api/v1/me');
+    expect(init.headers.Authorization).toBe('Bearer sbw_secret');
+  });
+
+  it('isAllowedApiUrl matches what Options accepts', () => {
+    expect(SBW.isAllowedApiUrl('https://seobandwagon.com/api')).toBe(true);
+    expect(SBW.isAllowedApiUrl('https://cf.seobandwagon.com')).toBe(true);
+    expect(SBW.isAllowedApiUrl('http://127.0.0.1:8787/api')).toBe(true);
+    for (const bad of OLD) expect(SBW.isAllowedApiUrl(bad), bad).toBe(false);
+  });
+
+  it('dropDisallowedApiUrl removes an old value and leaves an allowed one', async () => {
+    const make = (apiUrl) => {
+      const sync = { apiUrl };
+      return {
+        sync,
+        chrome: { storage: { sync: {
+          get: vi.fn(async (defaults) => Object.assign({}, defaults, sync)),
+          remove: vi.fn(async (k) => { delete sync[k]; })
+        } } }
+      };
+    };
+    let m = make('https://api.seobandwagon.dev');
+    globalThis.chrome = m.chrome;
+    expect(await SBW.dropDisallowedApiUrl()).toBe(true);
+    expect(m.sync).toEqual({});
+
+    m = make('https://cf.seobandwagon.com/api');
+    globalThis.chrome = m.chrome;
+    expect(await SBW.dropDisallowedApiUrl()).toBe(false);
+    expect(m.chrome.storage.sync.remove).not.toHaveBeenCalled();
+
+    m = make(undefined);
+    globalThis.chrome = m.chrome;
+    expect(await SBW.dropDisallowedApiUrl()).toBe(false);
+  });
+});
+
+// 1.13.7: Connect checks the site's key without storing it.
+describe('checkKey — a candidate key, not the stored one', () => {
+  it('sends the candidate as the Bearer and leaves sbwKeyStatus alone on 200 and 401', async () => {
+    globalThis.chrome = mockChrome({ apiKey: 'sbw_stored' });
+    globalThis.fetch.mockResolvedValue(mockResponse(200, { email: 'new@example.com' }));
+    const ok = await SBW.checkKey('sbw_candidate');
+    expect(ok.ok).toBe(true);
+    expect(globalThis.fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer sbw_candidate');
+
+    globalThis.fetch.mockResolvedValue(mockResponse(401, { error: 'bad key' }));
+    const bad = await SBW.checkKey('sbw_candidate');
+    expect(bad.code).toBe('unauthorized');
+    expect(globalThis.chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it('refuses anything that is not a non-empty string, without a request', async () => {
+    for (const k of ['', null, undefined, ['sbw_x'], 42]) {
+      expect((await SBW.checkKey(k)).code).toBe('no_key');
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('markAccountChanged — the overlays\' account marker', () => {
+  it('writes sbwAccountEpoch to storage.local', async () => {
+    globalThis.chrome = mockChrome();
+    await SBW.markAccountChanged();
+    expect(SBW.ACCOUNT_EPOCH_KEY).toBe('sbwAccountEpoch');
+    expect(globalThis.chrome.storage.local.set).toHaveBeenCalledWith({ sbwAccountEpoch: expect.any(Number) });
   });
 });
 

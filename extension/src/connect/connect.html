@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>SEO Bandwagon: connect an account</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/theme-mode.js"></script>
+  <link rel="stylesheet" href="../styles/popup.css">
+</head>
+<body class="page-options page-connect">
+  <div class="container">
+    <h1>
+      <img src="../icons/icon48.png" alt="">
+      SEO Bandwagon
+    </h1>
+    <p class="subtitle">Connect an account</p>
+
+    <div class="section">
+      <div class="section-title" id="connectTitle">Checking the request</div>
+      <p class="help-text" id="connectLead"></p>
+      <p class="help-text" id="connectWarn">Connect only if you just clicked Connect extension on seobandwagon.com yourself.</p>
+      <div class="btn-row">
+        <button type="button" id="connectYes" disabled>Connect</button>
+        <button type="button" id="connectNo" class="secondary" disabled>Cancel</button>
+      </div>
+      <div class="status" id="connectStatus" role="status"></div>
+    </div>
+  </div>
+  <script src="connect.js"></script>
+</body>
+</html>

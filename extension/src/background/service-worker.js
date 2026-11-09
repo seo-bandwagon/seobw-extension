@@ -1,6 +1,25 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+
+// 1.13.7: the account key and the API address (chrome.storage.sync) are for
+// the extension's own pages and this worker only. By default every content
+// script could read and write them, and content scripts run on Google, Search
+// Console, seobandwagon.com and every page the person analyzes, so a
+// compromised page renderer could read the key or point it elsewhere. Set on
+// every worker start. Content scripts don't need storage.sync: the Google
+// overlays learn of an account change from SBW.ACCOUNT_EPOCH_KEY in
+// storage.local (see the account caches below).
+(function restrictSyncStorage() {
+  const sync = chrome.storage && chrome.storage.sync;
+  if (!sync || typeof sync.setAccessLevel !== 'function') return;
+  try {
+    const done = sync.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+    if (done && typeof done.catch === 'function') done.catch(() => {});
+  } catch (e) {
+    // A browser without access levels: storage stays as it was.
+  }
+})();
 
 // 1.12.0: Firefox's background page has a DOM parser and reads Analyze's
 // pages itself; Chrome's worker hands them to the offscreen document, which
@@ -169,6 +188,9 @@ function ensureSyncAlarm() {
 chrome.runtime.onInstalled.addListener(() => {
   ensureSyncAlarm();
   SBW.markLegacyPending(); // one-time stamp for captures saved before sync existed
+  // 1.13.7: an API address saved under an older rule goes, so Options shows
+  // the one in use (SBW.getApiSettings already ignores it).
+  SBW.dropDisallowedApiUrl().catch(() => {});
 });
 chrome.runtime.onStartup.addListener(ensureSyncAlarm);
 
@@ -185,12 +207,15 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // the new key's own answer. The Connect handler below clears before its own
 // write and verifies right after, so that write is skipped here; any other
 // local writer clears first too, and a late clear here only costs one more
-// /v1/me.
+// /v1/me. 1.13.7: once the caches are gone, the open Google overlays are
+// told through SBW.ACCOUNT_EPOCH_KEY in storage.local, since they can't
+// see storage.sync any more.
 let connectingKey = null;
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'sync' || !(changes.apiKey || changes.apiUrl)) return;
-  if (!changes.apiUrl && connectingKey && changes.apiKey.newValue === connectingKey) return;
-  SBW.clearAccountCaches();
+  const own = !changes.apiUrl && connectingKey && changes.apiKey.newValue === connectingKey;
+  const cleared = own ? Promise.resolve() : Promise.resolve(SBW.clearAccountCaches());
+  cleared.catch(() => {}).then(() => SBW.markAccountChanged());
 });
 
 // Clear cache when the tab navigates to a new URL or reloads. #93: a reload
@@ -1784,45 +1809,181 @@ function answerSiteMessage(message, sendResponse) {
 
   if (message.type === 'connect') {
     const apiKey = message.apiKey;
-    if (!/^sbw_[0-9a-f]{48}$/.test(apiKey || '')) {
+    if (!SBWSiteConnect.isKeyFormat(apiKey)) {
       sendResponse({ ok: false, error: 'Invalid API key format' });
       return true;
     }
-
-    // Verify BEFORE persisting: stash whatever key (if any) is currently
-    // stored, stage the candidate just long enough for SBW.verifyKey() to
-    // check it (verifyKey reads the stored key, not an argument), and only
-    // leave it in place on success. On any non-ok, restore the prior value.
-    // 1.10.3: the previous account's caches are cleared first, so nothing an
-    // old key was told is shown for this one; on success the /v1/me answer
-    // is kept, and captures an old key was refused for (requeued by api.js
-    // on the key's first good answer) are sent straight away.
-    (async () => {
-      const prior = await chrome.storage.sync.get({ apiKey: '' });
-      connectingKey = apiKey;
-      try {
-        await SBW.clearAccountCaches();
-        await chrome.storage.sync.set({ apiKey });
-        const res = await SBW.verifyKey();
-        if (res.ok) {
-          await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
-          sendResponse({ ok: true, email: res.data?.email });
-          SBW.drainPendingCaptures({ max: 20 });
-          return;
-        }
-        await chrome.storage.sync.set({ apiKey: prior.apiKey });
-        await SBW.clearAccountCaches();
-        sendResponse({ ok: false, error: res.data?.error || res.code });
-      } finally {
-        connectingKey = null;
-      }
-    })();
+    startConnect(apiKey, sendResponse);
     return true;
   }
 
   sendResponse({ ok: false });
   return false;
 }
+
+// --- Connect asks the person (1.13.7, src/lib/site-connect.js) ---
+// The candidate is checked with /v1/me without being stored. The stored
+// key's own account is read fresh, not from sbwUser, which content scripts
+// can write. The same account is stored at once; anything else waits for the
+// person's Connect in src/connect/connect.html. The site gets its answer
+// within SBWSiteConnect.ANSWER_WITHIN_MS whichever way it goes.
+const connectWaiters = new Map(); // pending id -> { answer, timer }
+
+function answerConnectWaiter(id, response) {
+  const waiter = connectWaiters.get(id);
+  if (!waiter) return;
+  connectWaiters.delete(id);
+  clearTimeout(waiter.timer);
+  try { waiter.answer(response); } catch (e) { /* the site stopped waiting */ }
+}
+
+async function readConnectPending() {
+  const got = await chrome.storage.session.get(SBWSiteConnect.PENDING_KEY);
+  return got[SBWSiteConnect.PENDING_KEY] || null;
+}
+
+async function dropConnectPending(pending, response) {
+  await chrome.storage.session.remove(SBWSiteConnect.PENDING_KEY);
+  if (pending) answerConnectWaiter(pending.id, response);
+}
+
+// Stores a checked key, as Connect did before 1.13.7: the old account's
+// caches go first, then the key, then its own /v1/me answer, which also
+// marks it valid and resends captures an old key was refused for.
+async function commitConnectKey(apiKey) {
+  const prior = await chrome.storage.sync.get({ apiKey: '' });
+  connectingKey = apiKey;
+  try {
+    await SBW.clearAccountCaches();
+    await chrome.storage.sync.set({ apiKey });
+    const res = await SBW.verifyKey();
+    if (res.ok) {
+      await chrome.storage.local.set({ sbwUser: { data: res.data, at: Date.now() } });
+      SBW.drainPendingCaptures({ max: 20 });
+      return { ok: true, email: res.data?.email };
+    }
+    await chrome.storage.sync.set({ apiKey: prior.apiKey });
+    await SBW.clearAccountCaches();
+    return { ok: false, error: res.data?.error || res.code };
+  } finally {
+    connectingKey = null;
+  }
+}
+
+async function startConnect(apiKey, sendResponse) {
+  const startedAt = Date.now();
+  try {
+    const candidate = await SBW.checkKey(apiKey);
+    if (!candidate.ok) {
+      sendResponse({ ok: false, error: candidate.data?.error || candidate.code });
+      return;
+    }
+    const { apiKey: storedKey } = await chrome.storage.sync.get({ apiKey: '' });
+    let storedMe = null;
+    if (storedKey && storedKey !== apiKey) {
+      const stored = await SBW.checkKey(storedKey);
+      if (stored.ok) storedMe = stored.data;
+    }
+    const plan = SBWSiteConnect.connectPlan({ storedKey, storedMe, candidate: apiKey, candidateMe: candidate.data });
+    if (plan === 'keep') {
+      sendResponse({ ok: true, email: candidate.data?.email });
+      return;
+    }
+    if (plan === 'store') {
+      sendResponse(await commitConnectKey(apiKey));
+      return;
+    }
+
+    // Ask. One request at a time: while one waits, a new connect brings its
+    // window forward and is refused, so a page can't keep reopening the
+    // question (each opening re-arms its buttons, connect.js). A request
+    // whose window is gone, or that expired, is dropped first.
+    const earlier = await readConnectPending();
+    if (earlier) {
+      let open = false;
+      if (!SBWSiteConnect.isExpired(earlier, Date.now()) && typeof earlier.windowId === 'number') {
+        open = await chrome.windows.update(earlier.windowId, { focused: true }).then(() => true, () => false);
+      }
+      if (open) {
+        sendResponse({ ok: false, pending: true, error: 'A connect request is already waiting in the SEO Bandwagon window' });
+        return;
+      }
+      await dropConnectPending(earlier, { ok: false, error: 'The connect request expired' });
+    }
+    const id = `${startedAt.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const pending = SBWSiteConnect.pendingRecord({ id, candidate: apiKey, candidateMe: candidate.data, storedKey, storedMe, now: Date.now() });
+    await chrome.storage.session.set({ [SBWSiteConnect.PENDING_KEY]: pending });
+    connectWaiters.set(id, {
+      answer: sendResponse,
+      timer: setTimeout(() => answerConnectWaiter(id, {
+        ok: false,
+        pending: true,
+        error: 'Approve the connection in the SEO Bandwagon window'
+      }), SBWSiteConnect.answerDelay(startedAt, Date.now()))
+    });
+    const win = await chrome.windows.create({
+      url: chrome.runtime.getURL(SBWSiteConnect.CONFIRM_PAGE) + '#' + encodeURIComponent(id),
+      type: 'popup',
+      width: 460,
+      height: 440,
+      focused: true
+    });
+    const still = await readConnectPending();
+    if (still && still.id === id && win && typeof win.id === 'number') {
+      await chrome.storage.session.set({ [SBWSiteConnect.PENDING_KEY]: Object.assign({}, still, { windowId: win.id }) });
+    }
+  } catch (e) {
+    // The window could not open, or storage failed: nothing was stored.
+    const pending = await readConnectPending().catch(() => null);
+    if (pending) await dropConnectPending(pending, { ok: false, error: 'Could not ask for approval' }).catch(() => {});
+    try { sendResponse({ ok: false, error: 'Could not ask for approval' }); } catch (err) { /* answered already */ }
+  }
+}
+
+// The confirmation page's two questions: what is waiting, and the person's
+// answer. Only that page may ask (SBWSiteConnect.isConfirmSender). Answered
+// from the bridge's listener below.
+function answerConnectPage(request, sender, sendResponse) {
+  const page = chrome.runtime.getURL(SBWSiteConnect.CONFIRM_PAGE);
+  if (!SBWSiteConnect.isConfirmSender(sender, chrome.runtime.id, page)) {
+    sendResponse({ ok: false });
+    return false;
+  }
+  (async () => {
+    const pending = await readConnectPending();
+    const now = Date.now();
+    if (!pending || pending.id !== request.id || SBWSiteConnect.isExpired(pending, now)) {
+      if (pending && SBWSiteConnect.isExpired(pending, now)) await dropConnectPending(pending, { ok: false, error: 'The connect request expired' });
+      sendResponse({ ok: false, error: 'expired' });
+      return;
+    }
+    if (request.action === 'connectPending') {
+      sendResponse({ ok: true, email: pending.email, replacing: pending.replacing });
+      return;
+    }
+    // One answer per request.
+    await chrome.storage.session.remove(SBWSiteConnect.PENDING_KEY);
+    if (request.approve !== true) {
+      answerConnectWaiter(pending.id, { ok: false, error: 'Declined in the extension' });
+      sendResponse({ ok: true, declined: true });
+      return;
+    }
+    const result = await commitConnectKey(pending.apiKey);
+    answerConnectWaiter(pending.id, result);
+    sendResponse(result);
+  })().catch(() => sendResponse({ ok: false, error: 'failed' }));
+  return true;
+}
+
+// Closing the window without an answer is a no.
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  try {
+    const pending = await readConnectPending();
+    if (pending && pending.windowId === windowId) {
+      await dropConnectPending(pending, { ok: false, error: 'Declined in the extension' });
+    }
+  } catch (e) { /* nothing waiting */ }
+});
 
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (sender.origin !== SBWSiteLinks.SITE_ORIGIN) {
@@ -1834,7 +1995,11 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 
 // The bridge's half in the worker: only this extension's own content script,
 // in the top frame of a seobandwagon.com page (SBWSiteLinks.isBridgeSender).
+// 1.13.7: and the Connect confirmation page's questions.
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request && (request.action === 'connectPending' || request.action === 'connectDecision')) {
+    return answerConnectPage(request, sender, sendResponse);
+  }
   if (!request || request.action !== 'siteBridge') return;
   if (!SBWSiteLinks.isBridgeSender(sender, chrome.runtime.id)) {
     sendResponse({ ok: false });

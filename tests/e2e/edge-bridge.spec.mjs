@@ -19,8 +19,11 @@
 //      options page and popup, and no new-tab or theme settings;
 //   2. the bridge's marker on the API keys and welcome pages, and nowhere
 //      else, not in a frame;
-//   3. ping, status and connect through the bridge: the worker's answers, the
-//      key stored after /v1/me verifies it, and a bad key refused;
+//   3. ping, status and connect through the bridge: the worker's answers, a
+//      bad key refused, and (1.13.7) nothing stored until the person clicks
+//      Connect in the extension's own window, which names the account; a new
+//      key for the same account stored without asking; another account asked
+//      again, naming both, and Cancel storing nothing;
 //   4. messages the bridge ignores: wrong flag, no port, from a frame;
 //   5. install warnings (getPermissionWarningsByManifest): the bridge adds
 //      none to the Chrome package, and the Edge one has Chrome's less the new
@@ -35,6 +38,11 @@ import { buildZip, packageManifest } from '../../scripts/build-zip.mjs';
 
 const KEY = 'sbw_' + '0123456789abcdef'.repeat(3);
 const ME = { email: 'owner@example.com', name: 'Owner', key: { name: 'Edge' }, scopes: ['captures', 'citations', 'progress', 'serp', 'keywords'] };
+// 1.13.7: a second key for the same account, and a key for another account.
+const KEY_SAME = 'sbw_' + 'fedcba9876543210'.repeat(3);
+const KEY_OTHER = 'sbw_' + '0f1e2d3c4b5a6978'.repeat(3);
+const OTHER = { email: 'someone@example.net', name: 'Someone', key: { name: 'Edge' }, scopes: ['captures'] };
+const VERSION = JSON.parse(fs.readFileSync(path.resolve('extension/manifest.json'), 'utf8')).version;
 
 // The site's half of the bridge, as a page script. `bridge(message)` posts
 // { sbwBridge: 1, message } with one port and resolves with what comes back
@@ -78,7 +86,8 @@ test('the Edge package: its build, and the Connect bridge (ping, status, connect
       const p = url.pathname.slice(4);
       api.push(`${req.method()} ${p}`);
       const auth = req.headers().authorization || '';
-      if (p === '/v1/me' && auth === `Bearer ${KEY}`) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ME) });
+      const me = { [`Bearer ${KEY}`]: ME, [`Bearer ${KEY_SAME}`]: ME, [`Bearer ${KEY_OTHER}`]: OTHER }[auth];
+      if (p === '/v1/me' && me) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(me) });
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Unauthorized' }) });
     }
     if (url.origin === 'https://seobandwagon.com') {
@@ -100,7 +109,7 @@ test('the Edge package: its build, and the Connect bridge (ping, status, connect
 
     await test.step('the Edge build: its manifest, its own ID, and no welcome tab', async () => {
       const m = await sw.evaluate(() => chrome.runtime.getManifest());
-      expect(m.version).toBe('1.13.6');
+      expect(m.version).toBe(VERSION);
       expect(m).not.toHaveProperty('key');
       expect(m).not.toHaveProperty('chrome_url_overrides');
       expect(m.permissions).not.toContain('management');
@@ -175,7 +184,7 @@ test('the Edge package: its build, and the Connect bridge (ping, status, connect
     await tab.goto('https://seobandwagon.com/dashboard/api-keys/');
 
     await test.step('ping: the version, as by ID', async () => {
-      expect(await tab.evaluate(() => window.bridge({ type: 'ping' }))).toEqual({ response: { ok: true, version: '1.13.6' } });
+      expect(await tab.evaluate(() => window.bridge({ type: 'ping' }))).toEqual({ response: { ok: true, version: VERSION } });
     });
 
     await test.step('status: not answered yet, so the site falls back to ping', async () => {
@@ -193,11 +202,60 @@ test('the Edge package: its build, and the Connect bridge (ping, status, connect
       expect(await sw.evaluate(() => chrome.storage.sync.get({ apiKey: '' }))).toEqual({ apiKey: '' });
     });
 
-    await test.step('connect: the key is verified with /v1/me, stored, and the account named', async () => {
-      const answer = await tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY);
-      expect(answer).toEqual({ response: { ok: true, email: 'owner@example.com' } });
+    await test.step('storage (1.13.7): the browser takes trusted-contexts-only for storage.sync, where the key lives', async () => {
+      const set = (area) => sw.evaluate((a) => chrome.storage[a].setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).then(() => 'ok', (e) => e.message), area);
+      expect(await set('sync')).toBe('ok');
+    });
+
+    const storedKey = () => sw.evaluate(() => chrome.storage.sync.get({ apiKey: '' }).then((r) => r.apiKey));
+    // The extension's own confirmation window (src/connect/connect.html).
+    const confirmWindow = () => context.waitForEvent('page', {
+      predicate: (p) => p.url().includes('/src/connect/connect.html'),
+      timeout: 10_000
+    });
+
+    await test.step('connect (1.13.7): nothing is stored until the person clicks Connect in the extension\'s window', async () => {
+      const opened = confirmWindow();
+      const answer = tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY);
+      const win = await opened;
+      // The buttons arm only a second after the window has focus (connect.js);
+      // Playwright doesn't give an extension-opened window focus by itself.
+      await win.bringToFront();
+      await expect(win.locator('#connectYes')).toBeDisabled();
+      await expect(win.locator('#connectTitle')).toHaveText('Connect to owner@example.com?');
+      await expect(win.locator('#connectLead')).toContainText('connect this extension to owner@example.com');
+      expect(await storedKey()).toBe('');
       expect(api).toContain('GET /v1/me');
-      expect(await sw.evaluate(() => chrome.storage.sync.get({ apiKey: '' }))).toEqual({ apiKey: KEY });
+      const closed = win.waitForEvent('close', { timeout: 10_000 });
+      await win.locator('#connectYes').click();
+      expect(await answer).toEqual({ response: { ok: true, email: 'owner@example.com' } });
+      expect(await storedKey()).toBe(KEY);
+      await closed; // the window closes by itself once connected
+    });
+
+    await test.step('connect: a new key for the same account is stored without asking', async () => {
+      const before = context.pages().length;
+      const answer = await tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY_SAME);
+      expect(answer).toEqual({ response: { ok: true, email: 'owner@example.com' } });
+      expect(await storedKey()).toBe(KEY_SAME);
+      expect(context.pages().filter((p) => p.url().includes('/src/connect/')).length).toBe(0);
+      expect(context.pages().length).toBeLessThanOrEqual(before);
+    });
+
+    await test.step('connect: another account asks again, naming both, and Cancel stores nothing', async () => {
+      const opened = confirmWindow();
+      const answer = tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY_OTHER);
+      const win = await opened;
+      await win.bringToFront();
+      await expect(win.locator('#connectTitle')).toHaveText('Connect to someone@example.net?');
+      await expect(win.locator('#connectLead')).toContainText('from owner@example.com to someone@example.net');
+      // One request at a time: another connect while this one waits is refused.
+      expect(await tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY_OTHER))
+        .toEqual({ response: { ok: false, pending: true, error: 'A connect request is already waiting in the SEO Bandwagon window' } });
+      await win.bringToFront();
+      await win.locator('#connectNo').click();
+      expect(await answer).toEqual({ response: { ok: false, error: 'Declined in the extension' } });
+      expect(await storedKey()).toBe(KEY_SAME);
     });
 
     expect(other).toEqual([]);
