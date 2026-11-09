@@ -809,11 +809,13 @@
         chrome.storage.onChanged.addListener((changes, area) => {
           if (area === 'local' && changes[Settings.STORAGE_KEY]) {
             applySettings(Settings.normalize(changes[Settings.STORAGE_KEY].newValue));
-          } else if ((area === 'local' && changes.sbwConsent) || (area === 'sync' && changes.apiKey)) {
+          } else if (area === 'local' && (changes.sbwConsent || changes.sbwAccountEpoch)) {
+            // 1.13.7: an account change arrives as sbwAccountEpoch (src/lib/api.js),
+            // written by the worker; content scripts can't see storage.sync.
             // Keyword data accepted or withdrawn in Options, or an account
             // connected: asked again without a reload. A new account never
             // shows the old one's rank history.
-            if (area === 'sync') {
+            if (changes.sbwAccountEpoch) {
               // Another account: the old one's answers in flight are dropped.
               epoch += 1;
               inFlight = false;

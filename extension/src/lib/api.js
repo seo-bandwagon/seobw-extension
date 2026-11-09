@@ -38,6 +38,35 @@
     return normalized;
   }
 
+  // 1.13.7: the hosts the key may be sent to. The same rule as Options'
+  // isValidApiUrl (src/lib/options-logic.js), which checks it when the
+  // Advanced field is saved; tests/unit/api-url-rule.test.js keeps the two
+  // in step. Applied again here, at every send, because a value saved under
+  // an older rule stays in chrome.storage.sync: 1.0.0 to 1.1.0 wrote
+  // api.seobandwagon.dev, 1.2.0 saved any typed URL, and 1.5.0 to 1.10.2
+  // took any <name>--seobandwagon.netlify.app host.
+  function isAllowedApiUrl(url) {
+    const trimmed = String(url || '').trim();
+    if (!trimmed) return false;
+    if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(trimmed)) return true;
+    let parsed;
+    try {
+      parsed = new URL(trimmed);
+    } catch (e) {
+      return false;
+    }
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return host === 'seobandwagon.com' || host.endsWith('.seobandwagon.com');
+  }
+
+  // The base a stored value stands for: the stored one when the rule allows
+  // it, else the default. An empty or missing value is the default too.
+  function apiBaseFor(stored) {
+    const trimmed = String(stored || '').trim();
+    return normalizeApiUrl(trimmed && isAllowedApiUrl(trimmed) ? trimmed : API_DEFAULT_URL);
+  }
+
   async function getApiSettings() {
     return new Promise(resolve => {
       chrome.storage.sync.get({
@@ -46,10 +75,35 @@
       }, (result) => {
         resolve({
           apiKey: result.apiKey,
-          apiUrl: normalizeApiUrl(result.apiUrl)
+          apiUrl: apiBaseFor(result.apiUrl)
         });
       });
     });
+  }
+
+  // Removes a stored apiUrl the rule no longer allows, so Options shows the
+  // address actually used. Run by the worker on install and update. Returns
+  // true when it removed one.
+  async function dropDisallowedApiUrl() {
+    const { apiUrl } = await chrome.storage.sync.get({ apiUrl: '' });
+    const trimmed = String(apiUrl || '').trim();
+    if (!trimmed || isAllowedApiUrl(trimmed)) return false;
+    await chrome.storage.sync.remove('apiUrl');
+    return true;
+  }
+
+  // 1.13.7: content scripts can't read chrome.storage.sync any more (the
+  // worker sets it to trusted contexts), so the Google overlays learn that the
+  // account changed from this non-secret marker in chrome.storage.local
+  // instead of from the key's own change. The worker writes it after every
+  // key or API address change, once the old account's caches are gone.
+  const ACCOUNT_EPOCH_KEY = 'sbwAccountEpoch';
+  async function markAccountChanged() {
+    try {
+      await chrome.storage.local.set({ [ACCOUNT_EPOCH_KEY]: Date.now() });
+    } catch (e) {
+      // Best effort: an overlay that misses it refreshes on its next load.
+    }
   }
 
   async function isDataCollectionEnabled() {
@@ -74,8 +128,13 @@
     return url;
   }
 
+  // `options.apiKey` (1.13.7) sends a candidate key in place of the stored
+  // one, for Connect's check of a key the site hands over before anything is
+  // stored. Such a call says nothing about the stored key, so it leaves
+  // sbwKeyStatus alone.
   async function sbwFetch(path, options = {}) {
     const { method = 'GET', body, query, timeoutMs = 15000 } = options;
+    const candidate = typeof options.apiKey === 'string';
 
     let settings;
     try {
@@ -83,6 +142,7 @@
     } catch (e) {
       return { ok: false, status: 0, data: null, retryAfter: null, code: 'network' };
     }
+    if (candidate) settings = Object.assign({}, settings, { apiKey: options.apiKey });
 
     const url = buildUrl(settings.apiUrl, path, query);
     const headers = {};
@@ -114,7 +174,7 @@
     }
 
     if (res.ok) {
-      if (settings.apiKey) await noteKeyValid();
+      if (settings.apiKey && !candidate) await noteKeyValid();
       return { ok: true, status: res.status, data, retryAfter: null, code: 'ok' };
     }
 
@@ -123,7 +183,7 @@
     switch (res.status) {
       case 401:
         code = 'unauthorized';
-        chrome.storage.local.set({ sbwKeyStatus: 'invalid' });
+        if (!candidate) chrome.storage.local.set({ sbwKeyStatus: 'invalid' });
         break;
       case 403:
         code = 'forbidden';
@@ -236,6 +296,13 @@
   async function verifyKey() {
     if (!(await hasApiKey())) return noKeyResult();
     return sbwFetch('/v1/me');
+  }
+
+  // /v1/me for a key that isn't stored (or isn't stored yet): Connect checks
+  // the site's key, and the stored key's account, with this.
+  async function checkKey(apiKey) {
+    if (typeof apiKey !== 'string' || !apiKey) return noKeyResult();
+    return sbwFetch('/v1/me', { apiKey });
   }
 
   async function postCapture(payload) {
@@ -680,12 +747,19 @@
 
   return {
     getApiSettings,
+    isAllowedApiUrl,
+    apiBaseFor,
+    dropDisallowedApiUrl,
+    API_DEFAULT_URL,
     isDataCollectionEnabled,
     sbwFetch,
     hasApiKey,
     clearAccountCaches,
+    markAccountChanged,
+    ACCOUNT_EPOCH_KEY,
     ACCOUNT_LOCAL_KEYS,
     verifyKey,
+    checkKey,
     postCapture,
     capturesForUrl,
     progress,

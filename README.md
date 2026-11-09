@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.13.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.13.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -38,7 +38,7 @@ Search "SEO Bandwagon" in the Chrome Web Store, or use the one-click "Connect Ch
 
 Citations, Link Building, page history, and capture sync all need an API key.
 
-- **One-click**: visit [seobandwagon.com/dashboard/api-keys](https://seobandwagon.com/dashboard/api-keys) with the extension installed and click "Connect Chrome extension." The site messages the extension directly (`externally_connectable`) and saves the key for you.
+- **One-click**: visit [seobandwagon.com/dashboard/api-keys](https://seobandwagon.com/dashboard/api-keys) with the extension installed and click "Connect Chrome extension." The site messages the extension directly (`externally_connectable`, or the Connect bridge) and hands it the new key. From 1.13.7 the extension stores nothing until you confirm: a small SEO Bandwagon window names the account (and the one it replaces) and waits for **Connect**. A new key for the account already connected is stored without asking.
 - **Manual**: mint a key on the same page, then paste it into the extension's Options page and click Verify.
 
 A key carries scopes (what it's allowed to do) set when it was created; Options shows the connected account, key name, and scopes once verified.

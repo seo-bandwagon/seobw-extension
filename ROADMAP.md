@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.6** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -212,7 +212,14 @@ Moved up on 2026-11-06 so the Edge package can go to Microsoft Edge Add-ons now.
 - [x] Release attaches both zips: `seo-bw-extension-<version>.zip` (Chrome, the name `store-submit.yml` downloads) and `seo-bw-extension-edge-<version>.zip`
 - [ ] Website (its own session): the messaging tries the bridge first, then `sendMessage(EXTENSION_ID)` (`src/lib/extension/browser-messaging.ts`); the API keys page's button and the welcome and uninstall pages name no browser
 
-### 1.13.7: the checks panels are right (patch, was 1.10.5, then 1.13.1 to 1.13.6)
+### 1.13.7: Connect asks, and the key stays with the extension (patch; the security audit of 2026-11-09)
+From the source audit of 1.13.6 (vault: Extension_Security_Audit_2026-11, the account-key leads). The planned 1.13.7 and 1.13.8 move up one.
+- [x] Connect stores nothing until the person approves: the worker checks the site's key with `/v1/me` without storing it, stores a new key for the account already connected (by `/v1/me`'s email) without asking, and otherwise opens `src/connect/connect.html` in a window of its own, which names the account and the one it replaces; Cancel or closing the window changes nothing. The site gets its answer within 7 seconds (it waits 8)
+- [x] The API address is checked at every send, not only when Options saves it: an address saved under an older rule (`api.seobandwagon.dev`, any typed URL, `<name>--seobandwagon.netlify.app`) is ignored for the default and removed on update
+- [x] `chrome.storage.sync`, where the key and the API address live, is for the extension's own pages and its worker only (`setAccessLevel`); the Google overlays learn of an account change from `sbwAccountEpoch` in `chrome.storage.local`
+- [x] A key that isn't a string is refused (a one-element array passed the format check)
+
+### 1.13.8: the checks panels are right (patch, was 1.10.5, then 1.13.1 to 1.13.7)
 - [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
 - [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
 - [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
@@ -224,7 +231,7 @@ Moved up on 2026-11-06 so the Edge package can go to Microsoft Edge Add-ons now.
 - [ ] Search Console: the Queries tab's row icons show without a reload, whatever page Search Console was opened on and after an install or update (#158)
 - [ ] CI: a test coverage report on every PR, its summary in the job summary and the HTML report kept 7 days; the baseline recorded, no threshold yet (#74)
 
-### 1.13.8: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.7; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.8)
+### 1.13.9: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.8; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.9)
 - [ ] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key)
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
@@ -281,6 +288,62 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.7 (2026-11-09)
+
+Three fixes from the source audit of 1.13.6 (2026-11-09), all about the
+account key: who may change it, where it is sent, and which parts of the
+extension can read it. Nothing changes for a person who connects from the
+site and approves.
+
+- **Connect asks first.** Until 1.13.6, any key `/v1/me` accepted was stored
+  the moment seobandwagon.com sent it, with nothing shown, so a script on any
+  seobandwagon.com page could switch the extension to an account of its
+  choosing; that account then received the analyses saved from then on, and
+  the ones still waiting to be sent. Now the worker checks the key without
+  storing it (`SBW.checkKey`), reads the stored key's own account fresh, and
+  (`src/lib/site-connect.js`):
+  - the same key: nothing changes;
+  - a new key for the same account (by `/v1/me`'s email): stored without
+    asking, as the API keys page mints one per connect;
+  - no key yet, or another account: `src/connect/connect.html` opens in a
+    small window of its own, "Connect to <email>?", saying which account it
+    replaces and that analyses waiting to be sent go to the new one. Only
+    its Connect stores the key; Cancel, or closing the window, changes
+    nothing. The site waits 8 seconds for an answer, so the worker answers
+    within 7: connected, declined, or `{ ok: false, pending: true }` while the
+    window is still open (it still connects).
+  The confirmation page alone may answer (`isConfirmSender`: this
+  extension's page, by the URL the browser reports). The candidate key waits
+  in `chrome.storage.session`, closed to content scripts, for at most ten
+  minutes.
+- **The API address is checked at every send.** `SBW.getApiSettings` applies
+  Options' rule (`isAllowedApiUrl`, kept equal to `isValidApiUrl` by
+  `tests/unit/api-url-rule.test.js`) and falls back to
+  `https://seobandwagon.com/api`. 1.0.0 to 1.1.0 wrote
+  `https://api.seobandwagon.dev`, 1.2.0 saved any typed URL, and 1.5.0 to
+  1.10.2 took any `<name>--seobandwagon.netlify.app` host; such a value
+  stayed in `chrome.storage.sync` and kept getting the key. The worker also
+  removes it on install and update (`SBW.dropDisallowedApiUrl`), so Options
+  shows the address in use.
+- **The key stays with the extension.** `chrome.storage.sync` was open to
+  every content script (Chrome's default), and content scripts run on Google,
+  Search Console, seobandwagon.com and every analyzed page; the Google
+  overlays even received the key's old and new values on every change. The
+  worker now sets it to trusted contexts on every start. Measured in Chromium
+  with a test content script: 1.13.6 reads the key and gets its change event;
+  1.13.7 gets "Access to storage is not allowed from this context" and no
+  event. The overlays learn of an account change from `sbwAccountEpoch` in
+  `chrome.storage.local`, written by the worker once the old account's caches
+  are gone. `chrome.storage.local` (settings, consent, captures) stays open to
+  content scripts: the overlays read their settings from it.
+- **Also:** a key that isn't a string is refused (a one-element array passed
+  the format check, since `RegExp.test` coerces it). `check:zip` reads the
+  new page. The Edge e2e test confirms in the window, re-keys the same
+  account without one, and cancels a switch.
+
+No permission, host, content-script or data-use change: the manifest changes
+only `version` and `version_name`.
 
 ## Changelog — v1.13.6 (2026-11-06)
 

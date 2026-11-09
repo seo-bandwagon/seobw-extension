@@ -6,7 +6,7 @@
 // Extension_Roadmap_To_2_0_Design, decision 5):
 //
 //   - Firefox: each flow names the data categories Firefox asks about
-//     (`data_collection_permissions` in the Firefox manifest, 1.13.8's build
+//     (`data_collection_permissions` in the Firefox manifest, 1.13.9's build
 //     target). A category is granted only when Firefox says so, and data
 //     collection starts off there.
 //   - Chrome and Edge have no such prompt, so a category reads the switch
