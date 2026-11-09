@@ -29,8 +29,14 @@ describe('connectPlan', () => {
     expect(C.connectPlan({ storedKey: KEY_A, storedMe: null, candidate: KEY_A, candidateMe: ME_OWNER })).toBe('keep');
   });
 
-  it('stores a new key for the same account without asking (email, any case)', () => {
-    expect(C.connectPlan({ storedKey: KEY_A, storedMe: ME_OWNER, candidate: KEY_B, candidateMe: { email: ' Owner@Example.com ' } })).toBe('store');
+  it('stores a new key for the same account without asking', () => {
+    expect(C.connectPlan({ storedKey: KEY_A, storedMe: ME_OWNER, candidate: KEY_B, candidateMe: { email: 'owner@example.com' } })).toBe('store');
+  });
+
+  it('compares the email exactly as the site returns it: case or spaces make it another account', () => {
+    expect(C.connectPlan({ storedKey: KEY_A, storedMe: ME_OWNER, candidate: KEY_B, candidateMe: { email: 'Owner@example.com' } })).toBe('ask');
+    expect(C.connectPlan({ storedKey: KEY_A, storedMe: ME_OWNER, candidate: KEY_B, candidateMe: { email: ' owner@example.com' } })).toBe('ask');
+    expect(C.connectPlan({ storedKey: KEY_A, storedMe: { email: '' }, candidate: KEY_B, candidateMe: { email: '' } })).toBe('ask');
   });
 
   it('asks when nothing is connected yet', () => {
@@ -81,6 +87,10 @@ describe('isConfirmSender', () => {
 });
 
 describe('timing', () => {
+  it('arms the buttons a second after the window is shown and focused', () => {
+    expect(C.ARM_MS).toBe(1000);
+  });
+
   it('answers the site inside its 8 seconds', () => {
     expect(C.ANSWER_WITHIN_MS).toBeLessThan(8000);
     expect(C.answerDelay(1000, 1000)).toBe(C.ANSWER_WITHIN_MS);

@@ -218,6 +218,10 @@ test('the Edge package: its build, and the Connect bridge (ping, status, connect
       const opened = confirmWindow();
       const answer = tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY);
       const win = await opened;
+      // The buttons arm only a second after the window has focus (connect.js);
+      // Playwright doesn't give an extension-opened window focus by itself.
+      await win.bringToFront();
+      await expect(win.locator('#connectYes')).toBeDisabled();
       await expect(win.locator('#connectTitle')).toHaveText('Connect to owner@example.com?');
       await expect(win.locator('#connectLead')).toContainText('connect this extension to owner@example.com');
       expect(await storedKey()).toBe('');
@@ -242,8 +246,13 @@ test('the Edge package: its build, and the Connect bridge (ping, status, connect
       const opened = confirmWindow();
       const answer = tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY_OTHER);
       const win = await opened;
+      await win.bringToFront();
       await expect(win.locator('#connectTitle')).toHaveText('Connect to someone@example.net?');
       await expect(win.locator('#connectLead')).toContainText('from owner@example.com to someone@example.net');
+      // One request at a time: another connect while this one waits is refused.
+      expect(await tab.evaluate((key) => window.bridge({ type: 'connect', apiKey: key }), KEY_OTHER))
+        .toEqual({ response: { ok: false, pending: true, error: 'A connect request is already waiting in the SEO Bandwagon window' } });
+      await win.bringToFront();
       await win.locator('#connectNo').click();
       expect(await answer).toEqual({ response: { ok: false, error: 'Declined in the extension' } });
       expect(await storedKey()).toBe(KEY_SAME);

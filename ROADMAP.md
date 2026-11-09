@@ -214,7 +214,7 @@ Moved up on 2026-11-06 so the Edge package can go to Microsoft Edge Add-ons now.
 
 ### 1.13.7: Connect asks, and the key stays with the extension (patch; the security audit of 2026-11-09)
 From the source audit of 1.13.6 (vault: Extension_Security_Audit_2026-11, the account-key leads). The planned 1.13.7 and 1.13.8 move up one.
-- [x] Connect stores nothing until the person approves: the worker checks the site's key with `/v1/me` without storing it, stores a new key for the account already connected (by `/v1/me`'s email) without asking, and otherwise opens `src/connect/connect.html` in a window of its own, which names the account and the one it replaces; Cancel or closing the window changes nothing. The site gets its answer within 7 seconds (it waits 8)
+- [x] Connect stores nothing until the person approves: the worker checks the site's key with `/v1/me` without storing it, stores a new key for the account already connected (by `/v1/me`'s email) without asking, and otherwise opens `src/connect/connect.html` in a window of its own, which names the account and the one it replaces; Cancel or closing the window changes nothing. Its buttons take a click only a second after the window has focus, and one request waits at a time. The site gets its answer within 7 seconds (it waits 8)
 - [x] The API address is checked at every send, not only when Options saves it: an address saved under an older rule (`api.seobandwagon.dev`, any typed URL, `<name>--seobandwagon.netlify.app`) is ignored for the default and removed on update
 - [x] `chrome.storage.sync`, where the key and the API address live, is for the extension's own pages and its worker only (`setAccessLevel`); the Google overlays learn of an account change from `sbwAccountEpoch` in `chrome.storage.local`
 - [x] A key that isn't a string is refused (a one-element array passed the format check)
@@ -314,7 +314,12 @@ site and approves.
     within 7: connected, declined, or `{ ok: false, pending: true }` while the
     window is still open (it still connects).
   The confirmation page alone may answer (`isConfirmSender`: this
-  extension's page, by the URL the browser reports). The candidate key waits
+  extension's page, by the URL the browser reports). Its buttons take a
+  click only a second after the window is shown and focused, again after
+  every focus change, so a click meant for the page underneath never lands
+  on Connect; while one request waits, another connect brings its window
+  forward and is refused. The email is compared exactly as the site returns
+  it. The candidate key waits
   in `chrome.storage.session`, closed to content scripts, for at most ten
   minutes.
 - **The API address is checked at every send.** `SBW.getApiSettings` applies

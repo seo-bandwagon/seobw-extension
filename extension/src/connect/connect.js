@@ -20,6 +20,37 @@
   const no = document.getElementById('connectNo');
   const status = document.getElementById('connectStatus');
 
+  // The buttons stay off until the window has been shown and focused for
+  // ARM_MS (src/lib/site-connect.js), and go off again whenever it loses
+  // focus or is hidden: a page can time a connect to the person's double
+  // click, and the second click must not land on Connect.
+  const ARM_MS = 1000;
+  let asking = false;
+  let armTimer = null;
+  function disarm() {
+    clearTimeout(armTimer);
+    armTimer = null;
+    if (!asking) return;
+    yes.disabled = true;
+    no.disabled = true;
+  }
+  function arm() {
+    disarm();
+    if (!asking) return;
+    armTimer = setTimeout(() => {
+      if (asking && document.visibilityState === 'visible' && document.hasFocus()) {
+        yes.disabled = false;
+        no.disabled = false;
+      }
+    }, ARM_MS);
+  }
+  window.addEventListener('focus', arm);
+  window.addEventListener('blur', disarm);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') arm();
+    else disarm();
+  });
+
   function ask(message) {
     return new Promise((resolve) => {
       try {
@@ -39,6 +70,8 @@
   }
 
   function ended() {
+    asking = false;
+    disarm();
     title.textContent = 'This request has ended';
     lead.textContent = 'Nothing was changed. To connect an account, start again from seobandwagon.com.';
     warn.hidden = true;
@@ -58,8 +91,8 @@
     } else {
       lead.textContent = `seobandwagon.com asked to connect this extension to ${email}, in place of the key it has now.`;
     }
-    yes.disabled = false;
-    no.disabled = false;
+    asking = true;
+    arm();
   }
 
   if (!id) {
@@ -73,6 +106,9 @@
   });
 
   yes.addEventListener('click', async () => {
+    if (!asking || yes.disabled) return;
+    asking = false;
+    disarm();
     yes.disabled = true;
     no.disabled = true;
     say('Connecting…', 'success');
@@ -94,6 +130,9 @@
 
   no.addEventListener('click', async () => {
     if (no.onclick) return;
+    if (!asking || no.disabled) return;
+    asking = false;
+    disarm();
     no.disabled = true;
     yes.disabled = true;
     await ask({ action: 'connectDecision', id, approve: false });

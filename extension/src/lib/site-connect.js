@@ -11,9 +11,9 @@
 // From 1.13.7 the person approves. The worker checks the key with /v1/me
 // without storing it, then:
 //   - the key already stored: nothing changes;
-//   - the stored key's account, by /v1/me's email (a new key for the same
-//     account, as the API keys page makes): stored without asking, since no
-//     data changes hands;
+//   - the stored key's account, by /v1/me's email, compared exactly as the
+//     site returns it (a new key for the same account, as the API keys page
+//     makes): stored without asking, since no data changes hands;
 //   - anything else (no key yet, or another account): the extension's own
 //     page src/connect/connect.html asks, in a window of its own, naming the
 //     account and the one it replaces. Nothing is stored until the person
@@ -54,17 +54,19 @@
     return typeof apiKey === 'string' && KEY_RE.test(apiKey);
   }
 
+  // The email to show the person.
   function emailOf(me) {
-    const email = me && typeof me.email === 'string' ? me.email.trim().toLowerCase() : '';
+    const email = me && typeof me.email === 'string' ? me.email.trim() : '';
     return email || null;
   }
 
-  // Both answers name the same account. /v1/me carries no account ID, and
-  // an account's email is unique on the site.
+  // Both answers name the same account. /v1/me carries no account ID, so the
+  // email decides, compared exactly as the site returns it: no case folding
+  // or trimming, which could match two accounts the site keeps apart.
   function sameAccount(meA, meB) {
-    const a = emailOf(meA);
-    const b = emailOf(meB);
-    return !!a && a === b;
+    const a = meA && meA.email;
+    const b = meB && meB.email;
+    return typeof a === 'string' && a !== '' && a === b;
   }
 
   // What to do with a candidate the site sent, once /v1/me accepted it.
@@ -107,6 +109,12 @@
     return bare === pageUrl;
   }
 
+  // The confirmation buttons take a click only after the window has been
+  // shown and focused this long, again after every focus change, so a click
+  // meant for the page underneath (a page can time a connect to the person's
+  // double click) never lands on Connect.
+  const ARM_MS = 1000;
+
   // How long the site's answer may still wait, given when the connect came in.
   function answerDelay(startedAt, now) {
     return Math.max(0, ANSWER_WITHIN_MS - (now - startedAt));
@@ -117,6 +125,7 @@
     PENDING_KEY,
     ANSWER_WITHIN_MS,
     PENDING_TTL_MS,
+    ARM_MS,
     isKeyFormat,
     emailOf,
     sameAccount,

@@ -1894,11 +1894,21 @@ async function startConnect(apiKey, sendResponse) {
       return;
     }
 
-    // Ask. A request already waiting is replaced, and its window closed.
+    // Ask. One request at a time: while one waits, a new connect brings its
+    // window forward and is refused, so a page can't keep reopening the
+    // question (each opening re-arms its buttons, connect.js). A request
+    // whose window is gone, or that expired, is dropped first.
     const earlier = await readConnectPending();
     if (earlier) {
-      await dropConnectPending(earlier, { ok: false, error: 'Replaced by a newer connect request' });
-      if (typeof earlier.windowId === 'number') chrome.windows.remove(earlier.windowId).catch(() => {});
+      let open = false;
+      if (!SBWSiteConnect.isExpired(earlier, Date.now()) && typeof earlier.windowId === 'number') {
+        open = await chrome.windows.update(earlier.windowId, { focused: true }).then(() => true, () => false);
+      }
+      if (open) {
+        sendResponse({ ok: false, pending: true, error: 'A connect request is already waiting in the SEO Bandwagon window' });
+        return;
+      }
+      await dropConnectPending(earlier, { ok: false, error: 'The connect request expired' });
     }
     const id = `${startedAt.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     const pending = SBWSiteConnect.pendingRecord({ id, candidate: apiKey, candidateMe: candidate.data, storedKey, storedMe, now: Date.now() });
