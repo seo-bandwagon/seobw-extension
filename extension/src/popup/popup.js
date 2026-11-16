@@ -245,10 +245,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       pageData = cached.data;
       renderResults(cached.data);
       loadDomainHistory(tab, cached.data, analysisStartedAt);
-      // A cached-hit popup open is still a real analysis from the user's
-      // point of view (they got a result), so it counts toward the
-      // review-prompt threshold same as a fresh one below.
-      globalThis.SBWReviewUI?.recordAnalysis();
+      // 1.13.8: reopening the popup on a page already analyzed is not
+      // another analysis: only fresh ones count toward the review prompt
+      // (until 1.13.8 five reopens of one page asked for a review).
+      globalThis.SBWReviewUI?.renderFromStorage();
       return;
     }
 

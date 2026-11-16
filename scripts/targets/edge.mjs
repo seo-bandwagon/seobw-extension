@@ -48,6 +48,7 @@ export default {
     privateSwitches: '"Allow in InPrivate"',
     storeHosts: [{ host: 'microsoftedge.microsoft.com', path: '/' }],
     shortcut: { default: 'Alt+Shift+S', mac: 'MacCtrl+Shift+S' },
+    shortcutsUrl: 'edge://extensions/shortcuts',
     utmSource: 'edge_extension',
     // The options page's "click Connect … there": the API keys page's button
     // says "Connect Chrome extension" today, so the Edge build gives it a

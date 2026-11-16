@@ -2431,3 +2431,15 @@ pre {
 #tab-study .study-term .srp-btn { flex: none; }
 #tab-study .study-notice { margin-top: 8px; }
 #tab-study .study-stop { margin-top: 6px; }
+
+/* 1.13.8: the keyboard shortcut, in Options and the popup's About. */
+.shortcut-keys {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--paper-95);
+}
+.credits-about { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--hairline-soft); }

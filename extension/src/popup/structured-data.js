@@ -271,12 +271,21 @@
     // one more entries() section, not a UI rewrite (see credits.js's
     // module comment).
     const tools = entries.filter(e => e.section === 'tool');
+    // 1.13.8: About says which version this is, where to get help, the
+    // shortcut, and the fonts' licence.
+    const manifest = chrome.runtime.getManifest();
+    const support = globalThis.SBWSiteLinks ? SBWSiteLinks.siteUrl('https://seobandwagon.com', '/contact', 'about') : 'https://seobandwagon.com/contact';
     return `
       <div class="credits-head">
         <span class="credits-title">About &amp; credits</span>
         <button type="button" class="credits-close" id="creditsCloseBtn" aria-label="Close">×</button>
       </div>
       <div class="credits-body">
+        <div class="credits-about">
+          <p class="credits-copy"><strong>SEO Bandwagon ${esc(manifest.version)}</strong>${manifest.version_name && manifest.version_name !== manifest.version ? ` · ${esc(String(manifest.version_name).replace(/^[\d.]+\s*[—-]\s*/, ''))}` : ''}</p>
+          <p class="credits-copy">Help, a question or a bug: <a href="${esc(support)}" target="_blank" rel="noopener" id="creditsSupport">seobandwagon.com/contact</a> · <a href="https://github.com/seo-bandwagon/seobw-extension/issues/new/choose" target="_blank" rel="noopener">report it on GitHub</a></p>
+          <p class="credits-copy">Analyze the current page: <kbd class="shortcut-keys" id="creditsShortcut">…</kbd> <button type="button" class="credits-link" id="creditsShortcutChange">Change</button></p>
+        </div>
         <p class="credits-copy">The Structured Data section's required/recommended property lists are derived from:</p>
         <ul class="credits-list">
           ${licenses.map(e => `<li><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a> — ${esc(e.note || '')}</li>`).join('')}
@@ -293,6 +302,7 @@
         <ul class="credits-list">
           ${tools.map(e => `<li><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a> — ${esc(e.note || '')}</li>`).join('')}
         </ul>` : ''}
+        <p class="credits-copy">Fonts: Bebas Neue, Space Grotesk and Space Mono, under the <a href="https://openfontlicense.org" target="_blank" rel="noopener">SIL Open Font License 1.1</a>.</p>
       </div>
     `;
   }
@@ -302,6 +312,15 @@
     if (!panel || creditsBuilt) return panel;
     panel.innerHTML = renderCreditsPanel();
     panel.querySelector('#creditsCloseBtn')?.addEventListener('click', () => { panel.hidden = true; });
+    panel.querySelector('#creditsShortcutChange')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: SBWBrowser.shortcutsUrl });
+    });
+    if (globalThis.SBWShortcut) {
+      SBWShortcut.current(chrome).then((s) => {
+        const el = panel.querySelector('#creditsShortcut');
+        if (el) el.textContent = SBWShortcut.label(s);
+      });
+    }
     creditsBuilt = true;
     return panel;
   }

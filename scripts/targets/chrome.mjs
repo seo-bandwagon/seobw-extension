@@ -22,6 +22,8 @@ export default {
       { host: 'chrome.google.com', path: '/webstore' }
     ],
     shortcut: { default: 'Ctrl+Shift+S', mac: 'Command+Shift+S' },
+    // 1.13.8: where the person changes the shortcut (Options, About).
+    shortcutsUrl: 'chrome://extensions/shortcuts',
     utmSource: 'chrome_extension',
     connectButton: 'Connect Chrome extension',
     newTab: true,

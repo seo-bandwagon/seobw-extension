@@ -7,10 +7,9 @@
 // `globalThis.SBWReview.shouldPrompt()`, src/lib/review-prompt.js) — never
 // of this popup open's own score, grade, or error state. Concretely:
 //
-//   - `recordAnalysis()` — called only when an analysis actually completed
-//     this popup open (the cached-hit and fresh-analyze paths in
-//     popup.js's bootstrap) — increments `analyses` and re-renders from the
-//     result.
+//   - `recordAnalysis()` — called only when a fresh analysis completed this
+//     popup open (1.13.8: not a reopen that showed the cached one) —
+//     increments `analyses` and re-renders from the result.
 //   - `renderFromStorage()` — called unconditionally, INCLUDING from the
 //     "can't read this page" error branch and the Google-SERP notice
 //     branch — reads whatever is already stored and renders (or doesn't)
@@ -104,10 +103,12 @@
       <span class="review-strip-copy">Finding this useful? A short review on the ${esc(globalThis.SBWBrowser.storeName)} helps others find it.</span>
       <span class="review-strip-actions">
         <button type="button" class="review-strip-btn review-strip-leave" id="reviewLeaveBtn">Leave a review</button>
+        ${globalThis.SBWReview.canLater(state) ? '<button type="button" class="review-strip-btn review-strip-dismiss" id="reviewLaterBtn">Later</button>' : ''}
         <button type="button" class="review-strip-btn review-strip-dismiss" id="reviewNoBtn">No thanks</button>
       </span>
     </div>`;
     el.querySelector('#reviewLeaveBtn')?.addEventListener('click', onLeaveClick);
+    el.querySelector('#reviewLaterBtn')?.addEventListener('click', onLaterClick);
     el.querySelector('#reviewNoBtn')?.addEventListener('click', onDismissClick);
   }
 
@@ -129,6 +130,11 @@
 
   async function onDismissClick() {
     await markPrompted('dismissed');
+  }
+
+  // 1.13.8: asks again after SBWReview.LATER_AFTER more fresh analyses.
+  async function onLaterClick() {
+    await markPrompted('later');
   }
 
   globalThis.SBWReviewUI = { recordAnalysis, renderFromStorage };

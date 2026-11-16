@@ -394,3 +394,13 @@ document.querySelectorAll('[data-review-link]').forEach(a => {
   if (SBWReview.REVIEW_URL) a.href = SBWReview.REVIEW_URL;
   else (a.closest('.rate-hint') || a).hidden = true;
 });
+
+/* 1.13.8: the keyboard shortcut, shown, and a way to change it. */
+(async function initShortcut() {
+  const keys = document.getElementById('shortcutKeys');
+  if (!keys || !globalThis.SBWShortcut) return;
+  keys.textContent = SBWShortcut.label(await SBWShortcut.current(chrome));
+  document.getElementById('shortcutChange')?.addEventListener('click', () => {
+    chrome.tabs.create({ url: SBWBrowser.shortcutsUrl });
+  });
+})();

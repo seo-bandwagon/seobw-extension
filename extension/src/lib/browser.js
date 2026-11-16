@@ -50,6 +50,7 @@
       { "host": "chrome.google.com", "path": "/webstore" }
     ],
     "shortcut": { "default": "Ctrl+Shift+S", "mac": "Command+Shift+S" },
+    "shortcutsUrl": "chrome://extensions/shortcuts",
     "utmSource": "chrome_extension",
     "connectButton": "Connect Chrome extension",
     "newTab": true,
@@ -88,6 +89,7 @@
       privateSwitches: v.privateSwitches,
       storeHosts: v.storeHosts,
       shortcut: v.shortcut,
+      shortcutsUrl: v.shortcutsUrl,
       utmSource: v.utmSource,
       connectButton: v.connectButton,
       newTab: v.newTab,
