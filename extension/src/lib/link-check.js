@@ -101,17 +101,30 @@
     return globalThis.SBWBrowser.isStorePage(url);
   }
 
+  // 1.13.8: answers a site gives automated requests rather than people.
+  // 403 and 429 are how bot walls (Cloudflare, Akamai, DataDome) turn a
+  // fetch away, and LinkedIn answers 999; the link usually works in a
+  // browser. The worker also marks Cloudflare's challenge page (`blocked`,
+  // from its cf-mitigated header), whatever its status.
+  const BOT_WALL_STATUSES = new Set([403, 429, 999]);
+
   // 2xx/3xx/4xx/5xx by status; a status of 0 (fetch threw/aborted) reads
   // `error` — 'timeout' for the AbortController timeout, 'uncheckable' for
   // a host Chrome won't let us fetch (#46), everything else (DNS failure,
   // connection refused, CORS-opaque, etc.) is 'network'.
+  // 1.13.8: the worker's fetch follows redirects, so a moved link came back
+  // as its destination's 200 and the REDIRECT group was always empty: a
+  // followed redirect (`redirected`) is 'redirect' now, with the final URL
+  // the row shows. A redirect that ends broken or blocked is classed by
+  // where it ended. 'blocked' is neither OK nor broken: check it by hand.
   function classify(result) {
     const status = result && result.status;
     if (status === 0) {
       if (result.error === 'uncheckable') return 'uncheckable';
       return result.error === 'timeout' ? 'timeout' : 'network';
     }
-    if (status >= 200 && status < 300) return 'ok';
+    if (result.blocked || BOT_WALL_STATUSES.has(status)) return 'blocked';
+    if (status >= 200 && status < 300) return result.redirected && result.finalUrl && result.finalUrl !== result.url ? 'redirect' : 'ok';
     if (status >= 300 && status < 400) return 'redirect';
     if (status >= 400 && status < 500) return 'client';
     if (status >= 500 && status < 600) return 'server';
@@ -119,8 +132,9 @@
   }
 
   function groupResults(results) {
-    // 'uncheckable' is neither OK nor broken: it never counts in `broken`.
-    const groups = { ok: [], redirect: [], client: [], server: [], timeout: [], network: [], uncheckable: [] };
+    // 'uncheckable' and 'blocked' are neither OK nor broken: they never
+    // count in `broken`.
+    const groups = { ok: [], redirect: [], blocked: [], client: [], server: [], timeout: [], network: [], uncheckable: [] };
     for (const r of results || []) {
       groups[classify(r)].push(r);
     }
@@ -159,6 +173,7 @@
   }
 
   return {
+    BOT_WALL_STATUSES,
     normalizeUrl,
     hostKey,
     isUncheckable,

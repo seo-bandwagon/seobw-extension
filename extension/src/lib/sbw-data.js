@@ -118,9 +118,21 @@ export function pageChecks(data) {
   const wv = d.webVitals || {};
   if (wv.lcp !== null && wv.lcp !== undefined) {
     const status = wv.lcp <= 2500 ? 'pass' : wv.lcp <= 4000 ? 'warn' : 'fail';
-    rows.push({ name: 'LCP', note: Math.round(wv.lcp) + ' ms', status });
+    // A measurement of this visit, not one of the checks the score counts.
+    rows.push({ name: 'LCP', note: Math.round(wv.lcp) + ' ms', status, measure: true });
   }
   return rows;
+}
+
+/**
+ * 1.13.8: the panel's "N of M passed", counted from the rows it shows, so
+ * the two always agree. Until 1.13.8 the header came from the sub-scores'
+ * totals, which counted a check that lost no points as passed while its row
+ * read "warn", and the LCP row, a measurement, sat under it uncounted.
+ */
+export function rowTotals(rows) {
+  const checks = (rows || []).filter((r) => !r.measure);
+  return { passed: checks.filter((r) => r.status === 'pass').length, of: checks.length };
 }
 
 /* -------------------------------- captures -------------------------------- */
@@ -627,15 +639,13 @@ export function toolUrl(kind, pageUrl) {
   return (T && T.toolUrl(kind, { pageUrl })) || null;
 }
 
+// 1.13.8: the one list (src/lib/tool-links.js), the same as the menu's and
+// the popup's TOOLS row; until 1.13.8 the panel had five of its own.
 export function toolRow(pageUrl) {
-  return [
-    ['gsc', 'Search Console'],
-    ['pagespeed', 'PageSpeed'],
-    ['rich-results', 'Rich results'],
-    ['sitemap', 'sitemap.xml'],
-    ['robots', 'robots.txt'],
-  ]
-    .map(([kind, label]) => ({ kind, label, url: toolUrl(kind, pageUrl) }))
+  const T = tools();
+  const list = T && typeof T.pageTools === 'function' ? T.pageTools() : [];
+  return list
+    .map(({ kind, label }) => ({ kind, label, url: toolUrl(kind, pageUrl) }))
     .filter((t) => t.url);
 }
 

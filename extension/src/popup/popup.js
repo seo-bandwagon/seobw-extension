@@ -24,9 +24,12 @@ function statusClass(pct) {
 }
 
 // Donut ring background for a 0-100 value
+// 1.13.8: the unfilled track is the theme's ink at 12% (--ring-track), so
+// it shows on Day too; until 1.13.8 it was white at 10%, invisible on Day's
+// off-white.
 function ringStyle(pct) {
   const p = Math.max(0, Math.min(100, pct));
-  return `conic-gradient(${statusColor(p)} 0% ${p}%, rgba(245,245,245,.1) ${p}% 100%)`;
+  return `conic-gradient(${statusColor(p)} 0% ${p}%, var(--ring-track) ${p}% 100%)`;
 }
 
 function meter(pct, color) {
@@ -86,7 +89,25 @@ function isGoogleSerpUrl(url) {
 // SEO tab does, and can post status/reach the active tab without duplicating
 // this file's module-scoped state. setSeoStatus is a function declaration
 // (hoisted), so this works even though it's defined further down the file.
-globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => currentTab };
+globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => currentTab, reanalyze };
+
+// 1.13.8: analyze the tab again from scratch, the section the person was in
+// open again: the popup opens afresh, and the worker dropped its cached
+// analysis when the tab reloaded (#93). Used after "View as" reloads the tab.
+function reanalyze(openSection) {
+  try { if (openSection) sessionStorage.setItem('sbwOpenSection', openSection); } catch (e) { /* storage blocked */ }
+  location.reload();
+}
+
+function reopenSection() {
+  let id = null;
+  try { id = sessionStorage.getItem('sbwOpenSection'); sessionStorage.removeItem('sbwOpenSection'); } catch (e) { return; }
+  if (!id) return;
+  const el = document.querySelector(`#content [data-section="${CSS.escape(id)}"]`);
+  if (!el) return;
+  el.classList.add('open');
+  el.scrollIntoView({ block: 'start' });
+}
 
 /* ---------- tab switching ---------- */
 
@@ -227,10 +248,10 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       pageData = cached.data;
       renderResults(cached.data);
       loadDomainHistory(tab, cached.data, analysisStartedAt);
-      // A cached-hit popup open is still a real analysis from the user's
-      // point of view (they got a result), so it counts toward the
-      // review-prompt threshold same as a fresh one below.
-      globalThis.SBWReviewUI?.recordAnalysis();
+      // 1.13.8: reopening the popup on a page already analyzed is not
+      // another analysis: only fresh ones count toward the review prompt
+      // (until 1.13.8 five reopens of one page asked for a review).
+      globalThis.SBWReviewUI?.renderFromStorage();
       return;
     }
 
@@ -509,6 +530,7 @@ function renderResults(data) {
   // above the score hero, so it has to mount last (every mount() above
   // targets a spot further down and would otherwise land above it).
   globalThis.SBWToolsUI?.mount(document.getElementById('content'), data);
+  reopenSection();
 }
 
 /* ---------- section renderers (1.10.4) ---------- */
@@ -600,7 +622,7 @@ function renderWebVitals(wv) {
         return `<div class="cwv-cell">
           <div class="cwv-k">${v.k}</div>
           <div class="cwv-v${on ? '' : ' cwv-none'}">${on ? (v.unit ? Math.round(v.v) : v.v) : 'No data'}</div>
-          ${meter(pctVal, on ? (v.v <= v.good ? 'var(--success)' : v.v <= v.poor ? 'var(--warning)' : 'var(--error)') : 'rgba(245,245,245,.1)')}
+          ${meter(pctVal, on ? (v.v <= v.good ? 'var(--success)' : v.v <= v.poor ? 'var(--warning)' : 'var(--error)') : 'var(--ring-track)')}
         </div>`;
       }).join('')}
     </div>

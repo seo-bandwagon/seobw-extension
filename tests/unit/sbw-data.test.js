@@ -124,6 +124,25 @@ describe('checks come from the shipped scorer', () => {
     const warn = D.pageChecks({ ...page, meta: { ...page.meta, title: { text: 'x', length: 12 } } });
     expect(warn.find((r) => r.name === 'Title').status).toBe('warn');
   });
+
+  // 1.13.8: the panel's header counts the rows it shows.
+  it('rowTotals counts the check rows shown, not the LCP measurement', () => {
+    const pages = [page, { ...page, meta: { ...page.meta, title: { text: 'x', length: 12 } } }, { meta: {}, content: {}, headings: {}, links: {}, images: {}, technical: {} }];
+    pages.forEach((p) => {
+      const rows = D.pageChecks(p);
+      const checks = rows.filter((r) => r.name !== 'LCP');
+      expect(D.rowTotals(rows)).toEqual({ passed: checks.filter((r) => r.status === 'pass').length, of: checks.length });
+    });
+    expect(D.pageChecks(page).find((r) => r.name === 'LCP').measure).toBe(true);
+    expect(D.rowTotals([])).toEqual({ passed: 0, of: 0 });
+  });
+
+  it('the panel header reads rowTotals of the rows it renders', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('extension/src/panel/panel.js', 'utf8');
+    expect(src).toContain('const totals = rowTotals(rows);');
+    expect(src).not.toContain('checkTotals');
+  });
 });
 
 describe('accountState', () => {
@@ -428,7 +447,11 @@ describe('analyzeTab', () => {
 
 describe('tools, directory and panel', () => {
   it('toolRow drops any tool the link builder cannot make a url for', () => {
-    globalThis.SBWToolLinks = { toolUrl: (kind) => (kind === 'gsc' ? 'https://gsc.example' : null) };
+    // 1.13.8: the row is the one list (SBWToolLinks.pageTools).
+    globalThis.SBWToolLinks = {
+      pageTools: () => [{ kind: 'gsc', label: 'Search Console' }, { kind: 'wayback', label: 'Wayback Machine' }],
+      toolUrl: (kind) => (kind === 'gsc' ? 'https://gsc.example' : null)
+    };
     expect(D.toolRow('https://example.com')).toEqual([
       { kind: 'gsc', label: 'Search Console', url: 'https://gsc.example' },
     ]);

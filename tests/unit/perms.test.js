@@ -141,3 +141,53 @@ describe('onAllUrlsGranted', () => {
     expect(cb).not.toHaveBeenCalled();
   });
 });
+
+// 1.13.8: the events of a navigation that wakes the worker came before the
+// grant check answered and were dropped (the Indexability panel read
+// UNKNOWN). The gate holds them until it answers.
+describe('createGrantGate', () => {
+  it('holds handlers until the check answers, then runs them in order', async () => {
+    let answer;
+    const gate = SBWPerms.createGrantGate(() => new Promise((r) => { answer = r; }));
+    const ran = [];
+    gate.run(() => ran.push('request'));
+    gate.run(() => ran.push('response'));
+    expect(ran).toEqual([]);
+    expect(gate.granted).toBe(null);
+    answer(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ran).toEqual(['request', 'response']);
+    gate.run(() => ran.push('next'));
+    expect(ran).toEqual(['request', 'response', 'next']); // at once, once known
+  });
+
+  it('drops them when there is no grant', async () => {
+    const gate = SBWPerms.createGrantGate(async () => false);
+    const ran = [];
+    gate.run(() => ran.push('held'));
+    await new Promise((r) => setTimeout(r, 0));
+    gate.run(() => ran.push('later'));
+    expect(ran).toEqual([]);
+  });
+
+  it('a grant or a revocation while the check is out wins over its answer', async () => {
+    let answer;
+    const gate = SBWPerms.createGrantGate(() => new Promise((r) => { answer = r; }));
+    const ran = [];
+    gate.run(() => ran.push('a'));
+    gate.set(false);
+    answer(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ran).toEqual([]);
+    expect(gate.granted).toBe(false);
+    gate.set(true);
+    gate.run(() => ran.push('b'));
+    expect(ran).toEqual(['b']);
+  });
+
+  it('a failed check reads as no grant', async () => {
+    const gate = SBWPerms.createGrantGate(async () => { throw new Error('x'); });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(gate.granted).toBe(false);
+  });
+});

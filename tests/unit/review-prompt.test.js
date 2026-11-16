@@ -104,3 +104,40 @@ describe('nextState', () => {
     expect(next.prompted).toBe(false);
   });
 });
+
+// 1.13.8: "Later" asks again after more fresh analyses, once.
+describe('Later (1.13.8)', () => {
+  it('hides the strip until LATER_AFTER more analyses, then shows it without Later', () => {
+    let s = { analyses: 5, prompted: false };
+    expect(SBWReview.shouldPrompt(s)).toBe(true);
+    expect(SBWReview.canLater(s)).toBe(true);
+    s = SBWReview.nextState(s, { type: 'later' });
+    expect(s.laterAt).toBe(5 + SBWReview.LATER_AFTER);
+    expect(s.prompted).toBe(false);
+    expect(SBWReview.shouldPrompt(s)).toBe(false);
+    for (let i = 0; i < SBWReview.LATER_AFTER - 1; i++) s = SBWReview.nextState(s, { type: 'analyzed' });
+    expect(SBWReview.shouldPrompt(s)).toBe(false);
+    s = SBWReview.nextState(s, { type: 'analyzed' });
+    expect(SBWReview.shouldPrompt(s)).toBe(true);
+    expect(SBWReview.canLater(s)).toBe(false);
+  });
+
+  it('a second Later is a No thanks', () => {
+    const s = SBWReview.nextState({ analyses: 15, laterAt: 15 }, { type: 'later' });
+    expect(s.prompted).toBe(true);
+    expect(SBWReview.shouldPrompt(s)).toBe(false);
+  });
+});
+
+// 1.13.8: only fresh analyses count; reopening the popup on the cached
+// analysis renders the strip but adds nothing.
+describe('the popup counts fresh analyses only (1.13.8)', () => {
+  it('the cached-hit path renders, the fresh path records', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('extension/src/popup/popup.js', 'utf8');
+    const cached = src.slice(src.indexOf('if (cached && cached.hit) {'), src.indexOf('return;', src.indexOf('if (cached && cached.hit) {')));
+    expect(cached).toContain('SBWReviewUI?.renderFromStorage()');
+    expect(cached).not.toContain('recordAnalysis');
+    expect(src.match(/SBWReviewUI\?\.recordAnalysis\(\)/g)).toHaveLength(1);
+  });
+});

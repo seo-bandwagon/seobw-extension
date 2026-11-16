@@ -74,8 +74,16 @@ describe('To paste with the combined submission (1.13.5)', () => {
     expect(dnr).toMatch(/local and private network addresses/);
   });
 
+  // 1.13.8 renamed the popup's switch to Options' name, Send analyses to SEO
+  // Bandwagon. The 1.13.5 upload (in review) carries the old name, so these
+  // blocks stay the record of what was submitted; the listing doc has the
+  // next submission's text (CHROMEWEBSTORE.md, "Due with the next
+  // submission (D)"). Every other word must still match.
+  const asSubmitted = (text) => text.replace('untick Send analyses to SEO Bandwagon in the popup', 'untick Help improve SEO insights in the popup');
+
   it('each description paragraph is in the description block, word for word, keyword data among them', () => {
-    paragraphs.forEach((b) => expect(description).toContain(b));
+    expect(description).toContain('untick Send analyses to SEO Bandwagon in the popup');
+    paragraphs.forEach((b) => expect(asSubmitted(description)).toContain(b));
     expect(paragraphs.some((b) => b.startsWith('KEYWORD DATA'))).toBe(true);
     expect(paragraphs.some((b) => b.startsWith('Analyze checks a listing'))).toBe(true);
   });

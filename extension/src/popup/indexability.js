@@ -195,8 +195,13 @@
     const canonicalHeaderEntry = linkEntries.find(l => (l.rel || '').toLowerCase() === 'canonical') || null;
 
     const meta = (pageData && pageData.meta) || {};
+    // 1.13.8: every robots and googlebot meta (lib/dom-extraction.js reads
+    // them all); `none` counts as noindex.
     const result = SBWRedirects.indexability({
-      metaRobots: meta.robots || '',
+      metaRobots: meta.robotsAll || meta.robots || '',
+      metaGooglebot: meta.googlebot || '',
+      metaNoindex: meta.noindex === true,
+      metaNoindexSource: meta.noindexSource || null,
       xRobotsTag: headers['x-robots-tag'] || null,
       finalStatus: chain ? chain.finalStatus : null,
       canonicalDom: meta.canonical || null,
@@ -353,7 +358,7 @@
     const directiveChips = chainEmpty
       ? '<span class="ix-muted">not observed</span>'
       : (xrt && xrt.directives.length)
-        ? xrt.directives.map(d => `<span class="badge-mono ${(d === 'noindex' || d === 'nofollow') ? 'b-err' : ''}">${esc(d)}</span>`).join(' ')
+        ? xrt.directives.map(d => `<span class="badge-mono ${(d === 'noindex' || d === 'nofollow' || d === 'none') ? 'b-err' : ''}">${esc(d)}</span>`).join(' ')
         : '<span class="ix-muted">none captured</span>';
 
     const canonicalHeaderHtml = canonicalHeaderEntry

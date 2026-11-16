@@ -339,3 +339,42 @@ describe('canonical compare ignores tracking parameters (#92)', () => {
     expect(String(SBWRedirects.TRACKING_PARAMS)).toBe(String(globalThis.SBWHreflang.TRACKING_PARAMS));
   });
 });
+
+// 1.13.8: `none` is noindex, and the googlebot meta counts (Google's robots
+// meta docs). Until 1.13.8 the panel read only the first robots tag's
+// `noindex`, so both read INDEXABLE.
+describe('indexability: none and googlebot (1.13.8)', () => {
+  const page = { finalStatus: 200, pageUrl: 'https://example.com/' };
+
+  it('robots "none" is not indexable', () => {
+    const out = SBWRedirects.indexability({ ...page, metaRobots: 'none' });
+    expect(out.indexable).toBe(false);
+    expect(out.reasons[0]).toBe('none, which is noindex (meta robots)');
+  });
+
+  it('a googlebot meta noindex or none is not indexable, with a robots meta that allows it', () => {
+    expect(SBWRedirects.indexability({ ...page, metaRobots: 'index, follow', metaGooglebot: 'noindex' }).reasons).toEqual(['noindex (meta googlebot)']);
+    expect(SBWRedirects.indexability({ ...page, metaGooglebot: 'NONE' }).reasons).toEqual(['none, which is noindex (meta googlebot)']);
+    expect(SBWRedirects.indexability({ ...page, metaGooglebot: 'nosnippet' }).indexable).toBe(true);
+  });
+
+  it("a later robots tag's noindex counts (every tag, joined)", () => {
+    expect(SBWRedirects.indexability({ ...page, metaRobots: 'index, follow, noindex' }).indexable).toBe(false);
+  });
+
+  it("the extractor's own verdict is kept when the words aren't passed", () => {
+    expect(SBWRedirects.indexability({ ...page, metaNoindex: true, metaNoindexSource: 'googlebot' }).reasons).toEqual(['noindex (meta googlebot)']);
+  });
+
+  it('"noindexing" is not noindex', () => {
+    expect(SBWRedirects.indexability({ ...page, metaRobots: 'noindexing' }).indexable).toBe(true);
+  });
+
+  it('X-Robots-Tag "none" is noindex and nofollow', () => {
+    const x = SBWRedirects.parseXRobotsTag('none');
+    expect(x.noindex).toBe(true);
+    expect(x.nofollow).toBe(true);
+    const out = SBWRedirects.indexability({ ...page, xRobotsTag: 'googlebot: none' });
+    expect(out.reasons).toEqual(['none, which is noindex (X-Robots-Tag)']);
+  });
+});

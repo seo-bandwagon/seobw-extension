@@ -111,18 +111,24 @@ function renderCaptures(captures, query) {
     return;
   }
 
+  // 1.13.8: each capture's on-page checklist score (the popup's ring, by
+  // the rule SBWDomainHistory uses), and a Delete for that one capture.
   list.innerHTML = captures.map(c => `
-    <div class="capture-item" data-key="${c.key}">
-      <div class="capture-url">${esc(c.url)} ${syncBadge(c)}</div>
-      <div class="capture-meta">
-        <span class="capture-stat">📅 ${new Date(c.capturedAt).toLocaleString()}</span>
-        <span class="capture-stat">📝 ${c.content?.wordCount || 0} words</span>
-        <span class="capture-stat">🔗 ${(c.links?.internal?.count || 0) + (c.links?.external?.count || 0)} links</span>
-        <span class="capture-stat">🖼️ ${c.images?.total || 0} images</span>
+    <div class="capture-item" data-key="${esc(c.key)}">
+      ${scoreBadge(c)}
+      <div class="capture-body">
+        <div class="capture-url">${esc(c.url)} ${syncBadge(c)}</div>
+        <div class="capture-meta">
+          <span class="capture-stat">📅 ${new Date(c.capturedAt).toLocaleString()}</span>
+          <span class="capture-stat">📝 ${c.content?.wordCount || 0} words</span>
+          <span class="capture-stat">🔗 ${(c.links?.internal?.count || 0) + (c.links?.external?.count || 0)} links</span>
+          <span class="capture-stat">🖼️ ${c.images?.total || 0} images</span>
+        </div>
       </div>
+      <button type="button" class="capture-delete" data-key="${esc(c.key)}" aria-label="Delete this capture">Delete</button>
     </div>
   `).join('');
-  
+
   // Add click handlers
   list.querySelectorAll('.capture-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -130,6 +136,31 @@ function renderCaptures(captures, query) {
       showModal(capture);
     });
   });
+  list.querySelectorAll('.capture-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteCapture(btn.dataset.key);
+    });
+  });
+}
+
+function scoreBadge(capture) {
+  const score = globalThis.SBWDomainHistory ? SBWDomainHistory.captureScore(capture) : null;
+  if (typeof score !== 'number') return '<span class="capture-score" title="No score saved with this capture">—</span>';
+  const cls = score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad';
+  return `<span class="capture-score ${cls}" title="On-page checklist score">${Math.round(score)}</span>`;
+}
+
+// 1.13.8: one capture, from this device. A synced copy on the account stays.
+async function deleteCapture(key) {
+  const capture = allCaptures.find(c => c.key === key);
+  if (!capture) return;
+  if (!confirm(`Delete the capture of ${capture.url} from ${new Date(capture.capturedAt).toLocaleString()}? This cannot be undone.`)) return;
+  await chrome.storage.local.remove(key);
+  allCaptures = allCaptures.filter(c => c.key !== key);
+  const query = document.getElementById('search').value.trim();
+  renderCaptures(SBWHistorySearch.filter(allCaptures, query), query);
+  renderLegacyBanner(allCaptures);
 }
 
 function showModal(capture) {
@@ -168,18 +199,12 @@ document.getElementById('exportAllBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+// 1.13.8: the tone's colors come from the theme (popup.css), so the line
+// reads on Day as well as Night.
 function showSyncStatus(text, tone) {
   const status = document.getElementById('syncStatus');
-  const tones = {
-    info: ['#4cc9f033', '#4cc9f0'],
-    success: ['#06d6a033', '#06d6a0'],
-    warn: ['#ffd16633', '#ffd166'],
-    error: ['#ef476f33', '#ef476f']
-  };
-  const [background, color] = tones[tone] || tones.info;
-  status.style.display = 'block';
-  status.style.background = background;
-  status.style.color = color;
+  status.hidden = false;
+  status.dataset.tone = ['info', 'success', 'warn', 'error'].includes(tone) ? tone : 'info';
   status.textContent = text;
 }
 

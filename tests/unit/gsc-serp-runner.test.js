@@ -150,6 +150,96 @@ describe('gsc-serp runner — Queries-only icons, compare math everywhere', () =
   });
 });
 
+describe('gsc-serp runner — opened at the overview, and after an install or update (1.13.8, #158)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+  afterEach(() => {
+    delete globalThis.chrome;
+    delete window.__seoBwGscSerpLoaded;
+  });
+
+  it('starts on the overview and puts the icons on Performance when the page moves there', async () => {
+    const listeners = [];
+    globalThis.chrome = { runtime: { id: 'ext', onMessage: { addListener: (fn) => listeners.push(fn) }, sendMessage: vi.fn() } };
+    window.history.pushState({}, '', '/search-console?resource_id=sc-domain%3Aexample.com');
+    document.body.innerHTML = '<h1>Overview</h1>';
+    await loadRunner();
+    await frame(); await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+
+    // Performance, in the page: the worker reports the pushState.
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=sc-domain%3Aexample.com&breakdown=query');
+    buildReport();
+    listeners.forEach((fn) => fn({ action: 'gscNavigated', url: location.href }, {}, () => {}));
+    await frame(); await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+  });
+
+  it('a second copy injected where a live runner is starts nothing', async () => {
+    globalThis.chrome = { runtime: { id: 'ext', onMessage: { addListener: () => {} }, sendMessage: vi.fn() } };
+    buildReport();
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+    await loadRunner();
+    await frame(); await macrotask();
+    const owner = document.querySelector('.' + G.ICON_GROUP).getAttribute('data-sbw-owner');
+    const guard = window.__seoBwGscSerpLoaded;
+    // The worker's copy (gsc-tabs.js): same world, live runner, so it returns.
+    await import(/* @vite-ignore */ '../../extension/src/content/gsc-serp.js?t=' + Math.random());
+    await frame(); await macrotask();
+    expect(window.__seoBwGscSerpLoaded).toBe(guard);
+    const groups = [...document.querySelectorAll('.' + G.ICON_GROUP)];
+    expect(groups.length).toBe(2);
+    expect(groups.every((g) => g.getAttribute('data-sbw-owner') === owner)).toBe(true);
+  });
+
+  it("replaces an orphaned runner's icons, which open nothing, with its own", async () => {
+    // A runner from before the update left its icons (1.13.7's carry no owner).
+    buildReport();
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+    const stale = [];
+    document.querySelectorAll('tbody tr').forEach((tr) => G.injectRow(tr, { open: (q) => stale.push(q), openPrivate: () => {} }));
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(2);
+
+    const sent = [];
+    globalThis.chrome = { runtime: { id: 'ext', onMessage: { addListener: () => {} }, sendMessage: (m) => sent.push(m) } };
+    await loadRunner();
+    await frame(); await macrotask();
+    const groups = [...document.querySelectorAll('.' + G.ICON_GROUP)];
+    expect(groups.length).toBe(2);
+    expect(groups.every((g) => g.getAttribute('data-sbw-owner'))).toBe(true);
+    document.querySelector('.' + G.ICON_CLASS).click();
+    expect(stale).toEqual([]);
+    expect(sent[0]).toMatchObject({ action: 'openSearch', query: 'roofing repair denver' });
+  });
+
+  it('an orphaned runner stops at its next change and lets the new one in', async () => {
+    const runtime = { id: 'ext', onMessage: { addListener: () => {} }, sendMessage: vi.fn() };
+    globalThis.chrome = { runtime };
+    buildReport();
+    window.history.pushState({}, '', '/search-console/performance/search-analytics?resource_id=x&breakdown=query');
+    await loadRunner();
+    await frame(); await macrotask();
+    const first = document.querySelector('.' + G.ICON_GROUP).getAttribute('data-sbw-owner');
+
+    // The update: this runner's extension is gone.
+    delete runtime.id;
+    expect(window.__seoBwGscSerpLoaded()).toBe(false);
+    // Search Console re-renders: the orphan stops instead of re-injecting.
+    buildReport();
+    await frame(); await macrotask();
+    expect(document.querySelectorAll('.' + G.ICON_GROUP).length).toBe(0);
+
+    // The updated extension's runner (the worker's injection) takes the tab.
+    globalThis.chrome = { runtime: { id: 'ext', onMessage: { addListener: () => {} }, sendMessage: vi.fn() } };
+    await import(/* @vite-ignore */ '../../extension/src/content/gsc-serp.js?t=' + Math.random());
+    await frame(); await macrotask();
+    const groups = [...document.querySelectorAll('.' + G.ICON_GROUP)];
+    expect(groups.length).toBe(2);
+    expect(groups[0].getAttribute('data-sbw-owner')).not.toBe(first);
+  });
+});
+
 describe('gsc-serp runner — mutation-observer self-mutation guard', () => {
   beforeEach(() => {
     document.body.innerHTML = '';

@@ -27,6 +27,8 @@
 })(function () {
 
   const ANALYSES_THRESHOLD = 5;
+  // 1.13.8: "Later" asks again after this many more fresh analyses, once.
+  const LATER_AFTER = 10;
 
   // The store's reviews page for this build (src/lib/browser.js). null where
   // the listing doesn't exist yet (the Edge build until the owner creates the
@@ -37,6 +39,12 @@
     return { analyses: 0, prompted: false, installedAt: null };
   }
 
+  // 1.13.8: "Later" is on offer the first time only; the second time the
+  // strip offers a review or No thanks.
+  function canLater(state) {
+    return !(state && state.laterAt);
+  }
+
   // Deliberately reads only `analyses`/`prompted` — extra fields on `state`
   // (score, grade, error, whatever a caller might be tempted to pass) are
   // ignored, per the ledger's "no outcome-based gating" ruling.
@@ -44,7 +52,7 @@
     const s = state || {};
     const analyses = s.analyses || 0;
     const prompted = !!s.prompted;
-    return analyses >= ANALYSES_THRESHOLD && !prompted;
+    return analyses >= ANALYSES_THRESHOLD && !prompted && analyses >= (s.laterAt || 0);
   }
 
   function nextState(state, event) {
@@ -56,6 +64,10 @@
       case 'reviewed':
       case 'dismissed':
         return Object.assign({}, current, { prompted: true });
+      case 'later':
+        // A second Later is a No thanks: the strip shows at most twice.
+        if (!canLater(current)) return Object.assign({}, current, { prompted: true });
+        return Object.assign({}, current, { laterAt: (current.analyses || 0) + LATER_AFTER });
       default:
         return Object.assign({}, current);
     }
@@ -63,7 +75,9 @@
 
   return {
     get REVIEW_URL() { return reviewUrl(); },
+    LATER_AFTER,
     shouldPrompt,
+    canLater,
     nextState
   };
 });

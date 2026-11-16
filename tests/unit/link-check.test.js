@@ -260,6 +260,28 @@ describe('classify', () => {
   it('status 0 wins over a stray status-based read (error field is authoritative at 0)', () => {
     expect(SBWLinkCheck.classify({ status: 0, error: 'timeout', finalUrl: null })).toBe('timeout');
   });
+
+  // 1.13.8: the worker's fetch follows redirects, so until now a moved link
+  // read "OK 200" and the REDIRECT group was always empty.
+  it('a followed redirect is a redirect, whatever its destination answered', () => {
+    expect(SBWLinkCheck.classify({ url: 'https://a.example/old', status: 200, redirected: true, finalUrl: 'https://a.example/new' })).toBe('redirect');
+    // Not a redirect when nothing moved (fetch can say redirected for a
+    // hop that came back to the same address).
+    expect(SBWLinkCheck.classify({ url: 'https://a.example/', status: 200, redirected: true, finalUrl: 'https://a.example/' })).toBe('ok');
+    expect(SBWLinkCheck.classify({ url: 'https://a.example/', status: 200, redirected: false, finalUrl: 'https://a.example/' })).toBe('ok');
+    // A redirect that ends broken is broken.
+    expect(SBWLinkCheck.classify({ url: 'https://a.example/old', status: 404, redirected: true, finalUrl: 'https://a.example/gone' })).toBe('client');
+  });
+
+  it('bot walls are blocked, not broken: 403, 429, LinkedIn 999, and a challenge page', () => {
+    expect(SBWLinkCheck.classify({ status: 403 })).toBe('blocked');
+    expect(SBWLinkCheck.classify({ status: 429 })).toBe('blocked');
+    expect(SBWLinkCheck.classify({ status: 999 })).toBe('blocked');
+    expect(SBWLinkCheck.classify({ status: 503, blocked: true })).toBe('blocked');
+    expect(SBWLinkCheck.classify({ url: 'https://a.example/', status: 403, redirected: true, finalUrl: 'https://a.example/login' })).toBe('blocked');
+    expect(SBWLinkCheck.classify({ status: 401 })).toBe('client');
+    expect(SBWLinkCheck.classify({ status: 503 })).toBe('server');
+  });
 });
 
 describe('groupResults', () => {
@@ -273,10 +295,10 @@ describe('groupResults', () => {
     { url: 'https://a.example/aa-ok', status: 200 }
   ];
 
-  // 'uncheckable' joined the six in 1.7.6 (#46).
-  it('buckets results into the seven classes', () => {
+  // 'uncheckable' joined the six in 1.7.6 (#46), 'blocked' in 1.13.8.
+  it('buckets results into the eight classes', () => {
     const { groups } = SBWLinkCheck.groupResults(results);
-    expect(Object.keys(groups).sort()).toEqual(['client', 'network', 'ok', 'redirect', 'server', 'timeout', 'uncheckable'].sort());
+    expect(Object.keys(groups).sort()).toEqual(['blocked', 'client', 'network', 'ok', 'redirect', 'server', 'timeout', 'uncheckable'].sort());
     expect(groups.ok).toHaveLength(2);
     expect(groups.redirect).toHaveLength(1);
     expect(groups.client).toHaveLength(1);
@@ -293,7 +315,7 @@ describe('groupResults', () => {
 
   it('provides counts per class', () => {
     const { counts } = SBWLinkCheck.groupResults(results);
-    expect(counts).toEqual({ ok: 2, redirect: 1, client: 1, server: 1, timeout: 1, network: 1, uncheckable: 0 });
+    expect(counts).toEqual({ ok: 2, redirect: 1, blocked: 0, client: 1, server: 1, timeout: 1, network: 1, uncheckable: 0 });
   });
 
   it('sums client+server+timeout+network into broken', () => {
@@ -303,7 +325,7 @@ describe('groupResults', () => {
 
   it('handles an empty result set', () => {
     const { groups, counts, broken } = SBWLinkCheck.groupResults([]);
-    expect(counts).toEqual({ ok: 0, redirect: 0, client: 0, server: 0, timeout: 0, network: 0, uncheckable: 0 });
+    expect(counts).toEqual({ ok: 0, redirect: 0, blocked: 0, client: 0, server: 0, timeout: 0, network: 0, uncheckable: 0 });
     expect(broken).toBe(0);
     Object.values(groups).forEach(g => expect(g).toEqual([]));
   });
@@ -355,5 +377,27 @@ describe('uncheckable links (#46)', () => {
     expect(counts.uncheckable).toBe(1);
     expect(broken).toBe(1);
     expect(SBWLinkCheck.resultRows([r])[0]).toMatchObject({ class: 'uncheckable', error: 'uncheckable' });
+  });
+});
+
+describe('blocked links are not broken (1.13.8)', () => {
+  it('counts a bot wall apart from broken', () => {
+    const { counts, broken } = SBWLinkCheck.groupResults([
+      { url: 'https://www.linkedin.com/company/x', status: 999 },
+      { url: 'https://a.example/404', status: 404 },
+      { url: 'https://a.example/moved', status: 200, redirected: true, finalUrl: 'https://a.example/new' }
+    ]);
+    expect(counts.blocked).toBe(1);
+    expect(counts.redirect).toBe(1);
+    expect(broken).toBe(1);
+  });
+
+  it('the CSV keeps the final URL and says blocked', () => {
+    const rows = SBWLinkCheck.resultRows([
+      { url: 'https://a.example/moved', status: 200, redirected: true, finalUrl: 'https://a.example/new', text: 'Moved' },
+      { url: 'https://www.linkedin.com/company/x', status: 999, text: 'LinkedIn' }
+    ]);
+    expect(rows[0]).toMatchObject({ class: 'redirect', finalUrl: 'https://a.example/new' });
+    expect(rows[1]).toMatchObject({ class: 'blocked', status: 999 });
   });
 });

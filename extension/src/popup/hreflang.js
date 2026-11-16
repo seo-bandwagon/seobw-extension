@@ -209,7 +209,7 @@
   function renderBadgeSlot() {
     const { badge } = popup();
     const hf = pageData && pageData.hreflang;
-    const n = (hf && hf.issues) ? hf.issues.length : 0;
+    const n = ((hf && hf.issues) ? hf.issues.length : 0) + checkIssues().length;
     const inner = n > 0 ? badge(`${n} ISSUE${n === 1 ? '' : 'S'}`, 'b-err') : badge('OK', 'b-ok');
     return `<span class="hf-badge-slot">${inner}</span>`;
   }
@@ -223,20 +223,40 @@
     `;
   }
 
+  // 1.13.8: notes (a valid tag in unusual casing) are information, shown
+  // apart from the issues and never counted in the badge. After a check,
+  // alternates that redirect or can't be indexed join the issues.
   function renderIssueChips(issues) {
-    if (!issues || !issues.length) {
-      return `<div class="hf-chips"><span class="hf-chip hf-chip-ok">No set-level issues</span></div>`;
+    const notes = (pageData.hreflang && pageData.hreflang.notes) || [];
+    const found = checkIssues();
+    const all = (issues || []).concat(found);
+    const noteChips = notes.map(n => `<span class="hf-chip hf-chip-note">${esc(n)}</span>`).join('');
+    if (!all.length) {
+      return `<div class="hf-chips"><span class="hf-chip hf-chip-ok">No set-level issues</span>${noteChips}</div>`;
     }
-    return `<div class="hf-chips">${issues.map(i => `<span class="hf-chip hf-chip-bad">${esc(i)}</span>`).join('')}</div>`;
+    return `<div class="hf-chips">${all.map(i => `<span class="hf-chip hf-chip-bad">${esc(i)}</span>`).join('')}${noteChips}</div>`;
+  }
+
+  function checkIssues() {
+    if (!checkResultsByUrl) return [];
+    const out = [];
+    checkResultsByUrl.forEach((r) => {
+      if (r.redirectsTo) out.push(`Alternate for "${r.lang}" redirects to ${r.redirectsTo}: list the final URL`);
+      if (r.notIndexable) out.push(`Alternate for "${r.lang}" is not indexable: ${r.notIndexable}`);
+    });
+    return out;
   }
 
   function renderRow(entry) {
     const rec = (checkResultsByUrl && entry.url) ? checkResultsByUrl.get(entry.url) : null;
+    const tagTitle = (entry.issues && entry.issues.length) ? entry.issues.join('; ') : (entry.note || '');
     return `<div class="hf-row">
-      <span class="badge-mono ${entry.valid ? '' : 'b-err'}">${esc(entry.lang)}</span>
+      <span class="badge-mono ${entry.valid ? '' : 'b-err'}"${tagTitle ? ` title="${esc(tagTitle)}"` : ''}>${esc(entry.lang)}</span>
       <span class="hf-url" title="${esc(entry.url || entry.href || '')}">${esc(truncateMiddle(entry.url || entry.href || '—', 34))}</span>
       ${rec ? `<span class="badge-mono ${statusBadgeClass(rec.status)}">${rec.status === null || rec.status === undefined ? '—' : esc(rec.status)}</span>` : ''}
       ${rec ? renderReturnBadge(rec) : ''}
+      ${rec && rec.redirectsTo ? `<span class="badge-mono b-warn" title="${esc(rec.redirectsTo)}">REDIRECTS</span>` : ''}
+      ${rec && rec.notIndexable ? `<span class="badge-mono b-err" title="${esc(rec.notIndexable)}">NOT INDEXABLE</span>` : ''}
     </div>`;
   }
 
@@ -335,7 +355,9 @@
     { key: 'lang', label: 'Tag' },
     { key: 'url', label: 'URL' },
     { key: 'status', label: 'Status' },
-    { key: 'returnTag', label: 'Return Tag' }
+    { key: 'returnTag', label: 'Return Tag' },
+    { key: 'redirectsTo', label: 'Redirects To' },
+    { key: 'notIndexable', label: 'Not Indexable' }
   ];
 
   function onExportClick() {
@@ -346,7 +368,9 @@
         lang: e.lang,
         url: e.url || e.href || '',
         status: rec ? rec.status : '',
-        returnTag: rec ? rec.returnTag : ''
+        returnTag: rec ? rec.returnTag : '',
+        redirectsTo: (rec && rec.redirectsTo) || '',
+        notIndexable: (rec && rec.notIndexable) || ''
       };
     });
     const csv = SBWCsv.toCsv(rows, CSV_COLUMNS);

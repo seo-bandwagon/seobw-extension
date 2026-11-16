@@ -246,11 +246,20 @@
   // Inject (or re-inject after a React re-render wiped the group) into one row.
   // `handlers.open(query)` and `handlers.openPrivate(query)` are called at
   // CLICK time with the row's current text — React recycles cells.
-  function injectRow(tr, handlers) {
+  // 1.13.8: `owner` is the runner's token (src/content/gsc-serp.js). A group
+  // another runner left (one orphaned by an update, whose clicks reach no
+  // extension) is replaced; the runner's own is kept.
+  function injectRow(tr, handlers, owner) {
     const first = tr.querySelector(':scope > td');
-    if (!first || first.querySelector('.' + ICON_GROUP)) return false;
+    if (!first) return false;
+    const existing = first.querySelector('.' + ICON_GROUP);
+    if (existing) {
+      if (!owner || existing.getAttribute('data-sbw-owner') === owner) return false;
+      first.querySelectorAll('.' + ICON_GROUP).forEach((g) => g.remove());
+    }
     const group = document.createElement('span');
     group.className = ICON_GROUP;
+    if (owner) group.setAttribute('data-sbw-owner', owner);
     group.appendChild(makeButton('search', 'Open in Google Search', () => {
       const q = extractQuery(first);
       if (q) handlers.open(q);
@@ -264,10 +273,10 @@
   }
 
   // Scan a root for data rows and inject; returns the number of rows injected.
-  function injectAll(rootEl, handlers) {
+  function injectAll(rootEl, handlers, owner) {
     let n = 0;
     rootEl.querySelectorAll('tr').forEach((tr) => {
-      if (isDataRow(tr) && injectRow(tr, handlers)) n++;
+      if (isDataRow(tr) && injectRow(tr, handlers, owner)) n++;
     });
     return n;
   }

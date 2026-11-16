@@ -76,8 +76,33 @@
     };
   }
 
+  // 1.13.8: the worker's webRequest handlers run only with the grant, and
+  // until 1.13.8 they read a flag that started false and was set when
+  // hasAllUrls() answered. A navigation that woke the worker delivered its
+  // first events (the main frame's request and response) before that
+  // answer, so they were dropped and the Indexability panel read UNKNOWN.
+  // The gate runs a handler at once when the grant is known, and otherwise
+  // holds it until the check answers, in the order the events came.
+  function createGrantGate(check) {
+    let granted = null; // null: not known yet
+    let pending = Promise.resolve(check ? check() : hasAllUrls())
+      .then((v) => { if (granted === null) granted = !!v; })
+      .catch(() => { if (granted === null) granted = false; });
+    return {
+      run(fn) {
+        if (granted === true) return fn();
+        if (granted === false) return undefined;
+        pending = pending.then(() => { if (granted) fn(); });
+        return undefined;
+      },
+      set(value) { granted = !!value; },
+      get granted() { return granted; }
+    };
+  }
+
   return {
     ALL_URLS_REASON,
+    createGrantGate,
     hasAllUrls,
     requestAllUrls,
     onAllUrlsGranted

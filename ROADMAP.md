@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.7** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.8** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -68,7 +68,7 @@ probably finish up a few more versions quickly"; until then B was
 gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds the Chrome and Edge packages from 1.13.6 on, and
-the Firefox one, linted, from 1.13.8 on. **Edge is listed before 2.0.0**
+the Firefox one, linted, from 1.13.9 on. **Edge is listed before 2.0.0**
 (owner, 2026-11-06): its first upload is 1.13.6's Edge package, because Edge
 Add-ons certification takes up to seven business days ("None of the upcoming
 features are that critical and we can have 2.0.0 launched on all"). Every release also updates `CHROMEWEBSTORE.md`,
@@ -95,7 +95,7 @@ version is `STAGED` or in review (the store refuses it with HTTP 400); saved rea
 Google pages for every layout (featured snippet, local pack, shopping, top
 stories, forums, `udm=web`, signed-out AI Overview, a non-English Google,
 mobile) and real Search Console pages; an e2e Copy check without a clipboard
-grant. The coverage report (#74) is in 1.13.7 (owner, 2026-11-06).
+grant. The coverage report (#74) is in 1.13.8 (owner, 2026-11-06; 1.13.7 until the audit's fixes took that number).
 
 ### 1.10.2: the Google results page shows the right numbers, and Analyze stays on Google (patch)
 - [x] The pooled "Score N · M captures" dropped (an average grade for the whole host across every account, "No score yet · 0 captures" for nearly every site); the bar below the whole result, with the organic position on it and the position counting everything in its tooltip, matching the exports
@@ -220,16 +220,16 @@ From the source audit of 1.13.6 (vault: Extension_Security_Audit_2026-11, the ac
 - [x] A key that isn't a string is refused (a one-element array passed the format check)
 
 ### 1.13.8: the checks panels are right (patch, was 1.10.5, then 1.13.1 to 1.13.7)
-- [ ] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
-- [ ] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
-- [ ] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
-- [ ] Rendering: warning when JavaScript changes title, canonical or robots; re-analyze after View as
-- [ ] Structured data: Google's required properties, one test per type; nested items validated; Copy JSON-LD whole
-- [ ] Tools: one list everywhere; Search Console link for Domain properties; Count words from the selection; stray tooltip gone
-- [ ] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
-- [ ] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
-- [ ] Search Console: the Queries tab's row icons show without a reload, whatever page Search Console was opened on and after an install or update (#158)
-- [ ] CI: a test coverage report on every PR, its summary in the job summary and the HTML report kept 7 days; the baseline recorded, no threshold yet (#74)
+- [x] Link Check: REDIRECT class with the final URL; "blocked, check by hand" for bot walls
+- [x] Indexability: `none` is noindex; `googlebot` meta; the wake-up race closed
+- [x] Hreflang: ISO 639/3166 tables; casing is information; redirecting or non-indexable alternates flagged
+- [x] Rendering: warning when JavaScript changes title, canonical or robots; re-analyze after View as
+- [x] Structured data: Google's required properties, one test per type; nested items validated; Copy JSON-LD whole
+- [x] Tools: one list everywhere; Search Console link for Domain properties; Count words from the selection; stray tooltip gone
+- [x] Shortcut handled and shown; About with version and support link; review prompt counts fresh analyses, offers "Later"
+- [x] Page-checks panel rows match its header; History themed, scored, single delete; one honest label for send-analyses; ring visible on Day
+- [x] Search Console: the Queries tab's row icons show without a reload, whatever page Search Console was opened on and after an install or update (#158)
+- [x] CI: a test coverage report on every PR, its summary in the job summary and the HTML report kept 7 days; the baseline recorded, no threshold yet (#74)
 
 ### 1.13.9: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.8; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.9)
 - [ ] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key)
@@ -288,6 +288,121 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.8 (2026-11-16)
+
+The checks panels are right, and Search Console's row icons show without a
+reload. Ten items: the audit's checks-panel rows (vault
+`Extension_Roadmap_To_2_0_Design`, rows 10 to 19), #158 and #74. No new
+data flow and no new install warning.
+
+- **Search Console (#158).** Reproduced first, in Chromium with the extension
+  loaded and a stand-in Search Console served at its real addresses
+  (`tests/e2e/gsc-icons.spec.mjs`): opened at the overview,
+  `/search-console?resource_id=…` (where Search Console opens and the
+  extension's own links land), then Performance in the page, the Queries tab
+  had no icons; the same from a second Google account's `/u/1/` overview. A
+  direct Performance link and a property switch worked. The match
+  `…/search-console/*` needs a slash the overview doesn't have, and in-page
+  navigation injects nothing. Now:
+  - the matches are `https://search.google.com/search-console*` and
+    `https://search.google.com/u/*/search-console*`, and the worker follows
+    `/u/N/` navigation (`pathContains`);
+  - tabs open across an install or update get the runner from the worker on
+    `onInstalled` (`src/lib/gsc-tabs.js`). Scripting a tab needs its host:
+    `executeScript` answered "Extension manifest must request permission to
+    access this host" with the content-script match alone, so
+    `https://search.google.com/*` joins `host_permissions`. Install warnings
+    measured with `getPermissionWarningsByManifest` (Playwright's
+    Chromium), the same four for 1.13.7's manifest and 1.13.8's: "Read and
+    change your data on search.google.com, seobandwagon.com, and
+    www.google.com", "Replace the page you see when opening a new tab", "Read
+    your browsing history", "Manage your apps, extensions, and themes";
+  - a runner starts only where no live one is, an orphaned one (its
+    extension updated away) stops at its next change, and each runner
+    replaces icons another left, so 1.13.7's dead icons are swapped too.
+  `chrome.runtime.reload()` unloads an extension loaded with
+  `--load-extension` in Playwright's Chromium and never brings it back, so
+  the update case is tested with a copy whose Search Console match finds
+  nothing and the worker's own install step run on its tabs.
+- **Link Check.** The worker's fetch follows redirects, so a moved link read
+  OK 200 and the REDIRECT group was always empty: a followed redirect is
+  REDIRECT now, its row showing the final URL. 403, 429, LinkedIn's 999 and
+  Cloudflare's challenge page (`cf-mitigated`) are BLOCKED, CHECK BY HAND,
+  not counted as broken.
+- **Indexability.** The panel read the first robots tag's word `noindex`
+  only: robots `none`, a `googlebot` meta and X-Robots-Tag `none` read
+  INDEXABLE. It reads every robots and googlebot meta now. The worker's
+  `webRequest` handlers read a grant flag that started `false` and was set
+  when the check answered, so a navigation that woke the worker lost its
+  main-frame request and response (UNKNOWN); a gate
+  (`SBWPerms.createGrantGate`) holds them until the check answers.
+- **Hreflang.** Google reads only ISO 639-1 languages and ISO 3166-1
+  alpha-2 regions, in any case (Search Central, read 2026-11-16). The tables
+  (183 and 249 codes) decide validity; an invalid tag says why, with the fix
+  when known (en-UK: use en-GB; jp: ja); es-419, three-letter codes, EU and
+  UN are not ones Google reads. A valid tag in unusual casing is a note, not
+  counted in the badge; duplicates compare in any case. After Check return
+  tags, an alternate that redirects, or whose robots, googlebot,
+  X-Robots-Tag or canonical says it isn't indexed, is flagged.
+- **Rendering.** "Hydrated, same content" hid a script rewriting the title,
+  canonical or robots meta: those are named and read as a warning (compared
+  as the signal means: whitespace, a fragment, case and order don't count).
+  After View as, the popup kept the analysis from before the reload; it
+  analyzes the page again once the tab has reloaded, Rendering open.
+- **Structured data.** Each type follows its Search Central page (read
+  2026-11-16), one test per type: Article and Organization have no required
+  properties; Product needs a name and one of review, aggregateRating or
+  offers; LocalBusiness name and address; Recipe name and image; Video name,
+  thumbnailUrl and uploadDate; Review author, itemReviewed and reviewRating;
+  AggregateRating ratingValue and ratingCount or reviewCount; JobPosting
+  title, description, datePosted, hiringOrganization and jobLocation or
+  applicantLocationRequirements. Nested values are checked (an Offer's
+  price, a review's author.name and reviewRating.ratingValue, each
+  breadcrumb's position, name and item, an event location's address, a job
+  location's addressCountry), and typed items nested anywhere as their type;
+  what they miss is named by its path. Copy JSON-LD copies a block to paste,
+  `@context` and `@type` kept, microdata and RDFa written as JSON-LD.
+- **Tools.** One list (`SBWToolLinks.TOOLS`) for the right-click menu, the
+  popup's row and the page-checks panel (they had 8, 7 and 5). Search
+  Console opens the Domain property (`sc-domain:`, the host without one
+  leading `www.`, the website's rule); the URL-prefix property is its own
+  tool. Count words & characters reads the selection where the menu was
+  opened, frames and text boxes included, and counts words as the analysis
+  does, in any language (`src/lib/text-count.js`); it no longer injects the
+  analyzer, whose word-count tooltip then followed every selection on the
+  page. The tooltip is gone.
+- **Shortcut, About, review prompt.** A refused `openPopup()` tries the last
+  focused window and never throws (`src/lib/shortcut.js`); Options has a
+  Keyboard shortcut card and About shows it ("Not set" when cleared), each
+  with a way to change it. About gives the version, seobandwagon.com/contact,
+  the GitHub issue forms and the fonts' SIL Open Font License. A reopen on
+  the cached analysis no longer counts toward the review prompt; Later asks
+  again after 10 more analyses, once.
+- **Panels.** The page-checks header is counted from its own rows (it took
+  the sub-scores' totals, which count a check that lost no points as passed
+  while its row read warn); LCP is marked as a measurement. History follows
+  Night and Day, shows each capture's score and deletes one capture. The
+  popup's HELP IMPROVE SEO INSIGHTS was Options' Send analyses to SEO
+  Bandwagon under another name: both say Send analyses to SEO Bandwagon. The
+  score ring's track was white at 10%, invisible on Day; it is the theme's
+  ink at 12%.
+- **CI (#74).** `test.yml` runs the suite once, with coverage
+  (`npm run test:coverage`), writes the summary to the job summary
+  (`scripts/coverage-summary.mjs`) and keeps the HTML report 7 days
+  (`coverage-report`). No threshold. Baseline (2026-11-16, the extension's 89 source files):
+  lines 62.69% (7,822 of 12,476), statements 60.49% (9,318 of 15,403),
+  functions 60.21% (1,833 of 3,044), branches 59.42% (7,770 of 13,076). The
+  pages' own scripts (the worker, the side panels, the new tab, Options,
+  History, the analyzer) read 0%: no unit test loads them, the e2e specs
+  drive them. A failed run still writes the report (`reportOnFailure`).
+  Coverage slows the jsdom tests that parse saved Google pages past the 5 s
+  default (37 timed out), so `testTimeout` is 30 s. The Search Console spec
+  joins the offline e2e job.
+
+Store texts change with the next submission: the `scripting` and host
+justifications (`https://search.google.com/*`) and the description's
+PRIVACY label (CHROMEWEBSTORE.md, "Due with the next submission (D)").
 
 ## Changelog — v1.13.7 (2026-11-09)
 

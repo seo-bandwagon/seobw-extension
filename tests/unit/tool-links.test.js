@@ -32,9 +32,9 @@ const PAGE = 'https://example.com/some/page?x=1&y=two words';
 // string, to match what the URL constructor actually normalizes it to.
 const PAGE_HREF = new URL(PAGE).href;
 
-describe('toolUrl — gsc', () => {
+describe('toolUrl — gsc-prefix (the URL-prefix property)', () => {
   it('builds a Search Console inspect URL with an encoded resource_id and id', () => {
-    const url = SBWToolLinks.toolUrl('gsc', { pageUrl: PAGE });
+    const url = SBWToolLinks.toolUrl('gsc-prefix', { pageUrl: PAGE });
     expect(url).toBe(
       'https://search.google.com/search-console/inspect?resource_id=' +
       encodeURIComponent('https://example.com/') +
@@ -43,7 +43,7 @@ describe('toolUrl — gsc', () => {
   });
 
   it('derives the origin via URL parsing, not string-splitting', () => {
-    const url = SBWToolLinks.toolUrl('gsc', { pageUrl: 'https://sub.example.co.uk:8080/a/b' });
+    const url = SBWToolLinks.toolUrl('gsc-prefix', { pageUrl: 'https://sub.example.co.uk:8080/a/b' });
     expect(url).toContain(encodeURIComponent('https://sub.example.co.uk:8080/'));
   });
 });
@@ -206,5 +206,39 @@ describe('toolUrl — strips embedded credentials from pageUrl (item 2)', () => 
   it('normalizes an uppercase scheme and host', () => {
     const url = SBWToolLinks.toolUrl('sitemap', { pageUrl: 'HTTP://EXAMPLE.COM/path' });
     expect(url).toBe('http://example.com/sitemap.xml');
+  });
+});
+
+// 1.13.8: one list everywhere, and a Search Console link that works for
+// Domain properties.
+describe('the one list of tools (1.13.8)', () => {
+  it('the menu, the popup row and the panel read one list; only the menu has the selection search', () => {
+    const kinds = SBWToolLinks.TOOLS.map(t => t.kind);
+    expect(kinds).toEqual(['gsc', 'gsc-prefix', 'wayback', 'pagespeed', 'rich-results', 'site-search', 'quoted-search', 'sitemap', 'robots']);
+    expect(SBWToolLinks.pageTools().map(t => t.kind)).toEqual(kinds.filter(k => k !== 'quoted-search'));
+    SBWToolLinks.TOOLS.forEach(t => {
+      expect(t.label).toBeTruthy();
+      expect(t.title).toBeTruthy();
+      expect(SBWToolLinks.toolUrl(t.kind, { pageUrl: 'https://www.example.com/a', selection: 'x' })).toMatch(/^https:\/\//);
+    });
+    expect(SBWToolLinks.menuId(SBWToolLinks.TOOLS[6])).toBe('sbw-tools-selection-search');
+  });
+
+  it('Search Console opens the Domain property, the URL-prefix one is its own tool', () => {
+    expect(SBWToolLinks.toolUrl('gsc', { pageUrl: 'https://WWW.Example.com/a?b=1' })).toBe(
+      'https://search.google.com/search-console/inspect?resource_id=' + encodeURIComponent('sc-domain:example.com') +
+      '&id=' + encodeURIComponent('https://www.example.com/a?b=1')
+    );
+    expect(SBWToolLinks.toolUrl('gsc', { pageUrl: 'https://blog.example.com/' })).toContain(encodeURIComponent('sc-domain:blog.example.com'));
+    expect(SBWToolLinks.toolUrl('gsc-prefix', { pageUrl: 'https://www.example.com/a' })).toContain('resource_id=' + encodeURIComponent('https://www.example.com/'));
+  });
+
+  it('the worker and the panel build from it', async () => {
+    const fs = await import('node:fs');
+    const sw = fs.readFileSync('extension/src/background/service-worker.js', 'utf8');
+    expect(sw).toContain('SBWToolLinks.TOOLS.forEach((tool) => {');
+    expect(sw).not.toMatch(/id: 'sbw-tools-(gsc|wayback|pagespeed)'/);
+    const data = fs.readFileSync('extension/src/lib/sbw-data.js', 'utf8');
+    expect(data).toContain('T.pageTools()');
   });
 });

@@ -10,7 +10,7 @@
 // The selection-based "Search Google for the selected text in quotes" tool
 // is deliberately NOT included here — the popup has no live text selection
 // from the analyzed page to offer, only the context menu (right-click on
-// selected text) does. That leaves exactly the 7 page-scoped kinds.
+// selected text) does. That leaves the page-scoped kinds.
 //
 // Every URL comes from `globalThis.SBWToolLinks.toolUrl()` (src/lib/
 // tool-links.js) — never built here — and every string reaching the DOM,
@@ -23,15 +23,8 @@
 
 (function () {
 
-  const TOOLS = [
-    { kind: 'gsc', label: 'Search Console' },
-    { kind: 'wayback', label: 'Wayback Machine' },
-    { kind: 'pagespeed', label: 'PageSpeed Insights' },
-    { kind: 'rich-results', label: 'Rich Results Test' },
-    { kind: 'site-search', label: 'site: search' },
-    { kind: 'sitemap', label: 'sitemap.xml' },
-    { kind: 'robots', label: 'robots.txt' }
-  ];
+  // 1.13.8: the one list (SBWToolLinks.pageTools), the menu's own less the
+  // selection search.
 
   function popup() {
     return globalThis.SBWPopup || {};
@@ -47,11 +40,11 @@
     const tab = popup().getCurrentTab ? popup().getCurrentTab() : null;
     const pageUrl = (tab && tab.url) || (data && data.url) || '';
 
-    const links = TOOLS
-      .map(({ kind, label }) => {
+    const links = globalThis.SBWToolLinks.pageTools()
+      .map(({ kind, label, title }) => {
         const url = globalThis.SBWToolLinks.toolUrl(kind, { pageUrl });
         if (!url) return '';
-        return `<a href="${esc(url)}" target="_blank" rel="noopener" data-kind="${esc(kind)}">${esc(label)}</a>`;
+        return `<a href="${esc(url)}" target="_blank" rel="noopener" data-kind="${esc(kind)}" title="${esc(title)}">${esc(label)}</a>`;
       })
       .filter(Boolean)
       .join('');

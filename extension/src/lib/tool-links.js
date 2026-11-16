@@ -53,6 +53,39 @@
     return parsed;
   }
 
+  // 1.13.8: the one list of tools, for the right-click menu, the popup's
+  // TOOLS row and the page-checks panel. Until 1.13.8 they were three lists
+  // (8, 7 and 5 tools). `label` is the short name the rows show, `title` the
+  // menu's wording; a `selection` tool needs selected text, so only the menu
+  // offers it. `menuId` keeps a menu item's id from before 1.13.8.
+  const TOOLS = [
+    { kind: 'gsc', label: 'Search Console', title: 'Inspect in Search Console (Domain property)' },
+    { kind: 'gsc-prefix', label: 'Search Console (URL prefix)', title: 'Inspect in Search Console (URL-prefix property)' },
+    { kind: 'wayback', label: 'Wayback Machine', title: 'Open in Wayback Machine' },
+    { kind: 'pagespeed', label: 'PageSpeed Insights', title: 'Open in PageSpeed Insights' },
+    { kind: 'rich-results', label: 'Rich Results Test', title: 'Test with Rich Results Test' },
+    { kind: 'site-search', label: 'site: search', title: 'site: search for this domain' },
+    { kind: 'quoted-search', label: 'Search the selection', title: 'Search Google for the selected text in quotes', selection: true, menuId: 'selection-search' },
+    { kind: 'sitemap', label: 'sitemap.xml', title: 'Open sitemap.xml' },
+    { kind: 'robots', label: 'robots.txt', title: 'Open robots.txt' }
+  ];
+
+  function pageTools() {
+    return TOOLS.filter(t => !t.selection);
+  }
+
+  function menuId(tool) {
+    return 'sbw-tools-' + (tool.menuId || tool.kind);
+  }
+
+  // A Domain property is named for the domain: the host in lower case with
+  // one leading "www." dropped (the website's rule for picking a property,
+  // sc-domain first). Until 1.13.8 the link named only the URL-prefix
+  // property, and failed for everyone who verified the domain.
+  function domainProperty(hostname) {
+    return 'sc-domain:' + String(hostname || '').toLowerCase().replace(/^www\./, '');
+  }
+
   function toolUrl(kind, opts) {
     opts = opts || {};
     const parsed = parsePageUrl(opts.pageUrl);
@@ -63,6 +96,10 @@
 
     switch (kind) {
       case 'gsc':
+        return 'https://search.google.com/search-console/inspect?resource_id=' +
+          encodeURIComponent(domainProperty(parsed.hostname)) + '&id=' + encodeURIComponent(pageUrl);
+
+      case 'gsc-prefix':
         return 'https://search.google.com/search-console/inspect?resource_id=' +
           encodeURIComponent(origin + '/') + '&id=' + encodeURIComponent(pageUrl);
 
@@ -101,6 +138,10 @@
   }
 
   return {
+    TOOLS,
+    pageTools,
+    menuId,
+    domainProperty,
     toolUrl
   };
 });

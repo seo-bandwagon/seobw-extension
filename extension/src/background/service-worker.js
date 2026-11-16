@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/text-count.js', '../lib/shortcut.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
 
 // 1.13.7: the account key and the API address (chrome.storage.sync) are for
 // the extension's own pages and this worker only. By default every content
@@ -113,53 +113,15 @@ chrome.runtime.onInstalled.addListener(() => {
       title: 'SEO Bandwagon tools',
       contexts: ['page', 'selection']
     });
-    createMenuItem({
-      id: 'sbw-tools-gsc',
-      parentId: 'sbw-tools',
-      title: 'Open in Google Search Console (URL inspection)',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-wayback',
-      parentId: 'sbw-tools',
-      title: 'Open in Wayback Machine',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-pagespeed',
-      parentId: 'sbw-tools',
-      title: 'Open in PageSpeed Insights',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-rich-results',
-      parentId: 'sbw-tools',
-      title: 'Test with Rich Results Test',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-site-search',
-      parentId: 'sbw-tools',
-      title: 'site: search for this domain',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-selection-search',
-      parentId: 'sbw-tools',
-      title: 'Search Google for the selected text in quotes',
-      contexts: ['selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-sitemap',
-      parentId: 'sbw-tools',
-      title: 'Open sitemap.xml',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-robots',
-      parentId: 'sbw-tools',
-      title: 'Open robots.txt',
-      contexts: ['page', 'selection']
+    // 1.13.8: built from the one list (SBWToolLinks.TOOLS), the same as the
+    // popup's TOOLS row and the page-checks panel.
+    SBWToolLinks.TOOLS.forEach((tool) => {
+      createMenuItem({
+        id: SBWToolLinks.menuId(tool),
+        parentId: 'sbw-tools',
+        title: tool.title,
+        contexts: tool.selection ? ['selection'] : ['page', 'selection']
+      });
     });
   });
 });
@@ -167,16 +129,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Maps a "SEO Bandwagon tools" submenu id to the SBWToolLinks kind it
 // builds. Kept as a flat lookup (rather than a switch) so onClicked's
 // handling is a single branch regardless of which child fired.
-const SBW_TOOLS_MENU_KIND = {
-  'sbw-tools-gsc': 'gsc',
-  'sbw-tools-wayback': 'wayback',
-  'sbw-tools-pagespeed': 'pagespeed',
-  'sbw-tools-rich-results': 'rich-results',
-  'sbw-tools-site-search': 'site-search',
-  'sbw-tools-selection-search': 'quoted-search',
-  'sbw-tools-sitemap': 'sitemap',
-  'sbw-tools-robots': 'robots'
-};
+const SBW_TOOLS_MENU_KIND = Object.fromEntries(SBWToolLinks.TOOLS.map((t) => [SBWToolLinks.menuId(t), t.kind]));
 
 // --- Capture sync: alarm-driven retry drainer (Task 2) ---
 const SYNC_ALARM_NAME = 'sbw-sync';
@@ -243,20 +196,23 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     // the button that asks for it (popup.js, S29).
     analyzeLink.open(info.linkUrl).catch(() => {});
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
+    // 1.13.8: counts the selection the menu was opened on, in the frame it
+    // was opened in, text fields included, without injecting the analyzer
+    // (until 1.13.8 it asked the analyzer for the top frame's selection, so
+    // a selection in a frame or a text box counted nothing, and the
+    // analyzer's injection left the stray word-count tooltip behind).
+    // info.selectionText stands in when the frame can't be read.
+    const target = { tabId: tab.id };
+    if (typeof info.frameId === 'number') target.frameIds = [info.frameId];
+    let text = '';
     try {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ANALYZER_FILES });
-      } catch (e) { /* already injected */ }
-
-      const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });
-
-      if (results) {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: showCountNotification,
-          args: [results]
-        });
-      }
+      const [res] = await chrome.scripting.executeScript({ target, func: SBWTextCount.readSelection });
+      text = (res && typeof res.result === 'string') ? res.result : '';
+    } catch (e) { /* a frame the extension can't read */ }
+    if (!text.trim()) text = info.selectionText || '';
+    const stats = SBWTextCount.countText(text);
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: showCountNotification, args: [stats] });
     } catch (e) {
       console.error('Count selection failed:', e);
     }
@@ -321,10 +277,13 @@ function showCountNotification(stats) {
   }, 4000);
 }
 
-// Handle keyboard shortcuts
+// Handle keyboard shortcuts. 1.13.8: a refused openPopup() tries the last
+// focused window, and never throws (src/lib/shortcut.js).
 chrome.commands.onCommand.addListener((command) => {
-  if (command === 'analyze-current') {
-    chrome.action.openPopup();
+  if (command === SBWShortcut.NAME) {
+    SBWShortcut.openPopup(chrome).then((opened) => {
+      if (!opened) console.warn('SEO Bandwagon: the shortcut could not open the popup');
+    });
   }
 });
 
@@ -803,7 +762,11 @@ async function probeLink(url, controller) {
     if (res.status === 405 || res.status === 501) {
       res = await attempt('GET');
     }
-    return { url, status: res.status, finalUrl: res.url, redirected: res.redirected, ms: Date.now() - start };
+    // 1.13.8: Cloudflare's challenge page says so in a header; the link is
+    // "blocked, check by hand", not broken (src/lib/link-check.js).
+    let blocked = false;
+    try { blocked = /challenge/i.test((res.headers && res.headers.get('cf-mitigated')) || ''); } catch (e) { /* no headers */ }
+    return { url, status: res.status, finalUrl: res.url, redirected: res.redirected, blocked, ms: Date.now() - start };
   } catch (err) {
     const timedOut = err && err.name === 'AbortError';
     return { url, status: 0, finalUrl: null, redirected: false, ms: Date.now() - start, error: timedOut ? 'timeout' : 'network' };
@@ -1081,10 +1044,19 @@ function gscSearchUrl(query, gl) {
 // script's own patch of pushState never fired: it ran in the isolated world,
 // where the page's calls don't reach it. The navigation API sees them
 // (`webNavigation`, already in the manifest), so the worker tells the page.
+// 1.13.8: `pathContains`, so a second Google account's /u/1/search-console
+// is followed too.
 chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
   chrome.tabs.sendMessage(details.tabId, { action: 'gscNavigated', url: details.url }, { frameId: details.frameId })
     .catch(() => {}); // no runner in that frame
-}, { url: [{ hostEquals: 'search.google.com', pathPrefix: '/search-console' }] });
+}, { url: [{ hostEquals: 'search.google.com', pathContains: '/search-console' }] });
+
+// 1.13.8 (#158): Search Console tabs open across an install or an update get
+// the row icons without a reload (src/lib/gsc-tabs.js).
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details && details.reason === 'chrome_update') return;
+  SBWGscTabs.injectOpenTabs(chrome).catch(() => {});
+});
 
 async function pruneSerpCollections(keep) {
   const all = await chrome.storage.session.get(null);
@@ -1179,8 +1151,9 @@ chrome.runtime.onInstalled.addListener(() => { SBWProofStore.clear().catch(() =>
 // SYNCHRONOUSLY at worker top level, not after an `await SBWPerms.hasAllUrls()`
 // — a listener added after an await can miss events that fire in the gap
 // between the worker waking up and that await resolving. Instead, a
-// module-level `allUrlsGranted` flag gates every handler body; each one
-// returns immediately when it's false. This is belt-and-braces (webRequest/
+// module-level gate (`allUrlsGate`) runs every handler body only with the
+// grant; while the grant check is still out (the worker just woke) it holds
+// them, in order, rather than dropping them (1.13.8). This is belt-and-braces (webRequest/
 // webNavigation already deliver nothing without the host permission), but it
 // means a grant that lands mid-session via permissions.onAdded starts being
 // observed on the very next event, with nothing to (re)register, and a
@@ -1188,8 +1161,10 @@ chrome.runtime.onInstalled.addListener(() => { SBWProofStore.clear().catch(() =>
 const REDIRECTS_MAX_EVENTS = 25;
 const TRACE_TIMEOUT_MS = 20000;
 
-let allUrlsGranted = false;
-SBWPerms.hasAllUrls().then((v) => { allUrlsGranted = v; });
+// 1.13.8: a gate, not a flag that started false, so the events of the
+// navigation that woke the worker wait for the grant check instead of being
+// dropped (src/lib/perms.js createGrantGate).
+const allUrlsGate = SBWPerms.createGrantGate();
 
 const lastMainFrameRequestId = {}; // tabId -> requestId, so a duplicate onBeforeRequest call for the same navigation can't wipe a buffer mid-capture
 
@@ -1257,17 +1232,15 @@ function clearAllRedirectBuffers() {
 
 const REDIRECT_FILTER = { urls: ['<all_urls>'], types: ['main_frame'] };
 
-chrome.webRequest.onBeforeRequest.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webRequest.onBeforeRequest.addListener((details) => allUrlsGate.run(() => {
   const tabId = details.tabId;
   if (tabId < 0) return;
   if (lastMainFrameRequestId[tabId] === details.requestId) return;
   lastMainFrameRequestId[tabId] = details.requestId;
   resetRedirectBuffer(tabId);
-}, REDIRECT_FILTER);
+}), REDIRECT_FILTER);
 
-chrome.webRequest.onBeforeRedirect.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webRequest.onBeforeRedirect.addListener((details) => allUrlsGate.run(() => {
   appendRedirectEvent(details.tabId, {
     kind: 'redirect',
     url: details.url,
@@ -1275,7 +1248,7 @@ chrome.webRequest.onBeforeRedirect.addListener((details) => {
     location: details.redirectUrl,
     headers: SBWRedirects.pickHeaders(details.responseHeaders)
   });
-}, REDIRECT_FILTER, ['responseHeaders']);
+}), REDIRECT_FILTER, ['responseHeaders']);
 
 // Only the statuses a browser actually auto-follows are "hops" captured by
 // onBeforeRedirect above (301/302/303/307/308). 304 Not Modified, and the
@@ -1284,8 +1257,7 @@ chrome.webRequest.onBeforeRedirect.addListener((details) => {
 // blanket "3xx" check.
 const BROWSER_FOLLOWED_REDIRECTS = [301, 302, 303, 307, 308];
 
-chrome.webRequest.onHeadersReceived.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webRequest.onHeadersReceived.addListener((details) => allUrlsGate.run(() => {
   if (BROWSER_FOLLOWED_REDIRECTS.includes(details.statusCode)) return;
   appendRedirectEvent(details.tabId, {
     kind: 'response',
@@ -1293,25 +1265,24 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
     statusCode: details.statusCode,
     headers: SBWRedirects.pickHeaders(details.responseHeaders)
   });
-}, REDIRECT_FILTER, ['responseHeaders']);
+}), REDIRECT_FILTER, ['responseHeaders']);
 
-chrome.webNavigation.onCommitted.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webNavigation.onCommitted.addListener((details) => allUrlsGate.run(() => {
   if (details.frameId !== 0) return;
   if (Array.isArray(details.transitionQualifiers) && details.transitionQualifiers.includes('client_redirect')) {
     appendRedirectEvent(details.tabId, { kind: 'client_redirect', url: details.url });
   }
-});
+}));
 
 chrome.permissions.onAdded.addListener((perms) => {
   if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
-    allUrlsGranted = true;
+    allUrlsGate.set(true);
   }
 });
 
 chrome.permissions.onRemoved.addListener((perms) => {
   if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
-    allUrlsGranted = false;
+    allUrlsGate.set(false);
     clearAllRedirectBuffers();
     // clearAllUaRules (Task 4, defined near the UA-switcher block below —
     // hoisted, so its physical position doesn't matter here) — a revoked
@@ -1510,6 +1481,13 @@ async function fetchHreflangAlternate(url) {
     .filter(e => (e.rel || '').toLowerCase().split(/\s+/).includes('alternate') && e.hreflang);
 
   const result = { url, finalUrl, status: res.status, entries, linkHeaderEntries };
+  // 1.13.8: can the alternate be indexed? Its robots and googlebot metas,
+  // its X-Robots-Tag and its canonical (src/lib/hreflang.js).
+  const signals = SBWHreflang.extractIndexSignalsFromHtml(html, finalUrl);
+  const xrt = (typeof res.headers.get === 'function') ? res.headers.get('x-robots-tag') : null;
+  if (xrt && SBWRedirects.parseXRobotsTag(xrt).noindex) { result.noindex = true; result.noindexSource = 'x-robots-tag'; }
+  else if (signals.noindex) { result.noindex = true; result.noindexSource = signals.noindexSource; }
+  if (signals.canonical) result.canonical = signals.canonical;
   if (bodyTruncated) result.bodyTruncated = true;
   return result;
 }

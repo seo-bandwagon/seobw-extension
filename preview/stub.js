@@ -344,12 +344,13 @@ let collectLinksAttempts = 0;
 const LINK_CHECK_FIXTURE = [
   { url: 'https://northsidedental.com/', text: 'Home', rel: null, internal: true, status: 200 },
   { url: 'https://northsidedental.com/services', text: 'Services', rel: null, internal: true, status: 200 },
-  { url: 'https://northsidedental.com/team', text: 'Meet the Team', rel: null, internal: true, status: 301, finalUrl: 'https://northsidedental.com/about-us' },
+  { url: 'https://northsidedental.com/team', text: 'Meet the Team', rel: null, internal: true, status: 200, redirected: true, finalUrl: 'https://northsidedental.com/about-us' },
   { url: 'https://northsidedental.com/spring-promo', text: 'Spring Promo', rel: null, internal: true, status: 404 },
   { url: 'https://northsidedental.com/insurance', text: 'Insurance', rel: null, internal: true, status: 200 },
   { url: 'https://northsidedental.com/api/internal-tool', text: 'Internal tool', rel: 'nofollow', internal: true, status: 500 },
   { url: 'https://healthgrades.com/dentist/northside', text: 'Healthgrades listing', rel: null, internal: false, status: 200 },
-  { url: 'https://yelp.com/biz/northside-dental', text: 'Yelp reviews', rel: null, internal: false, status: 301, finalUrl: 'https://yelp.com/biz/northside-dental-austin-2' },
+  { url: 'https://yelp.com/biz/northside-dental', text: 'Yelp reviews', rel: null, internal: false, status: 200, redirected: true, finalUrl: 'https://yelp.com/biz/northside-dental-austin-2' },
+  { url: 'https://www.linkedin.com/company/northside-dental', text: 'LinkedIn', rel: null, internal: false, status: 999 },
   { url: 'https://oldpartner-site.example/referral', text: 'Referral partner', rel: null, internal: false, status: 0, error: 'timeout' },
   { url: 'https://defunct-directory.example/listing', text: 'Old directory', rel: null, internal: false, status: 0, error: 'network' },
   { url: 'https://northsidedental.com/blog/flossing-tips', text: 'Flossing Tips', rel: null, internal: true, status: 200 },
@@ -1022,7 +1023,7 @@ Object.defineProperty(SEO_FIXTURE, 'hreflang', {
   enumerable: true,
   get() {
     const result = SBWHreflang.validateSet(HREFLANG_RAW_ENTRIES, SEO_FIXTURE.url);
-    return { count: HREFLANG_RAW_ENTRIES.length, issues: result.issues, entries: result.entries };
+    return { count: HREFLANG_RAW_ENTRIES.length, issues: result.issues, notes: result.notes || [], entries: result.entries };
   }
 });
 
