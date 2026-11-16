@@ -1,7 +1,12 @@
-# Chrome Web Store listing text — next submission: v1.13.5 (the combined submission)
+# Chrome Web Store listing text — next submission: v1.13.8 (submission D)
 
 The listing text for the next store submission, kept current with `main`.
-The store serves 1.10.2 (published 2026-11-01, store submission A). 1.10.3
+**2026-11-16:** the store serves 1.13.5 (the combined submission, a check run
+read "Published now: PUBLISHED (1.13.5)"), and the next upload is 1.13.8
+(submission D, 1.13.6 to 1.13.8). What changes in the dashboard with it is
+in `CHROMEWEBSTORE.md` under "Due with the next submission (D)"; its release
+notes are §6. The rest of this paragraph is the combined submission's
+record. The store served 1.10.2 (published 2026-11-01, store submission A). 1.10.3
 to 1.13.5 were built and not submitted: the owner ruled on 2026-11-02 that
 submissions B and C become one upload, and on 2026-11-05 that it is of
 1.13.5. What changes in the
@@ -498,7 +503,22 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.13.3 (release notes, ≤ 10 lines)
+## 6. What's new in 1.13.8 (release notes, ≤ 10 lines)
+
+Submission D, 1.13.6 to 1.13.8 (1.13.6 changes nothing a Chrome user sees):
+
+```
+- Search Console's buttons on each query show without a reload, whatever
+  page Search Console was opened on.
+- The checks follow Google's rules: each rich result's required properties,
+  hreflang's language and country codes, and noindex in every form.
+- Link Check shows where a redirect lands, and marks sites that turn away
+  automated checks to check by hand instead of counting them as broken.
+- Connect asks before it switches the extension to another account.
+- One list of tools everywhere; Count words reads any selection.
+```
+
+1.13.3 (the combined submission, which uploaded 1.13.5, carried it):
 
 ```
 - For invited testers of SEO Bandwagon's AI Overview study: a STUDY tab in
