@@ -32,7 +32,22 @@ jobs:
 
       - run: npm ci
 
-      - run: npm test
+      # #74 (1.13.8): the suite runs once, with coverage. Its summary goes to
+      # the job summary and the HTML report is kept 7 days. No threshold yet.
+      - name: Unit and integration tests, with coverage
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        run: node scripts/coverage-summary.mjs coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the coverage report
+        if: always() && hashFiles('coverage/index.html') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
 
       - name: Store zip contains every referenced file
         run: npm run check:zip
@@ -76,11 +91,12 @@ jobs:
       # google.com/search from tests/fixtures, the account spec answers
       # seobandwagon.com/api from stubs, the analysis spec serves its pages
       # from 127.0.0.1, the Edge spec builds the Edge package and serves
-      # stand-ins for seobandwagon.com's pages, and all of them block
-      # everything else. No secrets.
+      # stand-ins for seobandwagon.com's pages, the Search Console spec
+      # (1.13.8, #158) serves a stand-in Search Console at its real
+      # addresses, and all of them block everything else. No secrets.
       # The production canary stays in canary.yml.
       - name: Run offline e2e under xvfb
-        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs tests/e2e/serp-figures.spec.mjs tests/e2e/serp-keywords.spec.mjs tests/e2e/serp-analyze.spec.mjs tests/e2e/serp-study.spec.mjs tests/e2e/edge-bridge.spec.mjs
+        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs tests/e2e/serp-figures.spec.mjs tests/e2e/serp-keywords.spec.mjs tests/e2e/serp-analyze.spec.mjs tests/e2e/serp-study.spec.mjs tests/e2e/edge-bridge.spec.mjs tests/e2e/gsc-icons.spec.mjs
 
       - name: Upload trace on failure
         if: failure()
