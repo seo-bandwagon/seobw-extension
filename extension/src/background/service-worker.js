@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js');
+importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
 
 // 1.13.7: the account key and the API address (chrome.storage.sync) are for
 // the extension's own pages and this worker only. By default every content
@@ -1081,10 +1081,19 @@ function gscSearchUrl(query, gl) {
 // script's own patch of pushState never fired: it ran in the isolated world,
 // where the page's calls don't reach it. The navigation API sees them
 // (`webNavigation`, already in the manifest), so the worker tells the page.
+// 1.13.8: `pathContains`, so a second Google account's /u/1/search-console
+// is followed too.
 chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
   chrome.tabs.sendMessage(details.tabId, { action: 'gscNavigated', url: details.url }, { frameId: details.frameId })
     .catch(() => {}); // no runner in that frame
-}, { url: [{ hostEquals: 'search.google.com', pathPrefix: '/search-console' }] });
+}, { url: [{ hostEquals: 'search.google.com', pathContains: '/search-console' }] });
+
+// 1.13.8 (#158): Search Console tabs open across an install or an update get
+// the row icons without a reload (src/lib/gsc-tabs.js).
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details && details.reason === 'chrome_update') return;
+  SBWGscTabs.injectOpenTabs(chrome).catch(() => {});
+});
 
 async function pruneSerpCollections(keep) {
   const all = await chrome.storage.session.get(null);

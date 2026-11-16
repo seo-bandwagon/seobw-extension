@@ -11,12 +11,36 @@
 (function () {
   'use strict';
 
-  if (window.__seoBwGscSerpLoaded) return;
-  window.__seoBwGscSerpLoaded = true;
+  // 1.13.8 (#158): the worker also injects this file into Search Console tabs
+  // that were open across an install or an update (src/lib/gsc-tabs.js).
+  // A tab that already has a live runner keeps it. After an update the old
+  // runner is orphaned: its page still runs it, but its extension is gone
+  // (chrome.runtime.id reads undefined), so its icons can't open anything.
+  // It stops itself at its next change (orphaned(), below), and every runner
+  // marks its icons with its own token and replaces any other runner's, so
+  // the orphan's dead icons are swapped for live ones, including those of a
+  // runner from 1.13.7 or before, which doesn't know to stop.
+  // This runner's own binding, read once: an orphan's reads no id any more.
+  const runtime = typeof chrome !== 'undefined' && chrome.runtime ? chrome.runtime : null;
+  const startedWithId = extensionId();
+  function extensionId() {
+    try {
+      return (runtime && runtime.id) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+  function orphaned() {
+    return !!startedWithId && !extensionId();
+  }
+  const prior = window.__seoBwGscSerpLoaded;
+  if (prior && (typeof prior !== 'function' || prior())) return;
+  window.__seoBwGscSerpLoaded = () => !orphaned();
 
   const inject = window.SBWGscInject;
   if (!inject) return;
   const compare = window.SBWGscCompare;
+  const OWNER = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   let hinted = false;
   function hint(text) {
@@ -73,7 +97,7 @@
     // cards and the % change column mean the same thing for pages, countries
     // and devices — so only the row icons are gated.
     ensureStyles();
-    if (inject.isQueriesView(location, document)) inject.injectAll(document, handlers);
+    if (inject.isQueriesView(location, document)) inject.injectAll(document, handlers, OWNER);
     else inject.removeAll(document);
     if (compare) compare.apply(document);
   }
@@ -140,6 +164,7 @@
   }
 
   function runScan() {
+    if (stopped) return;
     injecting = true;
     scan();
     // Let the (synchronous) MutationObserver microtask for the mutations
@@ -154,7 +179,16 @@
     }, 0);
   }
 
+  let stopped = false;
+  function stop() {
+    stopped = true;
+    observer.disconnect();
+    window.removeEventListener('popstate', onNavigated);
+  }
+
   const observer = new MutationObserver((records) => {
+    if (stopped) return;
+    if (orphaned()) return stop();
     if (records.length && records.every(recordIsOwnMutation)) return;
     if (injecting) {
       missed = true;
@@ -176,6 +210,8 @@
   // 1.10.2 this patched history.pushState, but a content script runs in an
   // isolated world: the page's own pushState calls never reached the patch.
   function onNavigated() {
+    if (stopped) return;
+    if (orphaned()) return stop();
     // Strip immediately rather than waiting for the next frame, so the icons
     // never render over a table that is no longer Queries.
     if (!inject.isQueriesView(location, document)) inject.removeAll(document);

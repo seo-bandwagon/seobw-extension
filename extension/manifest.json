@@ -28,7 +28,8 @@
     "search"
   ],
   "host_permissions": [
-    "https://seobandwagon.com/*"
+    "https://seobandwagon.com/*",
+    "https://search.google.com/*"
   ],
   "optional_host_permissions": [
     "http://localhost/*",
@@ -60,7 +61,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://search.google.com/search-console/*"
+        "https://search.google.com/search-console*",
+        "https://search.google.com/u/*/search-console*"
       ],
       "js": [
         "src/lib/gsc-inject.js",
