@@ -1,6 +1,6 @@
 // SEO Bandwagon - Background Service Worker
 
-importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
+importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/text-count.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
 
 // 1.13.7: the account key and the API address (chrome.storage.sync) are for
 // the extension's own pages and this worker only. By default every content
@@ -113,53 +113,15 @@ chrome.runtime.onInstalled.addListener(() => {
       title: 'SEO Bandwagon tools',
       contexts: ['page', 'selection']
     });
-    createMenuItem({
-      id: 'sbw-tools-gsc',
-      parentId: 'sbw-tools',
-      title: 'Open in Google Search Console (URL inspection)',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-wayback',
-      parentId: 'sbw-tools',
-      title: 'Open in Wayback Machine',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-pagespeed',
-      parentId: 'sbw-tools',
-      title: 'Open in PageSpeed Insights',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-rich-results',
-      parentId: 'sbw-tools',
-      title: 'Test with Rich Results Test',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-site-search',
-      parentId: 'sbw-tools',
-      title: 'site: search for this domain',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-selection-search',
-      parentId: 'sbw-tools',
-      title: 'Search Google for the selected text in quotes',
-      contexts: ['selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-sitemap',
-      parentId: 'sbw-tools',
-      title: 'Open sitemap.xml',
-      contexts: ['page', 'selection']
-    });
-    createMenuItem({
-      id: 'sbw-tools-robots',
-      parentId: 'sbw-tools',
-      title: 'Open robots.txt',
-      contexts: ['page', 'selection']
+    // 1.13.8: built from the one list (SBWToolLinks.TOOLS), the same as the
+    // popup's TOOLS row and the page-checks panel.
+    SBWToolLinks.TOOLS.forEach((tool) => {
+      createMenuItem({
+        id: SBWToolLinks.menuId(tool),
+        parentId: 'sbw-tools',
+        title: tool.title,
+        contexts: tool.selection ? ['selection'] : ['page', 'selection']
+      });
     });
   });
 });
@@ -167,16 +129,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Maps a "SEO Bandwagon tools" submenu id to the SBWToolLinks kind it
 // builds. Kept as a flat lookup (rather than a switch) so onClicked's
 // handling is a single branch regardless of which child fired.
-const SBW_TOOLS_MENU_KIND = {
-  'sbw-tools-gsc': 'gsc',
-  'sbw-tools-wayback': 'wayback',
-  'sbw-tools-pagespeed': 'pagespeed',
-  'sbw-tools-rich-results': 'rich-results',
-  'sbw-tools-site-search': 'site-search',
-  'sbw-tools-selection-search': 'quoted-search',
-  'sbw-tools-sitemap': 'sitemap',
-  'sbw-tools-robots': 'robots'
-};
+const SBW_TOOLS_MENU_KIND = Object.fromEntries(SBWToolLinks.TOOLS.map((t) => [SBWToolLinks.menuId(t), t.kind]));
 
 // --- Capture sync: alarm-driven retry drainer (Task 2) ---
 const SYNC_ALARM_NAME = 'sbw-sync';
@@ -243,20 +196,23 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     // the button that asks for it (popup.js, S29).
     analyzeLink.open(info.linkUrl).catch(() => {});
   } else if (info.menuItemId === 'seo-count-selection' && tab?.id) {
+    // 1.13.8: counts the selection the menu was opened on, in the frame it
+    // was opened in, text fields included, without injecting the analyzer
+    // (until 1.13.8 it asked the analyzer for the top frame's selection, so
+    // a selection in a frame or a text box counted nothing, and the
+    // analyzer's injection left the stray word-count tooltip behind).
+    // info.selectionText stands in when the frame can't be read.
+    const target = { tabId: tab.id };
+    if (typeof info.frameId === 'number') target.frameIds = [info.frameId];
+    let text = '';
     try {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ANALYZER_FILES });
-      } catch (e) { /* already injected */ }
-
-      const results = await chrome.tabs.sendMessage(tab.id, { action: 'countSelection' });
-
-      if (results) {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: showCountNotification,
-          args: [results]
-        });
-      }
+      const [res] = await chrome.scripting.executeScript({ target, func: SBWTextCount.readSelection });
+      text = (res && typeof res.result === 'string') ? res.result : '';
+    } catch (e) { /* a frame the extension can't read */ }
+    if (!text.trim()) text = info.selectionText || '';
+    const stats = SBWTextCount.countText(text);
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: showCountNotification, args: [stats] });
     } catch (e) {
       console.error('Count selection failed:', e);
     }

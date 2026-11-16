@@ -627,15 +627,13 @@ export function toolUrl(kind, pageUrl) {
   return (T && T.toolUrl(kind, { pageUrl })) || null;
 }
 
+// 1.13.8: the one list (src/lib/tool-links.js), the same as the menu's and
+// the popup's TOOLS row; until 1.13.8 the panel had five of its own.
 export function toolRow(pageUrl) {
-  return [
-    ['gsc', 'Search Console'],
-    ['pagespeed', 'PageSpeed'],
-    ['rich-results', 'Rich results'],
-    ['sitemap', 'sitemap.xml'],
-    ['robots', 'robots.txt'],
-  ]
-    .map(([kind, label]) => ({ kind, label, url: toolUrl(kind, pageUrl) }))
+  const T = tools();
+  const list = T && typeof T.pageTools === 'function' ? T.pageTools() : [];
+  return list
+    .map(({ kind, label }) => ({ kind, label, url: toolUrl(kind, pageUrl) }))
     .filter((t) => t.url);
 }
 

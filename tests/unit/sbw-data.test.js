@@ -428,7 +428,11 @@ describe('analyzeTab', () => {
 
 describe('tools, directory and panel', () => {
   it('toolRow drops any tool the link builder cannot make a url for', () => {
-    globalThis.SBWToolLinks = { toolUrl: (kind) => (kind === 'gsc' ? 'https://gsc.example' : null) };
+    // 1.13.8: the row is the one list (SBWToolLinks.pageTools).
+    globalThis.SBWToolLinks = {
+      pageTools: () => [{ kind: 'gsc', label: 'Search Console' }, { kind: 'wayback', label: 'Wayback Machine' }],
+      toolUrl: (kind) => (kind === 'gsc' ? 'https://gsc.example' : null)
+    };
     expect(D.toolRow('https://example.com')).toEqual([
       { kind: 'gsc', label: 'Search Console', url: 'https://gsc.example' },
     ]);

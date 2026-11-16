@@ -26,8 +26,6 @@ const {
   visibleText
 } = self.SEOBWExtraction;
 
-let counterEl = null; // For character counter
-
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'analyze') {
     // #63/#89: a PDF, an SVG or a sitemap isn't a page to score, and a throw
@@ -45,9 +43,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'highlight') {
     highlightElement(request.type, request);
     sendResponse({ success: true });
-  } else if (request.action === 'countSelection') {
-    const selection = window.getSelection().toString();
-    sendResponse(countText(selection));
   } else if (request.action === 'collectLinks') {
     sendResponse(collectLinks());
   }
@@ -56,15 +51,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return false;
 });
 
-function countText(text) {
-  const cleaned = text.replace(/\s+/g, ' ').trim();
-  const characters = cleaned.length;
-  const charactersNoSpaces = cleaned.replace(/\s/g, '').length;
-  const words = cleaned ? cleaned.split(/\s+/).length : 0;
-  const sentences = cleaned ? (cleaned.match(/[.!?]+(\s|$)/g) || []).length : 0;
-  const readingTimeMin = Math.max(1, Math.ceil(words / 238));
-  return { characters, charactersNoSpaces, words, sentences, readingTimeMin };
-}
 
 
 async function hashContent(text) {
@@ -197,18 +183,6 @@ function highlightElement(type, request) {
       .seo-toolkit-highlight-image-missing-alt { outline-color: #e74c3c !important; background: rgba(231, 76, 60, 0.2) !important; }
       .seo-toolkit-highlight-image-has-alt { outline-color: #27ae60 !important; }
       .seo-toolkit-highlight-broken { outline-color: #e5484d !important; background: rgba(229, 72, 77, 0.15) !important; }
-      #seo-toolkit-counter {
-        position: absolute;
-        background: #333;
-        color: #fff;
-        padding: 6px 12px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-        z-index: 999999;
-        display: none;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      }
     `;
     document.head.appendChild(style);
   }
@@ -296,60 +270,10 @@ function highlightElement(type, request) {
   }
 }
 
-// ============ CHARACTER COUNTER ============
-
-function showCharCounter(text, selection) {
-  if (!counterEl) {
-    counterEl = document.createElement('div');
-    counterEl.id = 'seo-toolkit-counter';
-    document.body.appendChild(counterEl);
-  }
-  
-  const words = text.split(/\s+/).filter(w => w.length > 0).length;
-  const chars = text.length;
-  const charsNoSpace = text.replace(/\s/g, '').length;
-  
-  counterEl.innerHTML = `
-    <strong>${words}</strong> words · 
-    <strong>${chars}</strong> chars · 
-    <strong>${charsNoSpace}</strong> no spaces
-  `;
-  
-  try {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    
-    counterEl.style.display = 'block';
-    counterEl.style.top = (rect.top + window.scrollY - 40) + 'px';
-    counterEl.style.left = Math.max(10, rect.left) + 'px';
-  } catch (e) {
-    hideCharCounter();
-  }
-}
-
-function hideCharCounter() {
-  if (counterEl) {
-    counterEl.style.display = 'none';
-  }
-}
-
-// Show char counter on text selection
-document.addEventListener('mouseup', () => {
-  const selection = window.getSelection();
-  const text = selection.toString().trim();
-  
-  if (text.length > 0) {
-    showCharCounter(text, selection);
-  } else {
-    hideCharCounter();
-  }
-});
-
-document.addEventListener('mousedown', (e) => {
-  if (e.target.id !== 'seo-toolkit-counter') {
-    hideCharCounter();
-  }
-});
+// 1.13.8: the word-count tooltip that followed every selection on a page
+// once anything had injected this file is gone; Count words & characters,
+// on the right-click menu, counts a selection when asked (the worker,
+// src/lib/text-count.js).
 
 // ============ DOM EXTRACTION ============
 // extractMeta, extractHeadings, extractLinks, extractImages, extractTechnical,
