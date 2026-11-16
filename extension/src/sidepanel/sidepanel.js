@@ -918,15 +918,19 @@ function setFoot(text) {
 // before sidePanel.open(), so the click is still a user action when it
 // opens. The tab in front is kept here as it changes, since a tabs.query()
 // inside the click would be an await.
+// Only this window's activations count; one that arrives before the first
+// query answers is kept until the window is known.
 let spTabId = null;
 let spWindowId = null;
+let spEarly = null;
 chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
   if (!tab) return;
-  if (spTabId === null) spTabId = tab.id;
   spWindowId = tab.windowId;
+  spTabId = spEarly && spEarly.windowId === tab.windowId ? spEarly.tabId : tab.id;
 }).catch(() => {});
 chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
-  if (spWindowId === null || windowId === spWindowId) spTabId = tabId;
+  if (spWindowId === null) spEarly = { tabId, windowId };
+  else if (windowId === spWindowId) spTabId = tabId;
 });
 document.getElementById('spPageChecks').addEventListener('click', () => {
   SBWPanels.openPanel('checks', spTabId).then((ok) => {

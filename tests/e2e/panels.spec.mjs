@@ -29,8 +29,15 @@ async function launch() {
   await context.route('**/*', (route) => (/^https?:/.test(route.request().url()) ? route.abort() : route.continue()));
   let [sw] = context.serviceWorkers();
   if (!sw) sw = await context.waitForEvent('serviceworker', { timeout: 15_000 });
+  // The install opens seobandwagon.com's welcome tab, which can take the
+  // front from the page under test at any moment; close it first.
+  const welcome = () => sw.evaluate(async () => (await chrome.tabs.query({ url: 'https://seobandwagon.com/*' })).map((t) => t.id));
+  await expect.poll(welcome).toHaveLength(1);
+  await sw.evaluate(async (ids) => chrome.tabs.remove(ids), await welcome());
   return { context, sw, id: new URL(sw.url()).host };
 }
+
+const tabIdOf = (sw, url) => sw.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].id, url);
 
 // The side panel documents open now. Chromium reports a side panel
 // context's tabId as -1 even for a tab's own panel (measured here, Playwright
@@ -48,16 +55,16 @@ test("Citations' Page checks opens the checks panel for the tab in front, in the
     await page.goto(`chrome-extension://${id}/src/sidepanel/sidepanel.html`);
     // The tab ID the button will use, held before the click (spTabId is a
     // top-level let of the classic script, so the page's global scope): the
-    // tab in front of this page's window, which tabs.onActivated keeps
-    // current (the install's welcome tab, opened after this page loaded, can
-    // be the one in front here).
-    await page.waitForFunction(() => typeof spTabId === 'number');
-    const front = await sw.evaluate(async (url) => {
-      const [mine] = await chrome.tabs.query({ url });
-      const [active] = await chrome.tabs.query({ active: true, windowId: mine.windowId });
-      return active.id;
-    }, page.url());
-    await expect.poll(() => page.evaluate(() => spTabId)).toBe(front);
+    // tab in front, which tabs.onActivated keeps current.
+    const own = await tabIdOf(sw, page.url());
+    await expect.poll(() => page.evaluate(() => spTabId)).toBe(own);
+    const other = await context.newPage();
+    await other.goto(`chrome-extension://${id}/src/options/options.html`);
+    await other.bringToFront();
+    await expect.poll(() => page.evaluate(() => spTabId)).toBe(await tabIdOf(sw, other.url()));
+    await other.close();
+    await page.bringToFront();
+    await expect.poll(() => page.evaluate(() => spTabId)).toBe(own);
     expect(await sidePanels(sw)).toEqual([]);
     await page.click('#spPageChecks');
     await expect.poll(() => sidePanels(sw)).toEqual([`chrome-extension://${id}/src/panel/panel.html`]);
