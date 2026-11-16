@@ -16,6 +16,12 @@
 //   own site counts only when it forwards to another site (Yelp's
 //   `/biz_redir?url=...`). Nothing found is '' (not compared), not a guess.
 //
+// 1.13.9: the directory's own node is passed over even when it carries an
+// address. MapQuest's Organization (its head office in Marina Del Rey) comes
+// before the listing's LocalBusiness, and 1.13.5 read SEO Bandwagon's MapQuest
+// listing as "MapQuest". A node is the directory's when its url or @id is the
+// site's home page or its name is the site's name (WebSite, og:site_name).
+//
 // Dual-export pattern (see src/lib/citations-ui.js / src/lib/api.js):
 // attaches to `globalThis.SBWNapExtract` when loaded as a classic script, and
 // exports via CommonJS when loaded by Vitest / Node. Reads the DOM it is
@@ -198,15 +204,50 @@
     return typeof node.url === 'string' ? offSite(node.url, pageUrl) : '';
   }
 
+  // An address on the page's own site whose path is its home page:
+  // "https://www.mapquest.com/" or "https://www.mapquest.com/#organization".
+  function isSiteHome(raw, pageUrl) {
+    let url;
+    try { url = new URL(String(raw).trim(), pageUrl); } catch (e) { return false; }
+    return /^https?:$/.test(url.protocol) && url.pathname === '/' &&
+      siteOf(url.hostname) === siteOf(hostOf(pageUrl));
+  }
+
+  // The site's own name, lowercased: its WebSite node's name and og:site_name.
+  function siteNames(doc, nodes) {
+    const names = nodes
+      .filter(n => typesOf(n).includes('WebSite') && typeof n.name === 'string')
+      .map(n => n.name);
+    const og = doc.querySelector('meta[property="og:site_name"]');
+    if (og && og.getAttribute('content')) names.push(og.getAttribute('content'));
+    return new Set(names.map(s => s.trim().toLowerCase()).filter(Boolean));
+  }
+
+  // The directory's own node: its url or @id is the site's home page, or its
+  // name is the site's name. A listing's node names the business, and its url
+  // is the listing's page or the business's own site.
+  function isDirectoryNode(node, pageUrl, names) {
+    const refs = [node.url, node['@id']].filter(v => typeof v === 'string');
+    if (refs.some(v => isSiteHome(v, pageUrl))) return true;
+    return typeof node.name === 'string' && names.has(node.name.trim().toLowerCase());
+  }
+
   // The listing's business among the page's nodes: one with an address or a
   // phone, else one whose own url is another site. The directory's own
-  // Organization node (its name and logo, often first on the page) is
-  // neither, so a page that has only that falls through to Microdata and the
-  // page's text instead of reading the directory's name as the listing's.
-  function listingNode(nodes, pageUrl) {
+  // Organization node (its name and logo, often first on the page) is passed
+  // over even when it carries its head office's address, as MapQuest's does
+  // (1.13.9; 1.13.5 read a MapQuest listing as MapQuest, Marina Del Rey). A
+  // page that has only the directory's node falls through to Microdata and the
+  // page's text instead of reading the directory's name as the listing's. When
+  // every business node looks like the site itself, as on a business's own
+  // website, the pick is the one before 1.13.9: the first with an address or a
+  // phone.
+  function listingNode(nodes, pageUrl, names) {
     const businesses = nodes.filter(isBusinessNode);
-    return businesses.find(n => n.address || n.telephone) ||
-      businesses.find(n => nodeWebsite(n, pageUrl)) || null;
+    const listings = businesses.filter(n => !isDirectoryNode(n, pageUrl, names));
+    if (!listings.length) return businesses.find(n => n.address || n.telephone) || null;
+    return listings.find(n => n.address || n.telephone) ||
+      listings.find(n => nodeWebsite(n, pageUrl)) || null;
   }
 
   function addressText(addr) {
@@ -218,7 +259,8 @@
   }
 
   function extractFromJsonLd(doc, pageUrl) {
-    const node = listingNode(jsonLdNodes(doc), pageUrl);
+    const nodes = jsonLdNodes(doc);
+    const node = listingNode(nodes, pageUrl, siteNames(doc, nodes));
     if (!node) return null;
     const phone = Array.isArray(node.telephone) ? node.telephone[0] : node.telephone;
     return {
@@ -289,6 +331,8 @@
     isBusinessType,
     isBusinessNode,
     jsonLdNodes,
+    siteNames,
+    isDirectoryNode,
     siteOf,
     offSite,
     websiteFromLinks,

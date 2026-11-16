@@ -73,6 +73,69 @@ describe('JSON-LD: schema.org subtypes are businesses', () => {
   });
 });
 
+// MapQuest's listing pages (read 2026-11-16). The directory's own Organization
+// comes first and carries its head office's address, so "the first business
+// node with an address or a phone" picked it: 1.13.5's Check NAP read SEO
+// Bandwagon's MapQuest listing as "MapQuest, 4235 Redwood Ave., Marina Del Rey"
+// and scored it 19% against the business. The three JSON-LD blocks and the
+// website button are MapQuest's own markup, trimmed to the fields read here.
+const MAPQUEST = 'https://www.mapquest.com/us/washington/seo-bandwagon-282884477';
+const MAPQUEST_ORG = {
+  '@context': 'https://schema.org', '@id': 'https://www.mapquest.com/#organization', '@type': 'Organization',
+  name: 'MapQuest', url: 'https://www.mapquest.com/', logo: 'https://static.mqcdn.com/yogi-cdn/yogi/graphics/mq-logo-full.svg',
+  address: { '@type': 'PostalAddress', streetAddress: '4235 Redwood Ave.', addressLocality: 'Marina Del Rey', addressRegion: 'CA', postalCode: '90066', addressCountry: 'United States' }
+};
+const MAPQUEST_SITE = { '@context': 'https://schema.org', '@id': 'https://www.mapquest.com/#website', '@type': 'WebSite', name: 'MapQuest', url: 'https://www.mapquest.com/' };
+const MAPQUEST_LISTING = {
+  '@context': 'https://schema.org', '@type': 'LocalBusiness', '@id': MAPQUEST, name: 'SEO Bandwagon', url: MAPQUEST,
+  telephone: '+18665354736', sameAs: 'https://seobandwagon.com/',
+  address: { '@type': 'PostalAddress', addressCountry: 'US', addressLocality: 'Seattle', addressRegion: 'WA', postalCode: '98104', streetAddress: '107 Spring Street' }
+};
+const MAPQUEST_WEB = '<a data-testid="bento-website" aria-label="Visit this location&#x27;s website" target="_blank" href="https://seobandwagon.com/">Web</a>';
+
+describe('the directory\'s own node is never the listing, even with an address (1.13.9)', () => {
+  it('MapQuest: its Organization\'s head office is passed over for the listing\'s LocalBusiness', () => {
+    const doc = page(ld(MAPQUEST_ORG) + ld(MAPQUEST_SITE) + ld(MAPQUEST_LISTING) + MAPQUEST_WEB);
+    expect(X.extractNap(doc, MAPQUEST)).toEqual({
+      name: 'SEO Bandwagon',
+      address: '107 Spring Street, Seattle, WA, 98104',
+      phone: '+18665354736',
+      website: 'https://seobandwagon.com/',
+      source: 'json-ld'
+    });
+  });
+
+  it('the directory\'s node is known by a url or @id that is its home page, or by the site\'s own name', () => {
+    const names = new Set(['mapquest']);
+    expect(X.isDirectoryNode(MAPQUEST_ORG, MAPQUEST, new Set())).toBe(true);
+    expect(X.isDirectoryNode({ '@type': 'Organization', '@id': 'https://www.mapquest.com/#organization', name: 'MQ' }, MAPQUEST, new Set())).toBe(true);
+    expect(X.isDirectoryNode({ '@type': 'Organization', name: 'MapQuest', address: '1 Main St' }, MAPQUEST, names)).toBe(true);
+    expect(X.isDirectoryNode(MAPQUEST_LISTING, MAPQUEST, names)).toBe(false);
+    // Another site's home page is the business's own website, not the directory.
+    expect(X.isDirectoryNode({ '@type': 'Dentist', name: 'Northside Dental', url: 'https://northsidedental.com/' }, YELP, new Set(['yelp']))).toBe(false);
+  });
+
+  it('the site\'s name comes from its WebSite node or og:site_name', () => {
+    const doc = new DOMParser().parseFromString(
+      '<!doctype html><html><head><meta property="og:site_name" content="Yelp"></head><body>' + ld(MAPQUEST_SITE) + '</body></html>', 'text/html');
+    expect([...X.siteNames(doc, X.jsonLdNodes(doc))].sort()).toEqual(['mapquest', 'yelp']);
+  });
+
+  it('a directory named only by og:site_name, with its address and no url, is passed over too', () => {
+    const doc = new DOMParser().parseFromString(
+      '<!doctype html><html><head><meta property="og:site_name" content="Yelp"></head><body>' +
+      ld({ '@type': 'Organization', name: 'Yelp', address: '350 Mission St, San Francisco, CA 94105' }) +
+      ld({ '@type': 'Dentist', name: 'Northside Dental', url: YELP, telephone: '(512) 555-0142' }) + '</body></html>', 'text/html');
+    expect(X.extractNap(doc, YELP)).toMatchObject({ name: 'Northside Dental', phone: '(512) 555-0142', address: '', source: 'json-ld' });
+  });
+
+  it('a business\'s own website, whose only node is its Organization at its home page, is still read', () => {
+    const own = 'https://northsidedental.com/contact';
+    const doc = page(ld({ '@type': 'Organization', name: 'Northside Dental', url: 'https://northsidedental.com/', telephone: '(512) 555-0142', address: '100 Main St, Austin, TX 78701' }));
+    expect(X.extractNap(doc, own)).toMatchObject({ name: 'Northside Dental', phone: '(512) 555-0142', address: '100 Main St, Austin, TX 78701', source: 'json-ld' });
+  });
+});
+
 describe('the website is the business\'s own, never the directory\'s', () => {
   it('a listing\'s JSON-LD url that is the directory page is not its website', () => {
     const doc = page(ld({ '@type': 'Dentist', name: 'Northside Dental', url: YELP, telephone: '(512) 555-0142' }));

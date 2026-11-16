@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.8** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -68,7 +68,7 @@ probably finish up a few more versions quickly"; until then B was
 gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds the Chrome and Edge packages from 1.13.6 on, and
-the Firefox one, linted, from 1.13.9 on. **Edge is listed before 2.0.0**
+the Firefox one, linted, from 1.13.10 on. **Edge is listed before 2.0.0**
 (owner, 2026-11-06): its first upload is 1.13.6's Edge package, because Edge
 Add-ons certification takes up to seven business days ("None of the upcoming
 features are that critical and we can have 2.0.0 launched on all"). Every release also updates `CHROMEWEBSTORE.md`,
@@ -231,7 +231,10 @@ From the source audit of 1.13.6 (vault: Extension_Security_Audit_2026-11, the ac
 - [x] Search Console: the Queries tab's row icons show without a reload, whatever page Search Console was opened on and after an install or update (#158)
 - [x] CI: a test coverage report on every PR, its summary in the job summary and the HTML report kept 7 days; the baseline recorded, no threshold yet (#74)
 
-### 1.13.9: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.8; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.9)
+### 1.13.9: Check NAP reads the listing, not the directory (patch)
+- [x] Citations: a directory's own Organization node is passed over even when it carries its head office's address (MapQuest's, read before the listing's LocalBusiness); a node is the directory's when its url or `@id` is the site's home page or its name is the site's name
+
+### 1.13.10: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.9; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.10)
 - [ ] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key)
 - [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
 - [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
@@ -288,6 +291,47 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.9 (2026-11-16)
+
+Check NAP reads the listing, not the directory it is on. Found on
+2026-11-16 while recording the website's product tour: on SEO Bandwagon's
+MapQuest listing (`https://www.mapquest.com/us/washington/seo-bandwagon-282884477`),
+1.13.5 to 1.13.8 read the business as "MapQuest, 4235 Redwood Ave., Marina
+Del Rey, CA, 90066", no phone, and scored it 19% against the business's
+record: name 8%, address 23%, phone not found.
+
+- **The cause.** MapQuest's page carries three JSON-LD blocks: its own
+  Organization (with its head office's address and no phone), its WebSite,
+  then the listing's LocalBusiness (SEO Bandwagon, 107 Spring Street,
+  Seattle, +18665354736). `listingNode` took the first business node with an
+  address or a phone, on 1.10.3's assumption that a directory's own node has
+  neither, so MapQuest's Organization won.
+- **Now** (`src/lib/nap-extract.js`): a business node is the directory's own
+  when its `url` or `@id` is the site's home page
+  (`https://www.mapquest.com/`, `…/#organization`) or its name is the site's
+  name (its WebSite node's name, or `og:site_name`), and such nodes are
+  passed over for the listing's. When every business node looks like the
+  site itself, as on a business's own website, the pick is the old one: the
+  first with an address or a phone.
+- **Measured.** The saved MapQuest page through the extractor: 1.13.8 gives
+  `MapQuest / 4235 Redwood Ave., Marina Del Rey, CA, 90066 / (no phone)`,
+  1.13.9 `SEO Bandwagon / 107 Spring Street, Seattle, WA, 98104 /
+  +18665354736`, website `https://seobandwagon.com/` both times (the
+  listing's "Visit this location's website" button). Live, the unpacked
+  build in Chrome for Testing on that listing, signed in, Check NAP against
+  the business's record: 78% match, name, phone and website 100%, the address
+  28%, since the listing still has the old Seattle address and the record
+  Middletown, DE (a real drift, which 1.13.8 hid behind MapQuest's own).
+- **Tests.** `tests/unit/nap.test.js`: MapQuest's three blocks and its
+  website button, trimmed; a directory known by its home-page `url` or
+  `@id`, or by name through WebSite or `og:site_name`; and a business's own
+  website still read from its only Organization.
+- No permission, host, content-script or data-use change: the manifest
+  changes only `version` and `version_name`, so the install warnings are the
+  same four. Store text: none to change.
+- **Planned releases moved up one:** Firefox's package and one panel opener
+  are 1.13.10.
 
 ## Changelog — v1.13.8 (2026-11-16)
 
