@@ -55,6 +55,26 @@
   // regardless of what the other, more cosmetic fields show.
   const CRITICAL_FIELDS = ['title', 'metaDescription', 'h1'];
 
+  // 1.13.8: the signals Google may read from either copy, so JavaScript
+  // changing one sends a crawler that doesn't run it something else. Until
+  // 1.13.8 a page whose script rewrote its title, canonical or robots read
+  // "Hydrated, same content".
+  const SIGNAL_FIELDS = ['title', 'canonical', 'robots'];
+
+  // Compared as the signals mean, not as typed: whitespace in a title,
+  // a canonical's fragment, a robots meta's case, spacing and order.
+  function sameText(v) {
+    return String(v || '').replace(/\s+/g, ' ').trim();
+  }
+  function sameUrl(v) {
+    if (!v) return null;
+    try { const u = new URL(v); u.hash = ''; return u.toString(); } catch (e) { return String(v); }
+  }
+  function sameRobots(v) {
+    if (!v) return null;
+    return String(v).toLowerCase().split(/[\s,]+/).filter(Boolean).sort().join(', ') || null;
+  }
+
   function stripComments(html) {
     return html.replace(/<!--[\s\S]*?-->/g, '');
   }
@@ -376,10 +396,10 @@
   // "changed" for the whole array rather than the far more useful "the
   // count is the same". Counts are exact and comparable; text is not.
   const DIFF_FIELDS = [
-    { field: 'title', get: s => s.title || '' },
+    { field: 'title', get: s => sameText(s.title) },
     { field: 'metaDescription', get: s => s.metaDescription || '' },
-    { field: 'canonical', get: s => s.canonical || null },
-    { field: 'robots', get: s => s.robots || null },
+    { field: 'canonical', get: s => sameUrl(s.canonical) },
+    { field: 'robots', get: s => sameRobots(s.robots) },
     { field: 'h1', get: s => (s.headings && s.headings.h1) || 0 },
     { field: 'h2', get: s => (s.headings && s.headings.h2) || 0 },
     { field: 'h3', get: s => (s.headings && s.headings.h3) || 0 },
@@ -433,6 +453,12 @@
   //     doesn't support.
   //   'static'      — every tracked field matches exactly: what the server
   //     sent is exactly what ends up on screen.
+  //   'js-changed'  — 1.13.8: nothing critical is JS-only, but JavaScript
+  //     changed the title, the canonical or the robots meta (added one the
+  //     server didn't send, removed one it did, or rewrote it), so a crawler
+  //     that reads the server's copy sees another signal. A warning.
+  //     `changedSignals` names them whatever the verdict, so the popup can
+  //     warn alongside 'js-rendered' too.
   //   'hydrated'    — something differs (framework markup, script/link
   //     counts, a minor word-count wobble under the 50% line, etc.) but
   //     nothing critical is JS-only and the content growth isn't dramatic —
@@ -456,16 +482,25 @@
     const wordGrowth = rawWords > 0 ? (domWords - rawWords) / rawWords : (domWords > 0 ? Infinity : 0);
     const wordGrew = wordGrowth > WORD_GROWTH_THRESHOLD;
 
+    // A truncated fetch can lose a tag the page did send, so only a signal
+    // the raw copy has (changed, or gone from the rendered one) counts then.
+    const changedSignals = rows
+      .filter(row => SIGNAL_FIELDS.includes(row.field) && row.status !== 'same')
+      .filter(row => !truncated || row.status !== 'js-only')
+      .map(row => row.field);
+
     let verdict;
     if (criticalJsOnly || wordGrew) {
       verdict = truncated ? 'partial' : 'js-rendered';
+    } else if (changedSignals.length) {
+      verdict = 'js-changed';
     } else if (rows.every(row => row.status === 'same')) {
       verdict = 'static';
     } else {
       verdict = 'hydrated';
     }
 
-    return { rows, verdict, truncated };
+    return { rows, verdict, truncated, changedSignals };
   }
 
   return {

@@ -86,7 +86,25 @@ function isGoogleSerpUrl(url) {
 // SEO tab does, and can post status/reach the active tab without duplicating
 // this file's module-scoped state. setSeoStatus is a function declaration
 // (hoisted), so this works even though it's defined further down the file.
-globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => currentTab };
+globalThis.SBWPopup = { esc, section, badge, setSeoStatus, getCurrentTab: () => currentTab, reanalyze };
+
+// 1.13.8: analyze the tab again from scratch, the section the person was in
+// open again: the popup opens afresh, and the worker dropped its cached
+// analysis when the tab reloaded (#93). Used after "View as" reloads the tab.
+function reanalyze(openSection) {
+  try { if (openSection) sessionStorage.setItem('sbwOpenSection', openSection); } catch (e) { /* storage blocked */ }
+  location.reload();
+}
+
+function reopenSection() {
+  let id = null;
+  try { id = sessionStorage.getItem('sbwOpenSection'); sessionStorage.removeItem('sbwOpenSection'); } catch (e) { return; }
+  if (!id) return;
+  const el = document.querySelector(`#content [data-section="${CSS.escape(id)}"]`);
+  if (!el) return;
+  el.classList.add('open');
+  el.scrollIntoView({ block: 'start' });
+}
 
 /* ---------- tab switching ---------- */
 
@@ -509,6 +527,7 @@ function renderResults(data) {
   // above the score hero, so it has to mount last (every mount() above
   // targets a spot further down and would otherwise land above it).
   globalThis.SBWToolsUI?.mount(document.getElementById('content'), data);
+  reopenSection();
 }
 
 /* ---------- section renderers (1.10.4) ---------- */

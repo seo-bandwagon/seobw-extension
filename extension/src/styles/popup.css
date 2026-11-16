@@ -1125,7 +1125,9 @@ body {
 .rc-actions button:hover { border-color: var(--pink); color: var(--ink); }
 .rc-actions button:disabled { color: var(--paper-40); border-color: var(--edge); cursor: default; }
 
-.rc-verdict { display: flex; align-items: center; gap: 8px; padding: 4px 14px 10px; }
+.rc-verdict { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 14px 10px; }
+/* 1.13.8: JavaScript changed the title, canonical or robots. */
+.rc-signal-note { flex-basis: 100%; font-size: 10.5px; line-height: 1.45; color: var(--warning); }
 
 .rc-error {
   padding: 0 14px 10px;

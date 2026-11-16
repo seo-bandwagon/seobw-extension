@@ -261,6 +261,12 @@
     static: 'Static HTML',
     hydrated: 'Hydrated — same content'
   };
+  // 1.13.8: what a JavaScript change to a signal means.
+  const SIGNAL_LABEL = { title: 'the title', canonical: 'the canonical', robots: 'the robots meta' };
+  function signalList(fields) {
+    const names = fields.map(f => SIGNAL_LABEL[f] || f);
+    return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
+  }
 
   // Fix round 1, IMPORTANT 3: a truncated raw fetch (worker's 1 MB cap)
   // never reports as 'js-rendered' (see SBWHtmlDiff.diffSummaries's
@@ -279,16 +285,23 @@
     } else if (v === 'js-rendered') {
       const n = diffResult.rows.filter(r => r.status === 'js-only').length;
       label = `JavaScript-rendered — ${n} field${n === 1 ? '' : 's'} exist only after JS`;
+    } else if (v === 'js-changed') {
+      label = `JavaScript changes ${signalList(diffResult.changedSignals)}`;
     } else {
       label = VERDICT_LABEL[v] || v;
     }
-    const cls = (v === 'js-rendered' || v === 'partial') ? 'b-warn' : 'b-ok';
+    const cls = (v === 'js-rendered' || v === 'partial' || v === 'js-changed') ? 'b-warn' : 'b-ok';
     const truncNote = diffResult.truncated
       ? '<div class="rc-truncated-note">Raw HTML truncated at 1 MB — comparison is partial.</div>'
+      : '';
+    const signals = diffResult.changedSignals || [];
+    const signalNote = signals.length
+      ? `<div class="rc-signal-note">The server sends one version of ${esc(signalList(signals))} and JavaScript leaves another. Google may read either, so make the HTML the server sends say what you mean.</div>`
       : '';
     return `<div class="rc-verdict">
       <span class="badge-mono ${cls}">${esc(label)}</span>
       ${truncNote}
+      ${signalNote}
     </div>`;
   }
 
@@ -389,6 +402,27 @@
     render();
   }
 
+  // 1.13.8: until 1.13.8 the popup kept the analysis from before View as,
+  // although the tab reloaded with the other User-Agent. Watched from before
+  // the request goes out, since the worker reloads the tab at once.
+  function watchReload(tabId) {
+    let done = null;
+    const finished = new Promise((resolve) => { done = resolve; });
+    if (!chrome.webNavigation || !chrome.webNavigation.onCompleted) return { finished, cancel() {} };
+    const timer = setTimeout(() => cancel(), 60000);
+    function onCompleted(details) {
+      if (details.tabId !== tabId || details.frameId !== 0) return;
+      cancel();
+      done(true);
+    }
+    function cancel() {
+      clearTimeout(timer);
+      chrome.webNavigation.onCompleted.removeListener(onCompleted);
+    }
+    chrome.webNavigation.onCompleted.addListener(onCompleted);
+    return { finished, cancel };
+  }
+
   async function onUaChange() {
     const select = sectionEl && sectionEl.querySelector('#rcUaSelect');
     const presetId = select ? select.value : 'default';
@@ -397,11 +431,13 @@
     uaLoading = true;
     render();
 
+    const reload = tab && typeof tab.id === 'number' ? watchReload(tab.id) : null;
     const res = await sendToWorker({ action: 'setUserAgent', tabId: tab && tab.id, presetId });
-    if (my !== gen) return;
+    if (my !== gen) { if (reload) reload.cancel(); return; }
     uaLoading = false;
 
     if (!res || res.error) {
+      if (reload) reload.cancel();
       if (res && res.error === 'no_permission') {
         state = 'no-permission';
         watchForGrant(my);
@@ -419,6 +455,14 @@
       'success'
     );
     render();
+    // The reload done, the analysis is run again on what this User-Agent
+    // got, with this section open.
+    if (reload) {
+      reload.finished.then(() => {
+        if (my !== gen) return;
+        popup().reanalyze?.('render');
+      });
+    }
   }
 
   const CSV_COLUMNS = [

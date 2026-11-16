@@ -184,8 +184,10 @@ describe('diffSummaries', () => {
     expect(canonicalRow.status).toBe('changed');
     expect(canonicalRow.raw).toBe('https://northsidedental.com/old-canonical');
     expect(canonicalRow.rendered).toBe('https://northsidedental.com/austin/family-dentistry');
-    // Nothing critical is JS-only and word count didn't grow -> not js-rendered.
-    expect(verdict).toBe('hydrated');
+    // Nothing critical is JS-only and word count didn't grow -> not
+    // js-rendered. 1.13.8: but JavaScript changed the canonical, which until
+    // 1.13.8 read "Hydrated, same content": a warning now.
+    expect(verdict).toBe('js-changed');
   });
 
   it('word-count growth over 50% flips the verdict to js-rendered even with no critical js-only field', () => {
@@ -400,5 +402,45 @@ describe('summarizeHtml — symmetric link/JSON-LD counts (IMPORTANT 4)', () => 
       </head><body></body></html>`;
     const s = SBWHtmlDiff.summarizeHtml(html, BASE_URL);
     expect(s.jsonLdBlocks).toBe(1);
+  });
+});
+
+// 1.13.8: JavaScript changing the title, canonical or robots is a warning,
+// not "Hydrated, same content".
+describe('diffSummaries — JavaScript changes a signal (1.13.8)', () => {
+  const base = () => ({
+    title: 'Roofing in Denver', metaDescription: 'Roofs.', canonical: 'https://example.com/roofing/', robots: 'index, follow',
+    headings: { h1: 1, h2: 2, h3: 0, h4: 0, h5: 0, h6: 0 }, linkCount: 10, imgCount: 2, jsonLdBlocks: 1, wordCountApprox: 400, hreflangCount: 0
+  });
+
+  it('a rewritten title, canonical or robots is js-changed, naming each', () => {
+    const raw = base();
+    const dom = { ...base(), title: 'Roofing in Denver | Acme', canonical: 'https://example.com/', robots: 'noindex' };
+    const out = SBWHtmlDiff.diffSummaries(raw, dom);
+    expect(out.verdict).toBe('js-changed');
+    expect(out.changedSignals).toEqual(['title', 'canonical', 'robots']);
+  });
+
+  it('a robots meta JavaScript adds, or one it removes, counts', () => {
+    expect(SBWHtmlDiff.diffSummaries({ ...base(), robots: null }, { ...base(), robots: 'noindex' }).changedSignals).toEqual(['robots']);
+    expect(SBWHtmlDiff.diffSummaries(base(), { ...base(), canonical: null }).verdict).toBe('js-changed');
+  });
+
+  it('the same signal written differently is the same', () => {
+    const dom = { ...base(), title: '  Roofing   in Denver ', canonical: 'https://example.com/roofing/#top', robots: 'FOLLOW,INDEX' };
+    const out = SBWHtmlDiff.diffSummaries(base(), dom);
+    expect(out.changedSignals).toEqual([]);
+    expect(out.verdict).toBe('static');
+  });
+
+  it('a JavaScript-rendered page still names a changed signal', () => {
+    const out = SBWHtmlDiff.diffSummaries({ ...base(), metaDescription: '' }, { ...base(), robots: 'noindex' });
+    expect(out.verdict).toBe('js-rendered');
+    expect(out.changedSignals).toEqual(['robots']);
+  });
+
+  it('a truncated fetch counts a changed or removed signal, not one only the page has', () => {
+    const out = SBWHtmlDiff.diffSummaries({ ...base(), robots: null, truncated: true }, { ...base(), robots: 'noindex', canonical: 'https://example.com/' });
+    expect(out.changedSignals).toEqual(['canonical']);
   });
 });
