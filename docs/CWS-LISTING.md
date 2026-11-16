@@ -1,11 +1,12 @@
-# Chrome Web Store listing text — next submission: v1.13.8 (submission D)
+# Chrome Web Store listing text — in review: v1.13.8 (submission D)
 
 The listing text for the next store submission, kept current with `main`.
 **2026-11-16:** the store serves 1.13.5 (the combined submission, a check run
-read "Published now: PUBLISHED (1.13.5)"), and the next upload is 1.13.8
-(submission D, 1.13.6 to 1.13.8). What changes in the dashboard with it is
-in `CHROMEWEBSTORE.md` under "Due with the next submission (D)"; its release
-notes are §6. The rest of this paragraph is the combined submission's
+read "Published now: PUBLISHED (1.13.5)"), and 1.13.8 is in review
+(submission D, 1.13.6 to 1.13.8, submitted 2026-11-16 as a staged publish,
+run `43966185223`). What changed in the dashboard with it is in
+`CHROMEWEBSTORE.md` under "Submission D's texts (1.13.8)"; its release notes are §6.
+1.13.9 changes no listing text and goes with the next submission (E). The rest of this paragraph is the combined submission's
 record. The store served 1.10.2 (published 2026-11-01, store submission A). 1.10.3
 to 1.13.5 were built and not submitted: the owner ruled on 2026-11-02 that
 submissions B and C become one upload, and on 2026-11-05 that it is of
