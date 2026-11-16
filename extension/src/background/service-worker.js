@@ -1192,8 +1192,9 @@ chrome.runtime.onInstalled.addListener(() => { SBWProofStore.clear().catch(() =>
 // SYNCHRONOUSLY at worker top level, not after an `await SBWPerms.hasAllUrls()`
 // — a listener added after an await can miss events that fire in the gap
 // between the worker waking up and that await resolving. Instead, a
-// module-level `allUrlsGranted` flag gates every handler body; each one
-// returns immediately when it's false. This is belt-and-braces (webRequest/
+// module-level gate (`allUrlsGate`) runs every handler body only with the
+// grant; while the grant check is still out (the worker just woke) it holds
+// them, in order, rather than dropping them (1.13.8). This is belt-and-braces (webRequest/
 // webNavigation already deliver nothing without the host permission), but it
 // means a grant that lands mid-session via permissions.onAdded starts being
 // observed on the very next event, with nothing to (re)register, and a
@@ -1201,8 +1202,10 @@ chrome.runtime.onInstalled.addListener(() => { SBWProofStore.clear().catch(() =>
 const REDIRECTS_MAX_EVENTS = 25;
 const TRACE_TIMEOUT_MS = 20000;
 
-let allUrlsGranted = false;
-SBWPerms.hasAllUrls().then((v) => { allUrlsGranted = v; });
+// 1.13.8: a gate, not a flag that started false, so the events of the
+// navigation that woke the worker wait for the grant check instead of being
+// dropped (src/lib/perms.js createGrantGate).
+const allUrlsGate = SBWPerms.createGrantGate();
 
 const lastMainFrameRequestId = {}; // tabId -> requestId, so a duplicate onBeforeRequest call for the same navigation can't wipe a buffer mid-capture
 
@@ -1270,17 +1273,15 @@ function clearAllRedirectBuffers() {
 
 const REDIRECT_FILTER = { urls: ['<all_urls>'], types: ['main_frame'] };
 
-chrome.webRequest.onBeforeRequest.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webRequest.onBeforeRequest.addListener((details) => allUrlsGate.run(() => {
   const tabId = details.tabId;
   if (tabId < 0) return;
   if (lastMainFrameRequestId[tabId] === details.requestId) return;
   lastMainFrameRequestId[tabId] = details.requestId;
   resetRedirectBuffer(tabId);
-}, REDIRECT_FILTER);
+}), REDIRECT_FILTER);
 
-chrome.webRequest.onBeforeRedirect.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webRequest.onBeforeRedirect.addListener((details) => allUrlsGate.run(() => {
   appendRedirectEvent(details.tabId, {
     kind: 'redirect',
     url: details.url,
@@ -1288,7 +1289,7 @@ chrome.webRequest.onBeforeRedirect.addListener((details) => {
     location: details.redirectUrl,
     headers: SBWRedirects.pickHeaders(details.responseHeaders)
   });
-}, REDIRECT_FILTER, ['responseHeaders']);
+}), REDIRECT_FILTER, ['responseHeaders']);
 
 // Only the statuses a browser actually auto-follows are "hops" captured by
 // onBeforeRedirect above (301/302/303/307/308). 304 Not Modified, and the
@@ -1297,8 +1298,7 @@ chrome.webRequest.onBeforeRedirect.addListener((details) => {
 // blanket "3xx" check.
 const BROWSER_FOLLOWED_REDIRECTS = [301, 302, 303, 307, 308];
 
-chrome.webRequest.onHeadersReceived.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webRequest.onHeadersReceived.addListener((details) => allUrlsGate.run(() => {
   if (BROWSER_FOLLOWED_REDIRECTS.includes(details.statusCode)) return;
   appendRedirectEvent(details.tabId, {
     kind: 'response',
@@ -1306,25 +1306,24 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
     statusCode: details.statusCode,
     headers: SBWRedirects.pickHeaders(details.responseHeaders)
   });
-}, REDIRECT_FILTER, ['responseHeaders']);
+}), REDIRECT_FILTER, ['responseHeaders']);
 
-chrome.webNavigation.onCommitted.addListener((details) => {
-  if (!allUrlsGranted) return;
+chrome.webNavigation.onCommitted.addListener((details) => allUrlsGate.run(() => {
   if (details.frameId !== 0) return;
   if (Array.isArray(details.transitionQualifiers) && details.transitionQualifiers.includes('client_redirect')) {
     appendRedirectEvent(details.tabId, { kind: 'client_redirect', url: details.url });
   }
-});
+}));
 
 chrome.permissions.onAdded.addListener((perms) => {
   if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
-    allUrlsGranted = true;
+    allUrlsGate.set(true);
   }
 });
 
 chrome.permissions.onRemoved.addListener((perms) => {
   if (perms && Array.isArray(perms.origins) && perms.origins.includes('<all_urls>')) {
-    allUrlsGranted = false;
+    allUrlsGate.set(false);
     clearAllRedirectBuffers();
     // clearAllUaRules (Task 4, defined near the UA-switcher block below —
     // hoisted, so its physical position doesn't matter here) — a revoked

@@ -107,6 +107,7 @@
     const fromRobots = says(robots);
     const fromGooglebot = says(googlebot);
     return {
+      robotsAll: robots.length ? robots.join(', ') : null,
       googlebot: googlebot.length ? googlebot.join(', ') : null,
       noindex: fromRobots || fromGooglebot,
       noindexSource: fromRobots ? 'robots' : fromGooglebot ? 'googlebot' : null
@@ -198,6 +199,8 @@
       // The first robots tag, as before 1.10.4 and as the render check's raw
       // side reads it; noindex reads every robots and googlebot tag.
       robots: getMeta('robots') || null,
+      // 1.13.8: every robots tag, for the Indexability panel.
+      robotsAll: robots.robotsAll,
       googlebot: robots.googlebot,
       noindex: robots.noindex,
       noindexSource: robots.noindexSource,

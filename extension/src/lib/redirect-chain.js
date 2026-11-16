@@ -105,10 +105,11 @@
     });
 
     const directives = Array.from(directiveSet);
+    // 1.13.8: `none` is noindex plus nofollow (Google's robots meta docs).
     return {
       directives,
-      noindex: directives.includes('noindex'),
-      nofollow: directives.includes('nofollow'),
+      noindex: directives.includes('noindex') || directives.includes('none'),
+      nofollow: directives.includes('nofollow') || directives.includes('none'),
       agents: Array.from(agentSet),
       byAgent
     };
@@ -244,12 +245,26 @@
   // pageUrl }. xRobotsTag may be the raw header string or an already-parsed
   // parseXRobotsTag() result — accept both so the popup can pass through
   // whichever it already has on hand.
+  // A robots meta's own words: `noindex`, or `none` (noindex plus nofollow).
+  function robotsSays(content) {
+    const tokens = String(content || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
+    if (tokens.includes('noindex')) return 'noindex';
+    if (tokens.includes('none')) return 'none';
+    return null;
+  }
+
+  // 1.13.8: `metaRobots` and `metaGooglebot` are every robots and googlebot
+  // meta on the page, joined (lib/dom-extraction.js); until 1.13.8 this read
+  // only the first robots tag and only the word `noindex`, so `none` and a
+  // `googlebot` meta read INDEXABLE. `metaNoindex` is the extractor's own
+  // verdict, when it has one, so the two never disagree.
   function indexability(input) {
     const opts = input || {};
     const reasons = [];
 
-    const metaRobots = String(opts.metaRobots || '').toLowerCase();
-    const metaNoindex = /(^|[,\s])noindex([,\s]|$)/.test(metaRobots);
+    const fromRobots = robotsSays(opts.metaRobots);
+    const fromGooglebot = robotsSays(opts.metaGooglebot);
+    const metaNoindex = !!(fromRobots || fromGooglebot || opts.metaNoindex === true);
 
     const xrt = !opts.xRobotsTag ? null
       : (typeof opts.xRobotsTag === 'string' ? parseXRobotsTag(opts.xRobotsTag) : opts.xRobotsTag);
@@ -264,8 +279,12 @@
     const pageNorm = normalizeUrlForCompare(opts.pageUrl);
     const canonicalMatches = (canonicalNorm && pageNorm) ? (canonicalNorm === pageNorm) : null;
 
-    if (metaNoindex) reasons.push('noindex (meta robots)');
-    if (headerNoindex) reasons.push('noindex (X-Robots-Tag)');
+    if (fromRobots === 'noindex') reasons.push('noindex (meta robots)');
+    else if (fromRobots === 'none') reasons.push('none, which is noindex (meta robots)');
+    if (fromGooglebot === 'noindex') reasons.push('noindex (meta googlebot)');
+    else if (fromGooglebot === 'none') reasons.push('none, which is noindex (meta googlebot)');
+    if (metaNoindex && !fromRobots && !fromGooglebot) reasons.push('noindex (meta ' + (opts.metaNoindexSource || 'robots') + ')');
+    if (headerNoindex) reasons.push(xrt.directives.includes('noindex') ? 'noindex (X-Robots-Tag)' : 'none, which is noindex (X-Robots-Tag)');
     if (isErrorStatus) reasons.push(`HTTP ${finalStatus}`);
     if (canonicalMatches === false) reasons.push('canonical points to another URL');
 
@@ -287,6 +306,7 @@
   return {
     pickHeaders,
     parseXRobotsTag,
+    robotsSays,
     parseLinkHeader,
     chainSummary,
     indexability,
