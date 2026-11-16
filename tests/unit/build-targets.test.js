@@ -142,7 +142,8 @@ describe('npm run zip -- --target', () => {
     expect(parseArgs(['--target=edge', 'x.zip'])).toEqual({ target: 'edge', out: 'x.zip' });
     expect(parseArgs(['out.zip'])).toEqual({ target: 'chrome', out: 'out.zip' });
     expect(defaultZipName('edge')).toBe('seo-bw-extension-edge.zip');
-    expect(() => parseArgs(['--target', 'firefox'])).toThrow(/Unknown target/);
+    expect(parseArgs(['--target', 'firefox'])).toEqual({ target: 'firefox', out: 'seo-bw-extension-firefox.zip' });
+    expect(() => parseArgs(['--target', 'safari'])).toThrow(/Unknown target "safari": use chrome, edge, firefox/);
   });
 
   it('merges an overlay as a JSON merge patch', () => {

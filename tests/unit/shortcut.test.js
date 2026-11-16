@@ -57,3 +57,37 @@ describe('where it is shown', () => {
     expect(fs.readFileSync('extension/src/background/service-worker.js', 'utf8')).toMatch(/SBWShortcut\.openPopup\(chrome\)/);
   });
 });
+
+// 1.13.10: Firefox's shortcuts page is in about:addons, which tabs.create may
+// not open (MDN, tabs.create), so the Firefox build has no shortcutsUrl and
+// asks Firefox to open it (commands.openShortcutSettings, Firefox 137).
+describe('openSettings', () => {
+  const api = () => ({ tabs: { create: vi.fn(async () => ({})) }, commands: { openShortcutSettings: vi.fn(async () => {}) } });
+
+  it('opens the address where the build has one (Chrome, Edge)', async () => {
+    const c = api();
+    expect(await S.openSettings(c, { shortcutsUrl: 'chrome://extensions/shortcuts' })).toBe(true);
+    expect(c.tabs.create).toHaveBeenCalledWith({ url: 'chrome://extensions/shortcuts' });
+    expect(c.commands.openShortcutSettings).not.toHaveBeenCalled();
+  });
+
+  it("asks the browser where it has none (Firefox)", async () => {
+    const c = api();
+    expect(await S.openSettings(c, { shortcutsUrl: null })).toBe(true);
+    expect(c.commands.openShortcutSettings).toHaveBeenCalled();
+    expect(c.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it('says false, and never throws, when neither works', async () => {
+    expect(await S.openSettings({ tabs: {}, commands: {} }, { shortcutsUrl: null })).toBe(false);
+    const c = api();
+    c.commands.openShortcutSettings = vi.fn(async () => { throw new Error('refused'); });
+    expect(await S.openSettings(c, { shortcutsUrl: null })).toBe(false);
+  });
+
+  it('is what Options and the popup\'s About call', () => {
+    expect(fs.readFileSync('extension/src/options/options.js', 'utf8')).toContain('SBWShortcut.openSettings(chrome, SBWBrowser)');
+    expect(fs.readFileSync('extension/src/popup/structured-data.js', 'utf8')).toContain('SBWShortcut.openSettings(chrome, SBWBrowser)');
+    expect(fs.readFileSync('extension/src/options/options.js', 'utf8')).not.toContain('SBWBrowser.shortcutsUrl');
+  });
+});

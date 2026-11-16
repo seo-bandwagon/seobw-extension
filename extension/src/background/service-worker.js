@@ -1,6 +1,12 @@
 // SEO Bandwagon - Background Service Worker
+//
+// Chrome and Edge run this file as a service worker, which loads its
+// libraries with importScripts(). Firefox runs it as a background page
+// (`background.scripts`, 1.13.10), which has no importScripts: its manifest
+// lists the same files before this one, read from these calls by
+// scripts/targets/firefox.mjs, so they are loaded already.
 
-importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/text-count.js', '../lib/shortcut.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
+if (typeof importScripts === 'function') importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/text-count.js', '../lib/shortcut.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
 
 // 1.13.7: the account key and the API address (chrome.storage.sync) are for
 // the extension's own pages and this worker only. By default every content
@@ -23,8 +29,10 @@ importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-s
 
 // 1.12.0: Firefox's background page has a DOM parser and reads Analyze's
 // pages itself; Chrome's worker hands them to the offscreen document, which
-// loads these on its own (src/offscreen/offscreen.html).
-if (typeof DOMParser === 'function') {
+// loads these on its own (src/offscreen/offscreen.html). No worker has a
+// DOMParser, so this call never runs: it is the list Firefox's manifest
+// loads (scripts/targets/firefox.mjs reads it, as it reads the one above).
+if (typeof importScripts === 'function' && typeof DOMParser === 'function') {
   importScripts('../../lib/content-analysis.js', '../lib/structured-data.js', '../lib/serp-preview.js', '../lib/page-row.js');
 }
 

@@ -8,6 +8,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import chrome from '../../scripts/targets/chrome.mjs';
 import edge from '../../scripts/targets/edge.mjs';
+import firefox from '../../scripts/targets/firefox.mjs';
 import { packageManifest, browserSource } from '../../scripts/build-zip.mjs';
 
 const B = globalThis.SBWBrowser; // tests/setup/browser.js loaded the source
@@ -23,17 +24,18 @@ describe('the values', () => {
 
   it('name the same things in every target', () => {
     expect(Object.keys(edge.browser).sort()).toEqual(Object.keys(chrome.browser).sort());
+    expect(Object.keys(firefox.browser).sort()).toEqual(Object.keys(chrome.browser).sort());
   });
 
   it('give each target the shortcut its manifest suggests', () => {
-    for (const t of [chrome, edge]) {
+    for (const t of [chrome, edge, firefox]) {
       const m = JSON.parse(packageManifest(manifestText, t));
       expect(m.commands['analyze-current'].suggested_key, t.target).toEqual(t.browser.shortcut);
     }
   });
 
   it('ship the new tab only where the manifest overrides it', () => {
-    for (const t of [chrome, edge]) {
+    for (const t of [chrome, edge, firefox]) {
       const m = JSON.parse(packageManifest(manifestText, t));
       expect(!!(m.chrome_url_overrides && m.chrome_url_overrides.newtab), t.target).toBe(t.browser.newTab);
       expect((m.permissions || []).includes('management'), t.target).toBe(t.browser.newTab);
@@ -47,6 +49,15 @@ describe('the values', () => {
     expect(edge.browser.themeStoreUrl).toBeNull();
     expect(edge.browser.sitePages).toBe(false);
     expect(JSON.stringify(edge.browser)).not.toMatch(/Chrome|chrome_extension|chromewebstore|Brave|Incognito/);
+  });
+
+  it('keep Firefox off the Chrome Web Store and its themes, and the review prompt off until a listing exists (1.13.10)', () => {
+    expect(firefox.browser.reviewUrl).toBeNull();
+    expect(firefox.browser.storeUrl).toBeNull();
+    expect(firefox.browser.themeStoreUrl).toBeNull();
+    expect(firefox.browser.sitePages).toBe(false);
+    expect(firefox.browser.utmSource).toBe('firefox_extension');
+    expect(JSON.stringify(firefox.browser)).not.toMatch(/Chrome|chrome_extension|chromewebstore|Brave|Incognito|Edge/);
   });
 });
 
@@ -66,6 +77,17 @@ describe('isStorePage', () => {
     expect(E.isStorePage('https://microsoftedge.microsoft.com/addons/detail/x/abc')).toBe(true);
     expect(E.isStorePage('https://chromewebstore.google.com/detail/x/abc')).toBe(false);
     expect(E.name).toBe('Microsoft Edge');
+  });
+
+  it("Firefox: every host of Firefox's restrictedDomains, AMO included", () => {
+    const F = B.withValues(firefox.browser);
+    expect(F.isStorePage('https://addons.mozilla.org/en-US/firefox/addon/x/')).toBe(true);
+    expect(F.isStorePage('https://support.mozilla.org/kb/x')).toBe(true);
+    expect(F.isStorePage('https://accounts.firefox.com/')).toBe(true);
+    expect(F.isStorePage('https://www.mozilla.org/')).toBe(false);
+    expect(F.isStorePage('https://chromewebstore.google.com/detail/x/abc')).toBe(false);
+    expect(F.storeHosts).toHaveLength(11);
+    expect(F.name).toBe('Firefox');
   });
 });
 
@@ -122,7 +144,9 @@ describe('every reader loads browser.js first', () => {
 
   it('the worker imports it first', () => {
     const sw = read('src/background/service-worker.js');
-    expect(sw).toMatch(/^importScripts\('\.\.\/lib\/browser\.js', /m);
+    expect(sw).toMatch(/^if \(typeof importScripts === 'function'\) importScripts\('\.\.\/lib\/browser\.js', /m);
+    // 1.13.10: Firefox's background page loads the same list, browser.js first.
+    expect(firefox.manifest.background.scripts[0]).toBe('src/lib/browser.js');
   });
 
   // Content scripts don't load it (that would change the Chrome manifest's

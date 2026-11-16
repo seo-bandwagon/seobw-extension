@@ -13,6 +13,8 @@ import SubScores from '../../extension/src/lib/sub-scores.js';
 // got past these tests.
 await import('../../extension/src/lib/sync-state.js');
 await import('../../extension/src/lib/api.js');
+// 1.13.10: the panel pages load src/lib/panels.js before this module.
+await import('../../extension/src/lib/panels.js');
 const REAL_SBW = globalThis.SBW;
 
 function chromeStub(local = {}) {
@@ -491,6 +493,32 @@ describe('tools, directory and panel', () => {
     globalThis.chrome = stub.api;
     expect(await D.openPanel('checks', 12)).toBe(false);
     expect(stub.messages).not.toContainEqual({ action: 'openSidePanel' });
+    stub.sidePanel.setOptions = vi.fn(async () => {});
+    stub.sidePanel.open = vi.fn(async () => { throw new Error('may only be called in response to a user gesture'); });
+    expect(await D.openPanel('checks', 12)).toBe(false);
+  });
+
+  // 1.13.10: Firefox drops a click's user action at the first await (MDN,
+  // "User actions"), and Chrome's sidePanel.open needs one. Both calls go out
+  // before openPanel returns, setOptions first.
+  it('openPanel calls sidePanel.open before anything is awaited, after setOptions', () => {
+    const stub = chromeStub();
+    const order = [];
+    stub.sidePanel.setOptions = vi.fn(() => { order.push('setOptions'); return new Promise(() => {}); });
+    stub.sidePanel.open = vi.fn(() => { order.push('open'); return Promise.resolve(); });
+    globalThis.chrome = stub.api;
+    D.openPanel('citations', 7); // not awaited: what ran is what ran in the click
+    expect(order).toEqual(['setOptions', 'open']);
+    expect(stub.sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
+  });
+
+  it('openPanel opens nothing without a tab ID or a side panel', async () => {
+    const stub = chromeStub();
+    globalThis.chrome = stub.api;
+    expect(await D.openPanel('checks', null)).toBe(false);
+    expect(stub.sidePanel.open).not.toHaveBeenCalled();
+    delete stub.api.sidePanel;
+    expect(await D.openPanel('checks', 12)).toBe(false);
   });
 });
 

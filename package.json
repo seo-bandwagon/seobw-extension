@@ -1,6 +1,6 @@
 {
   "name": "seo-bw-extension",
-  "version": "1.13.9",
+  "version": "1.13.10",
   "engines": {
     "node": "^22.22.2 || ^24.15.0"
   },
@@ -12,6 +12,7 @@
     "check:version-bump": "node scripts/check-version-bump.mjs",
     "zip": "node scripts/build-zip.mjs",
     "check:zip": "node scripts/check-zip-manifest.mjs",
+    "lint:firefox": "node scripts/lint-firefox.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",
@@ -37,6 +38,7 @@
     "@vitest/coverage-v8": "^5.0.5",
     "esbuild": "0.28.2",
     "jsdom": "^30.1.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "web-ext": "10.8.0"
   }
 }

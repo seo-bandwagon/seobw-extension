@@ -401,6 +401,6 @@ document.querySelectorAll('[data-review-link]').forEach(a => {
   if (!keys || !globalThis.SBWShortcut) return;
   keys.textContent = SBWShortcut.label(await SBWShortcut.current(chrome));
   document.getElementById('shortcutChange')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: SBWBrowser.shortcutsUrl });
+    SBWShortcut.openSettings(chrome, SBWBrowser);
   });
 })();

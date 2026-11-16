@@ -313,7 +313,7 @@
     panel.innerHTML = renderCreditsPanel();
     panel.querySelector('#creditsCloseBtn')?.addEventListener('click', () => { panel.hidden = true; });
     panel.querySelector('#creditsShortcutChange')?.addEventListener('click', () => {
-      chrome.tabs.create({ url: SBWBrowser.shortcutsUrl });
+      if (globalThis.SBWShortcut) SBWShortcut.openSettings(chrome, SBWBrowser);
     });
     if (globalThis.SBWShortcut) {
       SBWShortcut.current(chrome).then((s) => {

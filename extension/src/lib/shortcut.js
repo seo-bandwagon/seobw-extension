@@ -6,7 +6,7 @@
 // browser refused) did nothing and threw an uncaught rejection, and the
 // shortcut was shown nowhere. Options and the popup's About now show it,
 // "Not set" when the person cleared it, with a button to the browser's
-// shortcuts page (SBWBrowser.shortcutsUrl).
+// shortcuts page (openSettings: SBWBrowser.shortcutsUrl, or Firefox's own).
 //
 // Dual-export pattern (see src/lib/sync-state.js).
 
@@ -58,5 +58,27 @@
     }
   }
 
-  return { NAME, current, label, openPopup };
+  // 1.13.10: the browser's page for changing extension shortcuts. Chrome and
+  // Edge have one at an address (SBWBrowser.shortcutsUrl), opened in a tab.
+  // Firefox's is in about:addons, which an extension may not open with
+  // tabs.create, so its build has no address and asks Firefox to open it
+  // (commands.openShortcutSettings, Firefox 137). True when it opened.
+  async function openSettings(chromeApi, browser) {
+    const c = chromeApi || (typeof chrome !== 'undefined' ? chrome : null);
+    const b = browser || globalThis.SBWBrowser;
+    if (!c) return false;
+    try {
+      if (b && b.shortcutsUrl) {
+        await c.tabs.create({ url: b.shortcutsUrl });
+        return true;
+      }
+      if (c.commands && typeof c.commands.openShortcutSettings === 'function') {
+        await c.commands.openShortcutSettings();
+        return true;
+      }
+    } catch (e) { /* the browser refused */ }
+    return false;
+  }
+
+  return { NAME, current, label, openPopup, openSettings };
 });

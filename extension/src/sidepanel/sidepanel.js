@@ -912,17 +912,26 @@ function setFoot(text) {
 // panels ship; setOptions changes the path for this tab only, and the themed
 // panel's own footer link swaps back. No manifest default is touched.
 // #49: setOptions alone doesn't replace a panel that is open for the whole
-// window (how the worker's openSidePanel opens it), so nothing happened.
-// Opening it for the tab afterwards, as panel.js's openPanel() does, shows it.
-document.getElementById('spPageChecks').addEventListener('click', async () => {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) return;
-    await chrome.sidePanel.setOptions({ tabId: tab.id, path: 'src/panel/panel.html', enabled: true });
-    await chrome.sidePanel.open({ tabId: tab.id });
-  } catch (e) {
-    console.warn('[SBW] could not open the page-checks panel', e);
-  }
+// window (how the worker's openSidePanel opens it), so nothing happened;
+// opening it for the tab afterwards shows it.
+// 1.13.10: SBWPanels.openPanel (src/lib/panels.js) does both, with no await
+// before sidePanel.open(), so the click is still a user action when it
+// opens. The tab in front is kept here as it changes, since a tabs.query()
+// inside the click would be an await.
+let spTabId = null;
+let spWindowId = null;
+chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+  if (!tab) return;
+  if (spTabId === null) spTabId = tab.id;
+  spWindowId = tab.windowId;
+}).catch(() => {});
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  if (spWindowId === null || windowId === spWindowId) spTabId = tabId;
+});
+document.getElementById('spPageChecks').addEventListener('click', () => {
+  SBWPanels.openPanel('checks', spTabId).then((ok) => {
+    if (!ok) console.warn('[SBW] could not open the page-checks panel');
+  });
 });
 
 document.getElementById('spExport').addEventListener('click', async () => {

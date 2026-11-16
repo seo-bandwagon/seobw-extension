@@ -42,7 +42,9 @@ npm test                 # vitest, all unit + integration
 npm run test:e2e         # Playwright, both e2e specs, needs a display
 npm run zip              # the Chrome store zip, comments left out (scripts/build-zip.mjs)
 npm run zip -- --target edge   # the Microsoft Edge Add-ons zip (scripts/targets/edge.mjs)
-npm run check:zip        # builds both zips and checks every referenced file is in each
+npm run zip -- --target firefox   # the Firefox zip, comments kept (scripts/targets/firefox.mjs, 1.13.10)
+npm run lint:firefox     # web-ext lint on the Firefox zip, as CI runs it
+npm run check:zip        # builds every target's zip and checks every referenced file is in each
 npm run bump -- patch    # or minor / x.y.z
 ```
 
@@ -77,6 +79,11 @@ changelog section. Full rules: ROADMAP.md → "Versioning policy", README.md →
 - The list of analyzer files injected into a page is written out in four places:
   `service-worker.js`, `popup/popup.js`, `popup/link-check.js`, and
   `ANALYZER_FILES` in `lib/sbw-data.js`. Change all four together.
+- Firefox (1.13.10) runs the worker as a background page with no
+  `importScripts`: its manifest's `background.scripts` is read from the
+  worker's `importScripts` calls, so keep every library the worker needs in
+  those calls. Either panel opens only through `openPanel()`
+  (`src/lib/panels.js`), straight from the click, never after an `await`.
 - `extension/src/styles/popup.css` is one sheet shared by every page (popup,
   options, both side panels, history).
 - Two packages from one source (1.13.6): a user-facing string never names
