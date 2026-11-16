@@ -803,7 +803,11 @@ async function probeLink(url, controller) {
     if (res.status === 405 || res.status === 501) {
       res = await attempt('GET');
     }
-    return { url, status: res.status, finalUrl: res.url, redirected: res.redirected, ms: Date.now() - start };
+    // 1.13.8: Cloudflare's challenge page says so in a header; the link is
+    // "blocked, check by hand", not broken (src/lib/link-check.js).
+    let blocked = false;
+    try { blocked = /challenge/i.test((res.headers && res.headers.get('cf-mitigated')) || ''); } catch (e) { /* no headers */ }
+    return { url, status: res.status, finalUrl: res.url, redirected: res.redirected, blocked, ms: Date.now() - start };
   } catch (err) {
     const timedOut = err && err.name === 'AbortError';
     return { url, status: 0, finalUrl: null, redirected: false, ms: Date.now() - start, error: timedOut ? 'timeout' : 'network' };

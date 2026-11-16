@@ -17,11 +17,19 @@
 
 (function () {
 
-  const CLASS_LABELS = { ok: 'OK', redirect: 'REDIRECT', client: '4XX', server: '5XX', timeout: 'TIMEOUT', network: 'NETWORK', uncheckable: "CAN'T CHECK" };
-  const CLASS_ORDER = ['ok', 'redirect', 'client', 'server', 'timeout', 'network', 'uncheckable'];
+  const CLASS_LABELS = { ok: 'OK', redirect: 'REDIRECT', blocked: 'BLOCKED', client: '4XX', server: '5XX', timeout: 'TIMEOUT', network: 'NETWORK', uncheckable: "CAN'T CHECK" };
+  // The group's own heading, where it says more than the chip.
+  const GROUP_LABELS = { blocked: 'BLOCKED, CHECK BY HAND' };
+  const CLASS_ORDER = ['ok', 'redirect', 'blocked', 'client', 'server', 'timeout', 'network', 'uncheckable'];
   // #46: Chrome won't let an extension fetch these hosts (the Chrome Web
   // Store); the row says so rather than looking broken.
-  const CLASS_NOTES = { uncheckable: `${SBWBrowser.name} doesn't let extensions open these pages, so they can't be checked. They are not counted as broken.` };
+  // 1.13.8: bot walls (403, 429, LinkedIn's 999, Cloudflare's challenge) and
+  // redirects say what they are too.
+  const CLASS_NOTES = {
+    redirect: 'These links move on to another address, shown after the arrow. Link to that address instead to save a hop.',
+    blocked: 'These sites turn away automated checks, so the link may well work: open it to check it. They are not counted as broken.',
+    uncheckable: `${SBWBrowser.name} doesn't let extensions open these pages, so they can't be checked. They are not counted as broken.`
+  };
   const BROKEN_CLASSES = ['client', 'server', 'timeout', 'network'];
   const ATTACH_TIMEOUT_MS = 3000;
 
@@ -57,7 +65,7 @@
 
   function badgeKindFor(cls) {
     if (cls === 'ok') return 'b-ok';
-    if (cls === 'redirect' || cls === 'uncheckable') return 'b-warn';
+    if (cls === 'redirect' || cls === 'uncheckable' || cls === 'blocked') return 'b-warn';
     return 'b-err'; // client / server / timeout / network
   }
 
@@ -294,14 +302,20 @@
         // the Task 1 report for why redirect is grouped with the broken
         // classes here even though groupResults()'s `broken` count excludes it.
         const openClass = cls === 'ok' ? '' : ' open';
-        const rows = groups[cls].map(r => `<div class="lc-row">
+        const rows = groups[cls].map(r => {
+          // 1.13.8: a redirect shows where it lands.
+          const final = r.finalUrl && r.finalUrl !== r.url && (cls === 'redirect' || r.redirected)
+            ? `<span class="lc-row-final" title="${esc(r.finalUrl)}">→ ${esc(truncateMiddle(r.finalUrl, 60))}</span>`
+            : '';
+          return `<div class="lc-row">
           <span class="lc-row-status badge-mono ${badgeKindFor(cls)}">${r.status}</span>
-          <span class="lc-row-url" title="${esc(r.url)}">${esc(truncateMiddle(r.url, 60))}</span>
+          <span class="lc-row-urls"><span class="lc-row-url" title="${esc(r.url)}">${esc(truncateMiddle(r.url, 60))}</span>${final}</span>
           <span class="lc-row-anchor">${esc(truncateMiddle(r.text || '', 40))}</span>
-        </div>`).join('');
+        </div>`;
+        }).join('');
         const note = CLASS_NOTES[cls] ? `<div class="lc-group-note">${esc(CLASS_NOTES[cls])}</div>` : '';
         return `<div class="lc-group${openClass}" data-class="${cls}">
-          <div class="lc-group-head">${esc(CLASS_LABELS[cls])} (${counts[cls]})</div>
+          <div class="lc-group-head">${esc(GROUP_LABELS[cls] || CLASS_LABELS[cls])} (${counts[cls]})</div>
           ${note}<div class="lc-group-rows">${rows}</div>
         </div>`;
       }).join('');

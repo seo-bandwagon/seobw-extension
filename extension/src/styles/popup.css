@@ -825,6 +825,8 @@ body {
 .lc-chip-ok { border-color: rgba(22, 199, 132, 0.4); color: var(--success); }
 /* #46: neither OK nor broken — Chrome won't let an extension fetch these. */
 .lc-chip-uncheckable { border-style: dashed; color: var(--paper-50); }
+/* 1.13.8: a bot wall turned the check away; check it by hand. */
+.lc-chip-blocked { border-style: dashed; border-color: rgba(245, 165, 36, 0.4); color: var(--warning); }
 
 .lc-groups { border-top: 1px solid var(--hairline-soft); }
 .lc-group-head {
@@ -857,6 +859,15 @@ body {
   border-bottom: 1px solid var(--hairline-soft);
 }
 .lc-row-status { flex: none; }
+.lc-row-urls { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lc-row-final {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--paper-50);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .lc-row-url {
   font-family: var(--font-mono);
   font-size: 10px;
