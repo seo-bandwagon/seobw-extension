@@ -136,7 +136,7 @@ APPEARANCE
 Choose Night, Day or Auto, which follows your system setting. Two matching Chrome themes are available separately.
 
 PRIVACY
-No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Help improve SEO insights in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
+No account is needed for the analysis, the checks or the exports, and their results stay on your computer. Signed out, nothing is sent. With an account connected, the analyses you run are saved to your account; untick Send analyses to SEO Bandwagon in the popup or in Settings to stop saving them. Figures under results are off until you turn them on in Settings, which says what they send first: the address of each listing shown, never your query. Saved analyses keep the page address, its metadata and the names of its structured data fields, never their values. Screenshots are saved to your computer only and never uploaded. Fetches made for the checks leave out your cookies. Your account key is stored in the browser and sent only to seobandwagon.com.
 
 Analyze reads a listing from your browser without your cookies, and nothing it reads is sent to us. Keyword data is off until you say yes to its own note, which says what it sends first: the words of your query with the related queries and questions shown with it, never a listing's address. Study mode is for invited testers of SEO Bandwagon's AI Overview study and is off until you turn it on in Settings, which says what it sends first: the study's search and the export of its results when you click Send to study and, when you click its stop button, a note that you were stopped that day, to the study and not to your account.
 
@@ -172,8 +172,13 @@ nothing runs without you choosing a menu item.
 that action: the page-analysis script for an analysis, a reader for the
 business name, address and phone number when you click Check NAP, and, when
 you take a full-page proof screenshot, a small helper that scrolls the page
-one screen at a time and puts it back afterwards. Not used to inject anything
-into any other tab.
+one screen at a time and puts it back afterwards. From 1.13.8 "Count words &
+characters" reads the selected text in the frame you right-clicked. The one
+injection into another tab: when the extension is installed or updated, the
+Search Console script below is added to Search Console tabs that were already
+open, since the browser gives a script only to pages that load after an
+install; it is the same script the Search Console match runs, and adds the
+same buttons.
 
 **`sidePanel`** — powers the Link Building and Citations side panel.
 
@@ -217,6 +222,16 @@ at all — every rule is created and torn down at runtime.
 extension talks to on your behalf: your own analyses, citation checks, and
 link-building data, when an account is connected.
 
+**`host_permissions`: `https://search.google.com/*`** (1.13.8) — so the
+extension can add its Search Console buttons to a Search Console tab that was
+already open when it was installed or updated (the browser runs a content
+script only in pages that load afterwards, and injecting one needs the host).
+It injects nothing else and fetches nothing from Search Console. The content
+script already reads and changes Search Console's pages, so the install
+warning is unchanged (measured with `getPermissionWarningsByManifest`:
+"Read and change your data on search.google.com, seobandwagon.com, and
+www.google.com", as before).
+
 **`optional_host_permissions`: `http://localhost/*`, `http://127.0.0.1/*`**
 — requested only if you point the Options page's Advanced API URL setting at
 a local development server. Never requested otherwise.
@@ -245,8 +260,10 @@ consent text shown at request time, verbatim
 > switch it off or close the tab. Nothing it sees on those sites is sent to
 > SEO Bandwagon. You can revoke this at any time from the extensions page.
 
-**Content-script match on Google Search Console** (`https://search.google.com/search-console/*`,
-pre-existing since 1.5.1) — adds two small "open in Google Search" icons to
+**Content-script match on Google Search Console** (`https://search.google.com/search-console*`
+and `https://search.google.com/u/*/search-console*` from 1.13.8; `…/search-console/*`
+since 1.5.1, which missed the overview Search Console opens on and a second
+Google account's addresses) — adds two small "open in Google Search" icons to
 each row of a Performance report's Queries tab, and, when a report compares
 two date ranges, small percent-change badges on the metric cards and inside
 each row's Difference cell. Everything here reads the report table already
