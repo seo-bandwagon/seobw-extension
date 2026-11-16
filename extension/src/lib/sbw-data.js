@@ -118,9 +118,21 @@ export function pageChecks(data) {
   const wv = d.webVitals || {};
   if (wv.lcp !== null && wv.lcp !== undefined) {
     const status = wv.lcp <= 2500 ? 'pass' : wv.lcp <= 4000 ? 'warn' : 'fail';
-    rows.push({ name: 'LCP', note: Math.round(wv.lcp) + ' ms', status });
+    // A measurement of this visit, not one of the checks the score counts.
+    rows.push({ name: 'LCP', note: Math.round(wv.lcp) + ' ms', status, measure: true });
   }
   return rows;
+}
+
+/**
+ * 1.13.8: the panel's "N of M passed", counted from the rows it shows, so
+ * the two always agree. Until 1.13.8 the header came from the sub-scores'
+ * totals, which counted a check that lost no points as passed while its row
+ * read "warn", and the LCP row, a measurement, sat under it uncounted.
+ */
+export function rowTotals(rows) {
+  const checks = (rows || []).filter((r) => !r.measure);
+  return { passed: checks.filter((r) => r.status === 'pass').length, of: checks.length };
 }
 
 /* -------------------------------- captures -------------------------------- */

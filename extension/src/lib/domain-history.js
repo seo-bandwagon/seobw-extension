@@ -166,6 +166,7 @@
     isFresh,
     pageKey,
     samePage,
-    summarize
+    summarize,
+    captureScore
   };
 });

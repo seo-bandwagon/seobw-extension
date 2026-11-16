@@ -11,7 +11,7 @@
 
 import { applyTheme, watchThemeChanges, bindControl } from '../lib/theme-sync.js';
 import {
-  analyzeTab, pageChecks, checkTotals, directoryMatch, accountState,
+  analyzeTab, pageChecks, rowTotals, directoryMatch, accountState,
   drainPending, drainLine, toolRow, isAnalyzable, hostOf, openPanel,
 } from '../lib/sbw-data.js';
 
@@ -19,12 +19,19 @@ const $ = (id) => document.getElementById(id);
 
 /* --------------------------------- checks --------------------------------- */
 
-function renderChecks(rows, totals) {
+// 1.13.8: the header is counted from these rows (rowTotals); a measurement
+// (LCP) shows below the checks, marked as one.
+function renderChecks(rows) {
+  const totals = rowTotals(rows);
   $('pnChecksHead').textContent = `On-page checks · ${totals.passed} of ${totals.of} passed`;
   const ul = $('pnChecks');
   ul.textContent = '';
   for (const r of rows) {
     const li = document.createElement('li');
+    if (r.measure) {
+      li.className = 'pn-measure';
+      li.title = 'Measured on this visit; not one of the checks counted above';
+    }
     const dot = document.createElement('span');
     dot.className = 'pn-dot';
     dot.dataset.s = r.status;
@@ -134,14 +141,14 @@ async function paint(tab, { scan = false } = {}) {
   renderDirectory(tab.url);
   if (!scan) {
     const cached = await chrome.runtime.sendMessage({ action: 'getCachedAnalysis', tabId: tab.id, url: tab.url }).catch(() => null);
-    if (cached && cached.hit) renderChecks(pageChecks(cached.data), checkTotals(cached.data));
+    if (cached && cached.hit) renderChecks(pageChecks(cached.data));
     else renderEmpty('Click "Scan this page" to check it.');
     return;
   }
   renderEmpty('Reading the page…');
   try {
     const { data } = await analyzeTab(tab);
-    renderChecks(pageChecks(data), checkTotals(data));
+    renderChecks(pageChecks(data));
   } catch (e) {
     if (e && e.problem) { renderEmpty(e.problem.body); return; }
     // S53: Chrome gives a side panel no access of its own; it can read the

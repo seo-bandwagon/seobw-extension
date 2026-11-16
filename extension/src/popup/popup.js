@@ -24,9 +24,12 @@ function statusClass(pct) {
 }
 
 // Donut ring background for a 0-100 value
+// 1.13.8: the unfilled track is the theme's ink at 12% (--ring-track), so
+// it shows on Day too; until 1.13.8 it was white at 10%, invisible on Day's
+// off-white.
 function ringStyle(pct) {
   const p = Math.max(0, Math.min(100, pct));
-  return `conic-gradient(${statusColor(p)} 0% ${p}%, rgba(245,245,245,.1) ${p}% 100%)`;
+  return `conic-gradient(${statusColor(p)} 0% ${p}%, var(--ring-track) ${p}% 100%)`;
 }
 
 function meter(pct, color) {
@@ -619,7 +622,7 @@ function renderWebVitals(wv) {
         return `<div class="cwv-cell">
           <div class="cwv-k">${v.k}</div>
           <div class="cwv-v${on ? '' : ' cwv-none'}">${on ? (v.unit ? Math.round(v.v) : v.v) : 'No data'}</div>
-          ${meter(pctVal, on ? (v.v <= v.good ? 'var(--success)' : v.v <= v.poor ? 'var(--warning)' : 'var(--error)') : 'rgba(245,245,245,.1)')}
+          ${meter(pctVal, on ? (v.v <= v.good ? 'var(--success)' : v.v <= v.poor ? 'var(--warning)' : 'var(--error)') : 'var(--ring-track)')}
         </div>`;
       }).join('')}
     </div>

@@ -1,8 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <title>SEO Bandwagon - Capture History</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <!-- 1.13.8: Night or Day, as the other pages (it was always Night). -->
+  <script src="../lib/browser.js"></script>
+  <script src="../lib/theme-mode.js"></script>
   <link rel="stylesheet" href="../styles/popup.css">
 </head>
 <body class="page-history">
@@ -23,7 +27,7 @@
       <button id="exportAllBtn">Export JSON</button>
       <button id="clearBtn" class="danger">Clear History</button>
     </div>
-    <div id="syncStatus" style="display:none; margin-bottom:16px; padding:12px; border-radius:6px; font-size:13px;"></div>
+    <div id="syncStatus" class="sync-status" role="status" hidden></div>
     
     <div class="capture-list" id="captureList">
       <div class="empty-state">Loading...</div>
@@ -44,6 +48,7 @@
   <script src="../lib/consent.js"></script>
   <script src="../lib/api.js"></script>
   <script src="../lib/history-search.js"></script>
+  <script src="../lib/domain-history.js"></script>
   <script src="history.js"></script>
 </body>
 </html>

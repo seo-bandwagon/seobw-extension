@@ -81,6 +81,8 @@ body.page-panel {
   color: var(--ink);
 }
 .pn-list li:last-child { border-bottom: none; }
+/* 1.13.8: a measurement, below the checks and not counted with them. */
+.pn-list li.pn-measure { border-top: 1px dashed var(--hairline); color: var(--paper-70); }
 .pn-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .pn-dot[data-s='pass'] { background: var(--success); }
 .pn-dot[data-s='warn'] { background: var(--warning); }

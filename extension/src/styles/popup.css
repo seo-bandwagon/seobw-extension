@@ -8,6 +8,8 @@
 
   /* Neutrals = white at canonical opacity stops (never new hues) */
   --paper-95: rgba(var(--ink-rgb), 0.95);
+  /* 1.13.8: the score ring's unfilled track, visible on Night and Day. */
+  --ring-track: rgba(var(--ink-rgb), 0.12);
   --paper-70: rgba(var(--ink-rgb), 0.7);
   --paper-50: rgba(var(--ink-rgb), 0.5);
   --paper-40: rgba(var(--ink-rgb), 0.4);
@@ -2306,7 +2308,28 @@ body {
 .page-history button.success { background: var(--success); color: var(--on-status); }
 .page-history button.danger { background: var(--error); }
 .capture-list { display: flex; flex-direction: column; gap: 10px; }
-.capture-item { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; cursor: pointer; border: 1px solid transparent; }
+.capture-item { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; cursor: pointer; border: 1px solid transparent; display: flex; align-items: center; gap: 14px; }
+/* 1.13.8: a score per capture, and Delete for one. */
+.capture-body { flex: 1; min-width: 0; }
+.capture-score {
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  border: 2px solid var(--edge); color: var(--paper-70);
+}
+.capture-score.good { border-color: var(--success); color: var(--success); }
+.capture-score.warn { border-color: var(--warning); color: var(--warning); }
+.capture-score.bad { border-color: var(--error); color: var(--error); }
+.page-history button.capture-delete {
+  flex: none; background: transparent; color: var(--paper-70);
+  border: 1px solid var(--edge); padding: 6px 10px; font-size: 11px;
+}
+.page-history button.capture-delete:hover { background: var(--error); border-color: var(--error); color: #fff; }
+.page-history .sync-status { margin-bottom: 16px; padding: 12px; border-radius: 6px; font-size: 13px; border: 1px solid var(--edge); background: var(--surface-2); color: var(--paper-95); }
+.page-history .sync-status[hidden] { display: none; }
+.page-history .sync-status[data-tone='success'] { border-color: var(--success); color: var(--success); }
+.page-history .sync-status[data-tone='warn'] { border-color: var(--warning); color: var(--warning); }
+.page-history .sync-status[data-tone='error'] { border-color: var(--error); color: var(--error); }
 .capture-item:hover { background: var(--surface-3); border-color: var(--pink-30); }
 .capture-url { font-family: var(--font-mono); font-size: 12px; color: var(--accent-text); word-break: break-all; margin-bottom: 8px; }
 .capture-meta { display: flex; gap: 16px; font-family: var(--font-mono); font-size: 10px; color: var(--paper-50); }
