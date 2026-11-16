@@ -210,7 +210,10 @@
     const realItems = (schemaData().items || []).filter(i => !i.error);
     const item = realItems[idx];
     if (!item) return;
-    const text = JSON.stringify(item.properties || {}, null, 2);
+    // 1.13.8: the whole block, @context and @type kept, ready to paste into
+    // a <script type="application/ld+json"> (SBWSchema.toJsonLd).
+    const block = (globalThis.SBWSchema && SBWSchema.toJsonLd) ? SBWSchema.toJsonLd(item) : null;
+    const text = JSON.stringify(block || item.properties || {}, null, 2);
     const done = () => popup().setSeoStatus?.('Copied', 'success');
     const fail = () => popup().setSeoStatus?.('Copy failed', 'error');
     if (navigator.clipboard && navigator.clipboard.writeText) {

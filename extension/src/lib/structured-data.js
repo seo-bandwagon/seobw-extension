@@ -359,41 +359,67 @@
     'SportingGoodsStore', 'SportsClub', 'TattooParlor', 'TennisComplex', 'TireShop', 'ToyStore',
     'Urologic', 'VeterinaryCare', 'Winery', 'WholesaleStore', ];
 
+  // 1.13.8: each Google type's required and recommended properties as its
+  // Search Central page states them (read 2026-11-16), one test per type in
+  // tests/unit/structured-data.test.js. Until 1.13.8 the lists were stricter
+  // than Google: Article and Organization, which have no required
+  // properties, and a Product with only a review, showed errors.
+  //   required   every one must be there
+  //   oneOf      groups: at least one of each group must be there
+  //   nestedOmit required properties a nested item leaves out (itemReviewed)
+  //   nested     property -> the rules its value is checked against: a
+  //              NESTED_SPECS name, a type here, or a function of the value
+  //   dates      properties that must be ISO 8601 dates
+  const OFFER_OR_AGGREGATE = (v) => (nestedType(v) === 'AggregateOffer' ? 'AggregateOffer' : 'Offer');
+
   const TYPE_SPECS = {
+    // "There are no required properties; instead, add the properties that
+    // apply to your content."
     Article: {
-      required: ['headline', 'image', 'datePublished', 'author'],
-      recommended: ['dateModified', 'publisher'],
+      required: [],
+      recommended: ['headline', 'image', 'datePublished', 'dateModified', 'author'],
+      nested: { author: 'Author' },
+      dates: ['datePublished', 'dateModified'],
       sourceUrl: GOOGLE_DOCS + 'article'
     },
     NewsArticle: { alias: 'Article' },
     BlogPosting: { alias: 'Article' },
 
+    // Product snippets: name, and "either review or aggregateRating or offers".
     Product: {
-      required: ['name', 'image', 'offers'],
-      recommended: ['brand', 'sku', 'review', 'aggregateRating'],
-      sourceUrl: GOOGLE_DOCS + 'product'
+      required: ['name'],
+      oneOf: [['review', 'aggregateRating', 'offers']],
+      recommended: ['image', 'aggregateRating', 'offers', 'review'],
+      nested: { offers: OFFER_OR_AGGREGATE, review: 'Review', aggregateRating: 'AggregateRating' },
+      sourceUrl: GOOGLE_DOCS + 'product-snippet'
     },
 
     LocalBusiness: {
-      required: ['name', 'address', 'telephone'],
-      recommended: ['image', 'priceRange', 'openingHoursSpecification', 'geo'],
+      required: ['name', 'address'],
+      recommended: ['telephone', 'url', 'geo', 'openingHoursSpecification', 'priceRange'],
+      nested: { review: 'Review', aggregateRating: 'AggregateRating' },
       sourceUrl: GOOGLE_DOCS + 'local-business'
     },
 
     // Fix round 1, CRITICAL 2a: the old `/logo` doc page now redirects to
-    // `/organization` — point at the live URL directly.
+    // `/organization` — point at the live URL directly. 1.13.8: "There are
+    // no required properties".
     Organization: {
-      required: ['name', 'url', 'logo'],
-      recommended: ['sameAs', 'contactPoint'],
+      required: [],
+      recommended: ['name', 'url', 'logo', 'sameAs', 'address', 'contactPoint', 'telephone', 'description'],
       sourceUrl: GOOGLE_DOCS + 'organization'
     },
 
+    // schema.org types Google documents no rich result for: schema.org
+    // itself requires nothing, so neither does this.
     Person: {
-      required: ['name'],
-      recommended: ['jobTitle', 'url', 'image'],
+      required: [],
+      recommended: ['name', 'url', 'image', 'jobTitle'],
       sourceUrl: SCHEMA_ORG + 'Person'
     },
 
+    // At least two ListItems; each needs position, name (unless its item is
+    // a Thing with a name) and item (except the last). checkBreadcrumb.
     BreadcrumbList: {
       required: ['itemListElement'],
       recommended: [],
@@ -419,31 +445,45 @@
     },
 
     Recipe: {
-      required: ['name', 'recipeIngredient', 'recipeInstructions'],
-      recommended: ['image', 'author', 'datePublished', 'prepTime', 'cookTime', 'recipeYield', 'nutrition'],
+      required: ['name', 'image'],
+      recommended: ['author', 'datePublished', 'description', 'recipeIngredient', 'recipeInstructions', 'prepTime', 'cookTime', 'totalTime', 'recipeYield', 'nutrition', 'aggregateRating', 'video'],
+      nested: { aggregateRating: 'AggregateRating', review: 'Review', video: 'VideoObject' },
+      dates: ['datePublished'],
       sourceUrl: GOOGLE_DOCS + 'recipe'
     },
 
+    // location is a Place with an address; "Events must take place in a
+    // physical location".
     Event: {
       required: ['name', 'startDate', 'location'],
-      recommended: ['endDate', 'image', 'offers', 'performer'],
+      recommended: ['description', 'endDate', 'eventStatus', 'image', 'offers', 'organizer', 'performer'],
+      nested: { location: 'EventLocation' },
+      dates: ['startDate', 'endDate'],
       sourceUrl: GOOGLE_DOCS + 'event'
     },
 
     VideoObject: {
-      required: ['name', 'description', 'thumbnailUrl', 'uploadDate'],
-      recommended: ['duration', 'contentUrl', 'embedUrl'],
+      required: ['name', 'thumbnailUrl', 'uploadDate'],
+      recommended: ['description', 'contentUrl', 'embedUrl', 'duration'],
+      dates: ['uploadDate'],
       sourceUrl: GOOGLE_DOCS + 'video'
     },
 
+    // itemReviewed is left out when the review is nested in what it reviews.
     Review: {
-      required: ['itemReviewed', 'reviewRating', 'author'],
+      required: ['author', 'itemReviewed', 'reviewRating'],
       recommended: ['datePublished'],
+      nestedOmit: ['itemReviewed'],
+      nested: { author: 'NamedThing', itemReviewed: 'NamedThing', reviewRating: 'Rating' },
+      dates: ['datePublished'],
       sourceUrl: GOOGLE_DOCS + 'review-snippet'
     },
     AggregateRating: {
-      required: ['ratingValue', 'itemReviewed'],
-      recommended: ['reviewCount', 'bestRating'],
+      required: ['itemReviewed', 'ratingValue'],
+      oneOf: [['ratingCount', 'reviewCount']],
+      recommended: ['bestRating'],
+      nestedOmit: ['itemReviewed'],
+      nested: { itemReviewed: 'NamedThing' },
       sourceUrl: GOOGLE_DOCS + 'review-snippet'
     },
 
@@ -459,16 +499,37 @@
     },
 
     WebPage: {
-      required: ['name'],
-      recommended: ['description', 'breadcrumb'],
+      required: [],
+      recommended: ['name', 'description', 'breadcrumb'],
       sourceUrl: SCHEMA_ORG + 'WebPage'
     },
 
+    // jobLocation "isn't required if applicantLocationRequirements is
+    // present" (a remote job); a jobLocation's address needs addressCountry.
     JobPosting: {
-      required: ['title', 'description', 'datePosted', 'hiringOrganization', 'jobLocation'],
-      recommended: ['validThrough', 'employmentType', 'baseSalary'],
+      required: ['title', 'description', 'datePosted', 'hiringOrganization'],
+      oneOf: [['jobLocation', 'applicantLocationRequirements']],
+      recommended: ['validThrough', 'employmentType', 'baseSalary', 'jobLocationType', 'identifier', 'directApply'],
+      nested: { hiringOrganization: 'NamedThing', jobLocation: 'JobPlace' },
+      dates: ['datePosted', 'validThrough'],
       sourceUrl: GOOGLE_DOCS + 'job-posting'
     }
+  };
+
+  // 1.13.8: rules for values nested in a type above, which aren't items of
+  // their own (Search Central's nested properties: offers.price,
+  // reviewRating.ratingValue, author.name, location.address, …).
+  // `textIsName`: plain text stands for the name (an author written "Jane").
+  const NESTED_SPECS = {
+    Offer: { oneOf: [['price', 'priceSpecification']], recommended: ['priceCurrency', 'availability'], nested: { priceSpecification: 'PriceSpecification' } },
+    AggregateOffer: { required: ['lowPrice', 'priceCurrency'], recommended: ['highPrice', 'offerCount'] },
+    PriceSpecification: { required: ['price'], recommended: ['priceCurrency'] },
+    NamedThing: { required: ['name'], textIsName: true },
+    Author: { recommended: ['name'], textIsName: true },
+    Rating: { required: ['ratingValue'] },
+    EventLocation: { required: ['address'], recommended: ['name'], physicalOnly: true },
+    JobPlace: { required: ['address'], nested: { address: 'JobAddress' } },
+    JobAddress: { required: ['addressCountry'] }
   };
 
   // Fix round 1, CRITICAL 1c: build every LocalBusiness subtype's alias
@@ -740,34 +801,16 @@
     return true;
   }
 
-  // Fix round 1, IMPORTANT 4: iterate every offer (not just the first),
-  // distinguish AggregateOffer's lowPrice/priceCurrency requirement from a
-  // plain Offer's price/priceCurrency one, treat a `priceSpecification` as
-  // satisfying "priced" the same as a bare `price` would, and emit one
-  // indexed message per offending offer (no de-duped/blanket "offers
-  // missing price" that can't tell you which one).
-  function checkOffers(properties, problems) {
-    const offers = toArray(properties.offers);
-    offers.forEach((raw, idx) => {
-      const props = nestedProps(raw);
-      if (!props) return;
-      const label = `offers[${idx}]`;
-      if (nestedType(raw) === 'AggregateOffer') {
-        if (!hasValue(props.lowPrice)) problems.push(`${label} missing lowPrice`);
-        if (!hasValue(props.priceCurrency)) problems.push(`${label} missing priceCurrency`);
-        return;
+  // 1.13.8: every date property a type names (datePublished, startDate,
+  // uploadDate, datePosted, …), not datePublished alone.
+  function checkDates(spec, properties, problems, path) {
+    const fields = (spec && spec.dates) || ['datePublished'];
+    fields.forEach(f => {
+      const v = properties[f];
+      if (hasValue(v) && typeof v === 'string' && !isIso8601(v)) {
+        problems.push(`${path ? path + '.' : ''}${f} not an ISO 8601 date`);
       }
-      const priced = hasValue(props.price) || hasValue(props.priceSpecification);
-      if (!priced) problems.push(`${label} missing price`);
-      if (!hasValue(props.priceCurrency)) problems.push(`${label} missing priceCurrency`);
     });
-  }
-
-  function checkDatePublished(properties, problems) {
-    const v = properties.datePublished;
-    if (hasValue(v) && typeof v === 'string' && !isIso8601(v)) {
-      problems.push('datePublished not an ISO 8601 date');
-    }
   }
 
   function checkImage(properties, problems) {
@@ -782,15 +825,92 @@
     if (!allValid) problems.push('image not a URL or ImageObject');
   }
 
-  function checkBreadcrumb(type, properties, problems) {
-    if (type !== 'BreadcrumbList') return;
+  // Google: itemListElement holds at least two ListItems; each needs
+  // position, name unless its item is a Thing with a name, and item except
+  // on the last one, where Google uses the page's own URL.
+  function checkBreadcrumb(properties, out, path) {
     const items = toArray(properties.itemListElement);
     if (!items.length) return;
-    const missing = items.some(li => {
-      const props = nestedProps(li);
-      return !hasValue(props ? props.position : undefined);
+    const at = (i, f) => `${path ? path + '.' : ''}itemListElement${items.length > 1 ? `[${i}]` : ''}.${f}`;
+    if (items.length < 2) out.problems.push(`${path ? path + '.' : ''}BreadcrumbList needs at least two items`);
+    let positionMissing = false;
+    items.forEach((li, i) => {
+      const props = nestedProps(li) || {};
+      if (!hasValue(props.position)) { out.missing.push(at(i, 'position')); positionMissing = true; }
+      const item = props.item;
+      const itemProps = item && typeof item === 'object' ? nestedProps(item) : null;
+      const itemHasName = !!(itemProps && hasValue(itemProps.name));
+      if (!hasValue(props.name) && !itemHasName) out.missing.push(at(i, 'name'));
+      if (!hasValue(item) && i < items.length - 1) out.missing.push(at(i, 'item'));
     });
-    if (missing) problems.push('BreadcrumbList item missing position');
+    if (positionMissing) out.problems.push('BreadcrumbList item missing position');
+  }
+
+  // Types a nested value is checked as when its own @type says so and its
+  // parent names no rule for it: the ones Google reads nested (a Review in
+  // a Course, a Product in an ItemList, a VideoObject in a HowTo). Not a
+  // Product under itemOffered or isRelatedTo: there it is a reference.
+  const NESTED_ITEM_TYPES = new Set(['Review', 'AggregateRating', 'VideoObject', 'BreadcrumbList', 'Product', 'Recipe', 'Event', 'JobPosting']);
+  const REFERENCE_PROPS = new Set(['itemOffered', 'isRelatedTo', 'isSimilarTo', 'isAccessoryOrSparePartFor', 'isConsumableFor', 'itemReviewed', 'about', 'mentions', 'subjectOf']);
+  const MAX_DEPTH = 5;
+  const EMPTY_SPEC = { dates: [] };
+
+  // Check `props` against `spec`, adding to `out` ({ missing, present,
+  // recommended, problems }) with every name prefixed by `path` (empty at
+  // the top). `nested` is true for a value inside another item.
+  function checkAgainst(spec, type, props, path, nested, depth, out) {
+    const at = (f) => (path ? path + '.' + f : f);
+    let required = (spec.required || []).slice();
+    if (nested && spec.nestedOmit) required = required.filter(f => !spec.nestedOmit.includes(f));
+    required.forEach(f => (hasValue(props[f]) ? out.present : out.missing).push(at(f)));
+    (spec.oneOf || []).forEach(group => {
+      const there = group.filter(f => hasValue(props[f]));
+      if (there.length) out.present.push(...there.map(at));
+      else out.missing.push(group.map(at).join(' or '));
+    });
+    (spec.recommended || []).forEach(f => { if (!hasValue(props[f])) out.recommended.push(at(f)); });
+    checkDates(spec, props, out.problems, path);
+    if (type === 'BreadcrumbList') checkBreadcrumb(props, out, path);
+    if (depth >= MAX_DEPTH) return;
+
+    const ruled = spec.nested || {};
+    Object.keys(props).forEach(prop => {
+      if (prop.charAt(0) === '@') return;
+      const values = toArray(props[prop]);
+      values.forEach((v, i) => {
+        const childPath = at(prop) + (values.length > 1 ? `[${i}]` : '');
+        if (ruled[prop]) {
+          const which = typeof ruled[prop] === 'function' ? ruled[prop](v) : ruled[prop];
+          checkNested(which, v, childPath, depth + 1, out);
+          return;
+        }
+        if (REFERENCE_PROPS.has(prop)) return;
+        const t = normalizeTypeName(nestedType(v));
+        if (t && NESTED_ITEM_TYPES.has(t) && resolveSpec(t)) checkNested(t, v, childPath, depth + 1, out);
+        // Anything else is walked through for the typed items inside it
+        // (an ItemList's ListItem's item).
+        else if (v && typeof v === 'object') checkAgainst(EMPTY_SPEC, t, nestedProps(v) || {}, childPath, true, depth + 1, out);
+      });
+    });
+  }
+
+  // One nested value against a NESTED_SPECS entry or a type's own spec.
+  function checkNested(which, value, path, depth, out) {
+    const spec = NESTED_SPECS[which] || resolveSpec(which);
+    if (!spec) return;
+    if (!value || typeof value !== 'object') {
+      if (spec.textIsName && hasValue(value)) return;
+      (spec.required || []).forEach(f => out.missing.push(`${path}.${f}`));
+      (spec.oneOf || []).forEach(group => out.missing.push(group.map(f => `${path}.${f}`).join(' or ')));
+      return;
+    }
+    const own = normalizeTypeName(nestedType(value));
+    if (spec.physicalOnly && own === 'VirtualLocation') {
+      out.problems.push(`${path} is a VirtualLocation: Google shows events that take place at a physical location`);
+      return;
+    }
+    const props = nestedProps(value) || {};
+    checkAgainst(spec, NESTED_SPECS[which] ? which : own || which, props, path, true, depth, out);
   }
 
   function checkFaq(type, properties, problems) {
@@ -806,17 +926,15 @@
 
   // item: { type, source, properties } — one extracted (not-yet-validated)
   // structured-data item, from extractJsonLd/extractMicrodata/extractRdfa.
-  // options.nested (fix round 1, MINOR 13): true when this item is being
-  // validated as the value of another item's property rather than as its
-  // own top-level structured-data block — currently unused by any caller
-  // (nothing in this module re-validates a nested value on its own yet),
-  // but wired through now so a future caller doing that doesn't also have
-  // to re-derive the AggregateRating special case below.
+  // options.nested: true when the item is the value of another item's
+  // property (itemReviewed is then left out, as Google says).
   // Returns { type, source, required: { missing, present }, recommended:
   // { missing }, problems, note?, retiredRichResult }, plus the original
-  // `properties` passed through (not in the brief's four-field list, but
-  // the popup's "Copy JSON-LD" button needs the raw data and re-deriving it
-  // would mean carrying the whole item around a second time).
+  // `properties` and `context` passed through for "Copy JSON-LD" (toJsonLd).
+  // 1.13.8: nested values are checked too (Search Central's nested
+  // properties, and nested items of the types in NESTED_ITEM_TYPES); what
+  // they miss is named by its path, as in `offers.price or
+  // offers.priceSpecification` or `review[1].author.name`.
   function validateItem(item, options) {
     const opts = options || {};
     const rawType = item && item.type;
@@ -825,40 +943,30 @@
     const properties = (item && item.properties) || {};
     const spec = resolveSpec(type);
 
-    // Fix round 1, MINOR 13: itemReviewed only makes sense to require when
-    // an AggregateRating stands alone — nested inside the very entity it
-    // rates (the overwhelmingly common real-world shape), the entity is
-    // already implicit.
-    let required = spec ? spec.required.slice() : [];
-    if (type === 'AggregateRating' && opts.nested) {
-      required = required.filter(f => f !== 'itemReviewed');
-    }
-    const recommended = spec ? spec.recommended : [];
-
-    const missingRequired = required.filter(f => !hasValue(properties[f]));
-    const presentRequired = required.filter(f => hasValue(properties[f]));
-    const missingRecommended = recommended.filter(f => !hasValue(properties[f]));
-
-    const problems = [];
+    const out = { missing: [], present: [], recommended: [], problems: [] };
     // Fix round 1, CRITICAL 1b: "Unknown type" now means "not a real
     // schema.org type" (CORE_TYPES), not "we don't validate this type's
     // properties" (TYPE_SPECS/spec) — a known type with no spec gets a
     // `note` below instead.
-    if (type && !isKnownType(type)) problems.push(`Unknown type: ${type}`);
-    checkOffers(properties, problems);
-    checkDatePublished(properties, problems);
-    checkImage(properties, problems);
-    checkBreadcrumb(type, properties, problems);
-    checkFaq(type, properties, problems);
+    if (type && !isKnownType(type)) out.problems.push(`Unknown type: ${type}`);
+    if (spec) {
+      checkAgainst(spec, (TYPE_SPECS[type] && TYPE_SPECS[type].alias) || type, properties, '', !!opts.nested, 0, out);
+    } else {
+      // No rules of its own; its datePublished and its nested items still are.
+      checkAgainst({}, type, properties, '', !!opts.nested, 0, out);
+    }
+    checkImage(properties, out.problems);
+    checkFaq(type, properties, out.problems);
 
     const result = {
       type,
       source,
-      required: { missing: missingRequired, present: presentRequired },
-      recommended: { missing: missingRecommended },
-      problems,
+      required: { missing: out.missing, present: out.present },
+      recommended: { missing: out.recommended },
+      problems: out.problems,
       properties
     };
+    if (item && item.context !== undefined) result.context = item.context;
 
     if (type && isKnownType(type) && !spec) {
       result.note = 'No required-property list for this type';
@@ -868,9 +976,40 @@
     // markup that Google no longer turns into a rich result — flagged here
     // so the popup can render that distinction instead of silently omitting
     // it from Eligible for with no explanation.
-    result.retiredRichResult = !!(RETIRED_RICH_RESULT_TYPES[type] && missingRequired.length === 0);
+    result.retiredRichResult = !!(RETIRED_RICH_RESULT_TYPES[type] && out.missing.length === 0);
 
     return result;
+  }
+
+  // 1.13.8: "Copy JSON-LD" copies a whole block you can paste into a
+  // <script type="application/ld+json">: @context and @type kept (until
+  // 1.13.8 an item from an @graph lost its @context, and a microdata or RDFa
+  // item came out in the extractor's own shape). Microdata and RDFa items
+  // are written as the JSON-LD they stand for.
+  function toJsonLdValue(v) {
+    if (Array.isArray(v)) return v.map(toJsonLdValue);
+    if (v && typeof v === 'object' && v.properties && typeof v.properties === 'object' && (v.source === 'microdata' || v.source === 'rdfa')) {
+      const out = {};
+      if (v.type) out['@type'] = v.type;
+      Object.keys(v.properties).forEach(k => { out[k] = toJsonLdValue(v.properties[k]); });
+      return out;
+    }
+    return v;
+  }
+
+  function toJsonLd(item) {
+    if (!item || !item.properties) return null;
+    const out = {};
+    const ctx = item.source === 'json-ld' ? (item.properties['@context'] || item.context || 'https://schema.org') : 'https://schema.org';
+    out['@context'] = ctx;
+    if (item.source === 'json-ld') {
+      Object.keys(item.properties).forEach(k => { if (k !== '@context') out[k] = item.properties[k]; });
+      if (out['@type'] === undefined && item.type) out['@type'] = item.type;
+      return out;
+    }
+    if (item.type) out['@type'] = item.type;
+    Object.keys(item.properties).forEach(k => { out[k] = toJsonLdValue(item.properties[k]); });
+    return out;
   }
 
   function featureFor(type) {
@@ -941,8 +1080,10 @@
     REQUIRED,
     RECOMMENDED,
     SOURCE_URLS,
+    NESTED_SPECS,
     validateItem,
     validateAll,
+    toJsonLd,
     stripForStorage
   };
 });

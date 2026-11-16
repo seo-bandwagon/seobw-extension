@@ -216,13 +216,14 @@ describe('validateItem', () => {
     expect(v.type).toBe('Article');
     expect(v.source).toBe('json-ld');
     expect(v.required.missing).toEqual([]);
-    expect(v.required.present.sort()).toEqual(['author', 'datePublished', 'headline', 'image'].sort());
+    // 1.13.8: Google's Article has no required properties.
+    expect(v.required.present).toEqual([]);
     expect(v.problems).toEqual([]);
   });
 
   it('lists missing required fields', () => {
-    const v = SBWSchema.validateItem({ type: 'Article', source: 'json-ld', properties: { headline: 'H' } });
-    expect(v.required.missing.sort()).toEqual(['author', 'datePublished', 'image'].sort());
+    const v = SBWSchema.validateItem({ type: 'Event', source: 'json-ld', properties: { name: 'Gig' } });
+    expect(v.required.missing.sort()).toEqual(['location', 'startDate'].sort());
   });
 
   it('lists missing recommended fields separately from required', () => {
@@ -238,13 +239,15 @@ describe('validateItem', () => {
     expect(v.problems).toContain('Unknown type: TotallyMadeUpType');
   });
 
-  it('flags offers missing price/priceCurrency', () => {
+  // 1.13.8: an Offer needs price (or priceSpecification.price); Google
+  // recommends priceCurrency.
+  it('flags offers missing price, and recommends priceCurrency', () => {
     const v = SBWSchema.validateItem({
       type: 'Product', source: 'json-ld',
       properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { '@type': 'Offer' } }
     });
-    expect(v.problems.join(' ')).toMatch(/price/);
-    expect(v.problems.join(' ')).toMatch(/priceCurrency/);
+    expect(v.required.missing).toEqual(['offers.price or offers.priceSpecification']);
+    expect(v.recommended.missing).toContain('offers.priceCurrency');
   });
 
   it('does not flag offers when price and priceCurrency are both present', () => {
@@ -374,7 +377,7 @@ describe('validateAll', () => {
   it('maps VideoObject/BreadcrumbList to the Video/Breadcrumb feature names, but never lists FAQ (retired rich result)', () => {
     const faq = { type: 'FAQPage', source: 'json-ld', properties: { mainEntity: [{ name: 'Q', acceptedAnswer: { text: 'A' } }] } };
     const video = { type: 'VideoObject', source: 'json-ld', properties: { name: 'V', description: 'D', thumbnailUrl: 'https://x.com/t.jpg', uploadDate: '2026-01-01' } };
-    const crumb = { type: 'BreadcrumbList', source: 'json-ld', properties: { itemListElement: [{ position: 1 }] } };
+    const crumb = { type: 'BreadcrumbList', source: 'json-ld', properties: { itemListElement: [{ position: 1, name: 'Home', item: 'https://x.com/' }, { position: 2, name: 'Shop' }] } };
     const result = SBWSchema.validateAll([faq, video, crumb]);
     expect(result.eligible.sort()).toEqual(['Breadcrumb', 'Video'].sort());
     expect(result.eligible).not.toContain('FAQ');
@@ -432,6 +435,9 @@ describe('type tables', () => {
     const ALLOWED = new Set([
       GOOGLE_BASE + 'article',
       GOOGLE_BASE + 'product',
+      // 1.13.8: Product's rules are the product snippet page's (read live
+      // 2026-11-16).
+      GOOGLE_BASE + 'product-snippet',
       GOOGLE_BASE + 'local-business',
       GOOGLE_BASE + 'breadcrumb',
       GOOGLE_BASE + 'recipe',
@@ -526,12 +532,15 @@ describe('IMPORTANT 3: extractJsonLd recurses through nested/array @graph', () =
 });
 
 describe('IMPORTANT 4: checkOffers — all offers, AggregateOffer, priceSpecification', () => {
+  // 1.13.8: the offers are nested items now; what they miss is in
+  // required.missing, named by its path.
   it('a valid AggregateOffer (lowPrice + priceCurrency) is not flagged', () => {
     const v = SBWSchema.validateItem({
       type: 'Product', source: 'json-ld',
       properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { '@type': 'AggregateOffer', lowPrice: '9.99', highPrice: '19.99', priceCurrency: 'USD' } }
     });
-    expect(v.problems.filter(p => /offers/.test(p))).toEqual([]);
+    expect(v.required.missing).toEqual([]);
+    expect(v.problems).toEqual([]);
   });
 
   it('an AggregateOffer missing lowPrice is flagged for lowPrice, not price', () => {
@@ -539,8 +548,7 @@ describe('IMPORTANT 4: checkOffers — all offers, AggregateOffer, priceSpecific
       type: 'Product', source: 'json-ld',
       properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { '@type': 'AggregateOffer', priceCurrency: 'USD' } }
     });
-    expect(v.problems).toContain('offers[0] missing lowPrice');
-    expect(v.problems).not.toContain('offers[0] missing price');
+    expect(v.required.missing).toEqual(['offers.lowPrice']);
   });
 
   it('a plain Offer with priceSpecification (no price) counts as priced', () => {
@@ -548,15 +556,24 @@ describe('IMPORTANT 4: checkOffers — all offers, AggregateOffer, priceSpecific
       type: 'Product', source: 'json-ld',
       properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: { priceSpecification: { price: '9.99', priceCurrency: 'USD' }, priceCurrency: 'USD' } }
     });
-    expect(v.problems.filter(p => /missing price\b/.test(p))).toEqual([]);
+    expect(v.required.missing).toEqual([]);
   });
 
-  it('iterates every offer in an array, emitting exactly one indexed message for the offending one', () => {
+  it('a priceSpecification without a price is flagged inside it', () => {
+    const v = SBWSchema.validateItem({
+      type: 'Product', source: 'json-ld',
+      properties: { name: 'Widget', offers: { priceSpecification: { priceCurrency: 'USD' } } }
+    });
+    expect(v.required.missing).toEqual(['offers.priceSpecification.price']);
+  });
+
+  it('iterates every offer in an array, naming the offending one by its index', () => {
     const v = SBWSchema.validateItem({
       type: 'Product', source: 'json-ld',
       properties: { name: 'Widget', image: 'https://x.com/w.jpg', offers: [{ price: '9.99', priceCurrency: 'USD' }, { priceCurrency: 'USD' }] }
     });
-    expect(v.problems).toEqual(['offers[1] missing price']);
+    expect(v.required.missing).toEqual(['offers[1].price or offers[1].priceSpecification']);
+    expect(v.problems).toEqual([]);
   });
 });
 
@@ -671,5 +688,147 @@ describe('re-review 2026-09-06: LocalBusiness subtypes missing vs the live vocab
     for (const t of ['Painter', 'Podcast', 'Sheet', 'BookAction']) {
       expect(S.validateItem({ type: t, source: 'json-ld', properties: {} }).problems).toContain('Unknown type: ' + t);
     }
+  });
+});
+
+/* ---------- 1.13.8: Google's required properties, one test per type ---------- */
+
+// Each type's rules as its Search Central page states them (read
+// 2026-11-16). Every test has the smallest markup Google accepts, which
+// must pass clean, and what Google says is missing from markup that leaves
+// something out. Until 1.13.8 Google-valid Product, Organization and
+// Article showed errors.
+describe("Google's required properties (1.13.8)", () => {
+  const V = (type, properties, opts) => SBWSchema.validateItem({ type, source: 'json-ld', properties }, opts);
+  const clean = (v) => { expect(v.required.missing).toEqual([]); expect(v.problems).toEqual([]); };
+
+  it('Article: no required properties ("There are no required properties")', () => {
+    clean(V('Article', {}));
+    clean(V('NewsArticle', { headline: 'H' }));
+    expect(V('BlogPosting', {}).recommended.missing).toEqual(['headline', 'image', 'datePublished', 'dateModified', 'author']);
+    expect(V('Article', { author: { '@type': 'Person' } }).recommended.missing).toContain('author.name');
+    expect(SBWSchema.validateAll([{ type: 'Article', source: 'json-ld', properties: {} }]).eligible).toEqual(['Article']);
+  });
+
+  it('Organization: no required properties', () => {
+    clean(V('Organization', { name: 'Acme' }));
+    clean(V('Organization', {}));
+  });
+
+  it('Product: name, and one of review, aggregateRating or offers', () => {
+    clean(V('Product', { name: 'Widget', offers: { price: '9.99' } }));
+    clean(V('Product', { name: 'Widget', review: { reviewRating: { ratingValue: 4 }, author: { name: 'Jo' } } }));
+    clean(V('Product', { name: 'Widget', aggregateRating: { ratingValue: 4.4, reviewCount: 89 } }));
+    expect(V('Product', { name: 'Widget' }).required.missing).toEqual(['review or aggregateRating or offers']);
+    expect(V('Product', { offers: { price: 1 } }).required.missing).toEqual(['name']);
+  });
+
+  it('LocalBusiness: name and address (telephone is recommended)', () => {
+    clean(V('Dentist', { name: 'Smile', address: { '@type': 'PostalAddress', streetAddress: '1 Main St' } }));
+    expect(V('LocalBusiness', { name: 'Shop' }).required.missing).toEqual(['address']);
+    expect(V('LocalBusiness', { name: 'Shop', address: 'x' }).recommended.missing).toContain('telephone');
+  });
+
+  it('BreadcrumbList: two or more items with position, name, and item except on the last', () => {
+    clean(V('BreadcrumbList', { itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Books', item: 'https://example.com/books' },
+      { '@type': 'ListItem', position: 2, item: { '@id': 'https://example.com/books/sf', name: 'Science Fiction' } },
+      { '@type': 'ListItem', position: 3, name: 'Award Winners' }
+    ] }));
+    const v = V('BreadcrumbList', { itemListElement: [{ name: 'Home' }, { position: 2, item: 'https://example.com/x' }] });
+    expect(v.required.missing).toEqual(['itemListElement[0].position', 'itemListElement[0].item', 'itemListElement[1].name']);
+    expect(V('BreadcrumbList', { itemListElement: [{ position: 1, name: 'Home' }] }).problems).toContain('BreadcrumbList needs at least two items');
+  });
+
+  it('Recipe: name and image', () => {
+    clean(V('Recipe', { name: 'Cake', image: 'https://example.com/c.jpg' }));
+    expect(V('Recipe', { name: 'Cake', recipeIngredient: ['flour'] }).required.missing).toEqual(['image']);
+  });
+
+  it('Event: name, startDate and a location with an address', () => {
+    clean(V('Event', { name: 'Gig', startDate: '2026-07-21T19:00-05:00', location: { '@type': 'Place', name: 'Hall', address: { '@type': 'PostalAddress', streetAddress: '1 Main St' } } }));
+    expect(V('Event', { name: 'Gig', startDate: '2026-07-21', location: { '@type': 'Place', name: 'Hall' } }).required.missing).toEqual(['location.address']);
+    expect(V('Event', { name: 'Gig', startDate: '2026-07-21', location: { '@type': 'VirtualLocation', url: 'https://x.com' } }).problems[0]).toMatch(/VirtualLocation/);
+    expect(V('Event', { name: 'Gig', startDate: 'next Friday', location: { address: 'x' } }).problems).toContain('startDate not an ISO 8601 date');
+  });
+
+  it('VideoObject: name, thumbnailUrl and uploadDate (description is recommended)', () => {
+    clean(V('VideoObject', { name: 'V', thumbnailUrl: 'https://x.com/t.jpg', uploadDate: '2026-01-01' }));
+    expect(V('VideoObject', { name: 'V', thumbnailUrl: 'https://x.com/t.jpg', uploadDate: '2026-01-01' }).recommended.missing).toContain('description');
+  });
+
+  it('Review: author with a name, itemReviewed with a name, reviewRating with a ratingValue', () => {
+    clean(V('Review', { author: { '@type': 'Person', name: 'Jo' }, itemReviewed: { '@type': 'Restaurant', name: 'Pizza' }, reviewRating: { ratingValue: 4 } }));
+    const v = V('Review', { author: { '@type': 'Person' }, itemReviewed: { '@type': 'Thing' }, reviewRating: { bestRating: 5 } });
+    expect(v.required.missing).toEqual(['author.name', 'itemReviewed.name', 'reviewRating.ratingValue']);
+    // An author written as text is the author's name.
+    expect(V('Review', { author: 'Jo', itemReviewed: { name: 'P' }, reviewRating: { ratingValue: 4 } }).required.missing).toEqual([]);
+  });
+
+  it('AggregateRating: ratingValue, ratingCount or reviewCount, and itemReviewed unless nested', () => {
+    clean(V('AggregateRating', { itemReviewed: { name: 'Pizza' }, ratingValue: 4.4, ratingCount: 89 }));
+    expect(V('AggregateRating', { itemReviewed: { name: 'Pizza' }, ratingValue: 4.4 }).required.missing).toEqual(['ratingCount or reviewCount']);
+    clean(V('AggregateRating', { ratingValue: 4.4, reviewCount: 3 }, { nested: true }));
+  });
+
+  it('JobPosting: title, description, datePosted, hiringOrganization, and a jobLocation with a country or applicantLocationRequirements', () => {
+    const base = { title: 'Engineer', description: '<p>Build</p>', datePosted: '2026-11-01', hiringOrganization: { '@type': 'Organization', name: 'Acme' } };
+    clean(V('JobPosting', { ...base, jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressCountry: 'US' } } }));
+    clean(V('JobPosting', { ...base, jobLocationType: 'TELECOMMUTE', applicantLocationRequirements: { '@type': 'Country', name: 'USA' } }));
+    expect(V('JobPosting', base).required.missing).toEqual(['jobLocation or applicantLocationRequirements']);
+    expect(V('JobPosting', { ...base, jobLocation: { address: { addressLocality: 'Denver' } } }).required.missing).toEqual(['jobLocation.address.addressCountry']);
+    expect(V('JobPosting', { ...base, hiringOrganization: {}, jobLocation: { address: { addressCountry: 'US' } } }).required.missing).toEqual(['hiringOrganization.name']);
+  });
+});
+
+describe('nested items are validated (1.13.8)', () => {
+  const V = (type, properties) => SBWSchema.validateItem({ type, source: 'json-ld', properties });
+
+  it("a Product's nested review and aggregateRating are checked, without itemReviewed", () => {
+    const v = V('Product', { name: 'W', review: [{ author: { name: 'A' }, reviewRating: { ratingValue: 5 } }, { reviewRating: {} }], aggregateRating: { ratingValue: 4 } });
+    expect(v.required.missing).toEqual(['review[1].author', 'review[1].reviewRating.ratingValue', 'aggregateRating.ratingCount or aggregateRating.reviewCount']);
+  });
+
+  it('a typed item nested anywhere is checked as that type', () => {
+    const v = V('ItemList', { itemListElement: [{ '@type': 'ListItem', position: 1, item: { '@type': 'Recipe', name: 'Cake' } }] });
+    expect(v.required.missing).toEqual(['itemListElement.item.image']);
+    // A WebPage's breadcrumb.
+    expect(V('WebPage', { breadcrumb: { '@type': 'BreadcrumbList', itemListElement: [{ position: 1, name: 'A', item: 'https://x/' }, { name: 'B' }] } }).required.missing).toEqual(['breadcrumb.itemListElement[1].position']);
+  });
+
+  it("not a Product an Offer only refers to", () => {
+    const v = V('Offer', { price: 5, itemOffered: { '@type': 'Product', name: 'W' } });
+    expect(v.required.missing).toEqual([]);
+  });
+
+  it('microdata nested items the same as JSON-LD ones', () => {
+    const v = SBWSchema.validateItem({ type: 'Product', source: 'microdata', properties: { name: 'W', offers: { type: 'Offer', source: 'microdata', properties: { priceCurrency: 'USD' } } } });
+    expect(v.required.missing).toEqual(['offers.price or offers.priceSpecification']);
+  });
+
+  it('a nested item missing something keeps its parent out of eligible', () => {
+    const r = SBWSchema.validateAll([{ type: 'Product', source: 'json-ld', properties: { name: 'W', offers: {} } }]);
+    expect(r.eligible).toEqual([]);
+    expect(r.counts.withErrors).toBe(1);
+  });
+});
+
+// 1.13.8: "Copy JSON-LD" copies a whole block, @context and @type kept.
+describe('toJsonLd (1.13.8)', () => {
+  it('a JSON-LD item keeps its own @context and @type', () => {
+    const [item] = SBWSchema.extractJsonLd(['{"@context":"https://schema.org","@type":"Product","name":"W"}']);
+    expect(SBWSchema.toJsonLd(SBWSchema.validateItem(item))).toEqual({ '@context': 'https://schema.org', '@type': 'Product', name: 'W' });
+  });
+
+  it('an @graph member gets the graph\'s @context, first', () => {
+    const items = SBWSchema.extractJsonLd(['{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"A"},{"@type":"WebSite","name":"S","url":"https://a/"}]}']);
+    const out = SBWSchema.toJsonLd(SBWSchema.validateItem(items[1]));
+    expect(out).toEqual({ '@context': 'https://schema.org', '@type': 'WebSite', name: 'S', url: 'https://a/' });
+    expect(Object.keys(out)[0]).toBe('@context');
+  });
+
+  it('a microdata item comes out as the JSON-LD it stands for, nested items included', () => {
+    const item = { type: 'Product', source: 'microdata', properties: { name: 'W', offers: { type: 'Offer', source: 'microdata', properties: { price: '9.99', priceCurrency: 'USD' } } } };
+    expect(SBWSchema.toJsonLd(SBWSchema.validateItem(item))).toEqual({ '@context': 'https://schema.org', '@type': 'Product', name: 'W', offers: { '@type': 'Offer', price: '9.99', priceCurrency: 'USD' } });
   });
 });
