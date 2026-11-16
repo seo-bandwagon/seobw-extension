@@ -446,7 +446,7 @@ data flow and no new install warning.
 
 Store texts change with the next submission: the `scripting` and host
 justifications (`https://search.google.com/*`) and the description's
-PRIVACY label (CHROMEWEBSTORE.md, "Due with the next submission (D)").
+PRIVACY label (CHROMEWEBSTORE.md, "Submission D's texts (1.13.8)").
 
 ## Changelog — v1.13.7 (2026-11-09)
 
