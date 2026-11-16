@@ -50,20 +50,29 @@ describe('parseLangTag — tag grammar table', () => {
     expect(r.xDefault).toBe(true);
   });
 
-  it('accepts a numeric UN M49 region (es-419)', () => {
+  // 1.13.8: Google reads ISO 3166-1 alpha-2 regions only ("codes ... such
+  // as es-419, aren't supported").
+  it('a UN M49 region (es-419) is not a region Google reads', () => {
     const r = SBWHreflang.parseLangTag('es-419');
-    expect(r.valid).toBe(true);
+    expect(r.valid).toBe(false);
     expect(r.language).toBe('es');
     expect(r.region).toBe('419');
+    expect(r.reason).toMatch(/UN M49.*ISO 3166-1/);
   });
 
-  it('flags wrong casing as a soft "casing" issue, not a hard invalid', () => {
+  // 1.13.8: "The hreflang value is case-insensitive" (Google). Casing is
+  // information, not an error: valid, with the usual form to show.
+  it('a tag in unusual casing is valid, with its usual form as a note', () => {
     const r = SBWHreflang.parseLangTag('EN-us');
-    expect(r.valid).toBe(false);
+    expect(r.valid).toBe(true);
     expect(r.casing).toBe(true);
-    // still recovers the intended language/region so the UI can suggest a fix
+    expect(r.suggestion).toBe('en-US');
     expect(r.language).toBe('en');
     expect(r.region).toBe('US');
+    expect(SBWHreflang.parseLangTag('en-gb')).toMatchObject({ valid: true, casing: true, suggestion: 'en-GB' });
+    expect(SBWHreflang.parseLangTag('zh-hant-tw')).toMatchObject({ valid: true, suggestion: 'zh-Hant-TW' });
+    expect(SBWHreflang.parseLangTag('X-Default')).toMatchObject({ valid: true, xDefault: true, casing: true });
+    expect(SBWHreflang.parseLangTag('en-GB').casing).toBeUndefined();
   });
 
   it('rejects an underscore separator outright (no casing rescue)', () => {
@@ -78,11 +87,12 @@ describe('parseLangTag — tag grammar table', () => {
     expect(SBWHreflang.parseLangTag('!!!').valid).toBe(false);
   });
 
-  it('accepts a bare 3-letter language code', () => {
-    const r = SBWHreflang.parseLangTag('fil'); // Filipino
-    expect(r.valid).toBe(true);
+  // 1.13.8: "Only language codes listed in ISO 639-1 ... are supported."
+  it('a three-letter language code is not one Google reads', () => {
+    const r = SBWHreflang.parseLangTag('fil'); // Filipino, ISO 639-2
+    expect(r.valid).toBe(false);
     expect(r.language).toBe('fil');
-    expect(r.region).toBeUndefined();
+    expect(r.reason).toMatch(/two-letter ISO 639-1/);
   });
 });
 
@@ -170,12 +180,15 @@ describe('validateSet', () => {
     const casingResult = SBWHreflang.validateSet(
       [{ lang: 'EN-us', href: 'https://example.com/en' }], pageUrl
     );
-    expect(casingResult.issues).toContain('Non-canonical casing: "EN-us" (use en-US)');
+    // 1.13.8: casing is a note, not an issue.
+    expect(casingResult.issues.some(i => /EN-us/.test(i))).toBe(false);
+    expect(casingResult.notes).toEqual(['Written "EN-us": Google reads it in any case; usually written en-US']);
+    expect(casingResult.entries[0].valid).toBe(true);
 
     const invalidResult = SBWHreflang.validateSet(
       [{ lang: 'en_US', href: 'https://example.com/en' }], pageUrl
     );
-    expect(invalidResult.issues).toContain('Invalid hreflang tag: en_US');
+    expect(invalidResult.issues).toContain('Invalid hreflang tag: en_US (use a hyphen, not an underscore)');
   });
 
   it('excludes an x-default sharing a URL with a language variant from the same-URL info issue', () => {
@@ -329,7 +342,7 @@ describe('reciprocity', () => {
     expect(byLang.es.returnTag).toBe('no');
     expect(byLang.de.returnTag).toBe('unreachable');
 
-    expect(result.summary).toEqual({ checked: 3, ok: 1, missing: 1, unreachable: 1, self: 0 });
+    expect(result.summary).toEqual({ checked: 3, ok: 1, missing: 1, unreachable: 1, self: 0, redirected: 0, notIndexable: 0 });
   });
 
   it('treats a Link-header alternate entry as satisfying the return tag too', () => {
@@ -384,7 +397,7 @@ describe('the page itself and tracking parameters (#91, #92)', () => {
   it('marks the page\'s own entries SELF, not unreachable (#91)', () => {
     const r = SBWHreflang.reciprocity('https://example.com/en', pair, fetched);
     expect(r.entries.map(e => e.returnTag)).toEqual(['self', 'yes', 'self']);
-    expect(r.summary).toEqual({ checked: 1, ok: 1, missing: 0, unreachable: 0, self: 2 });
+    expect(r.summary).toEqual({ checked: 1, ok: 1, missing: 0, unreachable: 0, self: 2, redirected: 0, notIndexable: 0 });
   });
 
   it('opened from a tracking link, the page still finds itself and its return tags (#92)', () => {
@@ -403,5 +416,93 @@ describe('the page itself and tracking parameters (#91, #92)', () => {
   it('decodes &amp; in raw-HTML hrefs', () => {
     const html = '<head><link rel="alternate" hreflang="de" href="https://example.com/p?lang=de&amp;region=at"></head>';
     expect(SBWHreflang.extractHreflangFromHtml(html, 'https://example.com/')[0].url).toBe('https://example.com/p?lang=de&region=at');
+  });
+});
+
+// 1.13.8: the codes Google reads, and the audit's two verified cases: valid
+// lowercase en-gb read as a red error, and invalid en-UK passed.
+describe('ISO 639-1 and ISO 3166-1 (1.13.8)', () => {
+  it('holds the current tables: 183 languages, 249 regions', () => {
+    expect(SBWHreflang.ISO_639_1.size).toBe(183);
+    expect(SBWHreflang.ISO_3166_1.size).toBe(249);
+    ['en', 'fr', 'de', 'zh', 'he', 'nb', 'tl'].forEach(c => expect(SBWHreflang.ISO_639_1.has(c)).toBe(true));
+    ['GB', 'US', 'DE', 'TW', 'HK', 'XK'].forEach(c => expect(SBWHreflang.ISO_3166_1.has(c)).toBe(c !== 'XK'));
+  });
+
+  it('en-UK is invalid, with en-GB as the fix', () => {
+    expect(SBWHreflang.parseLangTag('en-UK')).toMatchObject({ valid: false, reason: 'UK is not a country code (use GB)', suggestion: 'en-GB' });
+    expect(SBWHreflang.parseLangTag('en-uk')).toMatchObject({ valid: false, suggestion: 'en-GB' });
+  });
+
+  it('en-gb is valid', () => {
+    expect(SBWHreflang.parseLangTag('en-gb').valid).toBe(true);
+  });
+
+  it('a code in no table, a reserved region, and a language people mistake', () => {
+    expect(SBWHreflang.parseLangTag('xx').reason).toBe('xx is not an ISO 639-1 language code');
+    expect(SBWHreflang.parseLangTag('en-XX').reason).toBe('XX is not an ISO 3166-1 country code');
+    expect(SBWHreflang.parseLangTag('en-EU').reason).toBe('EU is reserved and has no effect in Google Search');
+    expect(SBWHreflang.parseLangTag('jp')).toMatchObject({ valid: false, suggestion: 'ja' });
+    expect(SBWHreflang.parseLangTag('iw-IL')).toMatchObject({ valid: false, suggestion: 'he-IL' });
+    // A region alone is not a tag ("You can't specify the country code by itself").
+    expect(SBWHreflang.parseLangTag('US')).toMatchObject({ valid: false, reason: 'US is a country code: a tag starts with a language, as in en-US' });
+  });
+
+  it('a script is kept (ISO 15924), in any case', () => {
+    expect(SBWHreflang.parseLangTag('zh-Hans')).toMatchObject({ valid: true, script: 'Hans' });
+    expect(SBWHreflang.parseLangTag('sr-latn-rs')).toMatchObject({ valid: true, script: 'Latn', region: 'RS', suggestion: 'sr-Latn-RS' });
+  });
+
+  it('the same tag in two casings is a duplicate', () => {
+    const out = SBWHreflang.validateSet([
+      { lang: 'en-GB', href: 'https://example.com/uk/' },
+      { lang: 'en-gb', href: 'https://example.com/gb/' },
+      { lang: 'x-default', href: 'https://example.com/' }
+    ], 'https://example.com/');
+    expect(out.issues).toContain('Duplicate hreflang tag: en-GB, en-gb');
+  });
+
+  it('an invalid tag says why in the set issues', () => {
+    const out = SBWHreflang.validateSet([{ lang: 'en-UK', href: 'https://example.com/' }, { lang: 'x-default', href: 'https://example.com/' }], 'https://example.com/');
+    expect(out.issues).toContain('Invalid hreflang tag: en-UK (UK is not a country code (use GB))');
+    expect(out.entries[0].issues[0]).toBe('Invalid hreflang tag "en-UK": UK is not a country code (use GB)');
+  });
+});
+
+// 1.13.8: alternates that redirect or can't be indexed are flagged.
+describe('alternates that redirect or are not indexable (1.13.8)', () => {
+  const page = 'https://example.com/en/';
+  const entries = [
+    { lang: 'en', url: 'https://example.com/en/' },
+    { lang: 'fr', url: 'https://example.com/fr' },
+    { lang: 'de', url: 'https://example.com/de/' },
+    { lang: 'es', url: 'https://example.com/es/' },
+    { lang: 'it', url: 'https://example.com/it/' }
+  ];
+  const back = [{ lang: 'en', href: page, url: page }];
+  const fetched = new Map([
+    ['https://example.com/fr', { url: 'https://example.com/fr', finalUrl: 'https://example.com/fr/', status: 200, entries: back }],
+    ['https://example.com/de/', { url: 'https://example.com/de/', finalUrl: 'https://example.com/de/', status: 200, entries: back, noindex: true, noindexSource: 'robots' }],
+    ['https://example.com/es/', { url: 'https://example.com/es/', finalUrl: 'https://example.com/es/', status: 200, entries: back, canonical: 'https://example.com/' }],
+    ['https://example.com/it/', { url: 'https://example.com/it/', finalUrl: 'https://example.com/it/?utm_source=x', status: 200, entries: back, noindex: true, noindexSource: 'x-robots-tag' }]
+  ]);
+
+  it('flags each, and leaves a clean one alone', () => {
+    const r = SBWHreflang.reciprocity(page, entries, fetched);
+    const by = Object.fromEntries(r.entries.map(e => [e.lang, e]));
+    expect(by.fr.redirectsTo).toBe('https://example.com/fr/');
+    expect(by.fr.notIndexable).toBeUndefined();
+    expect(by.de.notIndexable).toBe('noindex (meta robots)');
+    expect(by.es.notIndexable).toBe('canonical points to https://example.com/');
+    expect(by.it.notIndexable).toBe('noindex (X-Robots-Tag)');
+    expect(by.it.redirectsTo).toBeUndefined(); // only a tracking parameter differs
+    expect(r.summary).toMatchObject({ redirected: 1, notIndexable: 3, ok: 4 });
+  });
+
+  it('reads the signals from an alternate\'s head', () => {
+    const html = `<html><head><!-- <meta name="robots" content="noindex"> -->
+      <meta name="googlebot" content="NONE"><link rel="canonical" href="/fr/?a=1&amp;b=2"></head><body><meta name="robots" content="noindex"></body></html>`;
+    expect(SBWHreflang.extractIndexSignalsFromHtml(html, 'https://example.com/fr/x')).toEqual({ noindex: true, noindexSource: 'googlebot', canonical: 'https://example.com/fr/?a=1&b=2' });
+    expect(SBWHreflang.extractIndexSignalsFromHtml('<head><meta name="robots" content="index"></head>', 'https://example.com/')).toEqual({ noindex: false, noindexSource: null, canonical: null });
   });
 });

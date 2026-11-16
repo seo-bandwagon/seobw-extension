@@ -1023,7 +1023,7 @@ Object.defineProperty(SEO_FIXTURE, 'hreflang', {
   enumerable: true,
   get() {
     const result = SBWHreflang.validateSet(HREFLANG_RAW_ENTRIES, SEO_FIXTURE.url);
-    return { count: HREFLANG_RAW_ENTRIES.length, issues: result.issues, entries: result.entries };
+    return { count: HREFLANG_RAW_ENTRIES.length, issues: result.issues, notes: result.notes || [], entries: result.entries };
   }
 });
 

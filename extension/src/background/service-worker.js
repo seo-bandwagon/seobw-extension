@@ -1522,6 +1522,13 @@ async function fetchHreflangAlternate(url) {
     .filter(e => (e.rel || '').toLowerCase().split(/\s+/).includes('alternate') && e.hreflang);
 
   const result = { url, finalUrl, status: res.status, entries, linkHeaderEntries };
+  // 1.13.8: can the alternate be indexed? Its robots and googlebot metas,
+  // its X-Robots-Tag and its canonical (src/lib/hreflang.js).
+  const signals = SBWHreflang.extractIndexSignalsFromHtml(html, finalUrl);
+  const xrt = (typeof res.headers.get === 'function') ? res.headers.get('x-robots-tag') : null;
+  if (xrt && SBWRedirects.parseXRobotsTag(xrt).noindex) { result.noindex = true; result.noindexSource = 'x-robots-tag'; }
+  else if (signals.noindex) { result.noindex = true; result.noindexSource = signals.noindexSource; }
+  if (signals.canonical) result.canonical = signals.canonical;
   if (bodyTruncated) result.bodyTruncated = true;
   return result;
 }

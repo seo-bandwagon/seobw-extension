@@ -559,7 +559,8 @@ function analyzeHreflang() {
 
   const validated = SBWHreflang.validateSet(raw, window.location.href);
   const entries = validated.entries.map((v, i) => Object.assign({ href: raw[i] && raw[i].href }, v));
-  return { count: raw.length, entries, issues: validated.issues };
+  // 1.13.8: `notes` are information (a valid tag in unusual casing), not issues.
+  return { count: raw.length, entries, issues: validated.issues, notes: validated.notes || [] };
 }
 
 // Task 5: full JSON-LD + microdata + RDFa extraction and required/

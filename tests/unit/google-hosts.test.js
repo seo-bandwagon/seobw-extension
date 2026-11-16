@@ -34,7 +34,12 @@ describe('Google search hosts', () => {
     expect(listIn(file).sort()).toEqual([...hosts].sort());
   });
 
-  it('adds no host permission: the hosts are content-script matches only', () => {
-    expect(manifest.host_permissions).toEqual(['https://seobandwagon.com/*']);
+  // 1.13.8 (#158): search.google.com joined, so the worker can give Search
+  // Console tabs open across an install or update their runner; it adds no
+  // install warning (tests/e2e/gsc-icons.spec.mjs measures it). The search
+  // hosts themselves stay content-script matches only.
+  it('adds no host permission for the search hosts: they are content-script matches only', () => {
+    expect(manifest.host_permissions).toEqual(['https://seobandwagon.com/*', 'https://search.google.com/*']);
+    hosts.forEach((h) => expect(manifest.host_permissions.some((p) => p.includes(h))).toBe(false));
   });
 });

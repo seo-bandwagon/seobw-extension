@@ -1043,6 +1043,8 @@ body {
 }
 .hf-chip-ok { border-color: rgba(22, 199, 132, 0.4); color: var(--success); }
 .hf-chip-bad { border-color: rgba(229, 72, 77, 0.4); color: var(--error); }
+/* 1.13.8: information, not an issue (a valid tag in unusual casing). */
+.hf-chip-note { border-style: dashed; color: var(--paper-70); }
 
 .hf-table { border-top: 1px solid var(--hairline-soft); }
 .hf-row {
