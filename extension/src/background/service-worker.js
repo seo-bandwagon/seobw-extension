@@ -6,7 +6,7 @@
 // lists the same files before this one, read from these calls by
 // scripts/targets/firefox.mjs, so they are loaded already.
 
-if (typeof importScripts === 'function') importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/text-count.js', '../lib/shortcut.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js');
+if (typeof importScripts === 'function') importScripts('../lib/browser.js', '../../lib/dom-extraction.js', '../lib/sync-state.js', '../lib/consent.js', '../lib/api.js', '../lib/directory-matcher.js', '../lib/link-check.js', '../lib/link-check-runs.js', '../lib/perms.js', '../lib/redirect-chain.js', '../lib/hreflang.js', '../lib/html-diff.js', '../lib/ua-switch.js', '../lib/tool-links.js', '../lib/text-count.js', '../lib/shortcut.js', '../lib/site-links.js', '../lib/site-connect.js', '../lib/analyze-link.js', '../lib/fullpage-plan.js', '../lib/fullpage-capture.js', '../lib/proof-store.js', '../lib/fullpage-runs.js', '../lib/serp-collect.js', '../lib/analysis-errors.js', '../lib/capture-strip.js', '../lib/serp-analyze.js', '../lib/serp-figures.js', '../lib/serp-figures-service.js', '../lib/serp-keywords.js', '../lib/serp-keywords-service.js', '../lib/aio-study.js', '../lib/aio-study-service.js', '../lib/serp-settings.js', '../lib/robots-ai.js', '../lib/serp-page-check.js', '../lib/gsc-tabs.js', '../lib/first-run.js');
 
 // 1.13.7: the account key and the API address (chrome.storage.sync) are for
 // the extension's own pages and this worker only. By default every content
@@ -324,6 +324,10 @@ chrome.runtime.onInstalled.addListener(() => {
 // which gives neither in a build whose browser those pages don't name
 // (SBWBrowser.sitePages: the Edge build, 1.13.6).
 chrome.runtime.onInstalled.addListener(async (details) => {
+  // 1.14.0: a fresh install shows the first-run guide the first time the
+  // popup opens (src/lib/first-run.js), in every build, the Edge one too.
+  const guide = SBWFirstRun.installRecord(details.reason);
+  if (guide) chrome.storage.local.set({ [SBWFirstRun.KEY]: guide }).catch(() => {});
   const actions = SBWSiteLinks.installActions(details.reason, chrome.runtime.getManifest().version);
   if (actions.uninstallUrl) {
     try {

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>SEO Bandwagon - Your data</title>
+  <link rel="stylesheet" href="../styles/fonts.css">
+  <script src="../lib/browser.js"></script>
+  <script src="../lib/theme-mode.js"></script>
+  <link rel="stylesheet" href="../styles/popup.css">
+</head>
+<body class="page-options page-your-data">
+  <div class="container">
+    <h1>
+      <img src="../icons/icon48.png" alt="">
+      Your data
+    </h1>
+    <p class="subtitle">What stays on this device, what the extension sends, when and to whom, and what SEO Bandwagon keeps. Nothing on this page is sent anywhere.</p>
+
+    <div class="section" id="yd-device">
+      <div class="section-title">On this device</div>
+      <div class="yd-rows" id="ydDevice"></div>
+    </div>
+
+    <div class="section" id="yd-sent">
+      <div class="section-title">What is sent, when and to whom</div>
+      <p class="yd-lead" id="ydAccountLine">With no account connected, the extension sends nothing at all.</p>
+      <div class="yd-rows" id="ydFlows"></div>
+      <div class="yd-subtitle">On your click, with an account connected</div>
+      <div class="yd-rows" id="ydClicks"></div>
+      <div class="yd-subtitle">Pages the extension opens</div>
+      <div class="yd-rows" id="ydVisits"></div>
+    </div>
+
+    <div class="section" id="yd-kept">
+      <div class="section-title">What seobandwagon.com keeps, and for how long</div>
+      <div class="yd-rows" id="ydKept"></div>
+      <p class="yd-lead">The rest is in the <a href="https://seobandwagon.com/privacy?utm_source=chrome_extension&amp;utm_medium=extension&amp;utm_campaign=your_data" id="ydPrivacy" target="_blank" rel="noopener">privacy policy</a>.</p>
+    </div>
+
+    <div class="section" id="yd-synced">
+      <div class="section-title">What your browser syncs</div>
+      <ul class="yd-list" id="ydSyncedItems"></ul>
+      <p class="yd-lead" id="ydSyncedText"></p>
+    </div>
+  </div>
+
+  <script src="../lib/sync-state.js"></script>
+  <script src="../lib/consent.js"></script>
+  <script src="../lib/api.js"></script>
+  <script src="../lib/your-data.js"></script>
+  <script src="your-data.js"></script>
+</body>
+</html>

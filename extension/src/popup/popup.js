@@ -103,10 +103,8 @@ function reopenSection() {
   let id = null;
   try { id = sessionStorage.getItem('sbwOpenSection'); sessionStorage.removeItem('sbwOpenSection'); } catch (e) { return; }
   if (!id) return;
-  const el = document.querySelector(`#content [data-section="${CSS.escape(id)}"]`);
-  if (!el) return;
-  el.classList.add('open');
-  el.scrollIntoView({ block: 'start' });
+  // 1.14.0: a section inside All checks opens with it (openSection, below).
+  openSection(id);
 }
 
 /* ---------- tab switching ---------- */
@@ -351,15 +349,54 @@ function checkClass(check) {
   return check.status === 'pass' ? 'good' : check.status === 'warn' ? 'warn' : 'bad';
 }
 
-// An issue with its fix and the points it costs (1.10.4; the fix text was
-// only on the new tab).
-function issueRow(issue, data) {
-  const fix = globalThis.SEOBWAnalysis ? SEOBWAnalysis.fixFor(issue, data) : null;
-  const body = fix && fix.body ? `<span class="issue-fix">${esc(fix.body)}</span>` : '';
-  const pts = fix && fix.points
-    ? `<span class="issue-points" title="Points this costs on the on-page checklist">−${fix.points}</span>`
+// An issue with what to change and the points it costs (1.10.4; the fix
+// text was only on the new tab), and since 1.14.0 why it matters. `item` is
+// one of SBWFirstScreen.orderedIssues(); a bare label still works.
+function issueRow(item, data) {
+  const it = typeof item === 'string'
+    ? Object.assign({ issue: item, why: '' }, globalThis.SEOBWAnalysis ? SEOBWAnalysis.fixFor(item, data) : {})
+    : item;
+  const why = it.why ? `<span class="issue-why">${esc(it.why)}</span>` : '';
+  const body = it.body ? `<span class="issue-fix">${esc(it.body)}</span>` : '';
+  const points = it.points;
+  const pts = points
+    ? `<span class="issue-points" title="Points this costs on the on-page checklist">−${points}</span>`
     : '';
-  return `<div class="issue"><span class="issue-main"><span class="issue-label">${esc(issue)}</span>${body}</span>${pts}</div>`;
+  const flag = it.blocksIndex ? '<span class="issue-flag">Keeps the page out of search</span>' : '';
+  return `<div class="issue" data-issue="${esc(it.issue)}"><span class="issue-main"><span class="issue-label">${esc(it.issue)}</span>${flag}${why}${body}</span>${pts}</div>`;
+}
+
+// 1.14.0: the top problems, worst first, then "All N issues" with the rest
+// and Copy issues (src/lib/first-screen.js orders them).
+function renderTopIssues(data) {
+  const F = globalThis.SBWFirstScreen;
+  const split = F ? F.splitIssues(data) : { top: [], rest: [], all: [] };
+  const n = split.all.length;
+  if (!n) {
+    return `<div class="top-issues" id="topIssues">
+      <div class="top-issues-head"><span class="top-issues-title">Top problems</span>${badge('CLEAN', 'b-ok')}</div>
+      <div class="pass">No issues: every check that applies passed</div>
+    </div>`;
+  }
+  const rest = split.rest.length
+    ? `<div class="section all-issues" data-section="issues">
+        <div class="section-header">
+          <span class="section-arrow">▸</span>
+          <span class="section-title">All ${n} issues</span>
+          ${badge(`${split.rest.length} MORE`, '')}
+        </div>
+        <div class="section-content">${split.rest.map(i => issueRow(i, data)).join('')}</div>
+      </div>`
+    : '';
+  return `<div class="top-issues" id="topIssues">
+    <div class="top-issues-head">
+      <span class="top-issues-title">${split.top.length === 1 ? 'Top problem' : `Top ${split.top.length} problems`}</span>
+      ${badge(`${n} ${n === 1 ? 'ISSUE' : 'ISSUES'}`, n > 3 ? 'b-err' : 'b-warn')}
+      <button type="button" class="section-action-btn" id="copyIssuesBtn">Copy issues</button>
+    </div>
+    ${split.top.map(i => issueRow(i, data)).join('')}
+    ${rest}
+  </div>`;
 }
 
 const has = (v) => v !== null && v !== undefined;
@@ -373,50 +410,48 @@ function renderResults(data) {
 
   let html = '';
 
-  /* --- Score hero --- */
+  /* --- Score hero (1.14.0: the grade, the checks line, what the score is,
+     and what each sub-score covers) --- */
+  const F = globalThis.SBWFirstScreen;
+  const line = F ? F.checksLineText(F.checksLine(data)) : { passed: '', na: '' };
+  const covers = F ? F.groupCovers() : {};
   html += `<div class="seo-hero">
-    <div class="ring" style="background:${ringStyle(score.score)}" title="On-page checklist: 100 minus the points the issues below cost">
+    <div class="ring" style="background:${ringStyle(score.score)}" title="On-page checklist: 100 minus the points the issues cost">
       <span>
         <span class="ring-val">${score.score}</span>
-        <span class="ring-cap">SCORE</span>
+        <span class="ring-cap" id="scoreGrade">GRADE ${esc(score.grade)}</span>
       </span>
     </div>
     <div class="seo-hero-body">
       <div class="seo-url" title="${esc(data.url)}">${esc((data.url || '').replace(/^https?:\/\//, ''))}</div>
+      <div class="checks-line" id="checksLine"><span class="checks-passed">${esc(line.passed)}</span>${line.na ? ` <span class="checks-na">· ${esc(line.na)}</span>` : ''}</div>
       <div class="subscores">
         ${subs.map(s => `
-          <div class="subscore">
+          <div class="subscore" title="${esc(covers[s.k] || '')}">
             <span class="subscore-k">${esc(s.k)}</span>
             ${meter(s.v)}
             <span class="subscore-v">${s.v}</span>
+            <span class="subscore-covers">${esc(covers[s.k] || '')}</span>
           </div>`).join('')}
       </div>
     </div>
-  </div>`;
+  </div>
+  <div class="score-line" id="scoreLine">${esc(F ? F.SCORE_LINE : '')}</div>`;
 
   /* --- Page history (populated async by loadDomainHistory) --- */
   html += `<div id="domainHistory" class="domain-history" hidden></div>`;
 
-  /* --- Add current tab as a link-building outlet --- */
-  html += `<div class="lb-add-outlet-mini">
-    <button type="button" id="addOutletBtn" class="lb-add-btn-mini">+ ADD AS OUTLET</button>
-  </div>`;
+  /* --- The top problems, then the rest on a click --- */
+  html += renderTopIssues(data);
 
-  /* --- Issues --- */
-  const issueBadge = score.issues.length
-    ? badge(`${score.issues.length} ${score.issues.length === 1 ? 'ISSUE' : 'ISSUES'}`, score.issues.length > 3 ? 'b-err' : 'b-warn')
-    : badge('CLEAN', 'b-ok');
-  html += section('issues', 'Issues', issueBadge,
-    score.issues.length
-      ? score.issues.map(i => issueRow(i, data)).join('')
-      : '<div class="pass">No major issues found</div>',
-    true);
+  /* --- All checks: every other section, folded, with a jump to each --- */
+  let checksHtml = '';
 
   /* --- Page meta --- */
-  html += section('meta', 'Page Meta', metaBadge(checks), renderPageMeta(data, checks));
+  checksHtml += section('meta', 'Page Meta', metaBadge(checks), renderPageMeta(data, checks));
 
   /* --- Core Web Vitals --- */
-  if (data.webVitals) html += renderWebVitals(data.webVitals);
+  if (data.webVitals) checksHtml += renderWebVitals(data.webVitals);
 
   /* --- Headings --- */
   const hCount = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map(k => (data.headings[k] || []).length);
@@ -424,7 +459,7 @@ function renderResults(data) {
   const skips = outline.filter(h => h.skipped).length;
   const empties = outline.filter(h => h.empty).length;
   const flags = [skips ? `${skips} SKIPPED` : '', empties ? `${empties} EMPTY` : ''].filter(Boolean).join(' · ');
-  html += section('headings', 'Headings',
+  checksHtml += section('headings', 'Headings',
     badge(`H1×${hCount[0]} · H2×${hCount[1]} · H3×${hCount[2]}`, data.headings.h1.length === 1 ? '' : 'b-warn') +
       (flags ? ' ' + badge(flags, 'b-warn') : ''),
     renderHeadingTree(outline) +
@@ -438,7 +473,7 @@ function renderResults(data) {
   const missingAlt = data.images.missingAlt.count;
   const nfAnchors = data.links.nofollowAnchors || [];
   const nfList = nfAnchors.slice(0, 50);
-  html += section('links', 'Links & Images',
+  checksHtml += section('links', 'Links & Images',
     missingAlt ? badge(`${missingAlt} NO ALT`, 'b-err') : badge(`${data.links.internal.count + data.links.external.count} LINKS`, ''),
     `${dataRow('Internal', esc(data.links.internal.count))}
     ${dataRow('External', esc(data.links.external.count))}
@@ -467,7 +502,7 @@ function renderResults(data) {
     </div>`);
 
   /* --- Content --- */
-  html += section('content', 'Content',
+  checksHtml += section('content', 'Content',
     badge(`${(data.content.wordCount || 0).toLocaleString()} WORDS`, data.content.wordCount >= 600 ? 'b-ok' : 'b-warn'),
     `${dataRow('Words', (data.content.wordCount || 0).toLocaleString())}
     ${data.content.scope === 'body-fallback' ? dataRow('Counted in', 'The page body: its main region has under 100 words') : ''}
@@ -485,12 +520,12 @@ function renderResults(data) {
 
   /* --- Tech stack --- */
   if (techStack.length) {
-    html += section('techstack', 'Tech Stack', badge(`${techStack.length} DETECTED`, ''),
+    checksHtml += section('techstack', 'Tech Stack', badge(`${techStack.length} DETECTED`, ''),
       `<div class="tech-badges">${techStack.map(t => `<span class="tech-badge" title="${esc(t.category || '')}">${esc(t.name)}</span>`).join('')}</div>`);
   }
 
   /* --- Technical --- */
-  html += section('technical', 'Technical',
+  checksHtml += section('technical', 'Technical',
     badge(`${(data.technical.domElements || 0).toLocaleString()} NODES`, data.technical.domElements > 2000 ? 'b-warn' : ''),
     `${dataRow('DOM elements', (data.technical.domElements || 0).toLocaleString(), data.technical.domElements > 2000 ? 'warn' : '')}
     ${dataRow('Scripts', esc(data.technical.scripts))}
@@ -500,37 +535,97 @@ function renderResults(data) {
     ${data.textToHtml ? dataRow('Text ratio', data.textToHtml.ratio + ' %', data.textToHtml.status === 'good' ? 'good' : 'warn') : ''}
     ${data.mixedContent && data.mixedContent.isHttps ? dataRow('Mixed content', esc(data.mixedContent.mixedCount), data.mixedContent.mixedCount === 0 ? 'good' : 'bad') : ''}`);
 
-  /* --- Actions --- */
+  html += `<div class="section all-checks" data-section="allchecks">
+    <div class="section-header">
+      <span class="section-arrow">▸</span>
+      <span class="section-title">All checks</span>
+      <span class="all-checks-count" id="allChecksCount"></span>
+    </div>
+    <div class="section-content">
+      <nav class="jump-row" id="jumpRow" aria-label="Jump to a section"></nav>
+      <div class="all-checks-body" id="allChecksBody">${checksHtml}</div>
+    </div>
+  </div>`;
+
+  /* --- Actions (1.14.0: "+ Add as outlet" and the tools links moved here,
+     off the first screen) --- */
   html += `<div class="actions">
     <button id="copyBtn">COPY JSON</button>
     <button id="exportBtn">EXPORT</button>
     <button id="clearHighlightBtn">CLEAR</button>
   </div>
+  <div class="actions-more">
+    <button type="button" id="addOutletBtn" class="lb-add-btn-mini">+ ADD AS OUTLET</button>
+    <div class="tools-slot" id="toolsSlot"></div>
+  </div>
   <div class="status" id="status"></div>`;
 
   content.innerHTML = html;
   wireSeoTab();
-  // Indexability mounts first: it inserts itself right after "Page Meta"
-  // (see src/popup/indexability.js). Hreflang mounts next and inserts
-  // itself right after Indexability (see src/popup/hreflang.js) — or, with
-  // no hreflang tags on the page, adds nothing but a muted line inside Page
-  // Meta instead. Rendering mounts next and inserts itself right after
-  // Hreflang, falling back the same way (see src/popup/render-check.js).
-  // Structured Data mounts next and inserts itself right after Rendering,
-  // falling back through the same chain (see src/popup/structured-data.js).
-  // Link Check — which just appends to the end of #content — always ends up
-  // last regardless of call order; mounting these first anyway keeps that
-  // intent readable here.
-  globalThis.SBWIndexabilityUI?.mount(document.getElementById('content'), data);
-  globalThis.SBWHreflangUI?.mount(document.getElementById('content'), data);
-  globalThis.SBWRenderCheckUI?.mount(document.getElementById('content'), data);
-  globalThis.SBWSchemaUI?.mount(document.getElementById('content'), data);
-  globalThis.SBWLinkCheckUI?.mount(document.getElementById('content'), data);
-  // TOOLS row (Task 7, item C) — inserts itself as #content's first child,
-  // above the score hero, so it has to mount last (every mount() above
-  // targets a spot further down and would otherwise land above it).
-  globalThis.SBWToolsUI?.mount(document.getElementById('content'), data);
+  // The checks panels mount into All checks (1.14.0; until then into
+  // #content), each where it always went: Indexability right after "Page
+  // Meta" (see src/popup/indexability.js), Hreflang right after
+  // Indexability (src/popup/hreflang.js) — or, with no hreflang tags on the
+  // page, nothing but a muted line inside Page Meta. Rendering mounts next
+  // and inserts itself right after Hreflang, falling back the same way
+  // (src/popup/render-check.js). Structured Data mounts next and inserts
+  // itself right after Rendering, falling back through the same chain
+  // (src/popup/structured-data.js). Link Check appends, so it ends up last.
+  const checksBody = document.getElementById('allChecksBody');
+  globalThis.SBWIndexabilityUI?.mount(checksBody, data);
+  globalThis.SBWHreflangUI?.mount(checksBody, data);
+  globalThis.SBWRenderCheckUI?.mount(checksBody, data);
+  globalThis.SBWSchemaUI?.mount(checksBody, data);
+  globalThis.SBWLinkCheckUI?.mount(checksBody, data);
+  // TOOLS row (Task 7, item C): inserts itself as its container's first
+  // child; since 1.14.0 that container is the row under the actions.
+  globalThis.SBWToolsUI?.mount(document.getElementById('toolsSlot'), data);
+  buildJumpRow();
   reopenSection();
+}
+
+// 1.14.0: one link per section inside All checks, read from what mounted,
+// so a panel that adds itself later (or not at all) is listed as it is.
+function sectionTitleOf(sec) {
+  const t = sec.querySelector(':scope > .section-header .section-title');
+  return t ? t.textContent.trim() : '';
+}
+
+function buildJumpRow() {
+  const row = document.getElementById('jumpRow');
+  const body = document.getElementById('allChecksBody');
+  if (!row || !body) return;
+  const secs = Array.from(body.querySelectorAll(':scope > .section'));
+  row.replaceChildren(...secs.map(sec => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jump-link';
+    btn.dataset.jump = sec.dataset.section;
+    btn.textContent = sectionTitleOf(sec);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSection(btn.dataset.jump);
+    });
+    return btn;
+  }));
+  const count = document.getElementById('allChecksCount');
+  if (count) {
+    const b = document.createElement('span');
+    b.className = 'badge-mono';
+    b.textContent = `${secs.length} SECTIONS`;
+    count.replaceChildren(b);
+  }
+}
+
+// Opens a section (and All checks around it) and scrolls to it.
+function openSection(id) {
+  const el = document.querySelector(`#content [data-section="${CSS.escape(id)}"]`);
+  if (!el) return null;
+  const outer = el.parentElement && el.parentElement.closest('.section');
+  if (outer) outer.classList.add('open');
+  el.classList.add('open');
+  el.scrollIntoView({ block: 'start' });
+  return el;
 }
 
 /* ---------- section renderers (1.10.4) ---------- */
@@ -654,7 +749,7 @@ function languageLine(lang) {
 
 function readabilitySkipped(lang) {
   if (lang && lang.code && lang.code !== 'en') return 'Not scored: the page is not in English';
-  return 'Not scored: no English text recognised';
+  return 'Not scored: no English text recognized';
 }
 
 function wireSeoTab() {
@@ -693,6 +788,17 @@ function wireSeoTab() {
 
   document.getElementById('addOutletBtn')?.addEventListener('click', addCurrentTabAsOutlet);
   initAddOutletButton();
+
+  // 1.14.0: every issue, worst first, with why and what to change.
+  document.getElementById('copyIssuesBtn')?.addEventListener('click', (e) => { e.stopPropagation(); copyIssues(pageData); });
+}
+
+function copyIssues(data) {
+  const F = globalThis.SBWFirstScreen;
+  if (!F || !data) return;
+  navigator.clipboard.writeText(F.issuesText(data))
+    .then(() => setSeoStatus('Issues copied', 'success'))
+    .catch(() => setSeoStatus('Copy failed', 'error'));
 }
 
 // Disables "+ ADD AS OUTLET" when there's no account connected — SBW.lb.addOutlet()

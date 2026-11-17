@@ -569,13 +569,19 @@ describe('the one check list', () => {
 
   it('fixFor gives each issue its fix and points, from the page\'s own numbers', () => {
     expect(fixFor('Title too short', { meta: { title: { text: 'Short', length: 5 } } }))
-      .toEqual({ title: 'Title too short', body: '5 characters. Aim for 30 to 60.', tool: 'gsc', points: 6 });
+      .toEqual({
+        title: 'Title too short',
+        body: '5 characters. Aim for 30 to 60.',
+        why: 'A short title tells searchers little, and Google may write its own headline for the result from the page instead.',
+        tool: 'gsc',
+        points: 6
+      });
     expect(fixFor('Title too short', { meta: { title: { text: '家庭菜園', length: 4, displayLength: 8 } } }).body)
       .toBe('4 characters (8 counting each wide character as two). Aim for 30 to 60.');
     expect(fixFor('Duplicate tags', { meta: { title: { count: 2 }, description: { count: 1 }, canonicalCount: 2 } }).body)
-      .toBe('2 title tags, 2 canonical tags. Keep one of each: Google picks one, and it may not be yours.');
+      .toBe('2 title tags, 2 canonical tags. Keep one of each.');
     expect(fixFor('Some images missing alt', { images: { total: 6, missingAlt: { count: 1 }, decorative: 3 } }).body)
-      .toBe('1 of 6 images have no alt attribute. 3 more have alt="" and count as decorative.');
+      .toBe('1 of 6 images have no alt attribute. 3 more have alt="" and count as decorative. Describe each one in its alt text, or give a purely decorative one alt="".');
     expect(fixFor('Something new', {})).toBeNull();
   });
 });

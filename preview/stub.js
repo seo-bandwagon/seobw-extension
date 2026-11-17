@@ -227,6 +227,11 @@ if (PREVIEW_STATE.startsWith('lb-')) {
 // `rate_limited`, `unavailable`, `not_accepted`; `&incognito=off` makes a
 // Search click refuse the way a browser without Allow in Incognito does.
 const STUDY_QUERY = new URLSearchParams(location.search);
+// 1.14.0: the first-run guide, as a fresh install opens the popup.
+if (PREVIEW_STATE === 'guide') {
+  store.sbwGuide = { pending: true, at: '2026-11-17T00:00:00.000Z' };
+}
+
 if (PREVIEW_STATE === 'study') {
   store.sbwConsent = { aioStudy: { acceptedAt: Date.now(), version: 1 } };
 }
@@ -1085,7 +1090,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // under its score ring), same as `seo` — and the two link-check states
     // (Task 1) render their section there too — everything else lands on
     // Citations.
-    const seoTabStates = ['seo', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'link-check-reattach', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua', 'schema-mixed', 'credits'];
+    const seoTabStates = ['seo', 'guide', 'domain-history', 'link-check-noperm', 'link-check-results', 'link-check-reinject', 'link-check-reattach', 'indexability-chain', 'indexability-empty', 'hreflang-set', 'hreflang-checked', 'render-diff', 'render-ua', 'schema-mixed', 'credits'];
     const needsCitations = !seoTabStates.includes(PREVIEW_STATE);
 
     if (needsCitations && citTab) citTab.click();

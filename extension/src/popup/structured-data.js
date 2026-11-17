@@ -285,6 +285,7 @@
           <p class="credits-copy"><strong>SEO Bandwagon ${esc(manifest.version)}</strong>${manifest.version_name && manifest.version_name !== manifest.version ? ` · ${esc(String(manifest.version_name).replace(/^[\d.]+\s*[—-]\s*/, ''))}` : ''}</p>
           <p class="credits-copy">Help, a question or a bug: <a href="${esc(support)}" target="_blank" rel="noopener" id="creditsSupport">seobandwagon.com/contact</a> · <a href="https://github.com/seo-bandwagon/seobw-extension/issues/new/choose" target="_blank" rel="noopener">report it on GitHub</a></p>
           <p class="credits-copy">Analyze the current page: <kbd class="shortcut-keys" id="creditsShortcut">…</kbd> <button type="button" class="credits-link" id="creditsShortcutChange">Change</button></p>
+          <p class="credits-copy"><button type="button" class="credits-link" id="creditsGuide">Show the first-run guide</button> · <a href="../your-data/your-data.html" target="_blank" rel="noopener" id="creditsYourData">Your data</a>: what stays on this device, what is sent and what is kept</p>
         </div>
         <p class="credits-copy">The Structured Data section's required/recommended property lists are derived from:</p>
         <ul class="credits-list">
@@ -312,6 +313,11 @@
     if (!panel || creditsBuilt) return panel;
     panel.innerHTML = renderCreditsPanel();
     panel.querySelector('#creditsCloseBtn')?.addEventListener('click', () => { panel.hidden = true; });
+    // 1.14.0: the first-run guide, reopened (src/popup/guide.js).
+    panel.querySelector('#creditsGuide')?.addEventListener('click', () => {
+      panel.hidden = true;
+      globalThis.SBWGuide?.show();
+    });
     panel.querySelector('#creditsShortcutChange')?.addEventListener('click', () => {
       if (globalThis.SBWShortcut) SBWShortcut.openSettings(chrome, SBWBrowser);
     });

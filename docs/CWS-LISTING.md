@@ -1,6 +1,12 @@
 # Chrome Web Store listing text — in review: v1.13.10 (submission E)
 
 The listing text for the next store submission, kept current with `main`.
+**2026-11-17, 1.14.0** (the first run; it goes with 1.15.0 as submission F):
+only §7, the reviewer notes, changes: the checks panels are reached through
+"All checks" now, and the first run is described. Paste-ready in
+`CHROMEWEBSTORE.md` under "Submission F's texts". The description (§2) stays
+as it is until F is cut, so the text pasted to fix the live listing describes
+the version the store serves. No permission, host or data-use answer changes.
 **2026-11-17:** the store serves 1.13.8 (submission D, published; Google's
 update server served 1.13.8 that day), and 1.13.10 is in review (submission
 E, 1.13.9 and 1.13.10, submitted that day as a staged publish, run
@@ -708,23 +714,35 @@ which needs the same account signed in on the site. Typing a site address into
 its box and pressing Scan opens that site in the same tab and then the popup,
 which analyzes it; words that are not an address get a note, never a search.
 
+**First run (1.14.0)**: on a first install, the popup opens with a short
+guide at the top of its ANALYSIS tab: what the score is, where the checks
+are, what a free account adds. "Got it" hides it for good; the footer's
+About, then "Show the first-run guide", shows it again. The popup leads with
+the score and its letter grade, how many of the checks that apply passed,
+and the top three problems, each with why it matters and what to change;
+"All N issues" lists the rest, and every other section, the checks below
+included, is under "All checks". The footer's YOUR DATA (also in Settings and
+the guide) opens a page of the extension's own that says what stays on the
+device, what is sent, when and to whom, with each flow's switch, and what
+seobandwagon.com keeps. None of it sends anything or needs a permission.
+
 No account is required to exercise every permission-bearing feature below.
 Full-page proof screenshots (Citations tab) need a connected account; they
 use only `activeTab` and `scripting`, which the features below also exercise.
 
-- **Link Check**: open the popup on any page with links, expand "Link
-  Check," click "Check N links." Click "Allow access to check other sites"
+- **Link Check**: open the popup on any page with links, open "All
+  checks," then "Link Check," and click "Check N links." Click "Allow access to check other sites"
   first if prompted — this is the optional `<all_urls>` grant.
-- **Indexability**: open the popup on any page — the panel populates as soon
+- **Indexability**: open the popup on any page and open "All checks" — the panel populates as soon
   as the optional permission above is granted, then reload the page (or
   click "Reload to capture") — HTTP signals are only recorded on a
   navigation. To test "Trace another URL," type any URL into the trace field
   and submit.
-- **Hreflang**: open the popup on a page with `hreflang` tags (or any page —
+- **Hreflang**: under "All checks," on a page with `hreflang` tags (or any page —
   the tag table renders even with zero tags). "Check return tags" needs the
   same optional permission.
-- **Rendering → "View as"**: open the popup on any page, expand "Rendering,"
-  choose a preset other than Default from the dropdown. The current tab
+- **Rendering → "View as"**: open the popup on any page, open "All checks,"
+  then "Rendering," and choose a preset other than Default from the dropdown. The current tab
   reloads under that User-Agent; switch back to Default to remove it.
 - **Google results overlay**: search anything on google.com. Signed out (no
   API key configured), each result's bar shows its position, Analyze and
