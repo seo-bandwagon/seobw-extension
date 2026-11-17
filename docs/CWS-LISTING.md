@@ -1,10 +1,11 @@
-# Chrome Web Store listing text — next submission: v1.13.10 (submission E)
+# Chrome Web Store listing text — in review: v1.13.10 (submission E)
 
 The listing text for the next store submission, kept current with `main`.
 **2026-11-17:** the store serves 1.13.8 (submission D, published; Google's
-update server served 1.13.8 that day), and the next upload is 1.13.10
-(submission E, 1.13.9 and 1.13.10). Neither changes a listing text, so
-nothing below changes in the dashboard with it; its release notes are §6.
+update server served 1.13.8 that day), and 1.13.10 is in review (submission
+E, 1.13.9 and 1.13.10, submitted that day as a staged publish, run
+`44178890544`). Neither changes a listing text, so nothing below changed in
+the dashboard with it; its release notes are §6.
 **2026-11-16:** the store served 1.13.5 (the combined submission, a check run
 read "Published now: PUBLISHED (1.13.5)"), and 1.13.8 is in review
 (submission D, 1.13.6 to 1.13.8, submitted 2026-11-16 as a staged publish,
