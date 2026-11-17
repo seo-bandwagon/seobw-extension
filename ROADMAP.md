@@ -64,8 +64,14 @@ them. Store submissions group them: **A** 1.10.2 alone; **B and C as one
 upload of 1.13.2** (1.10.3–1.13.2, 1.13.1 and 1.13.2 joining on 2026-11-02; owner, 2026-11-02: "I think we might skip
 publishing that because these versions are too close together. We could
 probably finish up a few more versions quickly"; until then B was
-1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** 1.13.3–1.15.0 (with the Firefox
-gate); **E** 1.16.0–2.0.0. Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
+1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** one upload of 1.13.8 (1.13.6–1.13.8,
+published 2026-11-17; planned as 1.13.3–1.15.0 with the Firefox gate, which
+was not run, since the Firefox package has no sidebar until 2.0.0); **E** one
+upload of 1.13.10, carrying 1.13.9 (in review since 2026-11-17); then **F**
+1.14.0–1.15.0, **G** 1.16.0–1.18.0 and **H** 1.19.0–2.0.0 (owner, 2026-11-17),
+so the welcome page, which opens on feature updates from 1.15.0 on, opens
+three times (the 2026-10-23 plan said at most twice, at D and E, which went out
+as patches only). Renumbered 2026-10-31: 1.9.5, 1.10.0 and 1.10.1 shipped the Neon
 and rank-drops new tab first, so the patches start at 1.10.2 and the minors at
 1.11.0. Every release builds the Chrome and Edge packages from 1.13.6 on, and
 the Firefox one, linted, from 1.13.10 on. **Edge is listed before 2.0.0**
@@ -75,13 +81,45 @@ features are that critical and we can have 2.0.0 launched on all"). Every releas
 `docs/CWS-LISTING.md` where a store text changes, `MANUAL_SMOKE_TEST.md` §8,
 and the website's `extension-roadmap.ts`.
 
+**Since 2026-11-17 the first run and onboarding come first, then GEO.** The
+owner, on a professional review of the extension against Ahrefs' Detailed SEO
+(2026-11-17): "Our biggest issue is onboarding right now. We will have to
+figure out how to build in these GEO features also." The review puts the
+extension ahead on diagnostic depth and behind on simplicity, adoption and
+trust (the listing showed 15 users and one rating, read 2026-11-17, against
+Detailed's 600,000 users and 4.8 from 234 ratings), and advises more effort on
+onboarding, UX, privacy transparency and distribution than on more features.
+Each of its eight "build next" items has a place: AI explanations and fixes,
+and WordPress and Elementor fixes, in 1.18.0; GEO and AI-crawler checks, and
+competitor page comparisons, in 1.16.0; Search Console in 1.17.0; client-ready
+PDF reports and page history in 1.20.0; AI citation and entity analysis after
+2.0.0. The order and six calls with it were approved the same day (owner: "Yes,
+all six"). The old 1.14.0 split in two: the welcome page on updates is 1.15.0,
+and the title check, which needs the website's title writer, joins 1.18.0;
+1.15.0 to 1.18.0 became 1.17.0 and 1.19.0 to 1.21.0. Which recommendation was
+already built or planned, and the live listing's privacy answers, are in the
+vault design page above.
+
 **Rules for every release:** no paywall after install (core features need no
 account; a free account unlocks the figures); never remove or split up what
 people rely on; network checks only when asked; a new data flow is disclosed
 inside the extension and accepted with a specific action; no release should
 add an install warning (measure with `getPermissionWarningsByManifest` before
 any host or content-script change); the grade is an on-page checklist, never a
-ranking factor.
+ranking factor; the GEO checks are facts (allowed or blocked, present or
+missing), never a score and never a promise that a page gets cited, until the
+AI Overview study measures which of them go with inclusion (owner,
+2026-11-17).
+
+**Store listing, now (the owner, in the dashboard; no version):** the live
+listing, read 2026-11-17, declares Location, Web history, User activity and
+Website content, where `CHROMEWEBSTORE.md` and `docs/CWS-LISTING.md` §5 answer
+Authentication info, Web history and Website content; and its description
+still says the overlay looks up "the domains shown, never your query", which
+stopped being true at 1.13.0. The dashboard's data categories are set to the
+record and the description is pasted from `docs/CWS-LISTING.md` §2 (owner,
+2026-11-17), once the dashboard allows it: an item in review can't be edited
+(seen 2026-10-27).
 
 **Website, now (no extension version):** Link Building spend scoped to the
 caller (`/api/link-building/results` sums every account's jobs); Connect keeps
@@ -140,7 +178,7 @@ grant. The coverage report (#74) is in 1.13.8 (owner, 2026-11-06; 1.13.7 until t
 - [x] "Google results" settings: overlay on/off, placement, which figures show, load automatically (default) or on a click; in Options and in the popup
 - [x] The popup on a results page: the search's features, exports, settings, account state, plan and the day's allowance; at the limit the bars say so and link to upgrading
 - [x] Exports gain the figures, the search's features, AI Overview citations, result type
-- [x] Your own sites highlighted: a local list in Options (every Search Console property the account granted waits for 1.14.0 to link the account)
+- [x] Your own sites highlighted: a local list in Options (every Search Console property the account granted waits for 1.17.0, 1.14.0 until 2026-11-17)
 - [x] About 20 more Google domains (exactly 20; the warning measured unchanged with `getPermissionWarningsByManifest`, Chrome for Testing 156); dates, ratings and ad labels per language; Search Console in other languages
 - [x] The consent module (moved from 1.10.7): each data flow mapped to a Firefox category; every send checks category granted and flow accepted; accept buttons in Options
 - [x] Data use: full result URLs sent (today: domains); disclosure in Options, store answers (`CHROMEWEBSTORE.md`, "To paste with submission B") and `/privacy` change
@@ -152,7 +190,7 @@ grant. The coverage report (#74) is in 1.13.8 (owner, 2026-11-06; 1.13.7 until t
 - [x] The page's HTML fetched without cookies under the all-sites access; the popup's analyzer runs in an offscreen document on Chrome and Edge (`offscreen`, no warning; measured with Chrome for Testing 156) and the background page on Firefox; no tab opens; "Full report" opens the rendered analysis
 - [x] "Analyze top 10": every row and the table's on-page columns in one click, three pages at a time
 - [x] The Market Samurai-style table at the panel's place: position, title/URL, result type, the search's words in title, URL and description, title length, date, page and site link and traffic figures, domain age, word count, schema, the on-page checklist; cells marked against the search's median or your pinned page; columns chosen and sortable; same columns in the export
-- [x] Your page pinned as a comparison row (a typed URL; the account's site waits for 1.14.0)
+- [x] Your page pinned as a comparison row (a typed URL; the account's site waits for 1.17.0, 1.14.0 until 2026-11-17)
 - [x] AI Overview sources with the same figures and their own export
 - [x] Signed out of Google, a row Google hides asks to sign in to Google or open it; no request to Google
 
@@ -239,39 +277,81 @@ From the source audit of 1.13.6 (vault: Extension_Security_Audit_2026-11, the ac
 - [x] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload. `npm run lint:firefox` (web-ext 10.8.0): 0 errors, 65 warnings; the target keeps comments itself
 - [x] `openPanel()` as the one way to open either panel, opened synchronously in the click (`src/lib/panels.js`; no await before `sidePanel.open()`, measured in Chromium)
 
-### 1.14.0: onboarding after feature releases
-The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
-the welcome page on minor and major updates; the `status` message; the opt-in
-to record how Google shows the user's own titles; "Check titles" with its
-first-use disclosure. Needs website parts 1 and 2 live. On the website, the
-onboarding page also sets up Search Console and Analytics for a user who has
-neither, once Google approves the site-setup permissions (owner, 2026-10-23).
+### 1.14.0: first run, the popup explains itself
+The review's UX advice (2026-11-17): one click stays, the critical problems
+come first, each says why it matters and what to change, and the detail is
+there without crowding a beginner. Extension only: nothing new is sent and no
+website work.
+- [ ] The first screen: score, letter grade and "N of 18 checks passed", with one line on what the score is (an on-page checklist, 100 minus the points the issues cost; never rankings); each sub-score with a line on what it covers
+- [ ] The top 3 problems first, the worst first (what keeps the page out of the index, then what costs the most points), each with why it matters and what to change; "All N issues" opens the rest; Copy issues
+- [ ] Everything else folded under "All checks", with a jump to each section; the checks panels (Link Check, Indexability, Hreflang, Rendering, Structured Data) reached from there, unchanged
+- [ ] "+ Add as outlet" off the first screen (to Link Building's side panel or a menu, the builder's call)
+- [ ] A short guide the first time the popup opens after install: what the score is, where the checks are, what an account adds; shown once, reopened from About
+- [ ] "Your data", a page of the extension's own: what runs on the device and stays there; what is sent, when and to whom, one row per flow with its switch (`src/lib/consent.js`); what seobandwagon.com keeps and for how long; what the browser syncs (the key and the settings, `storage.sync`); linked from the popup footer, Options and the guide
+- [ ] Moved from the popup release (1.16.0, now 1.19.0): issues by severity, jump to section, Copy issues, the grade with what the score measures
+- [ ] No permission, host or data flow; install warning measured unchanged (`getPermissionWarningsByManifest`)
 
-### 1.15.0: your site in the extension (Search Console and Analytics)
+### 1.15.0: onboarding after feature releases (the first half of 1.14.0 until 2026-11-17)
+The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3),
+split on 2026-11-17 (owner) so it waits only on website part 1, the onboarding
+page, live since 2026-10-23. The opt-in to record how Google shows the user's
+own titles and "Check titles" need website part 2's endpoint, so they move to
+1.18.0.
+- [ ] The welcome page on minor and major updates (`ref=update&v=&from=`), never on a patch
+- [ ] The `status` message in `onMessageExternal` (`{ok, version, linked, email?}`), so the page can show whether the extension is linked
+- [ ] Website: nothing new. Its onboarding page also sets up Search Console and Analytics for a user who has neither, once Google approves the site-setup permissions (owner, 2026-10-23)
+
+### 1.16.0: GEO, the page as AI search reads it
+The review's third strategy decision, GEO (AI search visibility and entity
+diagnostics) as a core differentiator, and its second "build next" item (owner,
+2026-11-17: "We will have to figure out how to build in these GEO features
+also"). On any page, a competitor's included. Analyze on Google's row already
+says which AI crawlers robots.txt blocks and whether llms.txt exists (1.12.0,
+`src/lib/robots-ai.js`); this release brings the same to the popup and adds
+the rest.
+- [ ] A GEO section in the popup and in Analyze on Google's row: which of the 11 AI crawlers (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-SearchBot, PerplexityBot, Google-Extended, Applebot-Extended, CCBot, Meta-ExternalAgent, Bytespider) the site's robots.txt allows or blocks, read in the popup on a click under the optional all-sites access; llms.txt present or not; whether the title, headings and main text are in the HTML the server sends or appear only after JavaScript (Rendering's comparison); entity completeness in the structured data (Organization or LocalBusiness with name, url, logo, sameAs, address and telephone where they apply; an article's named author); the business's name, address and phone on the page against its own structured data and, signed in, against the account's business record (`src/lib/nap-compare.js`)
+- [ ] The same checks as columns of the results table and in its export
+- [ ] Your page beside a competitor's in the popup: the current page and a typed address or a result side by side, on-page checklist and GEO checks (the other page read as Analyze on Google reads it, without cookies, on a click)
+- [ ] Copy (owner, 2026-11-17): facts, allowed or blocked, present or missing; no GEO or "AI readiness" score, and no claim that a check gets a page cited, until the AI Overview study measures which checks go with inclusion
+- [ ] Nothing new is sent to SEO Bandwagon (the business record is the one the Citations side panel already reads); install warning measured unchanged
+
+### 1.17.0: your site in the extension (Search Console and Analytics) (was 1.15.0)
 - [ ] One chosen site with a switcher for agencies' other properties
+- [ ] Your own sites on Google from every Search Console property the account granted, and the chosen site as the results table's pinned page (both waited for "1.14.0 to link the account" in 1.11.0 and 1.12.0)
 - [ ] On your own pages: Search Console figures and top searches, Analytics visits, Google's URL Inspection verdict, the page's fixes ordered by impressions and visits
 - [ ] New tab: Search Console trend, top opportunities, fixes list, client audits
 - [ ] Search Console row actions, account-backed (#67)
 - [ ] On Google: your result's Search Console figures for that search, "add to tracker" (after 1.13.0's consent)
 - [ ] Website: key-scoped Search Console and Analytics reads; the MCP-only analyses as routes; a new scope (403 shows Reconnect)
 
-### 1.16.0: the popup, complete
+### 1.18.0: AI-written fixes (new 2026-11-17, with the second half of 1.14.0)
+The review's first and fourth "build next" items, AI explanations and fixes,
+and fixes for WordPress and Elementor, on the website's title writer
+(onboarding part 2). Decided 2026-11-17 (owner: "Yes, all six").
+- [ ] For each issue on the page, an explanation and a fix written for that page by Claude through seobandwagon.com, on a click; signed out, 1.14.0's fixed text stays and everything else works
+- [ ] Where to make the change in WordPress (Yoast, Rank Math, All in One SEO) and Elementor, from the tech stack, which today finds WordPress but not its plugins or Elementor (`lib/dom-extraction.js`); fixed text where the place is known, the AI for the rest
+- [ ] The title check (onboarding design, part 3, moved from 1.14.0): the opt-in, off by default, to record how Google shows the user's own titles; "Check titles" with its first-use disclosure
+- [ ] Who pays (owner, 2026-11-17): SEO Bandwagon. Free accounts 20 explanations a month to start, Pro more, inside the site-wide $100 monthly ceiling the figures and keyword data share; all config values, and the model chosen on the cost measured before release (Anthropic's list prices on 2026-11-03 put an explanation of an assumed 3,000 tokens in and 400 out at about $0.01 on Sonnet 5.5 and $0.0005 on Haiku 5.5, before thinking tokens)
+- [ ] Data use: the page's extracted content and the issue go to seobandwagon.com, which passes them to Anthropic; their own first-use disclosure and yes; the store's "Shared with third parties" answer and seobandwagon.com/privacy name Anthropic, in the owner's words
+- [ ] Website: onboarding part 2 (the fixes list and the title writer, with the endpoint for recorded titles); a key-scoped explanation route under a new scope (403 shows Reconnect); the Anthropic key, with a spend limit, in GitHub secrets (owner)
+
+### 1.19.0: the popup, complete (was 1.16.0)
 - [ ] Social section: every Open Graph and Twitter tag, share-card preview (image on a click, disclosed)
 - [ ] Keyword density for 1–4 words with title/description/H1 presence; n-grams; CSV
 - [ ] Headings click to scroll; link and image tables; stacked highlights with a legend
 - [ ] Page weight; mixed-content items; full header list; robots.txt on a click (optional all-sites access)
 - [ ] Field Core Web Vitals on a click, through the site (disclosed)
 - [ ] Rendering lists what JavaScript added or removed
-- [ ] Issues by severity, jump to section, Copy issues; grade and "N of 14" with what the score measures
 - [ ] "Open in side panel"; the full analysis in the page-checks panel; more tool links
+- Issues by severity, jump to section, Copy issues and the grade line moved to 1.14.0 (2026-11-17)
 
-### 1.17.0: history and reports
+### 1.20.0: history and reports (was 1.17.0)
 - [ ] History from the popup: a timeline per URL, compare two captures
-- [ ] A one-file report of an analysis (HTML that prints to PDF)
+- [ ] A one-file report of an analysis (HTML that prints to PDF), ready to hand a client (the review's "client-ready reports"; never sold as white-label, which the brand guide lists among products that don't exist)
 - [ ] Domain-history strip from local captures when signed out
 - [ ] Website: capture pages with history, paging, delete; a summary exact-URL query; links from each synced capture
 
-### 1.18.0: citations, complete
+### 1.21.0: citations, complete (was 1.18.0)
 - [ ] Corrected details and the directory's edit link (#69); Undo (#70); campaign steps and summary (#71)
 - [ ] One directory list served by the site, with Google Business Profile and the aggregators, defunct ones dropped
 - [ ] Proof stored with the citation (uploaded on a click, disclosed)
@@ -285,10 +365,13 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 - [ ] Store listing, screenshots, tiles and video; every data-use answer; the website's extension pages true
 - [ ] `lib/` under `src/lib/`
 - [ ] **Edge and Firefox launch** (owner, 2026-10-31): Firefox wiring (`sidebar_action` with one sidebar page that follows the active tab, the consent prompts); `scripts/edge-publish.mjs` (upload only, Edge Add-ons API v1.1 with a Client ID and API key; the owner presses Publish) and `web-ext sign` for AMO; the first AMO listing (Edge's is 1.13.6's, owner 2026-11-06); the full check on all three; the API key in `storage.local`
-- [ ] Firefox gate, held at submission D with a `web-ext run` smoke test on every surface: if the sidebar or consent gating can't pass, Firefox follows 2.0.0 instead of holding it, and no copy mentions Firefox until it is live
+- [ ] Firefox gate, a `web-ext run` smoke test on every surface before 2.0.0's upload (it was to be held at submission D, when the package had no sidebar to test): if the sidebar or consent gating can't pass, Firefox follows 2.0.0 instead of holding it, and no copy mentions Firefox until it is live
 
 **Not in 2.0.0:** the extension's own interface in other languages; the crowdsourced rank-checker extension; writing content on the
-website (the extension's part is "Add to my keywords" and the content gaps).
+website (the extension's part is "Add to my keywords" and the content gaps);
+AI citation and entity analysis beyond 1.16.0's structured-data checks
+(whether a page or brand is cited in AI answers, the review's eighth item),
+after 2.0.0 and built on the AI Overview study's results (owner, 2026-11-17).
 
 ---
 
@@ -2612,7 +2695,7 @@ Which version the store serves is in `CHROMEWEBSTORE.md`, Version History.
 - **Onboarding links** (1.7.4) — a first install opens the welcome page on
   seobandwagon.com; removing the extension opens a one-question survey; every
   link to the site carries UTM tags (`src/lib/site-links.js`). An update opens
-  nothing yet (1.14.0 below).
+  nothing yet (1.15.0 below).
 - **Reviews** — a one-time prompt after the fifth analysis (1.6.0) and "Rate
   us" in the popup footer and on the options page (1.7.2).
 - **Tools** — right-click "SEO Bandwagon tools" menu and a matching popup row
@@ -2644,6 +2727,10 @@ Open design questions are tracked in `preview/DESIGN-GAPS.md`.
 ---
 
 ## Competitive position (researched Aug 2026)
+
+*2026-11-17: the professional review against Detailed, and where each of its
+recommendations sits, is under "The road to 2.0.0" above and in the vault
+design page; the August figures below are not current.*
 
 Compared against the four most-installed on-page extensions (verified against
 Chrome Web Store listings Aug 13, 2026): **SEOquake** (1M, 4.5★, Semrush),
@@ -2791,8 +2878,8 @@ the site's `GET /api/extension/progress` existed.
 ## Feature candidates, still open
 
 Each has an issue. None is started in the code at `292686a`. Each now has a
-place on "The road to 2.0.0" above: #68 in 1.13.0, #67 in 1.15.0, #69–#71 in
-1.18.0.
+place on "The road to 2.0.0" above: #68 in 1.13.0, #67 in 1.17.0, #69–#71 in
+1.21.0 (1.15.0 and 1.18.0 until 2026-11-17).
 
 - **Search Console row actions, account-backed (#67)** — "add this keyword to
   my rank tracker" on the Queries tab and "send this page to my captures" on

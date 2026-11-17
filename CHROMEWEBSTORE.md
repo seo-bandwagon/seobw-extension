@@ -319,9 +319,20 @@ install id, setting or usage leaves with either, so no data-use answer changes.
 
 Reasoning for each row: `docs/CWS-LISTING.md` §5.
 
+**2026-11-17: the live listing differs from this table.** Its privacy section
+(the public listing, read 2026-11-17) says the extension handles Location, Web
+history, User activity and Website content: two categories this table answers
+No, and without the Authentication info it answers Yes. Its description also
+predates 1.11.0: the results-page paragraph describes the 1.9 bar, and the
+PRIVACY paragraph says the overlay looks up "the domains shown, never your
+query", which stopped being true at 1.13.0. The owner sets the dashboard's
+categories to this table and pastes the description from
+`docs/CWS-LISTING.md` §2 once the dashboard allows it (owner, 2026-11-17;
+ROADMAP.md, "Store listing, now").
+
 ### Changes the road to 2.0.0 will make here
 
-ROADMAP.md → "The road to 2.0.0" plans four new data flows. Each one changes
+ROADMAP.md → "The road to 2.0.0" plans these new data flows. Each one changes
 the table above, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy in the
 release that ships it, and is accepted inside the extension with a specific
 action first; until then none of it is sent:
@@ -329,11 +340,17 @@ action first; until then none of it is sent:
 | Release | What starts leaving the device, and only after the user accepts |
 |---|---|
 | 1.11.0 | Full result URLs on a Google results page (from 1.10.2 nothing; before it, bare domains), for the figures under each result and, from 1.12.0, the results table; signed in only. **Built in 1.11.0:** accepted with "Send result addresses and show figures" in Options; the table above, `docs/CWS-LISTING.md` §5 and seobandwagon.com/privacy say so |
-| 1.13.0 | The search text, for keyword volume and difficulty, and from 1.15.0 for the user's own Search Console figures for that search. **Built in 1.13.0:** the query with its related searches and People also ask questions, after keyword data's own yes (its first-use disclosure on the results page, or "Send my searches for keyword data" in Options); the table above, `docs/CWS-LISTING.md` §5 and the in-extension words say so; seobandwagon.com/privacy is the website's to change before the combined submission |
-| 1.16.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
-| 1.18.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
+| 1.13.0 | The search text, for keyword volume and difficulty, and from 1.17.0 (1.15.0 until 2026-11-17) for the user's own Search Console figures for that search. **Built in 1.13.0:** the query with its related searches and People also ask questions, after keyword data's own yes (its first-use disclosure on the results page, or "Send my searches for keyword data" in Options); the table above, `docs/CWS-LISTING.md` §5 and the in-extension words say so; seobandwagon.com/privacy is the website's to change before the combined submission |
+| 1.18.0 | For an AI explanation and fix, on a click, the page's extracted content and the issue, to seobandwagon.com, which passes them to Anthropic; so the "Shared with Third Parties" answer and seobandwagon.com/privacy change, in the owner's words. After the title opt-in (off by default), the search, result URL, displayed title and position of the user's own result on a Google results page; on "Check titles", the other results' titles, descriptions and H1s (moved from 1.14.0, which this table did not list) |
+| 1.19.0 | An analyzed page's URL to the site for field Core Web Vitals; robots.txt and the share image fetched from the page's own host on a click (nothing from them sent to us) |
+| 1.21.0 | A citation's proof screenshot, uploaded on a click and stored with the citation |
 
-*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one. 2026-11-01: the Google results page comes first, so the result URLs move from 1.12.0 to 1.11.0. 2026-11-03: 1.13.3 became the AI Overview study's study mode, a flow the road did not list (invited testers only, its own yes; Version History), so the planned 1.13.3 to 1.13.5 moved up one. 2026-11-04: 1.13.4 became keyword data's allowance read by the month (free keyword data counts by the month since the owner's ruling that day), so the planned 1.13.4 to 1.13.6 moved up one again. 2026-11-04: 1.13.5 became the figures' allowance read by the month (the website's change `337eaf4d`), so the planned 1.13.5 to 1.13.7 moved up one again. 2026-11-09: 1.13.7 became the account-key fixes from the security audit of 1.13.6, so the planned checks panels (1.13.7) and Firefox package (1.13.8) moved up one again.*
+1.14.0 (the first run) and 1.16.0 (the GEO checks) send nothing new: the GEO
+checks read robots.txt and llms.txt from the page's own site on a click,
+under the optional all-sites access, and the account's business record
+through the route the Citations side panel already reads.
+
+*Renumbered 2026-10-31: 1.10.0 and 1.10.1 shipped the rank-drops new tab, so each planned release moved up one. 2026-11-01: the Google results page comes first, so the result URLs move from 1.12.0 to 1.11.0. 2026-11-03: 1.13.3 became the AI Overview study's study mode, a flow the road did not list (invited testers only, its own yes; Version History), so the planned 1.13.3 to 1.13.5 moved up one. 2026-11-04: 1.13.4 became keyword data's allowance read by the month (free keyword data counts by the month since the owner's ruling that day), so the planned 1.13.4 to 1.13.6 moved up one again. 2026-11-04: 1.13.5 became the figures' allowance read by the month (the website's change `337eaf4d`), so the planned 1.13.5 to 1.13.7 moved up one again. 2026-11-09: 1.13.7 became the account-key fixes from the security audit of 1.13.6, so the planned checks panels (1.13.7) and Firefox package (1.13.8) moved up one again. 2026-11-17: the first run (1.14.0), onboarding (1.15.0) and the GEO checks (1.16.0) come first (owner), so Search Console moved from 1.15.0 to 1.17.0, the popup from 1.16.0 to 1.19.0, history from 1.17.0 to 1.20.0 and citations from 1.18.0 to 1.21.0; 1.18.0 is now the AI-written fixes, with the title check that was 1.14.0's.*
 
 1.12.0's Analyze on Google sends nothing new to us: on a click the extension
 fetches the result's own page from the user's browser, without cookies,
