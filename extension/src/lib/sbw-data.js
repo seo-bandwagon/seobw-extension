@@ -668,27 +668,15 @@ export async function shortcutFor(name = 'analyze-current') {
 
 /* -------------------------------- side panel ------------------------------ */
 
-export const PANEL_PATHS = {
-  checks: 'src/panel/panel.html',
-  citations: 'src/sidepanel/sidepanel.html',
-};
-
 /**
  * Both panels ship: this themed one shows live page checks, the existing one
- * owns Citations and Link Building. Per-tab setOptions() swaps between them,
- * so neither replaces the other and the manifest's default is untouched.
+ * owns Citations and Link Building. 1.13.10: opening either is
+ * SBWPanels.openPanel (src/lib/panels.js, a classic script the page loads
+ * before this module), which calls sidePanel.open() with no await before it,
+ * inside the click. Pass a tab ID already held, never one awaited in the
+ * click.
  */
-export async function openPanel(which, tabId) {
-  if (!chrome.sidePanel) return false;
-  const path = PANEL_PATHS[which] || PANEL_PATHS.checks;
-  try {
-    await chrome.sidePanel.setOptions({ tabId, path, enabled: true });
-    await chrome.sidePanel.open({ tabId });
-    return true;
-  } catch {
-    // S34: this used to fall back to the worker's openSidePanel action, which
-    // can't work (no user gesture there, and no window from an extension
-    // page's sender). The 1.7.7 smoke test confirmed the path above opens.
-    return false;
-  }
+export function openPanel(which, tabId) {
+  const P = globalThis.SBWPanels;
+  return P ? P.openPanel(which, tabId) : Promise.resolve(false);
 }

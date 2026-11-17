@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.13.10** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -235,9 +235,9 @@ From the source audit of 1.13.6 (vault: Extension_Security_Audit_2026-11, the ac
 - [x] Citations: a directory's own Organization node is passed over even when it carries its head office's address (MapQuest's, read before the listing's LocalBusiness); a node is the directory's when its url or `@id` is the site's home page or its name is the site's name
 
 ### 1.13.10: Firefox's package and one panel opener (patch; Firefox's build target was part of 1.10.6, then 1.13.2 to 1.13.9; `openPanel()` part of 1.10.7, then 1.13.3 to 1.13.10)
-- [ ] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key)
-- [ ] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload
-- [ ] `openPanel()` as the one way to open either panel, opened synchronously in the click
+- [x] `npm run zip -- --target firefox`: the overlay adds `background.scripts`, `gecko.id`, `data_collection_permissions` with `required: ["none"]` and every Google domain, and leaves out the new-tab override and `management`; its `browser.js` values, with a shortcut of its own (Ctrl+Shift+S is Firefox's screenshot key). Built as `scripts/targets/firefox.mjs`: `background.scripts` read from the worker's `importScripts` calls (and `service_worker`, `sidePanel` and `offscreen` left out, which Firefox ignores or doesn't have); the optional data categories are `src/lib/consent.js`'s; the 187 Google search domains go in `host_permissions`, the overlay still runs on its thirty; Alt+Shift+S
+- [x] `web-ext lint` on the Firefox package in CI; the Firefox zip keeps its comments (`KEEP_COMMENTS=1`), so AMO needs no source upload. `npm run lint:firefox` (web-ext 10.8.0): 0 errors, 65 warnings; the target keeps comments itself
+- [x] `openPanel()` as the one way to open either panel, opened synchronously in the click (`src/lib/panels.js`; no await before `sidePanel.open()`, measured in Chromium)
 
 ### 1.14.0: onboarding after feature releases
 The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3):
@@ -291,6 +291,114 @@ neither, once Google approves the site-setup permissions (owner, 2026-10-23).
 website (the extension's part is "Add to my keywords" and the content gaps).
 
 ---
+
+## Changelog — v1.13.10 (2026-11-16)
+
+Firefox's package and one panel opener, the three items above. Nothing a
+Chrome or Edge user sees changes: each packaged manifest differs from
+1.13.9's only in `version` and `version_name`, and the install warnings are
+the same (measured below). Nothing goes to addons.mozilla.org (AMO): Firefox
+launches at 2.0.0, behind its gate.
+
+- **The Firefox package** (`npm run zip -- --target firefox`,
+  `scripts/targets/firefox.mjs`; Mozilla's pages and Firefox's own source
+  read 2026-11-16):
+  - **Background.** Firefox doesn't run `background.service_worker` (MDN,
+    "background"; bug 1573659) and loads `background.scripts` as one page,
+    in order. The page has no `importScripts`, so `background.scripts` is
+    the 41 files the worker imports, in its order, then the worker, read
+    from the worker's own `importScripts` calls (a library added there
+    reaches Firefox too), and the worker skips its calls where
+    `importScripts` isn't a function. `service_worker` is left out of the
+    Firefox manifest (`web-ext lint`: BACKGROUND_SERVICE_WORKER_IGNORED).
+    `check:zip` fails a Firefox package whose page misses a file the worker
+    imports.
+  - **`browser_specific_settings.gecko`:** `id`
+    `seo-bandwagon@seobandwagon.com` (Manifest V3 needs our own; AMO fixes it
+    at the first signing, not done yet), `strict_min_version` 140.0
+    (Firefox's own data-collection consent, desktop 140), and
+    `data_collection_permissions` with `required: ["none"]` and, as
+    `optional`, the four categories `src/lib/consent.js`'s flows ask Firefox
+    for: `browsingActivity`, `websiteContent`, `searchTerms`,
+    `technicalAndInteraction` (Extension Workshop: an extension that collects
+    only optional data declares `required: ["none"]`).
+  - **Every Google domain:** the 187 that Google lists at
+    `https://www.google.com/supported_domains` (fetched 2026-11-16;
+    `scripts/targets/google-domains.mjs`) join `host_permissions`. Firefox
+    updates a Manifest V3 extension without granting host permissions the
+    update adds (bug 1893232, open: "in MV3 the extension is updated without
+    adding the requested host permission"), so a Google domain the overlay
+    learns later must be in the first manifest a Firefox user installs.
+    Firefox from 127 shows `host_permissions` in the install prompt. The
+    results overlay still runs on its thirty (the content scripts are
+    Chrome's).
+  - **Left out:** `key`, the new-tab override, `management` and the optional
+    `topSites` and `search` (as on Edge, all for the Neon new tab);
+    `sidePanel` and `offscreen`, which Firefox doesn't have (`web-ext lint`:
+    "Invalid permissions"; the code checks for `chrome.sidePanel`, and the
+    background page reads Analyze's pages with its own DOMParser);
+    `src/newtab/`.
+  - **Shortcut:** Alt+Shift+S, Control+Shift+S on a Mac. Ctrl+Shift+S,
+    Command+Shift+S on a Mac, is Firefox's Screenshot (`key_screenshot`,
+    "accel,shift" and S, in Firefox's `browser-sets.inc.xhtml` at
+    `828de2c6`); neither pair is in that keyset or DevTools'.
+  - **`browser.js` values:** Firefox and Firefox Browser Add-ons; no store,
+    review or theme link until a listing exists; "Private Windows" and "Run
+    in Private Windows", the words of about:addons' setting
+    (`aboutAddons.ftl`); as store hosts, the eleven of Firefox's
+    `extensions.webextensions.restrictedDomains`, which no extension may
+    read; `utm_source=firefox_extension`; "Connect extension"; no new tab,
+    welcome tab or uninstall survey. Firefox's shortcuts page is in
+    about:addons, which `tabs.create` may not open (MDN), so the Firefox
+    build has no `shortcutsUrl` and the two "Change shortcut" buttons call
+    `SBWShortcut.openSettings()`, which asks Firefox to open it
+    (`commands.openShortcutSettings`, Firefox 137) and opens Chrome's and
+    Edge's address as before.
+  - **Comments kept:** the target sets `keepComments`, the same as
+    `KEEP_COMMENTS=1`, so every file but the manifest, `browser.js` and the
+    pages is the source byte for byte (`tests/unit/firefox-target.test.js`):
+    AMO counts a comment-stripped build as machine-generated and would ask
+    for the source.
+- **`web-ext lint` in CI** (`npm run lint:firefox`, `scripts/lint-firefox.mjs`;
+  `web-ext` 10.8.0, pinned, in devDependencies). It builds the package,
+  unpacks it and lints that folder; a lint error fails the step. Checked: a
+  package without its add-on ID, or missing a background file, exits 1
+  (ADDON_ID_REQUIRED, MANIFEST_BACKGROUND_FILE_NOT_FOUND). Today: 0 errors,
+  65 warnings, 60 assignments to `innerHTML` or `outerHTML` in the popup and
+  side panel, 4 calls to Chrome-only APIs the code checks for first
+  (`sidePanel.setPanelBehavior`, `offscreen.createDocument`,
+  `offscreen.closeDocument` twice), and KEY_FIREFOX_ANDROID_UNSUPPORTED_BY_MIN_VERSION:
+  with no `gecko_android` the package is for desktop Firefox, but the linter
+  measures Android against `strict_min_version` 140, below the 142 that
+  Firefox for Android reads `data_collection_permissions` from.
+- **`openPanel()`** (`src/lib/panels.js`, `SBWPanels`). Each panel opens
+  the other: Citations' "Page checks →" had its own code, which awaited
+  `tabs.query()`, then `setOptions()`, before `open()`; the checks panel's
+  "Citations & link building →" went through `sbw-data.js`, which awaited
+  `setOptions()`. Both call `openPanel()` now, which calls `setOptions()`
+  then `open()` in the click's own task and returns their result; Citations
+  keeps the tab in front as it changes (`tabs.onActivated`) so the click
+  needs no query. Measured in Chromium 156.0.8078.4: `open()` after awaiting
+  `tabs.query()` or 1 s still opened, after 6 s it was refused ("may only be
+  called in response to a user gesture"), so 1.13.9's panels opened in
+  Chrome; Firefox's `sidebarAction.open()` loses the click at the first
+  await (MDN, "User actions"), which is what 2.0.0's sidebar needs.
+  `tests/e2e/panels.spec.mjs` (CI's offline e2e) clicks each button and
+  reads the side panel document Chromium then has open
+  (`runtime.getContexts`, which reports a side panel's `tabId` as -1).
+- **Measured for Chrome and Edge:** the packaged manifests differ from
+  1.13.9's only in `version` and `version_name`; `getPermissionWarningsByManifest`
+  (Playwright's Chromium 156.0.8078.4) gives the same for both versions:
+  Chrome's four, "Read and change your data on search.google.com,
+  seobandwagon.com, and www.google.com", "Replace the page you see when
+  opening a new tab", "Read your browsing history", "Manage your apps,
+  extensions, and themes"; Edge's two, the first and the third. Store text:
+  none to change.
+- **Not in 1.13.10:** Firefox's sidebar (`sidebar_action`) and consent
+  prompts, and the Firefox gate's `web-ext run` smoke test, all 2.0.0's. The
+  gate wasn't run: the package has no sidebar yet, so its sidebar surface
+  can't pass before 2.0.0's wiring. Release doesn't attach the Firefox zip,
+  since its notes are public and no copy names Firefox until it is live.
 
 ## Changelog — v1.13.9 (2026-11-16)
 

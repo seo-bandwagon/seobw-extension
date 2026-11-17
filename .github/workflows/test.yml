@@ -52,6 +52,13 @@ jobs:
       - name: Store zip contains every referenced file
         run: npm run check:zip
 
+      # 1.13.10: Mozilla's linter (web-ext 10.8.0) on the Firefox package,
+      # built with its comments as addons.mozilla.org will read it.
+      # Playwright can't load Firefox extensions, so this is the Firefox
+      # check. A lint error fails the step; warnings are listed in its log.
+      - name: web-ext lint on the Firefox package
+        run: npm run lint:firefox
+
       - name: Version bumped when shipped code changed
         if: github.event_name == 'pull_request'
         env:
@@ -93,10 +100,11 @@ jobs:
       # from 127.0.0.1, the Edge spec builds the Edge package and serves
       # stand-ins for seobandwagon.com's pages, the Search Console spec
       # (1.13.8, #158) serves a stand-in Search Console at its real
-      # addresses, and all of them block everything else. No secrets.
+      # addresses, the panels spec (1.13.10) opens each side panel from the
+      # other's button, and all of them block everything else. No secrets.
       # The production canary stays in canary.yml.
       - name: Run offline e2e under xvfb
-        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs tests/e2e/serp-figures.spec.mjs tests/e2e/serp-keywords.spec.mjs tests/e2e/serp-analyze.spec.mjs tests/e2e/serp-study.spec.mjs tests/e2e/edge-bridge.spec.mjs tests/e2e/gsc-icons.spec.mjs
+        run: xvfb-run --auto-servernum -- npm run test:e2e -- tests/e2e/serp-collect.spec.mjs tests/e2e/account.spec.mjs tests/e2e/analysis.spec.mjs tests/e2e/serp-figures.spec.mjs tests/e2e/serp-keywords.spec.mjs tests/e2e/serp-analyze.spec.mjs tests/e2e/serp-study.spec.mjs tests/e2e/edge-bridge.spec.mjs tests/e2e/gsc-icons.spec.mjs tests/e2e/panels.spec.mjs
 
       - name: Upload trace on failure
         if: failure()

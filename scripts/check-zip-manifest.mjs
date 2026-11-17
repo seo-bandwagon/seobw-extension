@@ -20,7 +20,7 @@
 // Usage: node scripts/check-zip-manifest.mjs
 //          builds every target (scripts/build-zip.mjs) into a temporary
 //          folder and checks each; what `npm run check:zip` runs.
-//        node scripts/check-zip-manifest.mjs <zipfile> [--target chrome|edge]
+//        node scripts/check-zip-manifest.mjs <zipfile> [--target chrome|edge|firefox]
 //          checks a zip that already exists (default target chrome).
 // Exits non-zero and prints every problem if a package falls short.
 //
@@ -34,6 +34,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { TARGETS, targetOf, buildZip } from './build-zip.mjs';
+import { workerScripts } from './targets/firefox.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -66,7 +67,11 @@ function collectFromManifest(manifest) {
     addIfLocal(manifest.action.default_popup);
   }
   addIfLocal(manifest.options_page);
-  if (manifest.background) addIfLocal(manifest.background.service_worker);
+  if (manifest.background) {
+    addIfLocal(manifest.background.service_worker);
+    // 1.13.10: Firefox's background page loads these, in order.
+    (manifest.background.scripts || []).forEach(addIfLocal);
+  }
   if (manifest.side_panel) addIfLocal(manifest.side_panel.default_path);
   Object.values(manifest.chrome_url_overrides || {}).forEach(addIfLocal);
 
@@ -151,6 +156,24 @@ export function checkPackage(zipPath, targetName = 'chrome') {
     for (const p of target.dropPermissions || []) {
       if ([...(manifest.permissions || []), ...(manifest.optional_permissions || [])].includes(p)) {
         problems.push(`the ${targetName} manifest still asks for "${p}"`);
+      }
+    }
+    for (const h of target.addHostPermissions || []) {
+      if (!(manifest.host_permissions || []).includes(h)) problems.push(`the ${targetName} manifest lacks the host "${h}"`);
+    }
+    // 1.13.10: a background page has no importScripts, so it must list every
+    // file the worker imports (read from the packaged worker), and the worker
+    // last, after them.
+    const scripts = manifest.background && manifest.background.scripts;
+    if (Array.isArray(scripts)) {
+      const worker = scripts[scripts.length - 1];
+      const workerFile = path.join(root, worker || '');
+      if (!worker || !existsSync(workerFile)) {
+        problems.push(`the ${targetName} manifest's background.scripts has no worker to end on`);
+      } else {
+        for (const f of workerScripts(readFileSync(workerFile, 'utf8'), worker)) {
+          if (!scripts.includes(f)) problems.push(`the ${targetName} background page doesn't load "${f}", which the worker imports`);
+        }
       }
     }
     return { files: listing.size, checked: required.size, problems };

@@ -1,6 +1,6 @@
 # SEO Bandwagon Chrome Extension
 
-**Version 1.13.9** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Version 1.13.10** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation checks, and link-building review, in one toolbar icon. Works fully offline; connect an SEO Bandwagon account to sync captures, check citations, and manage outreach without leaving the page.
 
@@ -697,7 +697,10 @@ npm run zip        # manifest.json lib/ src/ (from inside extension/) → seo-bw
                     # with comments left out (scripts/build-zip.mjs; KEEP_COMMENTS=1 keeps them)
 npm run zip -- --target edge   # the Microsoft Edge package → seo-bw-extension-edge.zip (1.13.6):
                     # the overlay scripts/targets/edge.mjs and Edge's words in src/lib/browser.js
-npm run check:zip  # builds both packages in a temporary folder and fails if any file a packaged
+npm run zip -- --target firefox   # the Firefox package → seo-bw-extension-firefox.zip (1.13.10):
+                    # scripts/targets/firefox.mjs, comments kept for AMO; not released before 2.0.0
+npm run lint:firefox   # web-ext lint on the Firefox package (scripts/lint-firefox.mjs); CI runs it
+npm run check:zip  # builds every package in a temporary folder and fails if any file a packaged
                     # manifest or one of the six pages (popup, options, history, both side
                     # panels, access, with their module imports) references is missing, or a
                     # target's overlay didn't take (scripts/check-zip-manifest.mjs). CI runs it

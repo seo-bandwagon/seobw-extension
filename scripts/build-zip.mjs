@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // SEO Bandwagon — builds a store package from extension/ (manifest.json,
-// lib/, src/), with comments left out, for one store: Chrome (the default)
-// or Microsoft Edge.
+// lib/, src/), with comments left out, for one store: Chrome (the default),
+// Microsoft Edge or Firefox (1.13.10, which keeps its comments).
 //
 // The source is written to be read, and about 29% of its bytes are comments
 // (1.8.0: 241 KB of 824 KB). Users download every byte, so the package drops
@@ -13,15 +13,18 @@
 //
 // Targets (1.13.6): scripts/targets/<target>.mjs is the overlay. The Chrome
 // one is empty. Any other target also gets, before comments go:
-//   - manifest.json: the overlay's JSON merge patch, its dropped permissions;
+//   - manifest.json: the overlay's JSON merge patch, its dropped permissions,
+//     its added host permissions (1.13.10);
 //   - src/lib/browser.js: the target's browser values written over the block
 //     between "BEGIN TARGET VALUES" and "END TARGET VALUES";
 //   - every .html file: the text of each <span data-browser="key"> set to the
 //     value of `key`, and utm_source=chrome_extension on static links made the
 //     target's utm_source;
 //   - the overlay's `leaveOut` paths left out.
+// A target with `keepComments: true` (Firefox, for AMO) keeps every comment,
+// as KEEP_COMMENTS=1 does for any target.
 //
-// usage: node scripts/build-zip.mjs [--target chrome|edge] [out.zip]
+// usage: node scripts/build-zip.mjs [--target chrome|edge|firefox] [out.zip]
 //        (default out: seo-bw-extension.zip, or seo-bw-extension-<target>.zip)
 //        KEEP_COMMENTS=1 node scripts/build-zip.mjs   (package the source as is)
 import fs from 'node:fs';
@@ -32,16 +35,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { transformSync } from 'esbuild';
 import chrome from './targets/chrome.mjs';
 import edge from './targets/edge.mjs';
+import firefox from './targets/firefox.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(REPO, 'extension');
 const ENTRIES = ['manifest.json', 'lib', 'src'];
 
-export const TARGETS = Object.freeze({ chrome, edge });
+export const TARGETS = Object.freeze({ chrome, edge, firefox });
 
 export function targetOf(name = 'chrome') {
   const t = TARGETS[name];
-  if (!t) throw new Error(`Unknown target "${name}": use ${Object.keys(TARGETS).join(' or ')}`);
+  if (!t) throw new Error(`Unknown target "${name}": use ${Object.keys(TARGETS).join(', ')}`);
   return t;
 }
 
@@ -91,12 +95,17 @@ export function packageManifest(text, target = chrome) {
     throw new Error('manifest.json: "key" must sit on its own line, before the last property');
   }
   const drop = target.dropPermissions || [];
-  if (!Object.keys(target.manifest || {}).length && !drop.length) return out;
+  const addHosts = target.addHostPermissions || [];
+  if (!Object.keys(target.manifest || {}).length && !drop.length && !addHosts.length) return out;
   const m = mergePatch(JSON.parse(out), target.manifest || {});
   for (const field of ['permissions', 'optional_permissions']) {
     if (!Array.isArray(m[field])) continue;
     m[field] = m[field].filter((p) => !drop.includes(p));
     if (!m[field].length) delete m[field];
+  }
+  if (addHosts.length) {
+    const hosts = m.host_permissions || [];
+    m.host_permissions = [...hosts, ...addHosts.filter((h) => !hosts.includes(h))];
   }
   return JSON.stringify(m, null, 2) + '\n';
 }
@@ -147,6 +156,7 @@ function packaged(rel, text, target, keepComments) {
 
 export function buildZip(outZip, { keepComments = false, target = 'chrome' } = {}) {
   const t = typeof target === 'string' ? targetOf(target) : target;
+  keepComments = keepComments || t.keepComments === true;
   const leaveOut = (t.leaveOut || []).map((p) => path.normalize(p));
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'sbw-zip-'));
   let before = 0;
@@ -175,7 +185,7 @@ export function buildZip(outZip, { keepComments = false, target = 'chrome' } = {
   } finally {
     fs.rmSync(stage, { recursive: true, force: true });
   }
-  return { before, after, zipBytes: fs.statSync(outZip).size };
+  return { before, after, zipBytes: fs.statSync(outZip).size, keepComments };
 }
 
 // --target edge, --target=edge; the first other argument is the zip's path.
@@ -197,5 +207,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const out = path.resolve(REPO, name);
   const r = buildZip(out, { keepComments: process.env.KEEP_COMMENTS === '1', target });
   const kb = (n) => `${Math.round(n / 1024)} KB`;
-  console.log(`${path.relative(REPO, out)} (${target}): ${kb(r.zipBytes)} (files ${kb(r.before)} → ${kb(r.after)} unpacked)`);
+  console.log(`${path.relative(REPO, out)} (${target}): ${kb(r.zipBytes)} (files ${kb(r.before)} → ${kb(r.after)} unpacked${r.keepComments ? ', comments kept' : ''})`);
 }
