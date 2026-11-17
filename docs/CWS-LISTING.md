@@ -1,7 +1,11 @@
-# Chrome Web Store listing text — in review: v1.13.8 (submission D)
+# Chrome Web Store listing text — next submission: v1.13.10 (submission E)
 
 The listing text for the next store submission, kept current with `main`.
-**2026-11-16:** the store serves 1.13.5 (the combined submission, a check run
+**2026-11-17:** the store serves 1.13.8 (submission D, published; Google's
+update server served 1.13.8 that day), and the next upload is 1.13.10
+(submission E, 1.13.9 and 1.13.10). Neither changes a listing text, so
+nothing below changes in the dashboard with it; its release notes are §6.
+**2026-11-16:** the store served 1.13.5 (the combined submission, a check run
 read "Published now: PUBLISHED (1.13.5)"), and 1.13.8 is in review
 (submission D, 1.13.6 to 1.13.8, submitted 2026-11-16 as a staged publish,
 run `43966185223`). What changed in the dashboard with it is in
@@ -504,7 +508,16 @@ one typed into Chrome's own new tab would.
 
 ---
 
-## 6. What's new in 1.13.8 (release notes, ≤ 10 lines)
+## 6. What's new in 1.13.10 (release notes, ≤ 10 lines)
+
+Submission E, 1.13.9 and 1.13.10 (1.13.10 changes nothing a Chrome user sees):
+
+```
+- Check NAP reads the business a directory lists, not the directory's own
+  head office (MapQuest's listings, for one).
+```
+
+1.13.8 (submission D, published 2026-11-17):
 
 Submission D, 1.13.6 to 1.13.8 (1.13.6 changes nothing a Chrome user sees):
 
