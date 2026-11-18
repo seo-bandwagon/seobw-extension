@@ -326,11 +326,13 @@ const rowValue = (window, section, label) => {
 };
 
 describe('the popup shows it', () => {
-  it('every issue with its fix and the points it costs', async () => {
+  it('every issue with why it matters, what to change and the points it costs', async () => {
     const w = await openPopup(runs.duplicates);
-    const issues = [...w.document.querySelectorAll('[data-section="issues"] .issue')];
+    // 1.14.0: the top three on the first screen, the rest under "All N issues".
+    const issues = [...w.document.querySelectorAll('#topIssues .issue')];
     expect(issues).toHaveLength(runs.duplicates.seoScore.issues.length);
     for (const el of issues) {
+      expect(el.querySelector('.issue-why').textContent.length).toBeGreaterThan(10);
       expect(el.querySelector('.issue-fix').textContent.length).toBeGreaterThan(10);
       expect(el.querySelector('.issue-points').textContent).toMatch(/^−\d+$/);
     }
@@ -425,6 +427,103 @@ describe('the popup shows it', () => {
     const w = await openPopup(runs.noindex);
     expect(w.document.querySelector('.seo-hero .ring').getAttribute('title')).toMatch(/On-page checklist/);
     expect(w.document.querySelector('.ring-val').textContent).toBe('85');
+    w.close();
+  });
+
+  // 1.14.0: the first screen.
+  it('the score with its grade, the checks line and what the score is', async () => {
+    const w = await openPopup(runs.noindex);
+    expect(w.document.getElementById('scoreGrade').textContent).toBe('GRADE B');
+    const line = w.SBWFirstScreen.checksLine(runs.noindex);
+    expect(line.of + line.na).toBe(18);
+    expect(w.document.querySelector('#checksLine .checks-passed').textContent).toBe(`${line.passed} of ${line.of} checks passed`);
+    expect(w.document.getElementById('scoreLine').textContent).toBe(w.SBWFirstScreen.SCORE_LINE);
+    expect(w.document.getElementById('scoreLine').textContent).toMatch(/doesn.t measure or predict rankings/);
+    const covers = [...w.document.querySelectorAll('.subscore .subscore-covers')].map((el) => el.textContent);
+    expect(covers).toEqual([
+      'Title, description, canonical, structured data, duplicate tags, Open Graph',
+      'H1, words, reading level, language',
+      'Images without alt, internal links',
+      'Indexable, HTTPS, viewport, mixed content, DOM nodes, charset'
+    ]);
+    w.close();
+  });
+
+  it('what keeps the page out of search comes first, flagged', async () => {
+    const w = await openPopup(runs.noindex);
+    const first = w.document.querySelector('#topIssues > .issue');
+    expect(first.dataset.issue).toBe('Set to noindex');
+    expect(first.querySelector('.issue-flag').textContent).toBe('Keeps the page out of search');
+    w.close();
+  });
+
+  it('the top 3 problems worst first, the rest under "All N issues", folded', async () => {
+    const data = runs.duplicates;
+    const w = await openPopup(data);
+    const order = w.SBWFirstScreen.orderedIssues(data).map((i) => i.issue);
+    expect(order.length).toBeGreaterThan(3);
+    const top = [...w.document.querySelectorAll('#topIssues > .issue')].map((el) => el.dataset.issue);
+    const rest = [...w.document.querySelectorAll('#topIssues .all-issues .issue')].map((el) => el.dataset.issue);
+    expect(top).toEqual(order.slice(0, 3));
+    expect(rest).toEqual(order.slice(3));
+    const points = [...w.document.querySelectorAll('#topIssues .issue-points')].map((el) => Number(el.textContent.slice(1)));
+    expect(points).toEqual([...points].sort((a, b) => b - a));
+    const all = w.document.querySelector('#topIssues .all-issues');
+    expect(all.querySelector('.section-title').textContent).toBe(`All ${order.length} issues`);
+    expect(all.classList.contains('open')).toBe(false);
+    all.querySelector('.section-header').click();
+    expect(all.classList.contains('open')).toBe(true);
+    w.close();
+  });
+
+  it('Copy issues puts every issue on the clipboard, worst first, with why and what to change', async () => {
+    const data = runs.duplicates;
+    const w = await openPopup(data);
+    const written = [];
+    w.navigator.clipboard = { writeText: async (t) => { written.push(t); } };
+    w.document.getElementById('copyIssuesBtn').click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(written).toEqual([w.SBWFirstScreen.issuesText(data)]);
+    const text = written[0];
+    expect(text.split('\n')[0]).toBe('SEO Bandwagon: ' + data.url);
+    expect(text).toContain('Why it matters: ');
+    expect(text).toContain('What to change: ');
+    const numbered = text.split('\n').filter((l) => /^\d+\. /.test(l));
+    expect(numbered).toHaveLength(data.seoScore.issues.length);
+    w.close();
+  });
+
+  it('every other section folds under All checks, with a jump to each', async () => {
+    const w = await openPopup(runs.en);
+    const all = w.document.querySelector('#content > [data-section="allchecks"]');
+    expect(all).not.toBeNull();
+    expect(all.classList.contains('open')).toBe(false);
+    for (const id of ['meta', 'headings', 'links', 'content', 'technical']) {
+      expect(all.querySelector(`#allChecksBody > [data-section="${id}"]`)).not.toBeNull();
+      // Nothing else is left at the top level beside it.
+      expect(w.document.querySelector(`#content > [data-section="${id}"]`)).toBeNull();
+    }
+    const jumps = [...w.document.querySelectorAll('#jumpRow .jump-link')];
+    const sections = [...all.querySelectorAll('#allChecksBody > .section')];
+    expect(jumps.map((b) => b.dataset.jump)).toEqual(sections.map((s) => s.dataset.section));
+    const headings = jumps.find((b) => b.dataset.jump === 'headings');
+    w.Element.prototype.scrollIntoView = function () {};
+    headings.click();
+    expect(all.classList.contains('open')).toBe(true);
+    expect(all.querySelector('[data-section="headings"]').classList.contains('open')).toBe(true);
+    w.close();
+  });
+
+  it('"+ Add as outlet" and the tools links sit under the actions, off the first screen', async () => {
+    const w = await openPopup(runs.en);
+    const btn = w.document.getElementById('addOutletBtn');
+    expect(btn.closest('.actions-more')).not.toBeNull();
+    const hero = w.document.querySelector('.seo-hero');
+    // Below everything on the first screen: the hero, the top problems and All checks.
+    expect(hero.compareDocumentPosition(btn) & w.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(w.document.getElementById('topIssues').compareDocumentPosition(btn) & w.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const tools = w.document.querySelector('.tools');
+    if (tools) expect(tools.closest('#toolsSlot')).not.toBeNull();
     w.close();
   });
 });

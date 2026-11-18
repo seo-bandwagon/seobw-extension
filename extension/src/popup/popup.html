@@ -19,6 +19,8 @@
   </header>
 
   <div class="tab-panel active" id="tab-seo">
+    <!-- 1.14.0: the first-run guide (src/popup/guide.js), shown once after a fresh install. -->
+    <div id="firstRunGuide" class="guide" hidden></div>
     <!-- Fix round 1, item 15: lives inside the ANALYSIS tab panel, not a header-level sibling of both panels, so it never renders while the CITATIONS tab is active. -->
     <div id="themeStrip" class="theme-strip" hidden></div>
     <div id="reviewStrip"></div>
@@ -44,9 +46,10 @@
         <span>SEND ANALYSES TO SEO BANDWAGON</span>
       </label>
       <span class="footer-right">
-        <button type="button" id="creditsLink" class="credits-link">About &amp; credits</button>
+        <button type="button" id="creditsLink" class="credits-link" title="About &amp; credits">About</button>
         <span class="version-tag" id="versionTag"></span>
         <a href="#" data-review-link target="_blank" rel="noopener" class="privacy-link rate-link">RATE US ★</a>
+        <a href="../your-data/your-data.html" target="_blank" rel="noopener" class="privacy-link" id="yourDataLink">YOUR DATA</a>
         <a href="https://seobandwagon.com/privacy?utm_source=chrome_extension&amp;utm_medium=extension&amp;utm_campaign=popup" target="_blank" rel="noopener" class="privacy-link">PRIVACY</a>
       </span>
     </div>
@@ -66,11 +69,14 @@
   <script src="../lib/directory-matcher.js"></script>
   <script src="../../lib/content-analysis.js"></script>
   <script src="../lib/sub-scores.js"></script>
+  <script src="../lib/first-screen.js"></script>
+  <script src="../lib/first-run.js"></script>
   <script src="../lib/serp-preview.js"></script>
   <script src="../lib/analysis-errors.js"></script>
   <script src="../lib/review-prompt.js"></script>
   <script src="../lib/newtab-gate.js"></script>
   <script src="popup.js"></script>
+  <script src="guide.js"></script>
   <script src="../lib/fullpage-plan.js"></script>
   <script src="../lib/proof-store.js"></script>
   <script src="citations-tab.js"></script>

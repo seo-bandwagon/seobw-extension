@@ -377,35 +377,40 @@
     return out;
   }
 
+  const ALT_WHY = 'Screen readers read alt text aloud, it shows when an image fails to load, and search engines read it to know what the image shows.';
+
   // What each issue means and what to do, built from the page's own numbers.
+  // `body` says what was found and what to change; `why` (1.14.0) says why
+  // it matters, as facts about the page and its readers, never a claim about
+  // rankings (tests/unit/first-screen.test.js holds every line to that).
   // `tool` is a link the new tab offers (src/lib/sbw-data.js).
   const ISSUES = {
-    'Set to noindex': { title: 'Set to noindex', body: (d) => `The ${d.meta.noindexSource || 'robots'} meta tag says noindex, so search engines leave this page out. Remove it if the page should be found.`, tool: 'gsc' },
-    'Missing title': { title: 'No title tag', body: () => 'This page has no title. It is the first line of every search result.', tool: 'gsc' },
-    'Title too short': { title: 'Title too short', body: (d) => `${charactersOf(d.meta.title)}. Aim for 30 to 60.`, tool: 'gsc' },
-    'Title too long': { title: 'Title too long', body: (d) => `${charactersOf(d.meta.title)}. Search results cut off near 60.`, tool: 'gsc' },
-    'Missing meta description': { title: 'No meta description', body: () => 'Google writes its own snippet when you leave this out.', tool: 'gsc' },
-    'Description too short': { title: 'Description too short', body: (d) => `${charactersOf(d.meta.description)}. Aim for 120 to 160.`, tool: 'gsc' },
-    'Description too long': { title: 'Description too long', body: (d) => `${charactersOf(d.meta.description)}. Snippets cut off near 160.`, tool: 'gsc' },
-    'Missing H1': { title: 'No H1 heading', body: () => 'Nothing on the page states what it is about at heading level.', tool: null },
-    'Multiple H1 tags': { title: 'More than one H1', body: (d) => `${d.headings.h1.length} H1 headings on the page. Use one.`, tool: null },
-    'Not served over HTTPS': { title: 'Not served over HTTPS', body: () => 'Browsers mark http pages "Not secure". Serve the page over https and redirect http to it.', tool: null },
-    'No canonical URL': { title: 'No canonical tag', body: () => 'Nothing tells Google which URL is the original.', tool: 'gsc' },
-    'Conflicting canonical tags': { title: 'Canonical tags disagree', body: (d) => `${(d.meta.canonicalUrls || []).length} canonical tags name different URLs, so Google may ignore them all. Keep one.`, tool: 'gsc' },
-    'Thin content': { title: 'Thin content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page.`, tool: null },
-    'Light content': { title: 'Light content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page.`, tool: null },
-    'Many images missing alt': { title: 'Images without alt text', body: (d) => altBody(d), tool: null },
-    'Some images missing alt': { title: 'Images without alt text', body: (d) => altBody(d), tool: null },
-    'Few internal links': { title: 'Few internal links', body: (d) => `${d.links.internal.count} internal links point from this page to the rest of the site.`, tool: null },
-    'No structured data': { title: 'No structured data', body: () => 'No JSON-LD, Microdata or RDFa found, so no rich result is possible.', tool: 'rich-results' },
-    'Missing viewport': { title: 'No viewport tag', body: () => 'Phones show the desktop layout zoomed out. Add <meta name="viewport" content="width=device-width, initial-scale=1">.', tool: null },
-    'Hard to read': { title: 'Hard to read', body: (d) => `Reading level ${d.content.readability.level}, grade ${d.content.readability.fleschKincaid}.`, tool: null },
-    'Mixed content': { title: 'Mixed content', body: (d) => `${plural(d.mixedContent.mixedCount, 'resource')} loaded over http on an https page. Browsers block or warn about them.`, tool: null },
-    'No language declared': { title: 'No page language', body: () => 'The html tag has no lang attribute. Add one, such as lang="en", so browsers, screen readers and translation know the language.', tool: null },
-    'Duplicate tags': { title: 'Tags repeated in the head', body: (d) => `${duplicateTags(d.meta).join(', ')}. Keep one of each: Google picks one, and it may not be yours.`, tool: null },
-    'Missing Open Graph': { title: 'No Open Graph tags', body: () => 'Shared links fall back to whatever the platform can guess.', tool: null },
-    'Large DOM': { title: 'Large DOM', body: (d) => `${(d.technical.domElements || 0).toLocaleString()} nodes. Heavy pages render slowly.`, tool: 'pagespeed' },
-    'Not UTF-8': { title: 'Not UTF-8', body: (d) => `The page's encoding is ${(d.meta.charset.declared && !isUtf8(d.meta.charset.declared)) ? d.meta.charset.declared : d.meta.charset.document}. Use UTF-8 and declare it with <meta charset="utf-8">.`, tool: null }
+    'Set to noindex': { title: 'Set to noindex', body: (d) => `The ${d.meta.noindexSource || 'robots'} meta tag says noindex, so search engines leave this page out. Remove it if the page should be found.`, why: 'Search engines that honor noindex leave the page out of their results, so nobody finds it by searching.', tool: 'gsc' },
+    'Missing title': { title: 'No title tag', body: () => 'This page has no title. Add one of 30 to 60 characters that says what the page offers.', why: 'The title is usually the headline of the page\'s search result and the name on its browser tab.', tool: 'gsc' },
+    'Title too short': { title: 'Title too short', body: (d) => `${charactersOf(d.meta.title)}. Aim for 30 to 60.`, why: 'A short title tells searchers little, and Google may write its own headline for the result from the page instead.', tool: 'gsc' },
+    'Title too long': { title: 'Title too long', body: (d) => `${charactersOf(d.meta.title)}. Search results cut off near 60.`, why: 'Results show about 600 pixels of a title, so the end of a long one is cut off.', tool: 'gsc' },
+    'Missing meta description': { title: 'No meta description', body: () => 'This page has no meta description. Add one of 120 to 160 characters that sums up the page.', why: 'The description is often the text under the result\'s headline. Without one, Google picks text from the page.', tool: 'gsc' },
+    'Description too short': { title: 'Description too short', body: (d) => `${charactersOf(d.meta.description)}. Aim for 120 to 160.`, why: 'A short description leaves room that Google may fill with text from the page.', tool: 'gsc' },
+    'Description too long': { title: 'Description too long', body: (d) => `${charactersOf(d.meta.description)}. Snippets cut off near 160.`, why: 'Desktop results show about 920 pixels of a description, so the rest is cut off.', tool: 'gsc' },
+    'Missing H1': { title: 'No H1 heading', body: () => 'Nothing on the page states what it is about at heading level. Add one H1 that does.', why: 'The H1 is the page\'s main heading: readers, screen readers and search engines take it as what the page is about.', tool: null },
+    'Multiple H1 tags': { title: 'More than one H1', body: (d) => `${d.headings.h1.length} H1 headings on the page. Use one.`, why: 'One main heading makes the page\'s subject clear; several compete for that place.', tool: null },
+    'Not served over HTTPS': { title: 'Not served over HTTPS', body: () => 'Serve the page over https and redirect http to it.', why: 'Browsers mark http pages "Not secure", and what is sent to or from them can be read on the way.', tool: null },
+    'No canonical URL': { title: 'No canonical tag', body: () => 'Nothing names this page\'s preferred address. Add <link rel="canonical"> with it.', why: 'When one page answers at several addresses, the canonical tag says which one search engines should show.', tool: 'gsc' },
+    'Conflicting canonical tags': { title: 'Canonical tags disagree', body: (d) => `${(d.meta.canonicalUrls || []).length} canonical tags name different URLs. Keep one.`, why: 'Canonical tags that disagree give no answer, so Google may ignore them all and choose the address itself.', tool: 'gsc' },
+    'Thin content': { title: 'Thin content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page. Add what a visitor needs to know or do, such as details, steps or answers to common questions.`, why: 'Under 300 words, a page has little room to answer what a visitor came for.', tool: null },
+    'Light content': { title: 'Light content', body: (d) => `${(d.content.wordCount || 0).toLocaleString()} words on the page. Add what a visitor still needs, such as details or answers to common questions.`, why: 'Between 300 and 600 words, a page may leave a visitor\'s questions unanswered.', tool: null },
+    'Many images missing alt': { title: 'Images without alt text', body: (d) => altBody(d), why: ALT_WHY, tool: null },
+    'Some images missing alt': { title: 'Images without alt text', body: (d) => altBody(d), why: ALT_WHY, tool: null },
+    'Few internal links': { title: 'Few internal links', body: (d) => `${d.links.internal.count} internal links point from this page to the rest of the site. Link to related pages where they help the reader.`, why: 'Links to your other pages are how visitors and crawlers find them from here.', tool: null },
+    'No structured data': { title: 'No structured data', body: () => 'No JSON-LD, Microdata or RDFa found. Add JSON-LD that says what the page is, such as an Organization, a LocalBusiness, a Product or an Article.', why: 'Structured data tells search engines what the page is in a form they read, and rich results such as review stars need it.', tool: 'rich-results' },
+    'Missing viewport': { title: 'No viewport tag', body: () => 'Add <meta name="viewport" content="width=device-width, initial-scale=1">.', why: 'Without it, phones show the desktop layout zoomed out, which is hard to read and to tap.', tool: null },
+    'Hard to read': { title: 'Hard to read', body: (d) => `Reading level ${d.content.readability.level}, grade ${d.content.readability.fleschKincaid}. Use shorter sentences and plainer words.`, why: 'Long sentences and long words make a page slow going for many readers.', tool: null },
+    'Mixed content': { title: 'Mixed content', body: (d) => `${plural(d.mixedContent.mixedCount, 'resource')} loaded over http on an https page. Load them over https.`, why: 'Browsers block or flag http files on an https page, so parts of it may not load.', tool: null },
+    'No language declared': { title: 'No page language', body: () => 'The html tag has no lang attribute. Add one, such as lang="en".', why: 'Browsers, screen readers and translation tools read it to handle the page in the right language.', tool: null },
+    'Duplicate tags': { title: 'Tags repeated in the head', body: (d) => `${duplicateTags(d.meta).join(', ')}. Keep one of each.`, why: 'When a tag appears twice, Google picks one, and it may not be yours.', tool: null },
+    'Missing Open Graph': { title: 'No Open Graph tags', body: () => 'Add og:title, og:description and og:image.', why: 'Social sites and chat apps read Open Graph tags for a shared link\'s title, picture and description; without them they guess.', tool: null },
+    'Large DOM': { title: 'Large DOM', body: (d) => `${(d.technical.domElements || 0).toLocaleString()} nodes. Remove wrappers and hidden markup the page doesn't need.`, why: 'Pages with many elements take longer to lay out and to respond, most of all on phones.', tool: 'pagespeed' },
+    'Not UTF-8': { title: 'Not UTF-8', body: (d) => `The page's encoding is ${(d.meta.charset.declared && !isUtf8(d.meta.charset.declared)) ? d.meta.charset.declared : d.meta.charset.document}. Use UTF-8 and declare it with <meta charset="utf-8">.`, why: 'Other encodings can show letters such as é or ñ as garbled characters.', tool: null }
   };
 
   function charactersOf(t) {
@@ -417,7 +422,7 @@
   function altBody(d) {
     const img = d.images;
     const decorative = img.decorative ? ` ${plural(img.decorative, 'more has', 'more have')} alt="" and count as decorative.` : '';
-    return `${img.missingAlt.count} of ${img.total} images have no alt attribute.${decorative}`;
+    return `${img.missingAlt.count} of ${img.total} images have no alt attribute.${decorative} Describe each one in its alt text, or give a purely decorative one alt="".`;
   }
 
   const POINTS = {};
@@ -473,13 +478,13 @@
     });
   }
 
-  // `{ title, body, tool, points }` for an issue label, or null.
+  // `{ title, body, why, tool, points }` for an issue label, or null.
   function fixFor(issue, data) {
     const spec = Object.prototype.hasOwnProperty.call(ISSUES, issue) ? ISSUES[issue] : null;
     if (!spec) return null;
     let body = '';
     try { body = spec.body(data || {}); } catch (e) { body = ''; }
-    return { title: spec.title, body: body, tool: spec.tool, points: POINTS[issue] || 0 };
+    return { title: spec.title, body: body, why: spec.why || '', tool: spec.tool, points: POINTS[issue] || 0 };
   }
 
   function getGrade(score) {

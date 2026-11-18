@@ -1,6 +1,6 @@
 # SEO Bandwagon Extension — Roadmap
 
-**Current version: 1.13.10** · Manifest V3 · vanilla JS, zero dependencies, no build step
+**Current version: 1.14.0** · Manifest V3 · vanilla JS, zero dependencies, no build step
 
 Instant on-page SEO analysis, local-SEO citation management (NAP checks, proof
 screenshots, campaign triggers), and link-building review, synced to your SEO
@@ -282,14 +282,14 @@ The review's UX advice (2026-11-17): one click stays, the critical problems
 come first, each says why it matters and what to change, and the detail is
 there without crowding a beginner. Extension only: nothing new is sent and no
 website work.
-- [ ] The first screen: score, letter grade and "N of 18 checks passed", with one line on what the score is (an on-page checklist, 100 minus the points the issues cost; never rankings); each sub-score with a line on what it covers
-- [ ] The top 3 problems first, the worst first (what keeps the page out of the index, then what costs the most points), each with why it matters and what to change; "All N issues" opens the rest; Copy issues
-- [ ] Everything else folded under "All checks", with a jump to each section; the checks panels (Link Check, Indexability, Hreflang, Rendering, Structured Data) reached from there, unchanged
-- [ ] "+ Add as outlet" off the first screen (to Link Building's side panel or a menu, the builder's call)
-- [ ] A short guide the first time the popup opens after install: what the score is, where the checks are, what an account adds; shown once, reopened from About
-- [ ] "Your data", a page of the extension's own: what runs on the device and stays there; what is sent, when and to whom, one row per flow with its switch (`src/lib/consent.js`); what seobandwagon.com keeps and for how long; what the browser syncs (the key and the settings, `storage.sync`); linked from the popup footer, Options and the guide
-- [ ] Moved from the popup release (1.16.0, now 1.19.0): issues by severity, jump to section, Copy issues, the grade with what the score measures
-- [ ] No permission, host or data flow; install warning measured unchanged (`getPermissionWarningsByManifest`)
+- [x] The first screen: score, letter grade and "N of 18 checks passed", with one line on what the score is (an on-page checklist, 100 minus the points the issues cost; never rankings); each sub-score with a line on what it covers. "N of M": M counts the checks that apply to the page, with how many don't (owner, 2026-11-17); each sub-score's line is read from its checks (`src/lib/first-screen.js`)
+- [x] The top 3 problems first, the worst first (what keeps the page out of the index, then what costs the most points), each with why it matters and what to change; "All N issues" opens the rest; Copy issues. A why line for each of the 26 issue labels (`ISSUES` in `lib/content-analysis.js`), and a what-to-change line where the text gave only a count; a test holds them to no claim about rankings, positions or traffic
+- [x] Everything else folded under "All checks", with a jump to each section; the checks panels (Link Check, Indexability, Hreflang, Rendering, Structured Data) reached from there, unchanged
+- [x] "+ Add as outlet" off the first screen (to Link Building's side panel or a menu, the builder's call): to the row under Copy JSON and Export, with the tools links (owner, 2026-11-17); the side panel keeps its own
+- [x] A short guide the first time the popup opens after install: what the score is, where the checks are, what an account adds; shown once, reopened from About. A fresh install only, not an update (owner, 2026-11-17; `src/lib/first-run.js`)
+- [x] "Your data", a page of the extension's own: what runs on the device and stays there; what is sent, when and to whom, one row per flow with its switch (`src/lib/consent.js`); what seobandwagon.com keeps and for how long; what the browser syncs (the account key and the API address, `storage.sync`; every setting stays on the device, in `storage.local`. Corrected 2026-11-17: this line said "the key and the settings"); linked from the popup footer, Options and the guide (`src/your-data/`)
+- [x] Moved from the popup release (1.16.0, now 1.19.0): issues by severity, jump to section, Copy issues, the grade with what the score measures
+- [x] No permission, host or data flow; install warning measured unchanged (`getPermissionWarningsByManifest`)
 
 ### 1.15.0: onboarding after feature releases (the first half of 1.14.0 until 2026-11-17)
 The approved design (vault `Extension_Onboarding_And_Fixes_Design`, part 3),
@@ -374,6 +374,111 @@ AI citation and entity analysis beyond 1.16.0's structured-data checks
 after 2.0.0 and built on the AI Overview study's results (owner, 2026-11-17).
 
 ---
+
+## Changelog — v1.14.0 (2026-11-17)
+
+The first run, the eight items above: the popup explains itself to someone
+who has never seen it. Extension only: nothing new is sent, no permission,
+host or content script changes, and the install warnings are the same
+(measured below). The owner approved the plan and its six calls on
+2026-11-17 ("Approved").
+
+- **The first screen** (`src/lib/first-screen.js`, pure, from the score's own
+  checks so it can't disagree with the score):
+  - The ring shows the score and `GRADE` with its letter, then "N of M checks
+    passed", where M counts the checks that apply to the page (18 on most; a
+    page with no images has 17) and, beside it, how many don't apply: a
+    check that doesn't apply costs no points but didn't pass either (owner's
+    call 1). Under the ring, one line: "An on-page checklist: 100 minus the
+    points the issues cost. It doesn't measure or predict rankings."
+  - Each sub-score has a line naming its checks, read from `CHECKS` (Meta:
+    title, description, canonical, structured data, duplicate tags, Open
+    Graph; Content: H1, words, reading level, language; Links: images
+    without alt, internal links; Tech: indexable, HTTPS, viewport, mixed
+    content, DOM nodes, charset).
+  - **The top 3 problems**, worst first: noindex first (it keeps the page out
+    of search, flagged so), then the points each costs, ties in the
+    checklist's order. Each row: the issue, why it matters, what to change,
+    and its points. "All N issues" opens the rest in the same order; **Copy
+    issues** copies them all as plain text (the address, score, grade and
+    checks line, then each issue with "Why it matters" and "What to change").
+  - **Why lines:** each of the 26 issue labels in `ISSUES`
+    (`lib/content-analysis.js`) has a `why`, which `fixFor()` returns, so the
+    new tab and page-checks panel can show it too (they show what they showed
+    before). The lines that gave only a count ("1,234 words on the page") now
+    say what to change too. `tests/unit/first-screen.test.js` fails on a line
+    that names rankings, positions, traffic or visibility, says "fix", or
+    spells British.
+- **All checks:** one folded section holds every other section (Page Meta,
+  Core Web Vitals, Headings, Links & Images, Content, Tech Stack, Technical)
+  and the five checks panels, which mount into it where they always went
+  (Indexability after Page Meta, and so on; Link Check last). A row of links
+  inside it jumps to each section, read from what mounted. A section inside
+  stays folded until it is opened itself (the shared sheet opens every
+  `.section-content` under an open `.section`, so nested ones are folded by
+  a rule of their own).
+- **"+ Add as outlet" and the tools links** moved from above the score to a
+  row under Copy JSON, Export and Clear (owner's call 2). Link Building's side
+  panel keeps its "+ Add current tab as outlet".
+- **The first-run guide** (`src/lib/first-run.js`, `src/popup/guide.js`): the
+  worker marks it pending on `onInstalled` with reason `install` only (owner's
+  call 3: people updating get 1.15.0's welcome page instead), in every build.
+  The popup shows it at the top of the ANALYSIS tab, above the analysis
+  rather than over it: what the score is, where the checks are, what a free
+  account adds, and that nothing needs one. "Got it" stores that it was seen;
+  About & credits has "Show the first-run guide". Buttons: Got it, Your data,
+  Connect an account (Settings).
+- **Your data** (`src/your-data/your-data.html`, the facts in
+  `src/lib/your-data.js`): on this device (the analysis, the last 500
+  analyses in up to 8 MB, proof screenshots, the pages the checks read
+  without cookies, figures already looked up); what is sent, when and to
+  whom, one row per flow in `consent.js` with `sends` and `why` in its own
+  words and its switch, then the sends a click makes (filing a citation,
+  adding an outlet, the account key) and the two pages the extension opens;
+  what seobandwagon.com keeps and for how long, from seobandwagon.com/privacy
+  (last updated November 16, 2026): saved analyses until you ask us to delete
+  them at info@seobandwagon.com (owner's call 6; the site deletes none on its
+  own), result addresses and search words with their figures for 30 days
+  without who asked; and what the browser syncs: the account key and the API
+  address, the only two values the extension writes to `storage.sync` (a
+  test reads every `storage.sync.set` in `extension/`). The switches are the
+  real ones: "Send analyses" writes `dataCollection`, each other flow's
+  switch calls `SBWConsent.accept` or `withdraw` right under its words, and
+  each status line is `SBWConsent.check()`, what every send asks first.
+  Linked from the popup footer (YOUR DATA), Settings (Preferences), the guide
+  and About & credits. The footer's About & credits button reads "About" so
+  the links stay on one line in the popup's 500 px; the panel keeps its name.
+- **Also:** "Not scored: no English text recognized" (was "recognised").
+  `your_data` joins the `utm_campaign` surfaces, for the Your data page's
+  link to the privacy policy.
+- **Tests:** `tests/unit/first-screen.test.js` (the order, the checks line,
+  the covers lines, the copied text, the guide, and every why line against
+  the ranking-claim, "fix" and British patterns), `tests/unit/your-data.test.js`
+  (a row per flow, each with its switch, the kept periods, the sync keys, no
+  browser named), and the popup on the saved pages in
+  `tests/unit/saved-pages.test.js`. `tests/e2e/first-run.spec.mjs`, offline
+  in Chromium: a fresh install marks the guide, the popup shows it once and
+  About reopens it; a saved page analyzed in the browser draws the first
+  screen from that analysis and Copy issues writes its text; on Your data,
+  keyword data's switch makes `SBWConsent.check('keywordData')` answer `ok`
+  and then `not_accepted`, and "Send analyses" off makes `captureSync`
+  `category_off` and `SBW.isDataCollectionEnabled()` false, which the popup's
+  own switch then shows; neither page makes a request.
+- **Measured:** `getPermissionWarningsByManifest` in Playwright's Chromium
+  156.0.8078.4 on 1.13.10's and 1.14.0's packaged manifests (each built with
+  `npm run zip`): Chrome's four, "Read and change your data on
+  search.google.com, seobandwagon.com, and www.google.com", "Replace the page
+  you see when opening a new tab", "Read your browsing history", "Manage your
+  apps, extensions, and themes", for both; Edge's two, the first and the
+  third, for both. Each packaged manifest differs from 1.13.10's only in
+  `version` and `version_name`. `npm run lint:firefox`: 0 errors, 65
+  warnings, as 1.13.10 (the new pages build their nodes with DOM calls, not
+  `innerHTML`).
+- **Store text:** the reviewer notes (`docs/CWS-LISTING.md` §7) say where the
+  checks panels are now; paste-ready in `CHROMEWEBSTORE.md` under "Submission
+  F's texts". The description (§2) is unchanged until submission F is cut, so
+  the description the owner pastes to fix the live listing describes what the
+  store serves (owner's call 4).
 
 ## Changelog — v1.13.10 (2026-11-16)
 

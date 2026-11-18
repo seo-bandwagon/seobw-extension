@@ -2466,3 +2466,130 @@ pre {
   color: var(--paper-95);
 }
 .credits-about { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--hairline-soft); }
+
+/* ============================================================
+   1.14.0 — the first screen, the first-run guide, Your data
+   ============================================================ */
+
+/* The checks line, what the score is, what each sub-score covers */
+.checks-line { font-family: var(--font-body); font-size: 11px; color: var(--paper-95); margin-bottom: 6px; }
+.checks-na { color: var(--paper-50); }
+.seo-hero .ring-cap { letter-spacing: 0.1em; }
+.subscores { grid-template-columns: 1fr 1fr; row-gap: 6px; }
+.subscore { flex-wrap: wrap; row-gap: 1px; }
+.subscore-covers {
+  flex-basis: 100%;
+  font-family: var(--font-body);
+  font-size: 9px;
+  line-height: 1.3;
+  color: var(--paper-50);
+}
+.score-line {
+  padding: 7px 14px 8px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--paper-70);
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* The top problems, worst first */
+.top-issues { flex: none; border-bottom: 1px solid var(--hairline); }
+.top-issues-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px 4px; }
+.top-issues-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  color: var(--ink);
+  line-height: 1;
+  text-transform: uppercase;
+}
+.top-issues-head .section-action-btn { margin-left: auto; }
+.issue-why { color: var(--paper-95); font-size: 10.5px; line-height: 1.4; }
+.issue-flag {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--error);
+}
+.all-issues > .section-header { border-bottom: none; }
+
+/* All checks: one folded section around every other one */
+.all-checks > .section-header .section-title { color: var(--accent-text); }
+.all-checks > .section-content > .all-checks-body .section-header { padding-left: 22px; }
+.jump-row { display: flex; flex-wrap: wrap; gap: 5px 6px; padding: 9px 14px; border-bottom: 1px solid var(--hairline-soft); }
+.jump-link {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--paper-70);
+  cursor: pointer;
+}
+.jump-link:hover { border-color: var(--pink); color: var(--ink); }
+
+/* "+ Add as outlet" and the tools links, under the actions */
+.actions-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 0 14px 10px; }
+.tools-slot .tools { padding: 0; border-bottom: none; }
+
+/* The first-run guide, at the top of the ANALYSIS tab */
+.guide[hidden] { display: none; }
+.guide { padding: 12px 14px; background: var(--pink-08); border-bottom: 1px solid var(--pink-30); }
+.guide-title { font-family: var(--font-heading); font-size: 16px; letter-spacing: 0.12em; color: var(--ink); }
+.guide-steps { margin: 8px 0 10px; padding-left: 18px; display: grid; gap: 6px; }
+.guide-step { font-family: var(--font-body); font-size: 11px; line-height: 1.45; color: var(--paper-95); }
+.guide-step-h { display: block; font-weight: 600; color: var(--ink); }
+.guide-step-p { display: block; color: var(--paper-70); }
+.guide-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide-btn {
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid var(--edge);
+  color: var(--paper-70);
+}
+.guide-btn:hover { border-color: var(--pink); color: var(--ink); }
+.guide-ok { background: var(--pink); border-color: var(--pink); color: var(--ink); }
+.guide-ok:hover { background: var(--pink-hover); }
+
+/* Your data (src/your-data/your-data.html) */
+.page-your-data .container { max-width: 640px; }
+.page-your-data .yd-rows { display: grid; gap: 12px; }
+.page-your-data .yd-row { padding-bottom: 12px; border-bottom: 1px solid var(--hairline-soft); }
+.page-your-data .yd-row:last-child { border-bottom: none; padding-bottom: 0; }
+.page-your-data .yd-row-title { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+.page-your-data .yd-row-text,
+.page-your-data .yd-row-why,
+.page-your-data .yd-row-to,
+.page-your-data .yd-lead { font-family: var(--font-body); font-size: 12px; line-height: 1.5; color: var(--paper-70); }
+.page-your-data .yd-row-why, .page-your-data .yd-row-to { margin-top: 4px; }
+.page-your-data .yd-k { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper-50); margin-right: 4px; }
+.page-your-data .yd-switch { margin: 10px 0 2px; }
+.page-your-data .yd-status { font-family: var(--font-mono); font-size: 10.5px; color: var(--paper-50); margin: 0; }
+.page-your-data .yd-subtitle { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper-50); margin: 20px 0 10px; }
+.page-your-data .yd-lead { margin: 0 0 12px; }
+.page-your-data .yd-lead:last-child { margin: 12px 0 0; }
+.page-your-data .yd-list { margin: 0 0 10px; padding-left: 18px; font-family: var(--font-body); font-size: 12px; color: var(--paper-95); }
+.page-your-data a { color: var(--accent-text); }
+
+/* A section folded inside All checks stays folded: the rules above open
+   every .section-content under an open .section, nested ones too. */
+.all-checks.open .section:not(.open) > .section-content { display: none; }
+.all-checks.open .section:not(.open) > .section-header .section-arrow { transform: none; }
+
+/* The footer holds one more link (Your data): every item on one line. */
+.footer-right { gap: 8px; }
+.footer-right > * { white-space: nowrap; }
+.footer-toggle { gap: 10px; }
+.footer-toggle .toggle-label span { white-space: nowrap; }

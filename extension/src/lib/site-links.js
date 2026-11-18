@@ -44,6 +44,7 @@
     'serp_overlay',   // "Connect your account" under a Google result
     'new_tab',        // the new tab page's account cards
     'about',          // the popup's About & credits (1.13.8: support)
+    'your_data',      // the extension's Your data page (1.14.0)
     'install',        // the welcome tab on a first install
     'uninstall'       // the survey the browser opens after an uninstall
   ]);
