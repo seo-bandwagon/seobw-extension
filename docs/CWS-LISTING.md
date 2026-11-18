@@ -1,6 +1,8 @@
-# Chrome Web Store listing text — in review: v1.13.10 (submission E)
+# Chrome Web Store listing text — next submission: F (1.14.0, with 1.15.0)
 
 The listing text for the next store submission, kept current with `main`.
+**2026-11-18:** the store serves 1.13.10 (submission E, published; Google's
+update server served 1.13.10 that day). Nothing is in review.
 **2026-11-17, 1.14.0** (the first run; it goes with 1.15.0 as submission F):
 only §7, the reviewer notes, changes: the checks panels are reached through
 "All checks" now, and the first run is described. Paste-ready in
@@ -8,9 +10,9 @@ only §7, the reviewer notes, changes: the checks panels are reached through
 as it is until F is cut, so the text pasted to fix the live listing describes
 the version the store serves. No permission, host or data-use answer changes.
 **2026-11-17:** the store serves 1.13.8 (submission D, published; Google's
-update server served 1.13.8 that day), and 1.13.10 is in review (submission
+update server served 1.13.8 that day), and 1.13.10 went into review (submission
 E, 1.13.9 and 1.13.10, submitted that day as a staged publish, run
-`44178890544`). Neither changes a listing text, so nothing below changed in
+`44178890544`; published 2026-11-18). Neither changes a listing text, so nothing below changed in
 the dashboard with it; its release notes are §6.
 **2026-11-16:** the store served 1.13.5 (the combined submission, a check run
 read "Published now: PUBLISHED (1.13.5)"), and 1.13.8 is in review
