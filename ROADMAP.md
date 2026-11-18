@@ -67,7 +67,7 @@ probably finish up a few more versions quickly"; until then B was
 1.10.3–1.11.0 and C 1.12.0–1.13.0); **D** one upload of 1.13.8 (1.13.6–1.13.8,
 published 2026-11-17; planned as 1.13.3–1.15.0 with the Firefox gate, which
 was not run, since the Firefox package has no sidebar until 2.0.0); **E** one
-upload of 1.13.10, carrying 1.13.9 (in review since 2026-11-17); then **F**
+upload of 1.13.10, carrying 1.13.9 (published 2026-11-18); then **F**
 1.14.0–1.15.0, **G** 1.16.0–1.18.0 and **H** 1.19.0–2.0.0 (owner, 2026-11-17),
 so the welcome page, which opens on feature updates from 1.15.0 on, opens
 three times (the 2026-10-23 plan said at most twice, at D and E, which went out
